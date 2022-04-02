@@ -1,8 +1,4 @@
-# Plutus Platform starter project
-![CI](https://github.com/input-output-hk/plutus-starter/actions/workflows/test.yml/badge.svg?branch=main)
-
-
-This project gives a simple starter project for using the Plutus Platform.
+# Snapbrillia Quadratic Voting Project
 
 ## Setting up
 
@@ -191,12 +187,11 @@ when exiting it by pressing return.
 Finally, also node that the PAB also exposes a websocket, which you can read about in
 the general [PAB Architecture documentation](https://github.com/input-output-hk/plutus-apps/blob/main/plutus-pab/ARCHITECTURE.adoc).
 
-
 ## Support/Issues/Community
 
-Issues can be filed in the [GitHub Issue tracker](https://github.com/input-output-hk/plutus-starter/issues).
+Issues can be filed in the [GitHub Issue tracker](https://github.com/Snapbrillia/quadraticfunding/issues).
 
-For more interactive discussion, you can join the [IOG Technical Community
-Discord](https://discord.gg/sSF5gmDBYg).
+For more interactive discussion, you can join the [Snapbrillia
+Discord](https://discord.gg/JtNTGGBwz7).
 
 Thanks!
