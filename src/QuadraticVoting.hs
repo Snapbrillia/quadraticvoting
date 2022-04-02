@@ -86,14 +86,14 @@ data VoteParams = VoteParams
   , vpFund :: !Integer
   }deriving (Generic, ToJSON, FromJSON, ToSchema)
 
-data EndParams = EndParams
-  { epFund :: !Integer
-  }deriving (Generic, ToJSON, FromJSON, ToSchema)
-
 type VoteSchema =
         Endpoint "start" StartParams
     .\/ Endpoint "vote" VoteParams
-    .\/ Endpoint "collect" EndParams
+    .\/ Endpoint "collect" Integer
+
+-- Below is the function to start a fund, it is under development
+-- start :: String 
+-- start = ""
 
 --  Function to cast their vote and the project they are voting for.
 vote :: forall w s e. AsContractError e => VoteParams -> Contract w s e ()
@@ -108,6 +108,8 @@ vote vp = do
   ledgerTx <- submitTxConstraints typedValidator tx
   void $ awaitTxConfirmed $ getCardanoTxId ledgerTx
 
+
+-- Function for projects to collect their funds 
 collect :: forall w s e. AsContractError e => Contract w s e ()
 collect = do
   pkh <- ownPaymentPubKeyHash
@@ -131,12 +133,11 @@ collect = do
       Left _ -> False
       Right (Datum e) -> case PlutusTx.fromBuiltinData e of
         Nothing -> False
-        Just d -> beneficiary d == pkh 
+        Just d -> beneficiary d == pkh
 
 endpoints :: Contract () VoteSchema Text ()
-endpoints = awaitPromise ( start' `select` vote' `select` collect') >> endpoints
+endpoints = awaitPromise (vote' `select` collect') >> endpoints
   where
-    start' = endpoint @"start" start
     vote' = endpoint @"vote" vote
     collect' = endpoint @"collect" $ const collect
 
