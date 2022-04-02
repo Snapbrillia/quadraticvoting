@@ -1,0 +1,96 @@
+cabal-version:      2.4
+name:               plutus-starter
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+license: Apache-2.0
+license-files: LICENSE
+author:             Your name
+maintainer:         Your email
+
+-- A copyright notice.
+-- copyright:
+-- category:
+-- extra-source-files: CHANGELOG.md
+
+flag defer-plugin-errors
+    description:
+        Defer errors from the plugin, useful for things like Haddock that can't handle it.
+    default: False
+    manual: True
+
+common lang
+    default-language:   Haskell2010
+    ghc-options:
+      -Wall -Wnoncanonical-monad-instances
+      -Wincomplete-uni-patterns -Wincomplete-record-updates
+      -Wredundant-constraints -Widentities -rtsopts
+      -- See Plutus Tx readme
+      -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+    if flag(defer-plugin-errors)
+        ghc-options: -fplugin-opt PlutusTx.Plugin:defer-errors
+
+library
+    import: lang
+    exposed-modules:
+      MyModule
+      Plutus.Contracts.Game
+    build-depends:
+      base >= 4.9 && < 5,
+      aeson,
+      bytestring,
+      containers,
+      freer-extras,
+      playground-common,
+      plutus-contract,
+      plutus-tx-plugin,
+      plutus-tx,
+      plutus-ledger,
+    hs-source-dirs: src examples/src
+
+test-suite plutus-example-projects-test
+  import: lang
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs: examples/test
+  other-modules:
+    Spec.Game
+  build-depends:
+    plutus-tx -any,
+    plutus-tx-plugin,
+    plutus-contract -any,
+    plutus-ledger -any,
+    plutus-starter -any
+  build-depends:
+    base >=4.9 && <5,
+    tasty -any,
+    tasty-hunit -any,
+    tasty-hedgehog >=0.2.0.0
+
+executable plutus-starter-pab
+  import: lang
+  main-is: Main.hs
+  hs-source-dirs: pab
+  ghc-options:
+    -threaded
+  build-depends:
+    base >= 4.9 && < 5,
+    data-default -any,
+    plutus-contract -any,
+    plutus-pab -any,
+    plutus-starter -any,
+    aeson -any,
+    freer-simple -any,
+    prettyprinter -any,
+    freer-extras -any,
+    plutus-ledger -any,
+    openapi3 -any,
+
