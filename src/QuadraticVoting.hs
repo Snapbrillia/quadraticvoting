@@ -17,7 +17,7 @@ import Data.Void (Void)
 import GHC.Generics (Generic)
 import Ledger hiding (singleton)
 import Ledger.Ada as Ada
-import Ledger.Constraints   (TxConstraints)
+import Ledger.Constraints (TxConstraints)
 import qualified Ledger.Constraints as Constraints
 import qualified Ledger.Typed.Scripts as Scripts
 import Playground.Contract (ToSchema, ensureKnownCurrencies, printJson, printSchemas, stage)
@@ -34,10 +34,11 @@ import Prelude (IO, Semigroup (..), Show, String)
 -- User will start a fund and specify which fund it is.Then others can cast their vote in this fund.
 -- Once the fund ends , projects in this fund can collect their grants.
 data VotingDatum = VotingDatum
-  { beneficiary :: PaymentPubKeyHash
-  , amount :: Integer
-  , fund :: Integer
-  }deriving (Show)
+  { beneficiary :: PaymentPubKeyHash,
+    amount :: Integer,
+    fund :: Integer
+  }
+  deriving (Show)
 
 PlutusTx.unstableMakeIsData ''VotingDatum
 
@@ -53,6 +54,7 @@ mkValidator dat r ctx =
     signedByBeneficiary = txSignedBy info $ unPaymentPubKeyHash $ beneficiary dat
 
 data Voting
+
 instance Scripts.ValidatorTypes Voting where
   type DatumType Voting = VotingDatum
   type RedeemerType Voting = Integer
@@ -75,45 +77,54 @@ scrAddress :: Ledger.Address
 scrAddress = scriptAddress validator
 
 data StartParams = StartParams
-  { spMatchAmount :: !Integer
-  , spRoundEnd :: !POSIXTime
-  , spFund :: !String 
-  }deriving (Generic, ToJSON, FromJSON, ToSchema)
+  { spMatchAmount :: !Integer,
+    spRoundEnd :: !POSIXTime,
+    spFund :: !Integer
+  }
+  deriving (Generic, ToJSON, FromJSON, ToSchema)
 
 data VoteParams = VoteParams
-  { vpProjectPubKey :: !PaymentPubKeyHash
-  , vpAmount :: !Integer
-  , vpFund :: !Integer
-  }deriving (Generic, ToJSON, FromJSON, ToSchema)
+  { vpProjectPubKey :: !PaymentPubKeyHash,
+    vpAmount :: !Integer,
+    vpFund :: !Integer
+  }
+  deriving (Generic, ToJSON, FromJSON, ToSchema)
+
+data CollectParams = CollectParams
+  { cpFund :: !Integer
+  }
+  deriving (Generic, ToJSON, FromJSON, ToSchema)
 
 type VoteSchema =
-        Endpoint "start" StartParams
+  Endpoint "start" StartParams
     .\/ Endpoint "vote" VoteParams
-    .\/ Endpoint "collect" Integer
+    .\/ Endpoint "collect" CollectParams
 
 -- Below is the function to start a fund, it is under development
--- start :: String 
+-- start :: String
 -- start = ""
 
 --  Function to cast their vote and the project they are voting for.
 vote :: forall w s e. AsContractError e => VoteParams -> Contract w s e ()
 vote vp = do
-  let dat =
-        VotingDatum
-          { amount = vpAmount vp 
-          , beneficiary = vpProjectPubKey vp
-          , fund = vpFund vp 
-          }
-      tx = Constraints.mustPayToTheScript dat $ Ada.lovelaceValueOf $ vpAmount vp
-  ledgerTx <- submitTxConstraints typedValidator tx
-  void $ awaitTxConfirmed $ getCardanoTxId ledgerTx
+  if (vpAmount vp) /= 1000000000
+    then logInfo @String $ "not enough to vote"
+    else do
+      let dat =
+            VotingDatum
+              { amount = vpAmount vp,
+                beneficiary = vpProjectPubKey vp,
+                fund = vpFund vp
+              }
+          tx = Constraints.mustPayToTheScript dat $ Ada.lovelaceValueOf $ vpAmount vp
+      ledgerTx <- submitTxConstraints typedValidator tx
+      void $ awaitTxConfirmed $ getCardanoTxId ledgerTx
 
-
--- Function for projects to collect their funds 
-collect :: forall w s e. AsContractError e => Contract w s e ()
-collect = do
+-- Function for projects to collect their funds
+collect :: forall w s e. AsContractError e => CollectParams -> Contract w s e ()
+collect cp = do
   pkh <- ownPaymentPubKeyHash
-  utxos <- Map.filter (isSuitable pkh ) <$> utxosAt scrAddress
+  utxos <- Map.filter (isSuitable pkh) <$> utxosAt scrAddress
   if Map.null utxos
     then logInfo @String $ "no funds available"
     else do
@@ -139,7 +150,7 @@ endpoints :: Contract () VoteSchema Text ()
 endpoints = awaitPromise (vote' `select` collect') >> endpoints
   where
     vote' = endpoint @"vote" vote
-    collect' = endpoint @"collect" $ const collect
+    collect' = endpoint @"collect" collect
 
 mkSchemaDefinitions ''VoteSchema
 
