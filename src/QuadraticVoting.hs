@@ -29,16 +29,16 @@ import qualified PlutusTx
 import qualified PlutusTx.Builtins as Builtins
 import PlutusTx.Prelude hiding (Semigroup (..), unless)
 import Text.Printf (printf)
-import Prelude (IO, Semigroup (..), Show, String)
+import Prelude (IO, Semigroup (..), Show, String, (^) , toInteger)
 
 -- User will start a fund and specify which fund it is.Then others can cast their vote in this fund.
 -- Once the fund ends , projects in this fund can collect their grants.
 data VotingDatum = VotingDatum
-  { beneficiary :: PaymentPubKeyHash,
-    amount :: Integer,
-    fund :: Integer
-  }
-  deriving (Show)
+  { beneficiary :: PaymentPubKeyHash
+  , amount :: Integer
+  , fund :: Integer
+  , paymentPubKey :: PaymentPubKeyHash
+  }deriving (Show)
 
 PlutusTx.unstableMakeIsData ''VotingDatum
 
@@ -52,6 +52,7 @@ mkValidator dat r ctx =
 
     signedByBeneficiary :: Bool
     signedByBeneficiary = txSignedBy info $ unPaymentPubKeyHash $ beneficiary dat
+
 
 data Voting
 
@@ -84,9 +85,10 @@ data StartParams = StartParams
   deriving (Generic, ToJSON, FromJSON, ToSchema)
 
 data VoteParams = VoteParams
-  { vpProjectPubKey :: !PaymentPubKeyHash,
-    vpAmount :: !Integer,
-    vpFund :: !Integer
+  { vpAmount :: !Integer,
+    vpFund :: !Integer,
+    vpProjectPubKey :: !PaymentPubKeyHash,
+    vpPaymentPubKey :: !PaymentPubKeyHash
   }
   deriving (Generic, ToJSON, FromJSON, ToSchema)
 
@@ -107,18 +109,28 @@ type VoteSchema =
 --  Function to cast their vote and the project they are voting for.
 vote :: forall w s e. AsContractError e => VoteParams -> Contract w s e ()
 vote vp = do
-  if (vpAmount vp) /= 1000000000
-    then logInfo @String $ "not enough to vote"
+  previousUtxos <- Map.filter (isSuitable (vpPaymentPubKey vp) (vpFund vp)) <$> utxosAt scrAddress
+  if (vpAmount vp) /= (((toInteger (Map.size previousUtxos) + 1) ^ 2)  * 1000000000)
+    then logInfo @String $ printf "not right amount to vote %d" (Map.size previousUtxos) 
     else do
       let dat =
             VotingDatum
               { amount = vpAmount vp,
                 beneficiary = vpProjectPubKey vp,
-                fund = vpFund vp
+                fund = vpFund vp , 
+                paymentPubKey = vpPaymentPubKey vp
               }
           tx = Constraints.mustPayToTheScript dat $ Ada.lovelaceValueOf $ vpAmount vp
       ledgerTx <- submitTxConstraints typedValidator tx
       void $ awaitTxConfirmed $ getCardanoTxId ledgerTx
+      logInfo @String $ printf "vote success "
+    where
+    isSuitable :: PaymentPubKeyHash -> Integer -> ChainIndexTxOut -> Bool
+    isSuitable pkh fundRound o = case _ciTxOutDatum o of
+      Left _ -> False
+      Right (Datum e) -> case PlutusTx.fromBuiltinData e of
+        Nothing -> False
+        Just d -> paymentPubKey d == pkh && fund d == fundRound
 
 -- Function for projects to collect their funds
 collect :: forall w s e. AsContractError e => CollectParams -> Contract w s e ()
