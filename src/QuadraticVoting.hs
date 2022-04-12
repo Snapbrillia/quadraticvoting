@@ -87,8 +87,7 @@ data StartParams = StartParams
 data VoteParams = VoteParams
   { vpAmount :: !Integer,
     vpFund :: !Integer,
-    vpProjectPubKey :: !PaymentPubKeyHash,
-    vpPaymentPubKey :: !PaymentPubKeyHash
+    vpProjectPubKey :: !PaymentPubKeyHash
   }
   deriving (Generic, ToJSON, FromJSON, ToSchema)
 
