@@ -36,6 +36,9 @@ import Prelude (IO, Semigroup (..), Show, String, show, toInteger, (^))
 -- 2)Users can enroll into the fund as a project, donate to match pool, and cast votes
 -- 3)Finally user can end the fund , and funds from match pooi will be distributed quadratically
 
+-- I used the isuitable function to filter utxos. it worked before the datum was nested like this
+-- After changing the datum to below , the function does not work anymore. I think it is problems with acessing
+-- nested field values but i can't find any resources on it.The is suitableFunction is under the vote function
 data DatumAction = Start StartDatum | MatchPool MatchPoolDatum | Enroll EnrollDatum | Vote VoteDatum deriving (Show)
 
 -- Unique identifier of fund you are staring. Used for things such as enrolling into  a specific fund , ending a specific fund , counting votes etc......
