@@ -9,6 +9,8 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
+-- module QuadraticTool () where
+
 import Control.Monad hiding (fmap)
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Map as Map
@@ -31,19 +33,6 @@ import PlutusTx.Prelude hiding (Semigroup (..), unless)
 import Text.Printf (printf)
 import Prelude (IO, Semigroup (..), Show, String, show, toInteger, (^))
 
---- ###IMPORTANT####
----- ####### How to combine Datum Structures into one main Datum for the validator
--- My idea here is to follow a similar pattern with the Auction contract from PPP
--- BUt it cannot be identical cause we do not use endpoints
--- So my proposal is, to have one createFundDatum with the needed info
--- ANd then create one data RedeemerActions = Vote | ContributeToMatchPool | DistributeFunds -- and each of those constructors will be each datum
--- ANd in our mkVAlidator function to check each of these 3 actions accordingly and based on
--- what it is, include the right conditions
--- Then we should include an endpoint tho for the allocation of prizes final function
--- Lets think about that
--- ##################################################################################
-
-
 -- ###### Step 1: Fund Creation Datum (By organization, or whale user) ########################
 -- When someone (organization) wants to create a fund, all they basically do is:
 -- They send ADA to our contract, which will be locked, with a Datum Attached to that UtxO
@@ -63,7 +52,17 @@ data FundCreationDatum = FundCreationDatum {
          vPrizeAmount  :: Integer,
          vProjectLabel :: [String],
          vPrizeDistributionRatio :: [Integer]
-            }
+            } deriving (Show)
+
+instance Eq FundCreationDatum where
+    {-# INLINABLE (==) #-}
+    a == b = (vFundOwner              a == vFundOwner   b) &&
+             (vPrizeAmount            a == vPrizeAmount b) &&
+             (vProjectLabel           a == vProjectLabel   b) &&
+             (vPrizeDistributionRatio a == vPrizeDistributionRatio b)
+
+PlutusTx.unstableMakeIsData ''FundCreationDatum
+PlutusTx.makeLift ''FundCreationDatum
 
 -- ############################################################################################
 -- ############################################################################################
@@ -80,7 +79,16 @@ data ProjectSubmitDatum = ProjectSubmitDatum {
         vProjectOwner      :: PaymentPubKeyHash,
         vProjectCategory   :: String,
         vFundPayIdentifier :: PaymentPubKeyHash
-             }
+             } deriving (Show)
+
+instance Eq ProjectSubmitDatum where
+    {-# INLINABLE (==) #-}
+    b == c = (vProjectOwner           b       == vProjectOwner c) &&
+             (vProjectCategory        b       == vProjectCategory c) &&
+             (vFundPayIdentifier      b       == vFundPayIdentifier c)
+
+PlutusTx.unstableMakeIsData ''ProjectSubmitDatum
+PlutusTx.makeLift ''ProjectSubmitDatum
 
 -- ############################################################################################
 -- ############################################################################################
@@ -97,8 +105,19 @@ data VotingActionDatum = VotingActionDatum {
        vVoterPayAddress    :: PaymentPubKeyHash,
        vNumberOfVotes      :: Integer,
        vAdaLovelaceValue   :: Integer,
-       vActionName         :: "Vote"
-}
+       vActionName         :: String
+} deriving (Show)
+
+instance Eq VotingActionDatum where
+    {-# INLINABLE (==) #-}
+    b == c = (vProjectToVote      b       == vProjectToVote c) &&
+             (vVoterPayAddress    b       == vVoterPayAddress c) &&
+             (vNumberOfVotes      b       == vNumberOfVotes c) &&
+             (vAdaLovelaceValue   b       == vAdaLovelaceValue c) &&
+             (vActionName         b       == vActionName c)
+
+PlutusTx.unstableMakeIsData ''VotingActionDatum
+PlutusTx.makeLift ''VotingActionDatum
 
 
 -- Explain that properly when push code!!!!
@@ -113,12 +132,59 @@ data VotingActionDatum = VotingActionDatum {
 -- This is the process when a user/whale/organization adds more funds to an existing fund
 -- ############################################################################################
 
-data AddFundsToFund = AddFundsToFund {
+data ConToMatchPool = ConToMatchPool {
         vFundAddress :: PaymentPubKey,
         vPrizeFund   :: Integer
-}
+} deriving (Show)
+
+instance Eq ConToMatchPool where
+    {-# INLINABLE (==) #-}
+    b == c = (vFundAddress      b       == vFundAddress c) &&
+             (vPrizeFund        b       == vPrizeFund c) 
 -- ############################################################################################
 -- ############################################################################################
+
+
+--- ###IMPORTANT #1    ####
+---- ####### How to combine Datum Structures into one main Datum for the validator
+-- My idea here is to follow a similar pattern with the Auction contract from PPP
+-- BUt it cannot be identical cause we do not use endpoints
+-- So my proposal is, to have one createFundDatum with the needed info
+-- ANd then create one data RedeemerActions = Vote | ContributeToMatchPool | DistributeFunds -- and each of those constructors will be each datum
+-- ANd in our mkVAlidator function to check each of these 3 actions accordingly and based on
+-- what it is, include the right conditions
+-- ##################################################################################
+
+
+data QuadraAction = SubProject ProjectSubmitDatum | VoteProject VotingActionDatum | ContribPool ConToMatchPool deriving (Show)
+
+-- | DistribPrize DistributPrizesDatum
+
+PlutusTx.unstableMakeIsData ''QuadraACtion
+PlutusTx.makeLift ''QuadraACtion
+
+
+-- ## IMPORTANT #2########
+-- ## Constructing The FInal Overall Datum
+
+data QuadraDatum = QuadraDatum
+    { qCreateFund  :: !(Maybe FundCreationDatum),
+      qVoting      :: !(Maybe VotingActionDatum),
+      qSubProject  :: !(Maybe ProjectSubmitDatum),
+      qContrPool   :: !(Maybe ConToMatchPool)
+    } deriving P.Show
+
+PlutusTx.unstableMakeIsData ''QuadraDatum
+PlutusTx.makeLift ''QuadraDatum
+
+data QuadraVoting
+instance Scripts.ValidatorTypes QuadraVoting where
+    type instance RedeemerType QuadraVoting = QuadraAction
+    type instance DatumType QuadraVoting = QuadraDatum
+
+-- ###################################################################
+-- ###################################################################
+
 
 
 
