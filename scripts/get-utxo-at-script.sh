@@ -4,5 +4,5 @@ curl -H "project_id: $1" \
 
 for i in $(cat data_hashs.txt);do
 	content="$(curl -H "project_id: $1" -s "https://cardano-testnet.blockfrost.io/api/v0/scripts/datum/$i")"
-        echo "$content"| sed "/error/d"  >> output.txt
+        echo "$content"| sed "/error/d"  > output.txt
 done
