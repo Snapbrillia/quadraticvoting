@@ -123,8 +123,8 @@ instance Eq QVFDatum where
   QVFDatum projs0 == QVFDatum projs1 =
     let
       go res []       []       = res
-      go res []       _        = False
-      go res _        []       = False
+      go _   []       _        = False
+      go _   _        []       = False
       -- Plutus is not lazy and (&&) would be inefficient.
       go res (x : xs) (y : ys) =
         if res then
@@ -271,9 +271,6 @@ mkQVFValidator keyHolder currDatum action ctx =
       in
       outVal == (inVal <> Ada.lovelaceValueOf addedAmount)
       -- }}}
-
-    -- | Should check whether the distribution follows
-    --   the quadratic formula (not implemented yet).
     correctlyDistributed = True -- TODO
   in
   traceIfFalse "Invalid input datum hash." validInputDatum &&
@@ -323,6 +320,8 @@ mkQVFValidator keyHolder currDatum action ctx =
     Distribute                       ->
       -- {{{
       let
+        -- | Should check whether the distribution follows
+        --   the quadratic formula (not implemented yet).
         correctlyDistributed = True -- TODO
       in
          traceIfFalse "Unauthorized." (txSignedBy info $ unPaymentPubKeyHash keyHolder)
@@ -405,8 +404,8 @@ addDonationToProject donor lovelaces proj =
 getDatumFromUTxO :: TxOut -> (DatumHash -> Maybe Datum) -> Maybe QVFDatum
 getDatumFromUTxO TxOut {..} converter = do
   -- {{{
-  datumHash <- txOutDatumHash
-  Datum d   <- converter datumHash
+  dh      <- txOutDatumHash
+  Datum d <- converter dh
   PlutusTx.fromBuiltinData d
   -- }}}
 -- }}}
