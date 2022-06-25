@@ -96,13 +96,6 @@ instance Eq Project where
   a == b = (pAddress a == pAddress b)
   -- It suffices to compare the addresses.
 
-instance Ord Project where
-  {-# INLINABLE compare #-}
-  compare a b =
-    compare
-      (addressToBuiltinByteString $ pAddress a)
-      (addressToBuiltinByteString $ pAddress b)
-
 PlutusTx.unstableMakeIsData ''Project
 -- }}}
 
@@ -113,6 +106,17 @@ PlutusTx.unstableMakeIsData ''Project
 data QVFDatum = QVFDatum
   { qvfProjects :: ![Project]
   }
+
+
+{-# INLINABLE sortProjects #-}
+sortProjects :: [Project] -> [Project]
+sortProjects =
+  sortBy
+    ( \p0 p1 ->
+        compare
+          (addressToBuiltinByteString $ pAddress p0)
+          (addressToBuiltinByteString $ pAddress p1)
+    )
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
@@ -128,7 +132,7 @@ instance Eq QVFDatum where
         else
           False
     in
-    go True (sort projs0) (sort projs1)
+    go True (sortProjects projs0) (sortProjects projs1)
 
 PlutusTx.unstableMakeIsData ''QVFDatum
 
@@ -229,13 +233,7 @@ mkQVFValidator keyHolder currDatum action ctx =
     mOutputDatum :: Maybe QVFDatum
     mOutputDatum =
       -- {{{
-      case txOutDatumHash ownOutput of
-        Nothing ->
-          traceError "Expected a datum hash attached to the output."
-        Just dh ->
-          case findDatum dh info of
-            Just (Datum d) -> PlutusTx.fromBuiltinData d -- TODO
-            Nothing        -> traceError "Bad datum."
+      getDatumFromUTxO ownOutput (`findDatum` info)
       -- }}}
 
     -- | Checks if the attached input datum matches the
