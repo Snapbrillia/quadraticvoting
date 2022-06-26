@@ -58,10 +58,17 @@ import           Schema                      (ToSchema)
 -- DONATIONS
 -- {{{
 data Donations = Donations
-  { getDonations :: Map PaymentPubKeyHash Integer
+  { getDonations :: [(!PubKeyHash, !Integer)]
   }
 
--- CAUTION: Not sure if Plutus's Map supports auto-sorting.
+{-# INLINABLE sortDonations #-}
+sortDonations :: [(PubKeyHash, Integer)]
+              -> [(PubKeyHash, Integer)]
+sortDonations =
+  sortBy
+    ( \(pkh0, _) (pkh1, _) ->
+    )
+
 instance Eq Donations where
   {-# INLINABLE (==) #-}
   Donations ds0 == Donations ds1 = ds0 == ds1
@@ -160,7 +167,7 @@ PlutusTx.unstableMakeIsData ''AddProjectParams
 -- DONATE PARAMETERS
 -- {{{
 data DonateParams = DonateParams
-  { dpDonor   :: !PaymentPubKeyHash
+  { dpDonor   :: !PubKeyHash
   , dpProject :: !Address
   , dpAmount  :: !Integer
   }
@@ -189,7 +196,7 @@ PlutusTx.makeIsDataIndexed ''QVFAction
 -- QVF VALIDATOR 
 -- {{{
 {-# INLINABLE mkQVFValidator #-}
-mkQVFValidator :: PaymentPubKeyHash
+mkQVFValidator :: PubKeyHash
                -> QVFDatum
                -> QVFAction
                -> ScriptContext
@@ -229,7 +236,8 @@ mkQVFValidator keyHolder currDatum action ctx =
       -- }}}
 
     -- | Possible attached datum to the output UTxO
-    --   (not properly implemented).
+    --   (may not be properly implemented... could
+    --   be valid with a "multi-witness transaction).
     mOutputDatum :: Maybe QVFDatum
     mOutputDatum =
       -- {{{
@@ -271,7 +279,6 @@ mkQVFValidator keyHolder currDatum action ctx =
       in
       outVal == (inVal <> Ada.lovelaceValueOf addedAmount)
       -- }}}
-    correctlyDistributed = True -- TODO
   in
   traceIfFalse "Invalid input datum hash." validInputDatum &&
   case action of
@@ -287,45 +294,44 @@ mkQVFValidator keyHolder currDatum action ctx =
       && traceIfFalse "Project already exists." projectIsNew
       && traceIfFalse "Invalid output datum hash." (isOutputDatumValid newDatum)
       -- }}}
-    Donate     DonateParams     {..} ->
+    Donate DonateParams {..}    ->
       -- {{{
       let
-        currProjects                = qvfProjects currDatum
-        go :: ([Project], Maybe Project, [Project]) -> ([Project], Maybe Project, [Project])
-        go acc@([], Nothing, _)     = acc
-        go acc@(_, Just _, _)       = acc
-        go (p : ps, Nothing, acc)
+        currProjects = qvfProjects currDatum
+        mNewDatum    =
           -- {{{
-          | pAddress p == dpProject =
-              ( ps
-              , Just $ addDonationToProject dpDonor dpAmount p
-              , acc
-              )
-          | otherwise =
-              go (ps, Nothing, p : acc)
+          updateIf
+            (\p -> pAddress p == dpProject)
+            (addDonationToProject dpDonor dpAmount)
+            currProjects
           -- }}}
-        newDatum =
+        newDatum     =
           -- {{{
-          case go (currProjects, Nothing, []) of
-            (_, Nothing, _) ->
+          case mNewDatum of
+            Nothing ->
               traceError "Target project not found."
-            (leftPs, Just updatedP, rightPs) ->
-              QVFDatum $ leftPs ++ (updatedP : rightPs)
+            Just newPs ->
+              QVFDatum newPs
           -- }}}
       in
          traceIfFalse "Donation less than minimum."    (dpAmount < minLovelace)
       && traceIfFalse "Not enough Lovelaces provided." (enoughAdaInOutput dpAmount)
       && traceIfFalse "Invalid output datum hash."     (isOutputDatumValid newDatum)
       -- }}}
-    Distribute                       ->
+    Distribute                  ->
       -- {{{
       let
+        allOutputs = txInfoOutputs info
         -- | Should check whether the distribution follows
         --   the quadratic formula (not implemented yet).
         correctlyDistributed = True -- TODO
       in
-         traceIfFalse "Unauthorized." (txSignedBy info $ unPaymentPubKeyHash keyHolder)
-      && traceIfFalse "Improper distribution." correctlyDistributed
+         traceIfFalse
+           "Unauthorized."
+           (txSignedBy info keyHolder)
+      && traceIfFalse
+           "Improper distribution."
+           correctlyDistributed
       -- }}}
   -- }}}
 
@@ -338,7 +344,7 @@ instance Scripts.ValidatorTypes QVF where
     type RedeemerType QVF = QVFAction
 
 
-typedQVFValidator :: PaymentPubKeyHash -> Scripts.TypedValidator QVF
+typedQVFValidator :: PubKeyHash -> Scripts.TypedValidator QVF
 typedQVFValidator keyHolder =
   -- {{{
   Scripts.mkTypedValidator @QVF
@@ -352,15 +358,15 @@ typedQVFValidator keyHolder =
   -- }}}
 
 
-qvfValidator :: PaymentPubKeyHash -> Validator
+qvfValidator :: PubKeyHash -> Validator
 qvfValidator = Scripts.validatorScript . typedQVFValidator
 
 
-qvfValidatorHash :: PaymentPubKeyHash -> ValidatorHash
+qvfValidatorHash :: PubKeyHash -> ValidatorHash
 qvfValidatorHash = Scripts.validatorHash . typedQVFValidator
 
 
-qvfAddress :: PaymentPubKeyHash -> Address
+qvfAddress :: PubKeyHash -> Address
 qvfAddress = scriptAddress . qvfValidator
 -- }}}
 -- }}}
@@ -368,6 +374,45 @@ qvfAddress = scriptAddress . qvfValidator
 
 -- UTILS 
 -- {{{
+{-# INLINABLE takeSqrt #-}
+takeSqrt :: Integer -> Maybe Integer
+takeSqrt val =
+  -- {{{
+  case isqrt val of
+    Imaginary ->
+      Nothing
+    Exactly sqrt ->
+      Just sqrt
+    Approximately sqrt ->
+      Just sqrt
+  -- }}}
+
+
+{-# INLINABLE updateIf #-}
+-- | If an element of the given list satisfies the
+--   predicate, that single element is updated,
+--   and the new list is returned (applies to the
+--   leftmost item only). If no items satify the
+--   predicate, @Nothing@ is returned.
+updateIf :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
+updateIf pred fn xs =
+  -- {{{
+  let
+    go :: ([a], Maybe a, [a]) -> ([a], Maybe a, [a])
+    go acc@([], Nothing, _) = acc
+    go acc@(_ , Just _ , _) = acc
+    go (p : ps, Nothing, acc)
+      | pred p    = (ps, Just $ fn p, acc)
+      | otherwise = go (ps, Nothing, p : acc)
+  in
+  case go (xs, Nothing, []) of
+    (_, Nothing, _) ->
+      Nothing
+    (leftXs, Just updatedX, rightXs) ->
+      Just $ leftXs ++ (updatedX : rightXs)
+  -- }}}
+
+
 {-# INLINABLE initiateProject #-}
 initiateProject :: AddProjectParams -> Project
 initiateProject AddProjectParams {..} =
@@ -376,21 +421,25 @@ initiateProject AddProjectParams {..} =
     { pAddress   = appAddress
     , pLabel     = appLabel
     , pRequested = appRequested
-    , pDonations = Donations Map.empty
+    , pDonations = Donations []
     }
   -- }}}
 
 
 {-# INLINABLE addDonation #-}
-addDonation :: PaymentPubKeyHash -> Integer -> Donations -> Donations
+addDonation :: PubKeyHash -> Integer -> Donations -> Donations
 addDonation donor lovelaces (Donations kvs) =
   -- {{{
-  Donations $ Map.unionWith (+) kvs $ Map.singleton donor lovelaces
+  case updateIf (\(d, _) -> d == donor) (\(k, v) -> (k, v + lovelaces)) kvs of
+    Nothing     ->
+      Donations $ (donor, lovelaces) : kvs
+    Just newKVs ->
+      Donations newKVs
   -- }}}
 
 
 {-# INLINABLE addDonationToProject #-}
-addDonationToProject :: PaymentPubKeyHash -> Integer -> Project -> Project
+addDonationToProject :: PubKeyHash -> Integer -> Project -> Project
 addDonationToProject donor lovelaces proj =
   -- {{{
   proj
