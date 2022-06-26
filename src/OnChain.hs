@@ -62,12 +62,14 @@ data Donations = Donations
   }
 
 {-# INLINABLE sortDonations #-}
-sortDonations :: [(PubKeyHash, Integer)]
-              -> [(PubKeyHash, Integer)]
+sortDonations :: [(PubKeyHash, Integer)] -> [(PubKeyHash, Integer)]
 sortDonations =
+  -- {{{
   sortBy
-    ( \(pkh0, _) (pkh1, _) ->
+    ( \(PubKeyHash bs0, _) (PubKeyHash bs1, _) ->
+        compare bs0 bs1
     )
+  -- }}}
 
 instance Eq Donations where
   {-# INLINABLE (==) #-}
