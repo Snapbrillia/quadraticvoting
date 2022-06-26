@@ -33,7 +33,7 @@ import           Data.Text                   (Text)
 import           GHC.Generics
 import           Ledger
 import qualified Ledger.Typed.Scripts        as Scripts
-import           Ledger.Ada                  as Ada
+import qualified Ledger.Ada                  as Ada
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
 import           Plutus.V1.Ledger.Value      (valueOf, flattenValue)
@@ -56,7 +56,7 @@ import           Schema                      (ToSchema)
 -- DONATIONS
 -- {{{
 data Donations = Donations
-  { getDonations :: [(!PubKeyHash, !Integer)]
+  { getDonations :: ![(PubKeyHash, Integer)]
   }
 
 {-# INLINABLE sortDonations #-}
@@ -92,16 +92,16 @@ addressToBuiltinByteString Address {..} =
 
 
 data Project = Project
-  { pAddress   :: !Address
-  , pLabel     :: !BuiltinByteString
-  , pRequested :: !Integer
-  , pDonations :: !Donations
+  { pPubKeyHash :: !PubKeyHash
+  , pLabel      :: !BuiltinByteString
+  , pRequested  :: !Integer
+  , pDonations  :: !Donations
   }
 
 instance Eq Project where
   {-# INLINABLE (==) #-}
-  a == b = (pAddress a == pAddress b)
-  -- It suffices to compare the addresses.
+  a == b = (pPubKeyHash a == pPubKeyHash b)
+  -- It suffices to compare the public key hashes.
 
 PlutusTx.unstableMakeIsData ''Project
 -- }}}
@@ -122,8 +122,8 @@ sortProjects =
   sortBy
     ( \p0 p1 ->
         compare
-          (addressToBuiltinByteString $ pAddress p0)
-          (addressToBuiltinByteString $ pAddress p1)
+          (getPubKeyHash $ pPubKeyHash p0)
+          (getPubKeyHash $ pPubKeyHash p1)
     )
   -- }}}
 
@@ -166,9 +166,9 @@ initialDatum = QVFDatum [] 0
 -- | A different datatype than `Project` to disallow
 --   addition of a project with pre-filled donations.
 data AddProjectParams = AddProjectParams
-  { appAddress   :: !Address
-  , appLabel     :: !BuiltinByteString
-  , appRequested :: !Integer
+  { appPubKeyHash :: !PubKeyHash
+  , appLabel      :: !BuiltinByteString
+  , appRequested  :: !Integer
   }
 
 PlutusTx.unstableMakeIsData ''AddProjectParams
@@ -179,7 +179,7 @@ PlutusTx.unstableMakeIsData ''AddProjectParams
 -- {{{
 data DonateParams = DonateParams
   { dpDonor   :: !PubKeyHash
-  , dpProject :: !Address
+  , dpProject :: !PubKeyHash
   , dpAmount  :: !Integer
   }
 
@@ -191,7 +191,7 @@ PlutusTx.unstableMakeIsData ''DonateParams
 -- {{{
 data QVFAction
   = AddProject AddProjectParams -- ^ Add projects that can be funded.
-  | Donate     DonateParams     -- ^ Attempt donation to a project (identified simply by its address).
+  | Donate     DonateParams     -- ^ Attempt donation to a project (identified simply by its public key hash).
   | Contribute Integer          -- ^ Add to the prize pool.
   | Distribute                  -- ^ Distribute the fund to projects per QVF
  
@@ -319,8 +319,8 @@ mkQVFValidator keyHolder currDatum action ctx =
         currProjects = qvfProjects currDatum
         mNewProjects =
           -- {{{
-          updateIf
-            (\p -> pAddress p == dpProject)
+          updateIfWith
+            ((== dpProject) . pPubKeyHash)
             (addDonationToProject dpDonor dpAmount)
             currProjects
           -- }}}
@@ -361,10 +361,24 @@ mkQVFValidator keyHolder currDatum action ctx =
     Distribute                  ->
       -- {{{
       let
-        allOutputs = txInfoOutputs info
-        -- | Should check whether the distribution follows
-        --   the quadratic formula (not implemented yet).
-        correctlyDistributed = True -- TODO
+        prizeMappings :: [(PubKeyHash, Integer)]
+        (extraFromRounding, prizeMappings) =
+          foldProjects (qvfPool currDatum) (qvfProjects currDatum)
+        mapFn (projPKH, projPrize) =
+          -- {{{
+          if projPrize == lovelaceFromValue (valuePaidTo info projPKH) then
+            True
+          else
+            -- let
+            --   projLabel =
+            --     fmap pLabel
+            --       (find ((== projPKH) . pPubKeyHash) qvfProjects)
+            -- in
+            traceError "Invalid prize distribution."
+          -- }}}
+        -- | Checks whether the distribution follows
+        --   the quadratic formula.
+        correctlyDistributed = all mapFn prizeMappings
       in
          traceIfFalse
            "Unauthorized."
@@ -380,8 +394,8 @@ mkQVFValidator keyHolder currDatum action ctx =
 -- {{{
 data QVF
 instance Scripts.ValidatorTypes QVF where
-    type DatumType    QVF = QVFDatum
-    type RedeemerType QVF = QVFAction
+  type DatumType    QVF = QVFDatum
+  type RedeemerType QVF = QVFAction
 
 
 typedQVFValidator :: PubKeyHash -> Scripts.TypedValidator QVF
@@ -415,35 +429,41 @@ qvfAddress = scriptAddress . qvfValidator
 -- UTILS 
 -- {{{
 {-# INLINABLE takeSqrt #-}
-takeSqrt :: Integer -> Maybe Integer
+-- | Calls `traceError` if a negative input is given.
+takeSqrt :: Integer -> Integer
 takeSqrt val =
   -- {{{
   case isqrt val of
     Imaginary ->
-      Nothing
+      traceError "Square root of a negative number."
     Exactly sqrt ->
-      Just sqrt
+      sqrt
     Approximately sqrt ->
-      Just sqrt
+      sqrt
   -- }}}
 
 
-{-# INLINABLE updateIf #-}
+{-# INLINABLE lovelaceFromValue #-}
+lovelaceFromValue :: Value -> Integer
+lovelaceFromValue = Ada.getLovelace . Ada.fromValue
+
+
+{-# INLINABLE updateIfWith #-}
 -- | If an element of the given list satisfies the
 --   predicate, that single element is updated,
 --   and the new list is returned (applies to the
 --   leftmost item only). If no items satify the
 --   predicate, @Nothing@ is returned.
-updateIf :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
-updateIf pred fn xs =
+updateIfWith :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
+updateIfWith predicate fn xs =
   -- {{{
   let
-    go :: ([a], Maybe a, [a]) -> ([a], Maybe a, [a])
+    -- go :: ([a], Maybe a, [a]) -> ([a], Maybe a, [a])
     go acc@([], Nothing, _) = acc
     go acc@(_ , Just _ , _) = acc
     go (p : ps, Nothing, acc)
-      | pred p    = (ps, Just $ fn p, acc)
-      | otherwise = go (ps, Nothing, p : acc)
+      | predicate p = (ps, Just $ fn p, acc)
+      | otherwise   = go (ps, Nothing, p : acc)
   in
   case go (xs, Nothing, []) of
     (_, Nothing, _) ->
@@ -458,10 +478,10 @@ initiateProject :: AddProjectParams -> Project
 initiateProject AddProjectParams {..} =
   -- {{{
   Project
-    { pAddress   = appAddress
-    , pLabel     = appLabel
-    , pRequested = appRequested
-    , pDonations = Donations []
+    { pPubKeyHash = appPubKeyHash
+    , pLabel      = appLabel
+    , pRequested  = appRequested
+    , pDonations  = Donations []
     }
   -- }}}
 
@@ -470,7 +490,7 @@ initiateProject AddProjectParams {..} =
 addDonation :: PubKeyHash -> Integer -> Donations -> Donations
 addDonation donor lovelaces (Donations kvs) =
   -- {{{
-  case updateIf (\(d, _) -> d == donor) (\(k, v) -> (k, v + lovelaces)) kvs of
+  case updateIfWith ((== donor) . fst) (fmap (lovelaces +)) kvs of
     Nothing     ->
       Donations $ (donor, lovelaces) : kvs
     Just newKVs ->
@@ -499,13 +519,93 @@ getDatumFromUTxO TxOut {..} converter = do
   -- }}}
 
 
-{-# INLINABLE applyQVF #-}
-applyQVF :: [Project] -> ()
-applyQVF ps =
+{-# INLINABLE foldDonations #-}
+-- | Notating Lovelace contributions to each project
+--   as @v@, this is the quadratic formula to represent
+--   vote count:
+--   \[
+--       V = (\sum{\sqrt{v}})^2
+--   \]
+foldDonations :: Donations -> (Integer, Integer)
+foldDonations (Donations ds) =
+  -- {{{
   let
-    foldFn (pool, votes) p = undefined
+    foldFn (_, lovelaces) (pool, votes) =
+      ( pool + lovelaces
+      , takeSqrt lovelaces + votes
+      )
+    (total, initVotes) = foldr foldFn (0, 0) ds
   in
-  undefined
+  (total, initVotes * initVotes)
+  -- }}}
+
+
+{-# INLINABLE foldProjects #-}
+-- | To find how much money each project receives, we first find
+--   share of pool (\(c\)) with:
+--   \[
+--       c = \frac{v}{\sum{V}}
+--   \]
+--   And finally find the matched amount (\(k\)) by multiplying \(c\)
+--   with the total contributions (\(P\)):
+--   \[
+--       k = P * c
+--   \]
+--   As \(\sum{k}\) can be smaller than \(P\), this function also returns
+--   the difference between the two, \(r\):
+--   \[
+--       r = P - \sum{k}
+--   \]
+foldProjects :: Integer -> [Project] -> (Integer, [(PubKeyHash, Integer)])
+foldProjects initialPool ps =
+  -- {{{
+  let
+    foldFn :: Project
+           -> (Integer, [(PubKeyHash, Integer)], Integer)
+           -> (Integer, [(PubKeyHash, Integer)], Integer)
+    foldFn p (pool, votes, accVotes) =
+      -- {{{
+      let
+        (projsFunds, projsVotes) = foldDonations $ pDonations p
+      in
+      ( pool + projsFunds
+      , (pPubKeyHash p, projsVotes) : votes
+      , accVotes + projsVotes
+      )
+      -- }}}
+    (prizePool, addrsToVotes, totalVotes) =
+      -- {{{
+      foldr foldFn (initialPool, [], 0) ps
+      -- }}}
+  in
+  if totalVotes <= 0 then
+    -- {{{
+    traceError "No votes cast."
+    -- }}}
+  else
+    -- {{{
+    let
+      finalFoldFn :: (PubKeyHash, Integer)
+                  -> (Integer, [(PubKeyHash, Integer)])
+                  -> (Integer, [(PubKeyHash, Integer)])
+      finalFoldFn (p, votes) (accPrizes, ps2prizes) =
+        -- {{{
+        let
+          -- @divide@ rounds down.
+          prize = (votes * prizePool) `divide` totalVotes
+        in
+        ( accPrizes + prize
+        , (p, prize) : ps2prizes
+        )
+        -- }}}
+      (distributedPrizes, projectsToPrizes) =
+        foldr finalFoldFn (0, []) addrsToVotes
+    in
+    ( prizePool - distributedPrizes
+    , projectsToPrizes
+    )
+    -- }}}
+  -- }}}
 -- }}}
 
 
