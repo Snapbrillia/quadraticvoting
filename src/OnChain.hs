@@ -154,6 +154,7 @@ instance Eq QVFDatum where
 
 PlutusTx.unstableMakeIsData ''QVFDatum
 
+initialDatum :: QVFDatum
 initialDatum = QVFDatum [] 0
 -- }}}
 -- }}}
@@ -250,7 +251,7 @@ mkQVFValidator keyHolder currDatum action ctx =
 
     -- | Possible attached datum to the output UTxO
     --   (may not be properly implemented... could
-    --   be valid with a "multi-witness transaction).
+    --   be valid with a "multi-witness" transaction).
     mOutputDatum :: Maybe QVFDatum
     mOutputDatum =
       -- {{{
@@ -379,6 +380,9 @@ mkQVFValidator keyHolder currDatum action ctx =
         -- | Checks whether the distribution follows
         --   the quadratic formula.
         correctlyDistributed = all mapFn prizeMappings
+        keyHolderImbursed =
+           (lovelaceFromValue (valuePaidTo info keyHolder))
+             >= (minLovelace + extraFromRounding)
       in
          traceIfFalse
            "Unauthorized."
@@ -386,6 +390,9 @@ mkQVFValidator keyHolder currDatum action ctx =
       && traceIfFalse
            "Improper distribution."
            correctlyDistributed
+      && traceIfFalse
+           "Key holder not imbursed."
+           keyHolderImbursed
       -- }}}
   -- }}}
 
@@ -520,8 +527,8 @@ getDatumFromUTxO TxOut {..} converter = do
 
 
 {-# INLINABLE foldDonations #-}
--- | Notating Lovelace contributions to each project
---   as @v@, this is the quadratic formula to represent
+-- | Notating Lovelace contributions to each project as 
+--   \(v\), this is the quadratic formula to represent
 --   vote count:
 --   \[
 --       V = (\sum{\sqrt{v}})^2
@@ -547,9 +554,9 @@ foldDonations (Donations ds) =
 --       c = \frac{v}{\sum{V}}
 --   \]
 --   And finally find the matched amount (\(k\)) by multiplying \(c\)
---   with the total contributions (\(P\)):
+--   with the total contributions, \(P\):
 --   \[
---       k = P * c
+--       k = c * P
 --   \]
 --   As \(\sum{k}\) can be smaller than \(P\), this function also returns
 --   the difference between the two, \(r\):
