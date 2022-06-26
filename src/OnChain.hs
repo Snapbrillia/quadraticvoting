@@ -40,8 +40,6 @@ import           Plutus.V1.Ledger.Value      (valueOf, flattenValue)
 import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
-import           PlutusTx.AssocMap           (Map)
-import qualified PlutusTx.AssocMap           as Map
 import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Builtins.Internal  (BuiltinInteger)
 import           PlutusTx.Prelude            hiding (Semigroup(..), unless)
@@ -111,41 +109,52 @@ PlutusTx.unstableMakeIsData ''Project
 
 -- QVF DATUM
 -- {{{
--- `newtype` is worse than data for Plutus.
 data QVFDatum = QVFDatum
   { qvfProjects :: ![Project]
+  , qvfPool     :: !Integer
   }
 
 
 {-# INLINABLE sortProjects #-}
 sortProjects :: [Project] -> [Project]
 sortProjects =
+  -- {{{
   sortBy
     ( \p0 p1 ->
         compare
           (addressToBuiltinByteString $ pAddress p0)
           (addressToBuiltinByteString $ pAddress p1)
     )
+  -- }}}
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
-  QVFDatum projs0 == QVFDatum projs1 =
-    let
-      go res []       []       = res
-      go _   []       _        = False
-      go _   _        []       = False
-      -- Plutus is not lazy and (&&) would be inefficient.
-      go res (x : xs) (y : ys) =
-        if res then
-          go (x == y) xs ys
-        else
-          False
-    in
-    go True (sortProjects projs0) (sortProjects projs1)
+  qvf0 == qvf1 =
+    if qvfPool qvf0 == qvfPool qvf1 then
+      -- {{{
+      let
+        projs0                   = qvfProjects qvf0
+        projs1                   = qvfProjects qvf1
+        go res []       []       = res
+        go _   []       _        = False
+        go _   _        []       = False
+        -- Plutus is not lazy and (&&) would be inefficient.
+        go res (x : xs) (y : ys) =
+          if res then
+            go (x == y) xs ys
+          else
+            False
+      in
+      go True (sortProjects projs0) (sortProjects projs1)
+      -- }}}
+    else
+      -- {{{
+      False
+      -- }}}
 
 PlutusTx.unstableMakeIsData ''QVFDatum
 
-initialDatum = QVFDatum []
+initialDatum = QVFDatum [] 0
 -- }}}
 -- }}}
 
@@ -183,13 +192,15 @@ PlutusTx.unstableMakeIsData ''DonateParams
 data QVFAction
   = AddProject AddProjectParams -- ^ Add projects that can be funded.
   | Donate     DonateParams     -- ^ Attempt donation to a project (identified simply by its address).
+  | Contribute Integer          -- ^ Add to the prize pool.
   | Distribute                  -- ^ Distribute the fund to projects per QVF
  
 
 PlutusTx.makeIsDataIndexed ''QVFAction
   [ ('AddProject, 0)
   , ('Donate    , 1)
-  , ('Distribute, 2)
+  , ('Contribute, 2)
+  , ('Distribute, 3)
   ]
 -- }}}
 -- }}}
@@ -272,8 +283,8 @@ mkQVFValidator keyHolder currDatum action ctx =
 
     -- | Helper function to see if @ownOutput@
     --   carries enough Lovelaces.
-    enoughAdaInOutput :: Integer -> Bool
-    enoughAdaInOutput addedAmount =
+    enoughAddedInOutput :: Integer -> Bool
+    enoughAddedInOutput addedAmount =
       -- {{{
       let
         inVal  = txOutValue ownInput
@@ -290,17 +301,23 @@ mkQVFValidator keyHolder currDatum action ctx =
         newProject   = initiateProject addProjectParams
         currProjects = qvfProjects currDatum
         projectIsNew = notElem newProject currProjects
-        newDatum     = QVFDatum $ newProject : currProjects
+        newDatum     = currDatum {qvfProjects = newProject : currProjects}
       in
-         traceIfFalse "Project submission fees not paid." (enoughAdaInOutput minLovelace)
-      && traceIfFalse "Project already exists." projectIsNew
-      && traceIfFalse "Invalid output datum hash." (isOutputDatumValid newDatum)
+         traceIfFalse
+           "Project submission fees not paid."
+           (enoughAddedInOutput minLovelace)
+      && traceIfFalse
+           "Project already exists."
+           projectIsNew
+      && traceIfFalse
+           "Invalid output datum hash."
+           (isOutputDatumValid newDatum)
       -- }}}
     Donate DonateParams {..}    ->
       -- {{{
       let
         currProjects = qvfProjects currDatum
-        mNewDatum    =
+        mNewProjects =
           -- {{{
           updateIf
             (\p -> pAddress p == dpProject)
@@ -309,16 +326,37 @@ mkQVFValidator keyHolder currDatum action ctx =
           -- }}}
         newDatum     =
           -- {{{
-          case mNewDatum of
+          case mNewProjects of
             Nothing ->
               traceError "Target project not found."
             Just newPs ->
-              QVFDatum newPs
+              currDatum {qvfProjects = newPs}
           -- }}}
       in
-         traceIfFalse "Donation less than minimum."    (dpAmount < minLovelace)
-      && traceIfFalse "Not enough Lovelaces provided." (enoughAdaInOutput dpAmount)
-      && traceIfFalse "Invalid output datum hash."     (isOutputDatumValid newDatum)
+         traceIfFalse
+           "Donation less than minimum."
+           (dpAmount < minLovelace)
+      && traceIfFalse
+           "Not enough Lovelaces provided."
+           (enoughAddedInOutput dpAmount)
+      && traceIfFalse
+           "Invalid output datum hash."
+           (isOutputDatumValid newDatum)
+      -- }}}
+    Contribute contribution     ->
+      -- {{{
+      let
+        newDatum = currDatum {qvfPool = contribution + qvfPool currDatum}
+      in
+         traceIfFalse
+           "Donation less than minimum."
+           (contribution < minLovelace)
+      && traceIfFalse
+           "Not enough Lovelaces provided."
+           (enoughAddedInOutput contribution)
+      && traceIfFalse
+           "Invalid output datum hash."
+           (isOutputDatumValid newDatum)
       -- }}}
     Distribute                  ->
       -- {{{
@@ -459,6 +497,15 @@ getDatumFromUTxO TxOut {..} converter = do
   Datum d <- converter dh
   PlutusTx.fromBuiltinData d
   -- }}}
+
+
+{-# INLINABLE applyQVF #-}
+applyQVF :: [Project] -> ()
+applyQVF ps =
+  let
+    foldFn (pool, votes) p = undefined
+  in
+  undefined
 -- }}}
 
 
