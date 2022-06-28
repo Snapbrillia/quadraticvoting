@@ -60,22 +60,6 @@ writeValidator file =
 -- }}}
 
 
--- Contract Monad Implementation
---   - Tasos
---   - Keyan
---   - Andy
--- Multiple Emulator Trace Scenarios
---   - Curtis
---   - Shan
--- CLI Application Implementation
---   - Tasos
---   - Keyan
--- Bash Scripts
---   - Tasos
---   - Shan
---   - Paul
-
-
 -- APPLICATION
 -- {{{
 main :: IO ()
@@ -214,7 +198,7 @@ main =
         Left _ ->
           putStrLn "Failed to write Plutus script file."
         Right _ ->
-          andPrintSuccess outFile return
+          andPrintSuccess outFile $ return ()
       -- }}}
     _ ->
       printHelp
