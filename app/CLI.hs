@@ -84,41 +84,72 @@ main =
     helpText  =
       -- {{{
          "\nCLI application to generate various redeemer values to interact "
-      <> "with the QVF smart contract.\n\n"
+      ++ "with the QVF smart contract.\n\n"
 
-      <> "\tGenerate the initial datum:\n"
-      <> "\tqvf-cli generate initial-datum <output.json>\n\n"
+      ++ "\tGenerate the initial datum:\n\n"
+      ++ "\tcabal run qvf-cli -- generate      \\\n"
+      ++ "\t                     initial-datum \\\n"
+      ++ "\t                     <output.json>\n\n\n"
 
-      <> "\tGenerate the redeemer for adding a project:\n"
-      <> "\tqvf-cli generate redeemer AddProject <project-public-key-hash>\n"
-      <> "\t                                     <project-label>\n"
-      <> "\t                                     <requested-fund>\n"
-      <> "\t                                     <output.json>\n\n"
 
-      <> "\tGenerate the redeemer for donating to a project:\n"
-      <> "\tqvf-cli generate redeemer Donate <donors-public-key-hash>\n"
-      <> "\t                                 <target-projects-public-key-hash>\n"
-      <> "\t                                 <donation-amount>\n"
-      <> "\t                                 <output.json>\n\n"
+      ++ "\tGenerate the redeemer for adding a project:\n\n"
 
-      <> "\tGenerate the redeemer for contribution to the pool:\n"
-      <> "\tqvf-cli generate redeemer Contribute <contribution-amount>\n"
-      <> "\t                                     <output.json>\n\n"
+      ++ "\tcabal run qvf-cli -- generate                  \\\n"
+      ++ "\t                     redeemer                  \\\n"
+      ++ "\t                     AddProject                \\\n"
+      ++ "\t                     <project-public-key-hash> \\\n"
+      ++ "\t                     <project-label>           \\\n"
+      ++ "\t                     <requested-fund>          \\\n"
+      ++ "\t                     <output.json>\n\n\n"
 
-      <> "\tGenerate the redeemer for trigerring the distribution of funds:\n"
-      <> "\tqvf-cli generate redeemer Distribute <output.json>\n\n"
 
-      <> "\tGenerate the compiled Plutus script of the validation function:\n"
-      <> "\tqvf-cli generate script <key-holders-public-key-hash>\n"
-      <> "\t                        <output.json>\n\n"
+      ++ "\tGenerate the redeemer for donating to a project:\n\n"
+
+      ++ "\tcabal run qvf-cli -- generate                          \\\n"
+      ++ "\t                     redeemer                          \\\n"
+      ++ "\t                     Donate                            \\\n"
+      ++ "\t                     <donors-public-key-hash>          \\\n"
+      ++ "\t                     <target-projects-public-key-hash> \\\n"
+      ++ "\t                     <donation-amount>                 \\\n"
+      ++ "\t                     <output.json>\n\n\n"
+
+
+      ++ "\tGenerate the redeemer for contribution to the pool:\n\n"
+
+      ++ "\tcabal run qvf-cli -- generate              \\\n"
+      ++ "\t                     redeemer              \\\n"
+      ++ "\t                     Contribute            \\\n"
+      ++ "\t                     <contribution-amount> \\\n"
+      ++ "\t                     <output.json>\n\n\n"
+
+
+      ++ "\tGenerate the redeemer for trigerring the distribution of funds:\n\n"
+
+      ++ "\tcabal run qvf-cli -- generate      \\\n"
+      ++ "\t                     redeemer      \\\n"
+      ++ "\t                     Distribute    \\\n"
+      ++ "\t                     <output.json>\n\n\n"
+
+
+      ++ "\tGenerate the compiled Plutus script of the validation function:\n\n"
+
+      ++ "\tcabal run qvf-cli -- generate                      \\\n"
+      ++ "\t                     script                        \\\n"
+      ++ "\t                     <key-holders-public-key-hash> \\\n"
+      ++ "\t                     <output.json>\n\n\n"
       -- }}}
     printHelp = putStrLn helpText
+    andPrintSuccess outFile ioAction = do
+      -- {{{
+      ioAction
+      putStrLn $ outFile ++ " generated SUCCESSFULLY."
+      -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
     "generate" : "initial-datum" : outFile : _                                     ->
       -- {{{
-      writeJSON outFile OC.initialDatum
+      andPrintSuccess outFile $ writeJSON outFile OC.initialDatum
       -- }}}
     "generate" : "redeemer" : "AddProject" : pPKH : pLabel : pReqStr : outFile : _ ->
       -- {{{
@@ -127,16 +158,16 @@ main =
           -- {{{
           let
             apParams = OC.AddProjectParams
-              { appPubKeyHash = fromString pPKH
-              , appLabel      = fromString pLabel
-              , appRequested  = pReq
+              { OC.appPubKeyHash = fromString pPKH
+              , OC.appLabel      = fromString pLabel
+              , OC.appRequested  = pReq
               }
           in
-          writeJSON outFile $ OC.AddProject apParams
+          andPrintSuccess outFile $ writeJSON outFile $ OC.AddProject apParams
           -- }}}
         Nothing ->
           -- {{{
-          putStrLn "Failed to parse the requested fund."
+          putStrLn "FAILED to parse the requested fund."
           -- }}}
       -- }}}
     "generate" : "redeemer" : "Donate" : dDonor : dProject : dAmount : outFile : _ ->
@@ -146,12 +177,12 @@ main =
           -- {{{
           let
             dParams = OC.DonateParams
-              { dpDonor   :: fromString dDonor
-              , dpProject :: fromString dProject
-              , dpAmount  :: amount
+              { OC.dpDonor   = fromString dDonor
+              , OC.dpProject = fromString dProject
+              , OC.dpAmount  = amount
               }
           in
-          writeJSON outFile $ OC.Donate apParams
+          andPrintSuccess outFile $ writeJSON outFile $ OC.Donate dParams
           -- }}}
         Nothing ->
           -- {{{
@@ -163,7 +194,7 @@ main =
       case readMaybe amountStr of
         Just amount ->
           -- {{{
-          writeJSON outFile $ OC.Contribute amount
+          andPrintSuccess outFile $ writeJSON outFile $ OC.Contribute amount
           -- }}}
         Nothing ->
           -- {{{
@@ -172,13 +203,18 @@ main =
       -- }}}
     "generate" : "redeemer" : "Distribute" : outFile : _                           ->
       -- {{{
-      writeJSON outFile OC.Distribute
+      andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    "generate" : "script" : keyHolderPKHStr : outFile : _                          ->
+    "generate" : "script" : keyHolderPKHStr : outFile : _                          -> do
       -- {{{
-        writeValidator outFile
-      $ OC.qvfValidator
-      $ fromString keyHolderPKHStr
+      eitherFEUnit <-   writeValidator outFile
+                      $ OC.qvfValidator
+                      $ fromString keyHolderPKHStr
+      case eitherFEUnit of
+        Left _ ->
+          putStrLn "Failed to write Plutus script file."
+        Right _ ->
+          andPrintSuccess outFile return
       -- }}}
     _ ->
       printHelp
