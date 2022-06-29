@@ -51,6 +51,17 @@ import           Schema                      (ToSchema)
 -- }}}
 
 
+-- QVF PARAMETERS
+-- {{{
+data QVFParams = QVFParams
+  { qvfKeyHolder :: !PubKeyHash
+  , qvfSymbol    :: !CurrencySymbol
+  }
+
+PlutusTx.makeLift ''QVFParams
+-- }}}
+
+
 -- DATUM
 -- {{{
 -- DONATIONS
@@ -298,66 +309,42 @@ mkQVFValidator keyHolder currDatum action ctx =
   case action of
     AddProject addProjectParams ->
       -- {{{
-      let
-        newProject   = initiateProject addProjectParams
-        currProjects = qvfProjects currDatum
-        projectIsNew = notElem newProject currProjects
-        newDatum     = currDatum {qvfProjects = newProject : currProjects}
-      in
-         traceIfFalse
-           "Project submission fees not paid."
-           (enoughAddedInOutput minLovelace)
-      && traceIfFalse
-           "Project already exists."
-           projectIsNew
-      && traceIfFalse
-           "Invalid output datum hash."
-           (isOutputDatumValid newDatum)
+      case updateDatum action currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+             traceIfFalse
+               "Project submission fees not paid."
+               (enoughAddedInOutput minLovelace)
+          && traceIfFalse
+               "Invalid output datum hash."
+               (isOutputDatumValid newDatum)
       -- }}}
     Donate DonateParams {..}    ->
       -- {{{
-      let
-        currProjects = qvfProjects currDatum
-        mNewProjects =
-          -- {{{
-          updateIfWith
-            ((== dpProject) . pPubKeyHash)
-            (addDonationToProject dpDonor dpAmount)
-            currProjects
-          -- }}}
-        newDatum     =
-          -- {{{
-          case mNewProjects of
-            Nothing ->
-              traceError "Target project not found."
-            Just newPs ->
-              currDatum {qvfProjects = newPs}
-          -- }}}
-      in
-         traceIfFalse
-           "Donation less than minimum."
-           (dpAmount < minLovelace)
-      && traceIfFalse
-           "Not enough Lovelaces provided."
-           (enoughAddedInOutput dpAmount)
-      && traceIfFalse
-           "Invalid output datum hash."
-           (isOutputDatumValid newDatum)
+      case updateDatum action currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+             traceIfFalse
+               "Not enough Lovelaces provided."
+               (enoughAddedInOutput dpAmount)
+          && traceIfFalse
+               "Invalid output datum hash."
+               (isOutputDatumValid newDatum)
       -- }}}
     Contribute contribution     ->
       -- {{{
-      let
-        newDatum = currDatum {qvfPool = contribution + qvfPool currDatum}
-      in
-         traceIfFalse
-           "Donation less than minimum."
-           (contribution < minLovelace)
-      && traceIfFalse
-           "Not enough Lovelaces provided."
-           (enoughAddedInOutput contribution)
-      && traceIfFalse
-           "Invalid output datum hash."
-           (isOutputDatumValid newDatum)
+      case updateDatum action currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+             traceIfFalse
+               "Not enough Lovelaces provided."
+               (enoughAddedInOutput contribution)
+          && traceIfFalse
+               "Invalid output datum hash."
+               (isOutputDatumValid newDatum)
       -- }}}
     Distribute                  ->
       -- {{{
@@ -613,6 +600,59 @@ foldProjects initialPool ps =
     )
     -- }}}
   -- }}}
+
+
+{-# INLINABLE updateDatum #-}
+updateDatum :: QVFAction -> QVFDatum -> Either BuiltinString QVFDatum
+updateDatum action currDatum =
+  case action of
+    AddProject addProjectParams ->
+      -- {{{
+      let
+        newProject   = initiateProject addProjectParams
+        currProjects = qvfProjects currDatum
+        projectIsNew = notElem newProject currProjects
+        newDatum     = currDatum {qvfProjects = newProject : currProjects}
+      in
+      if projectIsNew then
+        Right newDatum
+      else
+        Left "Project already exists."
+      -- }}}
+    Donate DonateParams {..}    ->
+      -- {{{
+      if dpAmount < minLovelace then
+        Left "Donation less than minimum."
+      else
+        let
+          currProjects = qvfProjects currDatum
+          mNewProjects =
+            -- {{{
+            updateIfWith
+              ((== dpProject) . pPubKeyHash)
+              (addDonationToProject dpDonor dpAmount)
+              currProjects
+            -- }}}
+          mNewDatum    =
+            (\newPs -> currDatum {qvfProjects = newPs}) <$> mNewProjects
+        in
+        case mNewDatum of
+          Nothing ->
+            Left "Target project not found."
+          Just newDatum ->
+            Right newDatum
+      -- }}}
+    Contribute contribution     ->
+      -- {{{
+      if contribution < minLovelace then
+        Left "Donation less than minimum."
+      else
+        Right $ currDatum {qvfPool = contribution + qvfPool currDatum}
+      -- }}}
+    Distribute                  ->
+      -- {{{
+      Left "No datum needed."
+      -- }}}
 -- }}}
 
 
