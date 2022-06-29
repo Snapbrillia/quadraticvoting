@@ -1,5 +1,7 @@
 dist
 dist-*
+testnet
+scripts/testnet
 cabal-dev
 *.o
 *.hi
