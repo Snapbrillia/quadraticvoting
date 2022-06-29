@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeApplications  #-}
 
 
-module Main where
+module Main (main) where
 
 
 import           Cardano.Api
@@ -35,6 +35,22 @@ dataToScriptData (List xs)     = ScriptDataList $ dataToScriptData <$> xs
 dataToScriptData (I n)         = ScriptDataNumber n
 dataToScriptData (B bs)        = ScriptDataBytes bs
 -- }}}
+
+
+scriptDataToData :: ScriptData -> Data
+  -- {{{
+scriptDataToData (ScriptDataConstructor n xs) =
+  Constr n $ scriptDataToData <$> xs
+scriptDataToData (ScriptDataMap xs)           =
+  Map [(scriptDataToData x, scriptDataToData y) | (x, y) <- xs]
+scriptDataToData (ScriptDataList xs)          =
+  List $ scriptDataToData <$> xs
+scriptDataToData (ScriptDataNumber n)         =
+  I n
+scriptDataToData (ScriptDataBytes bs)         =
+  B bs
+  -- }}}
+
 
 writeJSON :: PlutusTx.ToData a => FilePath -> a -> IO ()
 writeJSON file =
@@ -88,19 +104,19 @@ writeMintingPolicy :: FilePath
                    -> IO (Either (FileError ()) ())
 writeMintingPolicy file =
   -- {{{
-  writeScript . Plutus.getMintingPolicy
+  writeScript file . Ledger.getMintingPolicy
   -- }}}
 
 
-readTxOutRef :: String -> Maybe PlutusTx.TxOutRef
+readTxOutRef :: String -> Maybe Ledger.TxOutRef
 readTxOutRef s =
   -- {{{
   case span (/= '#') s of
     (x, _ : y) ->
       -- {{{
-      Just $ PlutusTx.TxOutRef
-        { Plutus.txOutRefId  = fromString x
-        , Plutus.txOutRefIdx = read y
+      Just $ Ledger.TxOutRef
+        { Ledger.txOutRefId  = fromString x
+        , Ledger.txOutRefIdx = read y
         }
       -- }}}
     _          ->
@@ -116,6 +132,7 @@ readTxOutRef s =
 main :: IO ()
 main =
   let
+    helpText :: String
     helpText  =
       -- {{{
          "\nCLI application to generate various redeemer values to interact "
@@ -185,6 +202,7 @@ main =
       ++ "\t                     <output-redeemer.json>\n\n\n"
       -- }}}
     printHelp = putStrLn helpText
+    andPrintSuccess :: FilePath -> IO () -> IO ()
     andPrintSuccess outFile ioAction = do
       -- {{{
       ioAction
@@ -241,7 +259,7 @@ main =
           -- }}}
         Just txRef -> do
           -- {{{
-          eitherFEUnit <- writeValidator outFile $ NFT.policy txRef
+          eitherFEUnit <- writeMintingPolicy outFile $ NFT.policy txRef
           case eitherFEUnit of
             Left _  ->
               putStrLn "FAILED to write minting script file."
@@ -263,7 +281,7 @@ main =
         Right datumData ->
           -- {{{
           let
-            mDatum :: Maybe QVFDatum
+            mDatum :: Maybe OC.QVFDatum
             mDatum = PlutusTx.fromData datumData
           in
           case (mDatum, restOfArgs) of

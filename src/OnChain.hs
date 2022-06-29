@@ -307,7 +307,7 @@ mkQVFValidator keyHolder currDatum action ctx =
   in
   traceIfFalse "Invalid input datum hash." validInputDatum &&
   case action of
-    AddProject addProjectParams ->
+    AddProject _             ->
       -- {{{
       case updateDatum action currDatum of
         Left err       ->
@@ -320,7 +320,7 @@ mkQVFValidator keyHolder currDatum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid newDatum)
       -- }}}
-    Donate DonateParams {..}    ->
+    Donate DonateParams {..} ->
       -- {{{
       case updateDatum action currDatum of
         Left err       ->
@@ -333,7 +333,7 @@ mkQVFValidator keyHolder currDatum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid newDatum)
       -- }}}
-    Contribute contribution     ->
+    Contribute contribution  ->
       -- {{{
       case updateDatum action currDatum of
         Left err       ->
@@ -346,7 +346,7 @@ mkQVFValidator keyHolder currDatum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid newDatum)
       -- }}}
-    Distribute                  ->
+    Distribute               ->
       -- {{{
       let
         prizeMappings :: [(PubKeyHash, Integer)]

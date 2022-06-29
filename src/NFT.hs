@@ -15,7 +15,6 @@ module NFT where
 
 
 import qualified PlutusTx
-import           PlutusTx.Builtins.Internal  (emptyByteString)
 import           PlutusTx.Prelude
 import           Ledger                      hiding (mint, singleton)
 import qualified Ledger.Typed.Scripts        as Scripts
@@ -23,7 +22,7 @@ import           Ledger.Value                as Value
 
 
 nftTokenName :: TokenName
-nftTokenName = emptyByteString
+nftTokenName = TokenName emptyByteString
 
 
 {-# INLINABLE mkPolicy #-}
@@ -35,8 +34,8 @@ mkPolicy oref () ctx =
     info = scriptContextTxInfo ctx
 
     go :: [TxInInfo] -> Bool
-    go []     = False
-    go i : is =
+    go []       = False
+    go (i : is) =
       -- {{{
       if txInInfoOutRef i == oref then
         True
