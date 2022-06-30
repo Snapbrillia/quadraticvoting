@@ -48,6 +48,15 @@ generate_keys_addr_hash_range () {
     fi
 }
 
+# Get all utxos from address Arg1
+get_utxos () {
+    echo `cardano-cli query utxo \
+        --address $1 \
+        $MAGIC \
+        | sed 1,2d \
+        | awk '{ print $1"#"$2}'`
+}
+
 # Get tx-in hash address, given an address FILE name (not the address itself)
 get_hash_addr () {
 
