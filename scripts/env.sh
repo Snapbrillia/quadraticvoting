@@ -42,10 +42,10 @@ generate_keys_addr_range () {
 # Get tx-in hash address, given an address FILE name (not the address itself)
 get_hash_addr () {
 
-    `cardano-cli query utxo \
+    echo `cardano-cli query utxo \
         --address $(cat $1) \
         $MAGIC \
-    | awk 'FNR == 3 {print $1}'`
+        | awk 'FNR == 3 {print $1}'`
 
 }
 
@@ -58,7 +58,7 @@ cardano-cli transaction build \
     $MAGIC \
     --change-address $(cat $1) \
     --tx-in `get_hash_addr $1`#0 \
-    --tx-out "$(cat $2) $3" \
+    --tx-out "$(cat $2) $3 lovelace" \
     --out-file tx.body
 
 cardano-cli transaction sign \
