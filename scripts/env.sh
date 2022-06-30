@@ -18,9 +18,17 @@ address_build () {
         --out-file $2
 }
 
-# Generates keys and builds addresses for those keys from numerical ranges Arg1 to Arg2 (inclusive). This follows the style of the PPP lectures, e.g.: 01.vkey, 01.skey, 01.addr 
+# Generates the public key hash. Needs 2 args: name of the vkey file and name for the generated file.
+key_hash () {
+    cardano-cli address key-hash \
+        --payment-verification-key-file $1 \
+        --out-file $2
+}
+
+
+# Generates keys and builds addresses for those keys and then public key hash files from numerical ranges Arg1 to Arg2 (inclusive). This follows the style of the PPP lectures, e.g.: 01.vkey, 01.skey, 01.addr, 01.pkh
 # Please be careful. Let's set a limit on the amount for now.
-generate_keys_addr_range () {
+generate_keys_addr_hash_range () {
 
     max_amt=100
 
@@ -34,6 +42,7 @@ generate_keys_addr_range () {
     do
     key_gen $i.vkey $i.skey
     address_build $i.vkey $i.addr
+    key_hash $i.vkey $i.pkh
     done
 
     fi
