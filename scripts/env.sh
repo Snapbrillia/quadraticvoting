@@ -43,7 +43,7 @@ generate_keys_addr_range () {
 get_hash_addr () {
 
     `cardano-cli query utxo \
-        --address $(cat $filename3) \
+        --address $(cat $1) \
         $MAGIC \
     | awk 'FNR == 3 {print $1}'`
 
