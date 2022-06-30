@@ -42,7 +42,7 @@ generate_keys_addr_range () {
 # Get tx-in hash address, given an address FILE name (not the address itself)
 get_hash_addr () {
 
-    return `cardano-cli query utxo \
+    `cardano-cli query utxo \
         --address $(cat $filename3) \
         --testnet-magic 1097911063 \
     | awk 'FNR == 3 {print $1}'`
