@@ -18,6 +18,27 @@ address_build () {
         --out-file $2
 }
 
+# Generates keys and builds addresses for those keys from numerical ranges Arg1 to Arg2 (inclusive). This follows the style of the PPP lectures, e.g.: 01.vkey, 01.skey, 01.addr 
+# Please be careful. Let's set a limit on the amount for now.
+generate_keys_addr_range () {
+
+    max_amt=100
+
+    if [ expr $2 - $1 -ge $max_amt ]
+    then
+    echo "That's over 100 wallets generated. Please reconsider. Edit fn if you really want to."
+    else
+
+    # Important part
+    for i in $(seq $1 $2)
+    do
+    key_gen $i.vkey $i.skey
+    address_build $i.vkey $i.addr
+    done
+
+    fi
+}
+
 # Get tx-in hash address, given an address FILE name (not the address itself)
 get_hash_addr () {
 
