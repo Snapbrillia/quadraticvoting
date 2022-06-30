@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export CARDANO_NODE_SOCKET_PATH=testnet/node.sock
+export CARDANO_NODE_SOCKET_PATH=node.socket
 export MAGIC='--testnet-magic 1097911063'
 
 # Generates a key pair.  Needs 2 args: 2 names for the generated vkey and skey files respectively.
@@ -14,7 +14,7 @@ key_gen () {
 address_build () {
     cardano-cli address build \
         --payment-verification-key-file $1 \
-        --testnet-magic 1097911063 \
+        $MAGIC \
         --out-file $2
 }
 
@@ -44,7 +44,7 @@ get_hash_addr () {
 
     `cardano-cli query utxo \
         --address $(cat $filename3) \
-        --testnet-magic 1097911063 \
+        $MAGIC \
     | awk 'FNR == 3 {print $1}'`
 
 }
@@ -55,20 +55,20 @@ send_lovelace () {
 
 cardano-cli transaction build \
     --alonzo-era \
-    --testnet-magic 1097911063 \
+    $MAGIC \
     --change-address $(cat $1) \
-    --tx-in `get_hash_addr $1`#0 \ # Will this work ????
+    --tx-in `get_hash_addr $1`#0 \
     --tx-out "$(cat $2) $3" \
     --out-file tx.body
 
 cardano-cli transaction sign \
     --tx-body-file tx.body \
     --signing-key-file $4 \
-    --testnet-magic 1097911063 \
+    $MAGIC \
     --out-file tx.signed
 
 cardano-cli transaction submit \
-    --testnet-magic 1097911063 \
+    $MAGIC \
     --tx-file tx.signed
 }
 
