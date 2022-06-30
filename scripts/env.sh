@@ -24,7 +24,7 @@ generate_keys_addr_range () {
 
     max_amt=100
 
-    if [ expr $2 - $1 -ge $max_amt ]
+    if [ `expr $2 - $1` -ge $max_amt ]
     then
     echo "That's over 100 wallets generated. Please reconsider. Edit fn if you really want to."
     else
