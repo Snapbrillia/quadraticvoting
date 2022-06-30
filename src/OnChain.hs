@@ -36,7 +36,7 @@ import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
-import           Plutus.V1.Ledger.Value      (valueOf, flattenValue)
+import           Plutus.V1.Ledger.Value      (valueOf, flattenValue, assetClassValueOf)
 import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
@@ -48,17 +48,27 @@ import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
 import qualified Prelude                     as P
 import           Prelude                     (Show (..), String)
 import           Schema                      (ToSchema)
+
+import qualified Token
 -- }}}
 
 
 -- QVF PARAMETERS
 -- {{{
 data QVFParams = QVFParams
-  { qvfKeyHolder :: !PubKeyHash
-  , qvfSymbol    :: !CurrencySymbol
+  { qvfKeyHolder    :: !PubKeyHash
+  , qvfPolicyParams :: !Token.PolicyParams
   }
 
 PlutusTx.makeLift ''QVFParams
+
+{-# INLINABLE qvfAsset #-}
+qvfAsset :: QVFParams -> AssetClass
+qvfAsset QVFParams {..} =
+  AssetClass
+    ( Token.qvfSymbol qvfPolicyParams
+    , Token.ppToken   qvfPolicyParams
+    )
 -- }}}
 
 
@@ -143,20 +153,7 @@ instance Eq QVFDatum where
   qvf0 == qvf1 =
     if qvfPool qvf0 == qvfPool qvf1 then
       -- {{{
-      let
-        projs0                   = qvfProjects qvf0
-        projs1                   = qvfProjects qvf1
-        go res []       []       = res
-        go _   []       _        = False
-        go _   _        []       = False
-        -- Plutus is not lazy and (&&) would be inefficient.
-        go res (x : xs) (y : ys) =
-          if res then
-            go (x == y) xs ys
-          else
-            False
-      in
-      go True (sortProjects projs0) (sortProjects projs1)
+      (sortProjects projs0) == (sortProjects projs1)
       -- }}}
     else
       -- {{{
@@ -221,15 +218,27 @@ PlutusTx.makeIsDataIndexed ''QVFAction
 -- QVF VALIDATOR 
 -- {{{
 {-# INLINABLE mkQVFValidator #-}
-mkQVFValidator :: PubKeyHash
+mkQVFValidator :: QVFParams
                -> QVFDatum
                -> QVFAction
                -> ScriptContext
                -> Bool
-mkQVFValidator keyHolder currDatum action ctx =
+mkQVFValidator qvfParams currDatum action ctx =
   -- {{{
   let
-    info = scriptContextTxInfo ctx
+    keyHolder  = qvfKeyHolder qvfParams
+    tokenAsset = qvfAsset qvfParasm
+    info       = scriptContextTxInfo ctx
+
+    -- | Helper function to count the provided
+    --   authentication token in a UTxO.
+    tokenCountIn :: TxOut -> Integer
+    tokenCountIn utxo =
+      -- {{{
+      assetClassValueOf
+        (txOutValue utxo)
+        (qvfAsset qvfParams)
+      -- }}}
 
     -- | UTxO sitting at this script address.
     ownInput :: TxOut
@@ -253,6 +262,16 @@ mkQVFValidator keyHolder currDatum action ctx =
           traceError "Expected exactly one output to own address."
       -- }}}
 
+    -- | Checks if the input UTxO is carrying an
+    --   authenticity token.
+    inputHasOneToken :: Bool
+    inputHasOneToken = tokenCountIn ownInput == 1
+
+    -- | Checks if the output UTxO is carrying an
+    --   authenticity token.
+    outputHasOneToken :: Bool
+    outputHasOneToken = tokenCountIn ownOutput == 1
+
     -- | Possible attached datum to the input UTxO.
     mInputDatum :: Maybe QVFDatum
     mInputDatum =
@@ -269,17 +288,17 @@ mkQVFValidator keyHolder currDatum action ctx =
       getDatumFromUTxO ownOutput (`findDatum` info)
       -- }}}
 
-    -- | Checks if the attached input datum matches the
-    --   one provided to the script.
-    validInputDatum :: Bool
-    validInputDatum =
-      -- {{{
-      case mInputDatum of
-        Nothing ->
-          False
-        Just inputDatum ->
-          inputDatum == currDatum
-      -- }}}
+    -- -- | Checks if the attached input datum matches the
+    -- --   one provided to the script.
+    -- validInputDatum :: Bool
+    -- validInputDatum =
+    --   -- {{{
+    --   case mInputDatum of
+    --     Nothing ->
+    --       False
+    --     Just inputDatum ->
+    --       inputDatum == currDatum
+    --   -- }}}
 
     -- | Checks if the attached output datum is
     --   properly updated.
@@ -305,11 +324,13 @@ mkQVFValidator keyHolder currDatum action ctx =
       outVal == (inVal <> Ada.lovelaceValueOf addedAmount)
       -- }}}
   in
-  traceIfFalse "Invalid input datum hash." validInputDatum &&
+  -- traceIfFalse "Invalid input datum hash." validInputDatum &&
+  traceIfFalse "Authentication token missing in input." inputHasOneToken   &&
+  traceIfFalse "Authentication token missing in output." outputHasOneToken &&
   case action of
-    AddProject _             ->
+    AddProject addProjectParams  ->
       -- {{{
-      case updateDatum action currDatum of
+      case addProjectToDatum addProjectParams currDatum of
         Left err       ->
           traceError err
         Right newDatum ->
@@ -320,9 +341,9 @@ mkQVFValidator keyHolder currDatum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid newDatum)
       -- }}}
-    Donate DonateParams {..} ->
+    Donate dPs@DonateParams {..} ->
       -- {{{
-      case updateDatum action currDatum of
+      case addDonationToDatum dPs currDatum of
         Left err       ->
           traceError err
         Right newDatum ->
@@ -333,9 +354,9 @@ mkQVFValidator keyHolder currDatum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid newDatum)
       -- }}}
-    Contribute contribution  ->
+    Contribute contribution      ->
       -- {{{
-      case updateDatum action currDatum of
+      case addContributionToDatum contribution currDatum of
         Left err       ->
           traceError err
         Right newDatum ->
@@ -346,7 +367,7 @@ mkQVFValidator keyHolder currDatum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid newDatum)
       -- }}}
-    Distribute               ->
+    Distribute                   ->
       -- {{{
       let
         prizeMappings :: [(PubKeyHash, Integer)]
@@ -392,13 +413,13 @@ instance Scripts.ValidatorTypes QVF where
   type RedeemerType QVF = QVFAction
 
 
-typedQVFValidator :: PubKeyHash -> Scripts.TypedValidator QVF
-typedQVFValidator keyHolder =
+typedQVFValidator :: QVFParams -> Scripts.TypedValidator QVF
+typedQVFValidator qvfParams =
   -- {{{
   Scripts.mkTypedValidator @QVF
     ( PlutusTx.applyCode
         $$(PlutusTx.compile [|| mkQVFValidator ||])
-        (PlutusTx.liftCode keyHolder)
+        (PlutusTx.liftCode qvfParams)
     )
     $$(PlutusTx.compile [|| wrap ||])
   where
@@ -406,15 +427,15 @@ typedQVFValidator keyHolder =
   -- }}}
 
 
-qvfValidator :: PubKeyHash -> Validator
+qvfValidator :: QVFParams -> Validator
 qvfValidator = Scripts.validatorScript . typedQVFValidator
 
 
-qvfValidatorHash :: PubKeyHash -> ValidatorHash
+qvfValidatorHash :: QVFParams -> ValidatorHash
 qvfValidatorHash = Scripts.validatorHash . typedQVFValidator
 
 
-qvfAddress :: PubKeyHash -> Address
+qvfAddress :: QVFParams -> Address
 qvfAddress = scriptAddress . qvfValidator
 -- }}}
 -- }}}
@@ -602,52 +623,82 @@ foldProjects initialPool ps =
   -- }}}
 
 
+{-# INLINABLE addProjectToDatum #-}
+addProjectToDatum :: AddProjectParams
+                  -> QVFDatum
+                  -> Either BuiltinString QVFDatum
+addProjectToDatum addProjectParams currDatum =
+  -- {{{
+  let
+    newProject   = initiateProject addProjectParams
+    currProjects = qvfProjects currDatum
+    projectIsNew = notElem newProject currProjects
+    newDatum     = currDatum {qvfProjects = newProject : currProjects}
+  in
+  if projectIsNew then
+    Right newDatum
+  else
+    Left "Project already exists."
+  -- }}}
+
+
+{-# INLINABLE addDonationToDatum #-}
+addDonationToDatum :: DonateParams
+                   -> QVFParams
+                   -> Either BuiltinString QVFDatum
+addDonationToDatum DonateParams {..} currDatum =
+  -- {{{
+  if dpAmount < minLovelace then
+    Left "Donation less than minimum."
+  else
+    let
+      currProjects = qvfProjects currDatum
+      mNewProjects =
+        -- {{{
+        updateIfWith
+          ((== dpProject) . pPubKeyHash)
+          (addDonationToProject dpDonor dpAmount)
+          currProjects
+        -- }}}
+      mNewDatum    =
+        (\newPs -> currDatum {qvfProjects = newPs}) <$> mNewProjects
+    in
+    case mNewDatum of
+      Nothing ->
+        Left "Target project not found."
+      Just newDatum ->
+        Right newDatum
+  -- }}}
+
+
+{-# INLINABLE addContributionToDatum #-}
+addContributionToDatum :: Integer
+                       -> QVFDatum
+                       -> Either BuiltinString QVFDatum
+addContributionToDatum contribution currDatum =
+  -- {{{
+  if contribution < minLovelace then
+    Left "Donation less than minimum."
+  else
+    Right $ currDatum {qvfPool = contribution + qvfPool currDatum}
+  -- }}}
+
+
 {-# INLINABLE updateDatum #-}
 updateDatum :: QVFAction -> QVFDatum -> Either BuiltinString QVFDatum
 updateDatum action currDatum =
   case action of
     AddProject addProjectParams ->
       -- {{{
-      let
-        newProject   = initiateProject addProjectParams
-        currProjects = qvfProjects currDatum
-        projectIsNew = notElem newProject currProjects
-        newDatum     = currDatum {qvfProjects = newProject : currProjects}
-      in
-      if projectIsNew then
-        Right newDatum
-      else
-        Left "Project already exists."
+      addProjectToDatum addProjectParams currDatum
       -- }}}
-    Donate DonateParams {..}    ->
+    Donate donateParams         ->
       -- {{{
-      if dpAmount < minLovelace then
-        Left "Donation less than minimum."
-      else
-        let
-          currProjects = qvfProjects currDatum
-          mNewProjects =
-            -- {{{
-            updateIfWith
-              ((== dpProject) . pPubKeyHash)
-              (addDonationToProject dpDonor dpAmount)
-              currProjects
-            -- }}}
-          mNewDatum    =
-            (\newPs -> currDatum {qvfProjects = newPs}) <$> mNewProjects
-        in
-        case mNewDatum of
-          Nothing ->
-            Left "Target project not found."
-          Just newDatum ->
-            Right newDatum
+      addDonationToDatum donateParams currDatum
       -- }}}
     Contribute contribution     ->
       -- {{{
-      if contribution < minLovelace then
-        Left "Donation less than minimum."
-      else
-        Right $ currDatum {qvfPool = contribution + qvfPool currDatum}
+      addContributionToDatum contribution currDatum
       -- }}}
     Distribute                  ->
       -- {{{

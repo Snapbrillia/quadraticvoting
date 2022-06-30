@@ -23,7 +23,7 @@ import           System.Environment    (getArgs)
 import           Text.Read             (readMaybe)
 
 import qualified OnChain               as OC
-import qualified NFT
+import qualified Token
 
 -- UTILS
 -- {{{
@@ -156,11 +156,13 @@ main =
       ++ "\t                     <output.plutus>\n\n\n"
 
 
-      ++ "\tGenerate the compiled NFT minting script (note the UTxO format):\n\n"
+      ++ "\tGenerate the compiled token minting script (note the UTxO format):\n\n"
 
       ++ "\tcabal run qvf-cli -- generate              \\\n"
       ++ "\t                     minting-script        \\\n"
       ++ "\t                     <txID>#<output-index> \\\n"
+      ++ "\t                     <auth-token-name>     \\\n"
+      ++ "\t                     <auth-token-count>    \\\n"
       ++ "\t                     <output.plutus>\n\n\n"
 
 
@@ -231,15 +233,15 @@ main =
   in do
   allArgs <- getArgs
   case allArgs of
-    "generate" : "initial-datum" : outFile : _              ->
+    "generate" : "initial-datum" : outFile : _                            ->
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.initialDatum
       -- }}}
-    "generate" : "distribution-redeemer" : outFile : _      ->
+    "generate" : "distribution-redeemer" : outFile : _                    ->
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    "generate" : "validation-script" : pkhStr : outFile : _ -> do
+    "generate" : "validation-script" : pkhStr : outFile : _               -> do
       -- {{{
       eitherFEUnit <-   writeValidator outFile
                       $ OC.qvfValidator
@@ -250,16 +252,26 @@ main =
         Right _ ->
           andPrintSuccess outFile $ return ()
       -- }}}
-    "generate" : "minting-script" : txRefStr : outFile : _  -> do
+    "generate" : "minting-script" : txRefStr : tn : amtStr : outFile : _  -> do
       -- {{{
-      case readTxOutRef txRefStr of
-        Nothing    ->
+      case (readTxOutRef txRefStr, readMaybe amtStr) of
+        (Nothing, _)           ->
           -- {{{
           putStrLn "FAILED to parse the given UTxO."
           -- }}}
-        Just txRef -> do
+        (_, Nothing)           ->
           -- {{{
-          eitherFEUnit <- writeMintingPolicy outFile $ NFT.policy txRef
+          putStrLn "FAILED to parse the token amount."
+          -- }}}
+        (Just txRef, Just amt) -> do
+          -- {{{
+          let policyParams =
+                Token.PolicyParams
+                  { Token.ppORef   = txRef
+                  , Token.ppToken  = fromString tn
+                  , Token.ppAmount = amt
+                  }
+          eitherFEUnit <- writeMintingPolicy outFile $ Token.qvfPolicy policyParams
           case eitherFEUnit of
             Left _  ->
               putStrLn "FAILED to write minting script file."
@@ -267,10 +279,10 @@ main =
               andPrintSuccess outFile $ return ()
           -- }}}
       -- }}}
-    "-h"       : _                                          -> printHelp
-    "--help"   : _                                          -> printHelp
-    "man"      : _                                          -> printHelp
-    datumJSON  : restOfArgs                                 -> do
+    "-h"       : _                                                        -> printHelp
+    "--help"   : _                                                        -> printHelp
+    "man"      : _                                                        -> printHelp
+    datumJSON  : restOfArgs                                               -> do
       -- {{{
       eitherErrData <- parseJSON datumJSON
       case eitherErrData of
