@@ -108,7 +108,7 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
     signing_keys_str=''
     num_of_wallets=`expr $3 - $2`
     lovelace_amt=`expr $4 / $num_of_wallets`
-    lovelace_amt=`expr $lovelace_amt + 1` # Include the spending wallet
+    lovelace_amt=`expr $lovelace_amt + 2` # Include the spending wallet, but also +1 due to inclusive range
 
     # Potential change: we could query the total amount of lovelace at all utxos of spending wallet instead of relying on Arg4; but the current way provides flexibility of limiting the amount to spend
 
