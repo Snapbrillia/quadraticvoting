@@ -43,18 +43,8 @@ mkQVFPolicy PolicyParams {..} () ctx =
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    go :: [TxInInfo] -> Bool
-    go []       = False
-    go (i : is) =
-      -- {{{
-      if txInInfoOutRef i == ppORef then
-        True
-      else
-        go is
-      -- }}}
-
     hasUTxO :: Bool
-    hasUTxO = go $ txInfoInputs info
+    hasUTxO = any (\i -> txInInfoOutRef i == ppORef) $ txInfoInputs info
 
     checkMintedAmount :: Bool
     checkMintedAmount =
