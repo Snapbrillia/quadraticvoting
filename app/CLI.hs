@@ -244,8 +244,8 @@ main =
     "generate" : "validation-script" : pkhStr : outFile : _               -> do
       -- {{{
       eitherFEUnit <-   writeValidator outFile
-                      $ OC.qvfValidator
-                      $ fromString pkhStr
+                      $ OC.qvfValidator 
+                      $  fromString pkhStr
       case eitherFEUnit of
         Left _ ->
           putStrLn "FAILED to write Plutus script file."

@@ -36,7 +36,7 @@ import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
-import           Plutus.V1.Ledger.Value      (valueOf, flattenValue, assetClassValueOf, AssetClass (..))
+import           Plutus.V1.Ledger.Value      (valueOf, flattenValue, assetClassValueOf, AssetClass (..), TokenName (..))
 import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
@@ -46,7 +46,7 @@ import           PlutusTx.Prelude            hiding (Semigroup(..), unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
 import qualified Prelude                     as P
-import           Prelude                     (Show (..), String)
+import           Prelude                     (Show (..), String, read)
 import           Schema                      (ToSchema)
 
 import qualified Token
@@ -67,7 +67,7 @@ qvfAsset :: QVFParams -> AssetClass
 qvfAsset QVFParams {..} =
   AssetClass
     ( Token.qvfSymbol qvfPolicyParams
-    , Token.ppToken   qvfPolicyParams
+    , Token.ppToken qvfPolicyParams
     )
 -- }}}
 

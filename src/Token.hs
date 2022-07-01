@@ -28,6 +28,7 @@ import           Ledger.Value                as Value
 data PolicyParams = PolicyParams
   { ppORef   :: !TxOutRef
   , ppToken  :: !TokenName
+  -- !TokenName
   , ppAmount :: !Integer
   }
 
