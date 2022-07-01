@@ -36,7 +36,7 @@ import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
-import           Plutus.V1.Ledger.Value      (valueOf, flattenValue, assetClassValueOf, AssetClass (..), TokenName (..))
+import           Plutus.V1.Ledger.Value
 import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
@@ -46,10 +46,8 @@ import           PlutusTx.Prelude            hiding (Semigroup(..), unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
 import qualified Prelude                     as P
-import           Prelude                     (Show (..), String, read)
+import           Prelude                     (Show (..), String)
 import           Schema                      (ToSchema)
-
-import qualified Token
 -- }}}
 
 
@@ -57,17 +55,19 @@ import qualified Token
 -- {{{
 data QVFParams = QVFParams
   { qvfKeyHolder    :: !PubKeyHash
-  , qvfPolicyParams :: !Token.PolicyParams
+  , qvfSymbol       :: !CurrencySymbol
+  , qvfTokenName    :: !TokenName
+  , qvfTokenCount   :: !Integer
   }
 
 PlutusTx.makeLift ''QVFParams
 
 {-# INLINABLE qvfAsset #-}
 qvfAsset :: QVFParams -> AssetClass
-qvfAsset QVFParams {..} =
+qvfAsset qvf =
   AssetClass
-    ( Token.qvfSymbol qvfPolicyParams
-    , Token.ppToken qvfPolicyParams
+    ( qvfSymbol    qvf
+    , qvfTokenName qvf
     )
 -- }}}
 
@@ -235,9 +235,7 @@ mkQVFValidator qvfParams currDatum action ctx =
     tokenCountIn :: TxOut -> Integer
     tokenCountIn utxo =
       -- {{{
-      assetClassValueOf
-        (txOutValue utxo)
-        (qvfAsset qvfParams)
+      assetClassValueOf (txOutValue utxo) tokenAsset
       -- }}}
 
     -- | UTxO sitting at this script address.
@@ -272,12 +270,12 @@ mkQVFValidator qvfParams currDatum action ctx =
     outputHasOneToken :: Bool
     outputHasOneToken = tokenCountIn ownOutput == 1
 
-    -- | Possible attached datum to the input UTxO.
-    mInputDatum :: Maybe QVFDatum
-    mInputDatum =
-      -- {{{
-      getDatumFromUTxO ownInput (`findDatum` info)
-      -- }}}
+    -- -- | Possible attached datum to the input UTxO.
+    -- mInputDatum :: Maybe QVFDatum
+    -- mInputDatum =
+    --   -- {{{
+    --   getDatumFromUTxO ownInput (`findDatum` info)
+    --   -- }}}
 
     -- | Possible attached datum to the output UTxO
     --   (may not be properly implemented... could
@@ -288,11 +286,13 @@ mkQVFValidator qvfParams currDatum action ctx =
       getDatumFromUTxO ownOutput (`findDatum` info)
       -- }}}
 
-    -- -- | Checks if the attached input datum matches the
-    -- --   one provided to the script.
-    -- validInputDatum :: Bool
-    -- validInputDatum =
+    -- | Checks if the input UTxO has a datum hash
+    --   attached to it.
+    validInputDatum :: Bool
+    validInputDatum = isJust $ txOutDatumHash ownInput
     --   -- {{{
+    -- | Checks if the attached input datum matches the
+    --   one provided to the script.
     --   case mInputDatum of
     --     Nothing ->
     --       False
@@ -324,9 +324,10 @@ mkQVFValidator qvfParams currDatum action ctx =
       outVal == (inVal <> Ada.lovelaceValueOf addedAmount)
       -- }}}
   in
-  -- traceIfFalse "Invalid input datum hash." validInputDatum &&
-  traceIfFalse "Authentication token missing in input." inputHasOneToken   &&
-  traceIfFalse "Authentication token missing in output." outputHasOneToken &&
+     traceIfFalse "Invalid input has no datum." validInputDatum
+  && traceIfFalse "There should be exactly one authentication token in input." inputHasOneToken
+  && traceIfFalse "There should be exactly one authentication token in output." outputHasOneToken
+  &&
   case action of
     AddProject addProjectParams  ->
       -- {{{

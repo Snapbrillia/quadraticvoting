@@ -148,22 +148,17 @@ main =
       ++ "\t                     <output.json>\n\n\n"
 
 
-      ++ "\tGenerate the compiled Plutus validation script:\n\n"
+      ++ "\tGenerate the compiled Plutus validation and minting script\n"
+      ++ "\t(note the UTxO format):\n\n"
 
       ++ "\tcabal run qvf-cli -- generate                      \\\n"
-      ++ "\t                     validation-script             \\\n"
+      ++ "\t                     scripts                       \\\n"
       ++ "\t                     <key-holders-public-key-hash> \\\n"
-      ++ "\t                     <output.plutus>\n\n\n"
-
-
-      ++ "\tGenerate the compiled token minting script (note the UTxO format):\n\n"
-
-      ++ "\tcabal run qvf-cli -- generate              \\\n"
-      ++ "\t                     minting-script        \\\n"
-      ++ "\t                     <txID>#<output-index> \\\n"
-      ++ "\t                     <auth-token-name>     \\\n"
-      ++ "\t                     <auth-token-count>    \\\n"
-      ++ "\t                     <output.plutus>\n\n\n"
+      ++ "\t                     <txID>#<output-index>         \\\n"
+      ++ "\t                     <auth-token-name>             \\\n"
+      ++ "\t                     <auth-token-count>            \\\n"
+      ++ "\t                     <output-minting.plutus>       \\\n"
+      ++ "\t                     <output-validation.plutus>\n\n\n"
 
 
       ++ "\tUpdate a given datum by adding a project:\n\n"
@@ -233,26 +228,15 @@ main =
   in do
   allArgs <- getArgs
   case allArgs of
-    "generate" : "initial-datum" : outFile : _                            ->
+    "generate" : "initial-datum" : outFile : _                               ->
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.initialDatum
       -- }}}
-    "generate" : "distribution-redeemer" : outFile : _                    ->
+    "generate" : "distribution-redeemer" : outFile : _                       ->
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    "generate" : "validation-script" : pkhStr : outFile : _               -> do
-      -- {{{
-      eitherFEUnit <-   writeValidator outFile
-                      $ OC.qvfValidator 
-                      $  fromString pkhStr
-      case eitherFEUnit of
-        Left _ ->
-          putStrLn "FAILED to write Plutus script file."
-        Right _ ->
-          andPrintSuccess outFile $ return ()
-      -- }}}
-    "generate" : "minting-script" : txRefStr : tn : amtStr : outFile : _  -> do
+    "generate" : "scripts" : pkhStr : txRefStr : tn : amtStr : mOF : vOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, readMaybe amtStr) of
         (Nothing, _)           ->
@@ -271,18 +255,40 @@ main =
                   , Token.ppToken  = fromString tn
                   , Token.ppAmount = amt
                   }
-          eitherFEUnit <- writeMintingPolicy outFile $ Token.qvfPolicy policyParams
-          case eitherFEUnit of
+          mintRes <- writeMintingPolicy mOF $ Token.qvfPolicy policyParams
+          case mintRes of
             Left _  ->
+              -- {{{
               putStrLn "FAILED to write minting script file."
-            Right _ ->
-              andPrintSuccess outFile $ return ()
+              -- }}}
+            Right _ -> do
+              -- {{{
+              let tokenSymbol = Token.qvfSymbol policyParams
+                  qvfParams   =
+                    OC.QVFParams
+                      { OC.qvfKeyHolder  = fromString pkhStr
+                      , OC.qvfSymbol     = tokenSymbol
+                      , OC.qvfTokenName  = fromString tn
+                      , OC.qvfTokenCount = amt
+                      }
+              valRes <- writeValidator vOF $ OC.qvfValidator qvfParams
+              case valRes of
+                Left _  ->
+                  -- {{{
+                  putStrLn "FAILED to write Plutus script file."
+                  -- }}}
+                Right _ -> do
+                  -- {{{
+                  andPrintSuccess mOF $ return ()
+                  andPrintSuccess vOF $ return ()
+                  -- }}}
+              -- }}}
           -- }}}
       -- }}}
-    "-h"       : _                                                        -> printHelp
-    "--help"   : _                                                        -> printHelp
-    "man"      : _                                                        -> printHelp
-    datumJSON  : restOfArgs                                               -> do
+    "-h"       : _                                                           -> printHelp
+    "--help"   : _                                                           -> printHelp
+    "man"      : _                                                           -> printHelp
+    datumJSON  : restOfArgs                                                  -> do
       -- {{{
       eitherErrData <- parseJSON datumJSON
       case eitherErrData of
