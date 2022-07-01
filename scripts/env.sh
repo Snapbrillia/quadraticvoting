@@ -122,7 +122,7 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
     cardano-cli transaction sign \
         --tx-body-file multiTx.body \
         --signing-key-file $5 \
-        $signing_keys_str
+        $signing_keys_str \
         $MAGIC \
         --out-file multiTx.signed
 
@@ -131,5 +131,56 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
         --tx-file tx.signed
 }
 
+
+# Send all lovelace from a range of Arg1-Arg2 of addresses (generated from generate_keys_addr_hash_range--should be a contigous range if generated separately) to Arg3 address.
+send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
+
+    tx_in_str=''
+    tx_out_str=''
+    signing_keys_str=''
+    num_of_wallets=`expr $3 - $2`
+    num_of_wallets=`expr $num_of_wallets + 2` # +1 for spending wallet and +1 due to inclusive range
+    lovelace_amt=`expr $4 / $num_of_wallets`
+
+    # Build the string of --tx-in's
+    for i in $(seq $2 $3)
+    do
+        #cat=$(cat $i.addr)
+        #tx_out_str=$tx_out_str' --tx-out'$cat'+'$lovelace_amt
+        tx_in_str=$tx_in_str$(get_utxos $i)
+    done
+
+    # Build the string of --tx-out's
+    #for i in $(seq $2 $3)
+    #do
+    #    cat=$(cat $i.addr)
+    #    tx_out_str=$tx_out_str' --tx-out'$cat'+'$lovelace_amt
+    #done
+
+    # Build the string of signing key files
+    for i in $(seq $2 $3)
+    do
+        signing_keys_str=$signing_keys_str' --signing-key-file'$i'.skey'
+    done
+
+    # Transaction
+    cardano-cli transaction build \
+        --alonzo-era \
+        $MAGIC \
+        $tx_in_str \
+        --change-address $(cat $3) \
+        $tx_out_str \
+        --out-file multiTx.body
+
+    cardano-cli transaction sign \
+        --tx-body-file multiTx.body \
+        $signing_keys_str \
+        $MAGIC \
+        --out-file multiTx.signed
+
+    cardano-cli transaction submit \
+        $MAGIC \
+        --tx-file tx.signed
+}
 
 
