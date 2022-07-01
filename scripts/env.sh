@@ -48,33 +48,19 @@ generate_keys_addr_hash_range () {
     fi
 }
 
-# Get all utxos from address Arg1
-get_utxos () {
-    echo `cardano-cli query utxo \
-        --address $(cat $1) \
-        $MAGIC \
-        | sed 1,2d \
-        | awk '{ print $1"#"$2}'`
-}
-
-# Get tx-in hash address, given an address FILE name (not the address itself)
-get_hash_addr () {
-
-    echo `cardano-cli query utxo \
-        --address $(cat $1) \
-        $MAGIC \
-        | awk 'FNR == 3 {print $1}'`
-
-}
-
 # Send lovelace from Arg1 addr to Ar2 addr with amt of Arg3 lovelace using signing key Arg4 (Which should be Arg1's signing key--We could find this automatically without this parameter perhaps)
 send_lovelace () {
+
+tx_in=`cardano-cli query utxo \
+        --address $(cat $1) \
+        $MAGIC \
+        | awk 'FNR == 3 {print $1}'`'#0'
 
 cardano-cli transaction build \
     --alonzo-era \
     $MAGIC \
     --change-address $(cat $1) \
-    --tx-in `get_hash_addr $1`#0 \
+    --tx-in $tx_in \
     --tx-out "$(cat $2) $3 lovelace" \
     --out-file tx.body
 
@@ -89,14 +75,13 @@ cardano-cli transaction submit \
     --tx-file tx.signed
 }
 
-get_txHash_and_txIndex () {
-
+# Get all utxos from address Arg1
+get_utxos () {
     echo `cardano-cli query utxo \
         --address $(cat $1) \
         $MAGIC \
         | sed 1,2d | awk '{ print $1"#"$2}' \
         | sed 's/^/--tx-in /' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'`
-
 }
 
 
