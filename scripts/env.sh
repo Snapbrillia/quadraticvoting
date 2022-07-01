@@ -137,11 +137,8 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
 send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
 
     tx_in_str=''
-    tx_out_str=''
+    #tx_out_str=''
     signing_keys_str=''
-    num_of_wallets=`expr $3 - $2`
-    num_of_wallets=`expr $num_of_wallets + 2` # +1 for spending wallet and +1 due to inclusive range
-    lovelace_amt=`expr $4 / $num_of_wallets`
 
     # Build the string of --tx-in's
     for i in $(seq $2 $3)
@@ -170,7 +167,7 @@ send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
         $MAGIC \
         $tx_in_str \
         --change-address $(cat $3) \
-        --tx-out $(cat $3) \
+        --tx-out $(cat $3)'+1000000' \
         --out-file multiTx.body
 
     cardano-cli transaction sign \
@@ -181,7 +178,7 @@ send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
 
     cardano-cli transaction submit \
         $MAGIC \
-        --tx-file tx.signed
+        --tx-file multiTx.signed
 }
 
 
