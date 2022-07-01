@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Change for your environment
-export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.socket
+#export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.socket
+#export CARDANO_NODE_SOCKET_PATH=~/plutus-pioneer-program/code/week03/testnet/node.socket
+export CARDANO_NODE_SOCKET_PATH=node.socket
 export MAGIC='--testnet-magic 1097911063'
 
 # Generates a key pair.  Needs 2 args: 2 names for the generated vkey and skey files respectively.
@@ -137,26 +139,16 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
 send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
 
     tx_in_str=''
-    #tx_out_str=''
     signing_keys_str=''
 
     # Build the string of --tx-in's
-    for i in $(seq $2 $3)
+    for i in $(seq $1 $2)
     do
-        #cat=$(cat $i.addr)
-        #tx_out_str=$tx_out_str' --tx-out'$cat'+'$lovelace_amt
-        tx_in_str=$tx_in_str$(get_utxos $i)
+        tx_in_str=$tx_in_str$(get_utxos $i.addr)' '
     done
 
-    # Build the string of --tx-out's
-    #for i in $(seq $2 $3)
-    #do
-    #    cat=$(cat $i.addr)
-    #    tx_out_str=$tx_out_str' --tx-out'$cat'+'$lovelace_amt
-    #done
-
     # Build the string of signing key files
-    for i in $(seq $2 $3)
+    for i in $(seq $1 $2)
     do
         signing_keys_str=$signing_keys_str' --signing-key-file '$i'.skey'
     done
