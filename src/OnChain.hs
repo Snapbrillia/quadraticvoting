@@ -36,7 +36,7 @@ import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
-import           Plutus.V1.Ledger.Value      (valueOf, flattenValue, assetClassValueOf)
+import           Plutus.V1.Ledger.Value      (valueOf, flattenValue, assetClassValueOf, AssetClass (..))
 import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
@@ -153,7 +153,7 @@ instance Eq QVFDatum where
   qvf0 == qvf1 =
     if qvfPool qvf0 == qvfPool qvf1 then
       -- {{{
-      (sortProjects projs0) == (sortProjects projs1)
+      (sortProjects $ qvfProjects qvf0) == (sortProjects $ qvfProjects qvf1)
       -- }}}
     else
       -- {{{
@@ -227,7 +227,7 @@ mkQVFValidator qvfParams currDatum action ctx =
   -- {{{
   let
     keyHolder  = qvfKeyHolder qvfParams
-    tokenAsset = qvfAsset qvfParasm
+    tokenAsset = qvfAsset qvfParams
     info       = scriptContextTxInfo ctx
 
     -- | Helper function to count the provided
