@@ -88,7 +88,7 @@ get_utxos () {
 # Send lovelace from Arg1 addr (including all of its utxos) to a range of Arg2-Arg3 of addresses (generated from generate_keys_addr_hash_range--should be a contigous range if generated separately) of an equal amts of lovelace of Arg4 using signing key Arg5 (Which should be Arg1's signing key--We could find this automatically without this parameter perhaps)
 send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
 
-    tx_in_str=$(get_txHash_and_txIndex $1)
+    tx_in_str=$(get_utxos $1)
     tx_out_str=''
     signing_keys_str=''
     num_of_wallets=`expr $3 - $2`
