@@ -1,6 +1,7 @@
 #!/bin/bash
 
-export CARDANO_NODE_SOCKET_PATH=node.socket
+# Change for your environment
+export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.socket
 export MAGIC='--testnet-magic 1097911063'
 
 # Generates a key pair.  Needs 2 args: 2 names for the generated vkey and skey files respectively.
@@ -92,8 +93,9 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
     tx_out_str=''
     signing_keys_str=''
     num_of_wallets=`expr $3 - $2`
-    num_of_wallets=`expr $num_of_wallets + 2` # +1 for spending wallet and +1 due to inclusive range
+    num_of_wallets=`expr $num_of_wallets + 1` # +1 for spending wallet and +1 due to inclusive range
     lovelace_amt=`expr $4 / $num_of_wallets`
+    echo $lovelace_amt $num_of_wallets
 
     # Potential change: we could query the total amount of lovelace at all utxos of spending wallet instead of relying on Arg4; but the current way provides flexibility of limiting the amount to spend
 
@@ -101,15 +103,15 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
     for i in $(seq $2 $3)
     do
         cat=$(cat $i.addr)
-        tx_out_str=$tx_out_str' --tx-out'$cat'+'$lovelace_amt
+        tx_out_str=$tx_out_str' --tx-out '$cat'+'$lovelace_amt
     done
-
+  
     # Build the string of signing key files
     for i in $(seq $2 $3)
     do
-        signing_keys_str=$signing_keys_str' --signing-key-file'$i'.skey'
+        signing_keys_str=$signing_keys_str' --signing-key-file '$i'.skey'
     done
-
+    echo $tx_in_str $tx_out_str $signing_keys_str
     # Transaction
     cardano-cli transaction build \
         --alonzo-era \
@@ -122,13 +124,12 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
     cardano-cli transaction sign \
         --tx-body-file multiTx.body \
         --signing-key-file $5 \
-        $signing_keys_str \
         $MAGIC \
         --out-file multiTx.signed
 
     cardano-cli transaction submit \
         $MAGIC \
-        --tx-file tx.signed
+        --tx-file multiTx.signed
 }
 
 
@@ -160,7 +161,7 @@ send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
     # Build the string of signing key files
     for i in $(seq $2 $3)
     do
-        signing_keys_str=$signing_keys_str' --signing-key-file'$i'.skey'
+        signing_keys_str=$signing_keys_str' --signing-key-file '$i'.skey'
     done
 
     # Transaction
