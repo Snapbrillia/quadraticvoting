@@ -47,7 +47,7 @@ generate_keys_addr_hash_range () {
     then
 
     echo "Error! $i.vkey, $i.skey, $i.addr, or $i.pkh already exist. Move/rename/remove them first and run again."
-    exit
+    break
 
     else
 
