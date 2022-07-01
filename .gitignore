@@ -1,8 +1,13 @@
 dist
 dist-*
 testnet
+.vscode
+tx.raw
+tx.sign
 scripts/testnet
 cabal-dev
+protocol.json
+initial.json
 *.o
 *.hi
 *.hie
