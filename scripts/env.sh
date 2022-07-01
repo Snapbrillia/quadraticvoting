@@ -51,7 +51,7 @@ generate_keys_addr_hash_range () {
 # Get all utxos from address Arg1
 get_utxos () {
     echo `cardano-cli query utxo \
-        --address $1 \
+        --address $(cat $1) \
         $MAGIC \
         | sed 1,2d \
         | awk '{ print $1"#"$2}'`
