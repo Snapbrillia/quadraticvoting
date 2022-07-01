@@ -644,7 +644,7 @@ addProjectToDatum addProjectParams currDatum =
 
 {-# INLINABLE addDonationToDatum #-}
 addDonationToDatum :: DonateParams
-                   -> QVFParams
+                   -> QVFDatum
                    -> Either BuiltinString QVFDatum
 addDonationToDatum DonateParams {..} currDatum =
   -- {{{
