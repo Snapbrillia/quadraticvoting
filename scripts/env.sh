@@ -92,8 +92,10 @@ cardano-cli transaction submit \
 
 get_txHash_and_txIndex () {
 
-    cardano-cli query utxo --address $1 --testnet-magic $MAGIC \ 
-	| awk '{ print $1"#"$2}' | sed '/-/d' | sed '1d' \ 
-	| sed 's/^/--tx-in /' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'
+    echo `cardano-cli query utxo \
+        --address $1 \
+        --testnet-magic $MAGIC \
+        | sed 1,2d | awk '{ print $1"#"$2}' | \
+        | sed 's/^/--tx-in /' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'`
 
 }
