@@ -131,7 +131,7 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
         $MAGIC \
         $tx_in_str \
         --change-address $(cat $1) \
-        --tx-out $tx_out_str \
+        $tx_out_str \
         --out-file multiTx.body
 
     cardano-cli transaction sign \
