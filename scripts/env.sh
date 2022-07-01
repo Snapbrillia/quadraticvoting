@@ -43,11 +43,20 @@ generate_keys_addr_hash_range () {
     # Important part
     for i in $(seq $1 $2)
     do
+    if [ -f $i.vkey ] || [ -f $i.skey ] || [ -f $i.addr ] || [ -f $i.pkh ]
+    then
+
+    echo "Error! $i.vkey, $i.skey, $i.addr, or $i.pkh already exist. Move/rename/remove them first and run again."
+    exit
+
+    else
+
     key_gen $i.vkey $i.skey
     address_build $i.vkey $i.addr
     key_hash $i.vkey $i.pkh
-    done
 
+    fi
+    done
     fi
 }
 
