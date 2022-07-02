@@ -52,7 +52,7 @@ key_hash () {
 plutus_script_to_address () {
     cardano-cli address build-script \
         --script-file $1             \
-        --testnet-magic 1097911063   \
+        $MAGIC                       \
         --out-file $2
 }
 
