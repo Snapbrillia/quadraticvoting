@@ -267,7 +267,7 @@ get_first_lovelace_count_of () {
 interact_with_smart_contract () {
     users_utxo=$(get_first_utxo_of $1)
     script_addr=$(plutus_script_to_address $3)
-    script_holding=$(get_first_lovelace_count_of $script_utxo)
+    script_holding=$(get_first_lovelace_count_of $script_addr)
     extra_output="" # TODO: Should add $6 with $script_holding.
 
     cardano-cli transaction build                 \
