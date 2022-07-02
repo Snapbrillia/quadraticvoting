@@ -8,7 +8,7 @@ sh env.sh
 
 # This script assumes that you have *installed* the `qvf-cli` application, and
 # have its binary listed in your PATH environment variable. To allow utilizing
-# symlinks however, the binary is dispatched via variable here:
+# symlinks however, the binary is dispatched via a variable here:
 app=qvf-cli
 
 
@@ -47,6 +47,7 @@ $app generate                               \
      $validator_file
 
 
+# Get the currency symbol of the minting script.
 policy_id=$(cardano-cli transaction policyid --script-file $policy_file)
 
 

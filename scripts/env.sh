@@ -243,6 +243,16 @@ drain_from_wallets_to () {
 }
 
 
+# Helper function that returns how much Lovelace is held in the first UTxO of
+# the given wallet address.
+#
+# Takes 1 argument:
+#   1. User's wallet address file.
+get_first_lovelace_count_of () {
+  echo "TODO"
+}
+
+
 # Given a wallet, a script, and other arguments, this function constructs,
 # signs and submits a transaction for interacting with a smart contract.
 #
@@ -255,30 +265,33 @@ drain_from_wallets_to () {
 #   6. Amount that should be added to script's holding,
 #   7. Updated datum of the script after the transaction.
 interact_with_smart_contract () {
-# TODO
+    users_utxo=$(get_first_utxo_of $1)
+    script_addr=$(plutus_script_to_address $3)
+    script_holding=$(get_first_lovelace_count_of $script_utxo)
+    extra_output="" # TODO: Should add $6 with $script_holding.
 
-    cardano-cli transaction build \
-        --tx-in $(get_first_utxo_of $1) \
-        --tx-in $(get_first_utxo_of $3) \
-        --tx-in-script-file $3 \
-        --tx-in-datum-file $4 \
-        --tx-in-redeemer-file $5\
-        --tx-in-collateral $(get_first_utxo_of $1) \
-        --tx-out $(cat $1)$6 \
-        --tx-out-datum-embed-file  $7\
-        --change-address $(cat $1)   \
-        --protocol-params-file protocol.json \
-        --out-file tx.raw \
+    cardano-cli transaction build                 \
+        --tx-in $users_utxo                       \
+        --tx-in $(get_first_utxo_of $script_addr) \
+        --tx-in-script-file $3                    \
+        --tx-in-datum-file $4                     \
+        --tx-in-redeemer-file $5                  \
+        --tx-in-collateral $users_utxo            \
+        --tx-out $(cat $1)+$extra_output          \
+        --tx-out-datum-embed-file  $7             \
+        --change-address $(cat $1)                \
+        --protocol-params-file protocol.json      \
+        --out-file tx.raw                         \
         $MAGIC
 
-    cardano-cli transaction sign   \
-        --tx-body-file tx.raw      \
-        --signing-key-file $2      \
-        $MAGIC                     \
+    cardano-cli transaction sign                  \
+        --tx-body-file tx.raw                     \
+        --signing-key-file $2                     \
+        $MAGIC                                    \
         --out-file tx.signed
 
-    cardano-cli transaction submit \
-        $MAGIC                     \
+    cardano-cli transaction submit                \
+        $MAGIC                                    \
         --tx-file tx.signed
 
 
