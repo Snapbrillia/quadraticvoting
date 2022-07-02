@@ -249,7 +249,11 @@ drain_from_wallets_to () {
 # Takes 1 argument:
 #   1. User's wallet address file.
 get_first_lovelace_count_of () {
-  echo "TODO"
+    echo `cardano-cli query utxo                      \
+        --address $(cat $1)                           \
+        $MAGIC                                        \
+        | sed 1,2d                                    \
+        | awk 'FNR == 1 {print $3}'`
 }
 
 
