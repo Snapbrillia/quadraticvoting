@@ -256,6 +256,32 @@ drain_from_wallets_to () {
 #   7. Updated datum of the script after the transaction.
 interact_with_smart_contract () {
 # TODO
+
+    cardano-cli transaction build \
+        --tx-in $(get_first_utxo_of $1) \
+        --tx-in $(get_first_utxo_of $3) \
+        --tx-in-script-file $3 \
+        --tx-in-datum-file $4 \
+        --tx-in-redeemer-file $5\
+        --tx-in-collateral $(get_first_utxo_of $1) \
+        --tx-out $(cat $1)$6 \
+        --tx-out-datum-embed-file  $7\
+        --change-address $(cat $1)   \
+        --protocol-params-file protocol.json \
+        --out-file tx.raw \
+        $MAGIC
+
+    cardano-cli transaction sign   \
+        --tx-body-file tx.raw      \
+        --signing-key-file $2      \
+        $MAGIC                     \
+        --out-file tx.signed
+
+    cardano-cli transaction submit \
+        $MAGIC                     \
+        --tx-file tx.signed
+
+
 #     cardano-cli transaction build \
 #         --tx-in e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#0 \
 #         --tx-in e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#1 \
