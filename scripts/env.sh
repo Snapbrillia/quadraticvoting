@@ -149,7 +149,7 @@ distribute_from_to_wallets () {
     done
   
     # Helper logs:
-    echo "Starting to distribute a total of $4 Lovelaces between $num_of_wallets."
+    echo "Starting to distribute a total of $4 Lovelaces between $num_of_wallets number of wallets."
     echo "(Each wallet will receive $lovelace_amt Lovelaces)."
     echo
     echo "Input UTxO's are:"
