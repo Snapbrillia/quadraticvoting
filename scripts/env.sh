@@ -113,13 +113,15 @@ get_all_input_utxos_at () {
 }
 
 
-# Distributes a given total Lovelace count from a wallet, between a number of
-# wallets designated with a numeric range, equally.
+# Equally distributes a given total Lovelace count from a wallet, between a
+# number of wallets designated with a numeric range.
 #
 # Consumes all the available UTxO's, and returns the change back to the same
 # wallet.
 #
-# TODO: Might require fixing as it can't handle UTxO's carrying tokens.
+# TODO: Might require fixing as it can't handle UTxO's carrying tokens. It's
+#       not a harmful limitation, it just fails if the given wallet has tokens
+#       stored inside.
 #
 # Takes 5 arguments:
 #   1. The spending wallet,
@@ -134,7 +136,6 @@ distribute_from_to_wallets () {
     num_of_wallets=`expr $3 - $2`
     num_of_wallets=`expr $num_of_wallets + 1` # +1 to compensate range inclusivity.
     lovelace_amt=`expr $4 / $num_of_wallets`
-    echo $lovelace_amt $num_of_wallets
 
     # Potential change: we could query the total amount of lovelace at all
     # UTxO's of spending wallet instead of relying on Arg4; but the current
@@ -147,7 +148,16 @@ distribute_from_to_wallets () {
         tx_out_str=$tx_out_str' --tx-out '$cat'+'$lovelace_amt
     done
   
-    echo $tx_in_str $tx_out_str
+    # Helper logs:
+    echo "Starting to distribute a total of $4 Lovelaces between $num_of_wallets."
+    echo "(Each wallet will receive $lovelace_amt Lovelaces)."
+    echo
+    echo "Input UTxO's are:"
+    echo $tx_in_str
+    echo
+    echo "Output addresses are:"
+    echo $tx_out_str
+
     # Transaction
     cardano-cli transaction build   \
         --alonzo-era                \
@@ -173,11 +183,13 @@ distribute_from_to_wallets () {
 # end up with 2 UTxO's: One holding 1 ADA, while the other holds the rest of
 # the spent Lovelaces.
 #
-# TODO: Might require fixing as it can't handle UTxO's carrying tokens.
+# TODO: Might require fixing as it can't handle UTxO's carrying tokens. It's
+#       not a harmful limitation, it just fails if the given wallet has tokens
+#       stored inside.
 #
 # Takes 3 arguments:
 #   1. Starting number of the spending wallets,
-#   2. Ending number of the spending wallet,
+#   2. Ending number of the spending wallets,
 #   3. Address file of the receiving wallet.
 drain_from_wallets_to () {
 
