@@ -12,7 +12,7 @@ export MAGIC='--testnet-magic 1097911063'
 # Takes 2 arguments:
 #   1. Verification key output file,
 #   2. Signing key output file.
-key_gen () {
+generate_skey_and_vkey () {
     cardano-cli address key-gen    \
         --verification-key-file $1 \
         --signing-key-file $2
@@ -24,7 +24,7 @@ key_gen () {
 # Takes 2 arguments:
 #   1. Verification key file,
 #   2. Address output file.
-address_build () {
+vkey_to_address () {
     cardano-cli address build              \
         --payment-verification-key-file $1 \
         $MAGIC                             \
@@ -37,7 +37,7 @@ address_build () {
 # Takes 2 arguments:
 #   1. Verification key file,
 #   2. Public key hash output file.
-key_hash () {
+vkey_to_public_key_hash () {
     cardano-cli address key-hash           \
         --payment-verification-key-file $1 \
         --out-file $2
@@ -67,7 +67,7 @@ plutus_script_to_address () {
 # Takes 2 arguments:
 #   1. Starting number,
 #   2. Ending number.
-generate_keys_addr_hash_range () {
+generate_wallets_from_to () {
 
     max_amt=100
 
@@ -87,9 +87,9 @@ generate_keys_addr_hash_range () {
 
     else
 
-    key_gen $i.vkey $i.skey
-    address_build $i.vkey $i.addr
-    key_hash $i.vkey $i.pkh
+    generate_skey_and_vkey $i.vkey $i.skey
+    vkey_to_address $i.vkey $i.addr
+    vkey_to_public_key_hash $i.vkey $i.pkh
 
     fi
     done
@@ -102,7 +102,7 @@ generate_keys_addr_hash_range () {
 # 
 # Takes 1 argument:
 #   1. Wallet address file.
-get_utxos () {
+get_all_input_utxos_at () {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -127,9 +127,9 @@ get_utxos () {
 #   3. Ending number of the receiving wallets,
 #   4. Total amount of Lovelace to be distributed equally,
 #   5. Signing key file of the spending wallet. # TODO: Can this be removed?
-send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
+distribute_from_to_wallets () {
 
-    tx_in_str=$(get_utxos $1)
+    tx_in_str=$(get_all_input_utxos_at $1)
     tx_out_str=''
     num_of_wallets=`expr $3 - $2`
     num_of_wallets=`expr $num_of_wallets + 1` # +1 to compensate range inclusivity.
@@ -179,7 +179,7 @@ send_lovelace_from_one_wallet_with_multiple_utxos_to_multiple_wallets () {
 #   1. Starting number of the spending wallets,
 #   2. Ending number of the spending wallet,
 #   3. Address file of the receiving wallet.
-send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
+drain_from_wallets_to () {
 
     tx_in_str=''
     signing_keys_str=''
@@ -187,7 +187,7 @@ send_lovelace_from_many_wallet_with_multiple_utxos_to_one_wallet () {
     # Build the string of --tx-in's
     for i in $(seq $1 $2)
     do
-        tx_in_str=$tx_in_str$(get_utxos $i.addr)' '
+        tx_in_str=$tx_in_str$(get_all_input_utxos_at $i.addr)' '
     done
 
     # Build the string of signing key files
