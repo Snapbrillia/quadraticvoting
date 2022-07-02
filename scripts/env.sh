@@ -97,6 +97,20 @@ generate_wallets_from_to () {
 }
 
 
+# Returns the "first" UTxO from a wallet (the first in the table returned by
+# the `cardano-cli` application).
+#
+# Takes 1 argument:
+#   1. Wallet address file.
+get_first_utxo_of () {
+    echo `cardano-cli query utxo                      \
+        --address $(cat $1)                           \
+        $MAGIC                                        \
+        | sed 1,2d                                    \
+        | awk 'FNR == 3 {print $1"#"$2}'`
+}
+
+
 # Returns a list of all UTxO's available at the given wallet address file, each
 # prefixed with "--tx-in" for convenient use while constructing a transaction.
 # 
@@ -229,3 +243,41 @@ drain_from_wallets_to () {
 }
 
 
+# Given a wallet, a script, and other arguments, this function constructs,
+# signs and submits a transaction for interacting with a smart contract.
+#
+# Takes 7 arguments:
+#   1. User's wallet address file,
+#   2. User's wallet signing key file,
+#   3. The script file,
+#   4. Script's current datum JSON file,
+#   5. Redeemer's JSON file for the intended endpoint,
+#   6. Amount that should be added to script's holding,
+#   7. Updated datum of the script after the transaction.
+interact_with_smart_contract () {
+# TODO
+#     cardano-cli transaction build \
+#         --tx-in e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#0 \
+#         --tx-in e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#1 \
+#         --tx-in-script-file testnet/demoScript.plutus \
+#         --tx-in-datum-file initial.json \
+#         --tx-in-redeemer-file contr-redeemer.json \
+#         --tx-in-collateral e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#0 \
+#         --tx-out $(cat script.addr)+86900000 \
+#         --tx-out-datum-embed-file contr-datum.json \
+#         --change-address $(cat testnet/01.addr) \
+#         --protocol-params-file protocol.json \
+#         --out-file tx.raw \
+#         --testnet-magic 1097911063
+#         
+#         
+#         cardano-cli transaction sign \
+#         --tx-body-file tx.raw \
+#         --signing-key-file testnet/01.skey \
+#         --testnet-magic 1097911063 \
+#         --out-file tx.signed
+#         
+#         cardano-cli transaction submit \
+#         --testnet-magic 1097911063 \
+#         --tx-file tx.signed
+}

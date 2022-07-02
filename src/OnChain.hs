@@ -270,6 +270,8 @@ mkQVFValidator qvfParams currDatum action ctx =
     outputHasOneToken :: Bool
     outputHasOneToken = tokenCountIn ownOutput == 1
 
+    -- To be removed: cardano-cli already checks for this.
+    --
     -- -- | Possible attached datum to the input UTxO.
     -- mInputDatum :: Maybe QVFDatum
     -- mInputDatum =
@@ -287,18 +289,9 @@ mkQVFValidator qvfParams currDatum action ctx =
       -- }}}
 
     -- | Checks if the input UTxO has a datum hash
-    --   attached to it.
+    --   attached to it. This might be redundant.
     validInputDatum :: Bool
     validInputDatum = isJust $ txOutDatumHash ownInput
-    --   -- {{{
-    -- | Checks if the attached input datum matches the
-    --   one provided to the script.
-    --   case mInputDatum of
-    --     Nothing ->
-    --       False
-    --     Just inputDatum ->
-    --       inputDatum == currDatum
-    --   -- }}}
 
     -- | Checks if the attached output datum is
     --   properly updated.
