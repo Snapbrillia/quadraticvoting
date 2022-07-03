@@ -105,8 +105,8 @@ show_utxo_tables () {
     for i in $@
     do
         echo "$i.addr utxos: "
-        cardano-cli query utxo
-            --address $(cat $i)
+        cardano-cli query utxo  \
+            --address $(cat $i) \
             $MAGIC
     done
 }
