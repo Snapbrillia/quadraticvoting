@@ -96,6 +96,45 @@ generate_wallets_from_to () {
     fi
 }
 
+# Displays the utxo information table of one or multiple addresses.
+#
+# Takes at least 1 argument:
+#   1. Wallet address file.
+#   2 - infinity. Any additional wallet address files.
+show_utxo_tables () {
+    for i in $@
+    do
+        echo "$i.addr utxos: "
+        cardano-cli query utxo
+            --address $(cat $i)
+            $MAGIC
+    done
+}
+# TODO: refactor code that makes the same query as the above function.
+
+# Given a numeric range (inclusive), displays the utxo information table from
+# the address of the .addr file of each number, and displays any addresses
+# provided after the numeric range.
+# Takes at least 2 arguments:
+#
+#   1.            Starting number,
+#   2.            Ending number.
+#   3 - infinity. Any additional wallet address files.
+show_utxo_tables_from_to () {
+
+    for i in $(seq $1 $2)
+    do
+        echo "$i.addr utxos: "
+        show_utxo_tables $i.addr
+    done
+
+    shift 2
+    if [ -n $1 ]
+    then
+        show_utxo_tables $@
+    fi
+
+}
 
 # Returns the "first" UTxO from a wallet (the first in the table returned by
 # the `cardano-cli` application).
