@@ -213,7 +213,7 @@ distribute_from_to_wallets () {
 
     # Transaction
     cardano-cli transaction build   \
-        --alonzo-era                \
+        --babbage-era                \
         $MAGIC                      \
         $tx_in_str                  \
         --change-address $(cat $1)  \
@@ -263,7 +263,7 @@ drain_from_wallets_to () {
 
     # Transaction
     cardano-cli transaction build    \
-        --alonzo-era                 \
+        --babbage-era                 \
         $MAGIC                       \
         $tx_in_str                   \
         --change-address $(cat $3)   \
