@@ -104,7 +104,6 @@ generate_wallets_from_to () {
 show_utxo_tables () {
     for i in $@
     do
-        echo "$i.addr utxos: "
         cardano-cli query utxo  \
             --address $(cat $i) \
             $MAGIC
@@ -131,6 +130,7 @@ show_utxo_tables_from_to () {
     shift 2
     if [ -n $1 ]
     then
+        echo "$i.addr utxos: "
         show_utxo_tables $@
     fi
 
