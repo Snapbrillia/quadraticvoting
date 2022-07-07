@@ -323,7 +323,7 @@ interact_with_smart_contract () {
 
     users_utxo=$(get_first_utxo_of $1)
     script_holding=$(get_first_lovelace_count_of $script_addr)
-    extra_output="" # TODO: Should add $6 with $script_holding.
+    extra_output=$(expr $6 + $script_holding) # Done? TODO: Should add $6 with $script_holding.
 
     cardano-cli transaction build                 \
         --tx-in $users_utxo                       \
