@@ -45,6 +45,7 @@ import           PlutusTx.Builtins.Internal  (BuiltinInteger)
 import           PlutusTx.Prelude            hiding (Semigroup(..), unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
+import           PlutusTx.Trace              (traceError, traceIfFalse)
 import qualified Prelude                     as P
 import           Prelude                     (Show (..), String)
 -- }}}
