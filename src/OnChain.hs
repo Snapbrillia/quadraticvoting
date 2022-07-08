@@ -47,7 +47,6 @@ import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
 import qualified Prelude                     as P
 import           Prelude                     (Show (..), String)
-import           Schema                      (ToSchema)
 -- }}}
 
 

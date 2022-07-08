@@ -1,4 +1,4 @@
-Cabal-Version:      3.6
+Cabal-Version:      3.0
 
 Name:                quadraticVoting
 Version:             0.1.0.0
@@ -23,7 +23,6 @@ library
                      , cardano-api
                      , containers
                      , data-default
-                     , playground-common
                      , plutus-contract
                      , plutus-ledger
                      , plutus-ledger-api
