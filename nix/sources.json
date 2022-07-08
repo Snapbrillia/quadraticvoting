@@ -1,0 +1,14 @@
+{
+    "plutus-apps": {
+        "branch": "v2022-04-06",
+        "description": "The Plutus application platform",
+        "homepage": "",
+        "owner": "input-output-hk",
+        "repo": "plutus-apps",
+        "rev": "e4062bca213f233cdf9822833b07aa69dff6d22a",
+        "sha256": "13yg3vb6a6gmjawlfa3wam5c6krqm7lip4w1p0j30hflca23x2h2",
+        "type": "tarball",
+        "url": "https://github.com/input-output-hk/plutus-apps/archive/e4062bca213f233cdf9822833b07aa69dff6d22a.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    }
+}
