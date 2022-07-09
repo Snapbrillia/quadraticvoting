@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==== CHANGE THIS VARIABLE ACCORDINGLY ==== #
-#export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.socket
+#export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.sock
 #export CARDANO_NODE_SOCKET_PATH=~/plutus-pioneer-program/code/week03/testnet/node.socket
 export CARDANO_NODE_SOCKET_PATH=node.socket
 # ========================================== #
@@ -96,45 +96,6 @@ generate_wallets_from_to () {
     fi
 }
 
-# Displays the utxo information table of one or multiple addresses.
-#
-# Takes at least 1 argument:
-#   1. Wallet address file.
-#   2 - infinity. Any additional wallet address files.
-show_utxo_tables () {
-    for i in $@
-    do
-        cardano-cli query utxo  \
-            --address $(cat $i) \
-            $MAGIC
-    done
-}
-# TODO: refactor code that makes the same query as the above function.
-
-# Given a numeric range (inclusive), displays the utxo information table from
-# the address of the .addr file of each number, and displays any addresses
-# provided after the numeric range.
-# Takes at least 2 arguments:
-#
-#   1.            Starting number,
-#   2.            Ending number.
-#   3 - infinity. Any additional wallet address files.
-show_utxo_tables_from_to () {
-
-    for i in $(seq $1 $2)
-    do
-        echo "$i.addr utxos: "
-        show_utxo_tables $i.addr
-    done
-
-    shift 2
-    if [ -n $1 ]
-    then
-        echo "$i.addr utxos: "
-        show_utxo_tables $@
-    fi
-
-}
 
 # Returns the "first" UTxO from a wallet (the first in the table returned by
 # the `cardano-cli` application).
@@ -213,7 +174,7 @@ distribute_from_to_wallets () {
 
     # Transaction
     cardano-cli transaction build   \
-        --babbage-era                \
+        --alonzo-era                \
         $MAGIC                      \
         $tx_in_str                  \
         --change-address $(cat $1)  \
@@ -263,7 +224,7 @@ drain_from_wallets_to () {
 
     # Transaction
     cardano-cli transaction build    \
-        --babbage-era                 \
+        --alonzo-era                 \
         $MAGIC                       \
         $tx_in_str                   \
         --change-address $(cat $3)   \
