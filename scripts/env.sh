@@ -269,10 +269,22 @@ get_first_lovelace_count_of () {
 #   6. Amount that should be added to script's holding,
 #   7. Updated datum of the script after the transaction.
 interact_with_smart_contract () {
+
+    # Build script address from a script, if script address does not exist. 
+    # The address name is the same as the script, except its extension is changed to .addr
+    script_addr=$($3 | sed "s/\..*/.addr/") # Name is $3 with its ext changed to .addr
+
+    # Safety check to not overwrite any existing file, and to avoid rebuilding if already built.
+    if [ -f $script_addr ]
+    then
+    echo "Using the script address $script_addr, which already exists. If this is incorrect, then move, rename, or change $script_addr and run again."
+    else
+    plutus_script_to_address $3 $script_addr # Builds script file address
+    fi
+
     users_utxo=$(get_first_utxo_of $1)
-    script_addr=$(plutus_script_to_address $3)
     script_holding=$(get_first_lovelace_count_of $script_addr)
-    extra_output="" # TODO: Should add $6 with $script_holding.
+    extra_output=$(expr $6 + $script_holding) # Done? TODO: Should add $6 with $script_holding.
 
     cardano-cli transaction build                 \
         --tx-in $users_utxo                       \
