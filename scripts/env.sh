@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==== CHANGE THIS VARIABLE ACCORDINGLY ==== #
-#export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.socket
+#export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.sock
 #export CARDANO_NODE_SOCKET_PATH=~/plutus-pioneer-program/code/week03/testnet/node.socket
 export CARDANO_NODE_SOCKET_PATH=node.socket
 # ========================================== #
@@ -96,45 +96,6 @@ generate_wallets_from_to () {
     fi
 }
 
-# Displays the utxo information table of one or multiple addresses.
-#
-# Takes at least 1 argument:
-#   1. Wallet address file.
-#   2 - infinity. Any additional wallet address files.
-show_utxo_tables () {
-    for i in $@
-    do
-        cardano-cli query utxo  \
-            --address $(cat $i) \
-            $MAGIC
-    done
-}
-# TODO: refactor code that makes the same query as the above function.
-
-# Given a numeric range (inclusive), displays the utxo information table from
-# the address of the .addr file of each number, and displays any addresses
-# provided after the numeric range.
-# Takes at least 2 arguments:
-#
-#   1.            Starting number,
-#   2.            Ending number.
-#   3 - infinity. Any additional wallet address files.
-show_utxo_tables_from_to () {
-
-    for i in $(seq $1 $2)
-    do
-        echo "$i.addr utxos: "
-        show_utxo_tables $i.addr
-    done
-
-    shift 2
-    if [ -n $1 ]
-    then
-        echo "$i.addr utxos: "
-        show_utxo_tables $@
-    fi
-
-}
 
 # Returns the "first" UTxO from a wallet (the first in the table returned by
 # the `cardano-cli` application).
@@ -213,7 +174,7 @@ distribute_from_to_wallets () {
 
     # Transaction
     cardano-cli transaction build   \
-        --babbage-era                \
+        --alonzo-era                \
         $MAGIC                      \
         $tx_in_str                  \
         --change-address $(cat $1)  \
@@ -263,7 +224,7 @@ drain_from_wallets_to () {
 
     # Transaction
     cardano-cli transaction build    \
-        --babbage-era                 \
+        --alonzo-era                 \
         $MAGIC                       \
         $tx_in_str                   \
         --change-address $(cat $3)   \
@@ -308,10 +269,22 @@ get_first_lovelace_count_of () {
 #   6. Amount that should be added to script's holding,
 #   7. Updated datum of the script after the transaction.
 interact_with_smart_contract () {
+
+    # Build script address from a script, if script address does not exist. 
+    # The address name is the same as the script, except its extension is changed to .addr
+    script_addr=$($3 | sed "s/\..*/.addr/") # Name is $3 with its ext changed to .addr
+
+    # Safety check to not overwrite any existing file, and to avoid rebuilding if already built.
+    if [ -f $script_addr ]
+    then
+    echo "Using the script address $script_addr, which already exists. If this is incorrect, then move, rename, or change $script_addr and run again."
+    else
+    plutus_script_to_address $3 $script_addr # Builds script file address
+    fi
+
     users_utxo=$(get_first_utxo_of $1)
-    script_addr=$(plutus_script_to_address $3)
     script_holding=$(get_first_lovelace_count_of $script_addr)
-    extra_output="" # TODO: Should add $6 with $script_holding.
+    extra_output=$(expr $6 + $script_holding) # Done? TODO: Should add $6 with $script_holding.
 
     cardano-cli transaction build                 \
         --tx-in $users_utxo                       \
