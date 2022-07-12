@@ -1,21 +1,44 @@
-{ source-repo-override }:
+{ system ? builtins.currentSystem
+, crossSystem ? null
+, config ? { }
+, overlays ? [ ]
+, sourcesOverride ? { }
+, sources
+, haskellNix
+, enableHaskellProfiling ? false
+}:
 let
-  # Pratically, the only needed dependency is the plutus repository.
-  sources = import ./sources.nix { inherit pkgs; };
+  ownOverlays =
+    [
+      # Modifications to derivations from nixpkgs
+      (import ./overlays/nixpkgs-overrides.nix)
+      # stdenv.lib is still needed by the pinned version of easy purescipt
+      (final: prev: { stdenv = prev.stdenv // { inherit (final) lib; }; })
+    ];
 
-  # We're going to get everything from the main plutus repository. This ensures
-  # we're using the same version of multiple dependencies such as nipxkgs,
-  # haskell-nix, cabal-install, compiler-nix-name, etc.
-  plutus = import sources.plutus-apps {};
-  pkgs = plutus.pkgs;
+  iohkNixMain = import sources.iohk-nix { };
 
-  haskell-nix = pkgs.haskell-nix;
+  extraOverlays =
+    # Haskell.nix (https://github.com/input-output-hk/haskell.nix)
+    haskellNix.nixpkgsArgs.overlays
+    # our own overlays:
+    # needed for cardano-api wich uses a patched libsodium
+    ++ iohkNixMain.overlays.crypto
+    ++ ownOverlays;
 
-  plutus-starter = import ./pkgs {
-    inherit pkgs haskell-nix sources plutus source-repo-override;
+  pkgs = import sources.nixpkgs {
+    inherit crossSystem;
+    # In nixpkgs versions older than 21.05, if we don't explicitly pass
+    # in localSystem we will hit a code path that uses builtins.currentSystem,
+    # which breaks flake's pure evaluation.
+    localSystem = { inherit system; };
+    overlays = extraOverlays ++ overlays;
+    config = haskellNix.nixpkgsArgs.config // config;
   };
+
+  plutus-apps = import ./pkgs { inherit pkgs enableHaskellProfiling sources; };
 
 in
 {
-  inherit pkgs plutus-starter;
+  inherit pkgs plutus-apps sources;
 }
