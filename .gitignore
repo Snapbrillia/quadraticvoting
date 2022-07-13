@@ -126,7 +126,7 @@ TAGS
 *.tfvars
 gh-pages
 .importify/
-.envrc
+#.envrc
 .direnv/
 *.db
 *.db-shm
