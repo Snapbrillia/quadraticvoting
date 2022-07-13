@@ -42,14 +42,12 @@ import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap           as Map
-import           PlutusTx.AssocMap           (Map (..))
+import           PlutusTx.AssocMap           (Map)
 import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Builtins.Internal  (BuiltinInteger)
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
-import qualified Prelude                     as P
-import           Prelude                     (Show (..), String)
 import           Schema                      (ToSchema)
 -- }}}
 
@@ -82,7 +80,7 @@ qvfAsset qvf =
 data Donations = Donations
   -- Switching to @Map@ for code simplification.
   -- { getDonations :: ![(PubKeyHash, Integer)]
-  { getDonations :: Map !PubKeyHash !Integer
+  { getDonations :: !(Map PubKeyHash Integer)
   }
 
 instance Eq Donations where
@@ -90,8 +88,8 @@ instance Eq Donations where
   Donations ds0 == Donations ds1 = ds0 == ds1
 
 instance Semigroup Donations where
-  {-# INLINABLE mappend #-}
-  mappend (Donations ds0) (Donations ds1) =
+  {-# INLINABLE (<>) #-}
+  (Donations ds0) <> (Donations ds1) =
     Donations (Map.unionWith (+) ds0 ds1)
 
 instance Monoid Donations where
@@ -153,6 +151,26 @@ sortProjects =
   -- }}}
 
 
+{-# INLINABLE pluck #-}
+pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
+pluck _ [] = Nothing
+pluck p xs =
+  -- {{{
+  case go xs ([], Nothing, zs) of
+    (_, Nothing, _)      ->
+      Nothing
+    (prevYs, Just y, ys) ->
+      Just (y, prevYs ++ ys)
+  where
+    go [] a = a
+    go (y : ys) (soFar, _, zs)
+      | p y       =
+          (soFar, Just y, ys)
+      | otherwise =
+          go ys (y : soFar, Nothing, zs)
+  -- }}}
+
+
 {-# INLINABLE mergeProjects #-}
 mergeProjects :: [Project] -> [Project] -> [Project]
 mergeProjects projects0 projects1 =
@@ -194,8 +212,8 @@ instance Eq QVFInfo where
       -- }}}
 
 instance Semigroup QVFInfo where
-  {-# INLINABLE mappend #-}
-  mappend (QVFInfo projs0 pool0 mDl0) (QVFInfo projs1 pool1 mDl1) =
+  {-# INLINABLE (<>) #-}
+  (QVFInfo projs0 pool0 mDl0) <> (QVFInfo projs1 pool1 mDl1) =
     QVFInfo
       (mergeProjects projs0 projs1)
       (pool0 + pool1)
@@ -484,10 +502,11 @@ mkQVFValidator qvfParams datum action ctx =
           -- }}}
         currDatum           = foldr datumFold mempty $ txInfoInputs info
         tokenCount          = qvfTokenCount qvfParams
-        outputs             = txInfoOutputs info
-        validOutputCount    = length outputs >= length projects + 2
+        outputUTxOs         = txInfoOutputs info
+        projectCount        = length projects
+        validOutputCount    = length outputUTxOs >= projectCount + 2
         allTokensPresent    = outputHasXTokens ownOutput tokenCount
-        projects            = qvfParams currDatum
+        projects            = qvfProjects currDatum
         -- For each project, the initial registration costs are meant to be
         -- refunded.                              v------------------------v
         initialPool         = qvfPool currDatum - minLovelace * projectCount
@@ -496,10 +515,10 @@ mkQVFValidator qvfParams datum action ctx =
         foldFn (projPKH, prize) keyHolderFees =
           -- {{{
           let
-            forKeyHolder = max 0 $ 5 * (prize - minLovelace) `divide` 100
+            forKH = max 0 $ 5 * (prize - minLovelace) `divide` 100
           in
-          if (prize - forKeyHolder) == lovelaceFromValue (valuePaidTo info projPKH) then
-            forKeyHolder + keyHolderFees
+          if (prize - forKH) == lovelaceFromValue (valuePaidTo info projPKH) then
+            forKH + keyHolderFees
           else
             traceError "Invalid prize distribution."
           -- }}}
@@ -516,7 +535,7 @@ mkQVFValidator qvfParams datum action ctx =
             -- the @Closed@ datum that is sent back to the script address.
           -- }}}
         keyHolderImbursed   =
-          (lovelaceFromValue (valuePaidTo info keyHolder)) == forKeyHolder
+          lovelaceFromValue (valuePaidTo info keyHolder) == forKeyHolder
       in
          signedByKeyHolder
       && traceIfFalse
@@ -551,6 +570,7 @@ mkQVFValidator qvfParams datum action ctx =
                "Invalid output datum hash."
                (isOutputDatumValid $ InProgress newDatum)
           && currDeadlinePassed currDatum
+          && oneTokenInOneTokenOut
       -- }}}
     (InProgress currDatum, Donate dPs@DonateParams {..}) ->
       -- {{{
@@ -563,8 +583,9 @@ mkQVFValidator qvfParams datum action ctx =
                (enoughAddedInOutput dpAmount)
           && traceIfFalse
                "Invalid output datum hash."
-               (isOutputDatumValid newDatum)
+               (isOutputDatumValid $ InProgress newDatum)
           && currDeadlinePassed currDatum
+          && oneTokenInOneTokenOut
       -- }}}
     (InProgress currDatum, Contribute contribution     ) ->
       -- {{{
@@ -577,8 +598,9 @@ mkQVFValidator qvfParams datum action ctx =
                (enoughAddedInOutput contribution)
           && traceIfFalse
                "Invalid output datum hash."
-               (isOutputDatumValid newDatum)
+               (isOutputDatumValid $ InProgress newDatum)
           && currDeadlinePassed currDatum
+          && oneTokenInOneTokenOut
       -- }}}
     (InProgress currDatum, SetDeadline mNewDl          ) ->
       -- {{{
@@ -586,16 +608,19 @@ mkQVFValidator qvfParams datum action ctx =
       case (qvfDeadline currDatum, mNewDl) of
         (_, Just newDl) ->
           -- {{{
-          traceIfTrue
-            "New deadline is in the past."
-            (deadlinePassed newDl)
+             traceIfTrue
+               "New deadline is in the past."
+               (deadlinePassed newDl)
+          && oneTokenInOneTokenOut
+          -- Updating only one of the UTxO's suffices (check the @mappend@
+          -- implementation of the @QVFInfo@).
           -- }}}
         _               ->
           -- {{{
           True
           -- }}}
       -- }}}
-    (Closed     currDatum, _                           ) ->
+    (Closed _            , _                           ) ->
       -- {{{
       traceError "This funding round has ended."
       -- }}}
@@ -709,7 +734,7 @@ addDonation :: PubKeyHash
             -> Donations
 addDonation donor lovelaces donations =
   -- {{{
-  donations <> Map.singleton donor lovelaces
+  donations <> Donations (Map.singleton donor lovelaces)
   -- case updateIfWith ((== donor) . fst) (fmap (lovelaces +)) kvs of
   --   Nothing     ->
   --     Donations $ (donor, lovelaces) : kvs
@@ -843,7 +868,7 @@ addProjectToDatum addProjectParams currDatum =
   in
   if projectIsNew then
     Right $
-      QVFInfo
+      currDatum
         { qvfProjects = newProject : currProjects
         , qvfPool     = qvfPool currDatum + minLovelace
         }
@@ -913,32 +938,12 @@ updateDatum action datum =
       -- {{{
       -- Since this function is only used by the CLI application, this
       -- invokation results to a non-conditional acceptance of the new deadline.
-      Right $ currDatum {qvfDeadline = mNewDeadline}
+      Right $ InProgress $ currDatum {qvfDeadline = mNewDeadline}
       -- }}}
     _                                                   ->
       -- {{{
       Left "No datum needed."
       -- }}}
-  -- }}}
-
-
-{-# INLINABLE pluck #-}
-pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
-pluck p [] = Nothing
-pluck p xs =
-  -- {{{
-  case go xs ([], Nothing, []) of
-    (_, Nothing, _)      ->
-      Nothing
-    (prevYs, Just y, ys) ->
-      Just (y, prevYs ++ ys)
-  where
-    go [] a = a
-    go (y : ys) (soFar, Nothing, [])
-      | p y       =
-          (soFar, Just y, ys)
-      | otherwise =
-          go ys (y : soFar, Nothing, [])
   -- }}}
 -- }}}
 
