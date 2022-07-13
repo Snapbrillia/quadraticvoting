@@ -218,8 +218,8 @@ main =
       ++ "\t                     distribution-redeemer  \\\n"
       ++ "\t                     <output-redeemer.json>\n"
       -- }}}
-    helpText :: String
-    helpText  =
+    helpText          :: String
+    helpText          =
       -- {{{
          "\nCLI application to generate various redeemer values to interact "
       ++ "with the QVF smart contract.\n\n"
@@ -246,8 +246,8 @@ main =
       ++ distributeHelp
       ++ "\n\n"
       -- }}}
-    printHelp :: IO ()
-    printHelp = putStrLn helpText
+    printHelp         :: IO ()
+    printHelp         = putStrLn helpText
     andPrintSuccess :: FilePath -> IO () -> IO ()
     andPrintSuccess outFile ioAction = do
       -- {{{

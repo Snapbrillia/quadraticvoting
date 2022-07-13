@@ -36,6 +36,21 @@
    $ ln -s ~/plutus-apps/dist-newstyle dist-newstyle
    ```
 
+6. Clone the Plutonomy reposity next to this repository, and similarly create
+   a symlink to the `dist-newstyle` inside:
+   ```bash
+   $ cd ~
+   $ git clone https://github.com/well-typed/plutonomy.git
+   $ cd plutonomy
+   $ rm -rf dist-newstyle # Just making sure...
+   $ ln -s ~/plutus-apps/dist-newstyle dist-newstyle
+   ```
+
+7. Return to this repository to start using it:
+   ```bash
+   $ cd ~/quadraticvoting
+   ```
+
 Now you are ready to either enter a `repl`, or use the generator application.
 
 ## Using the Datum/Redeemer Generator Application

@@ -24,6 +24,7 @@ library
                      , containers
                      , data-default
                      , playground-common
+                     , plutonomy
                      , plutus-contract
                      , plutus-ledger
                      , plutus-ledger-api
