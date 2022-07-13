@@ -18,7 +18,7 @@ import qualified Data.Text             as T
 import           Data.Text             (Text)
 import           PlutusTx              (Data (..))
 import qualified PlutusTx
-import           PlutusTx.Monoid       (mempty)
+import qualified PlutusTx.Monoid       as PlutusMonoid
 import qualified Ledger
 import           System.Environment    (getArgs)
 import           Text.Read             (readMaybe)
@@ -227,13 +227,13 @@ main =
       ++ "You can also separately print the argument guide for each action\n"
       ++ "with (-h|--help|man) following the desired action, e.g.:\n\n"
 
-      ++ "\tcabal run qvf-cli -- generate script --help\n\n"
-      ++ "\tcabal run qvf-cli -- add-project     --help\n\n"
-      ++ "\tcabal run qvf-cli -- donate          --help\n\n"
-      ++ "\tcabal run qvf-cli -- contribute      --help\n\n"
-      ++ "\tcabal run qvf-cli -- set-deadline    --help\n\n"
-      ++ "\tcabal run qvf-cli -- unset-deadline  --help\n\n"
-      ++ "\tcabal run qvf-cli -- distribute      --help\n\n"
+      ++ "\tcabal run qvf-cli -- generate scripts --help\n\n"
+      ++ "\tcabal run qvf-cli -- add-project      --help\n\n"
+      ++ "\tcabal run qvf-cli -- donate           --help\n\n"
+      ++ "\tcabal run qvf-cli -- contribute       --help\n\n"
+      ++ "\tcabal run qvf-cli -- set-deadline     --help\n\n"
+      ++ "\tcabal run qvf-cli -- unset-deadline   --help\n\n"
+      ++ "\tcabal run qvf-cli -- distribute       --help\n\n"
 
       ++ "Or simple use (-h|--help|man) to print this help text.\n"
 
@@ -246,6 +246,7 @@ main =
       ++ distributeHelp
       ++ "\n\n"
       -- }}}
+    printHelp :: IO ()
     printHelp = putStrLn helpText
     andPrintSuccess :: FilePath -> IO () -> IO ()
     andPrintSuccess outFile ioAction = do
@@ -273,6 +274,7 @@ main =
               writeRedeemer
           -- }}}
       -- }}}
+    printActionHelp :: String -> IO ()
     printActionHelp action =
       -- {{{
       case action of
@@ -298,12 +300,12 @@ main =
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    "generate" : "scripts" : "-h"     -> putStrLn scriptHelp
-    "generate" : "scripts" : "--help" -> putStrLn scriptHelp
-    "generate" : "scripts" : "man"    -> putStrLn scriptHelp
-    actionStr : "-h"                  -> printActionHelp actionStr
-    actionStr : "--help"              -> printActionHelp actionStr
-    actionStr : "man"                 -> printActionHelp actionStr
+    "generate" : "scripts" : "-h"     : _ -> putStrLn scriptHelp
+    "generate" : "scripts" : "--help" : _ -> putStrLn scriptHelp
+    "generate" : "scripts" : "man"    : _ -> putStrLn scriptHelp
+    actionStr : "-h"     : _              -> printActionHelp actionStr
+    actionStr : "--help" : _              -> printActionHelp actionStr
+    actionStr : "man"    : _              -> printActionHelp actionStr
     "generate" : "scripts" : pkhStr : txRefStr : tn : amtStr : mOF : vOF : fstDatOF : initRedOF : distDatOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, readMaybe amtStr) of
@@ -350,14 +352,12 @@ main =
                   andPrintSuccess mOF $ return ()
                   andPrintSuccess vOF $ return ()
                   andPrintSuccess fstDatOF
-                    $ writeJSON fstDatOF 
-                    $ OC.NotStarted
+                    $ writeJSON fstDatOF OC.NotStarted
                   andPrintSuccess initRedOF
-                    $ writeJSON initRedOF
-                    $ OC.InitiateFund
+                    $ writeJSON initRedOF OC.InitiateFund
                   andPrintSuccess distDatOF
                     $ writeJSON distDatOF
-                    $ OC.InProgress mempty
+                    $ OC.InProgress PlutusMonoid.mempty
                   -- }}}
               -- }}}
           -- }}}
@@ -380,11 +380,11 @@ main =
             mDatum = PlutusTx.fromData datumData
           in
           case (mDatum, restOfArgs) of
-            (Nothing                       , _                                                      ) ->
+            (Nothing       , _                                                      ) ->
               -- {{{
               putStrLn $ "FAILED: Improper datum."
               -- }}}
-            (Just (OC.InProgress currDatum), "add-project" : pPKH : pLabel : pReqStr : dOF : rOF : _) ->
+            (Just currDatum, "add-project" : pPKH : pLabel : pReqStr : dOF : rOF : _) ->
               -- {{{
               case readMaybe pReqStr of
                 Nothing ->
@@ -403,7 +403,7 @@ main =
                   fromAction action currDatum (Just dOF) rOF
                   -- }}}
               -- }}}
-            (Just (OC.InProgress currDatum), "donate" : dDonor : dProject : dAmount : dOF : rOF : _ ) ->
+            (Just currDatum, "donate" : dDonor : dProject : dAmount : dOF : rOF : _ ) ->
               -- {{{
               case readMaybe dAmount of
                 Nothing ->
@@ -422,7 +422,7 @@ main =
                   fromAction action currDatum (Just dOF) rOF
                   -- }}}
               -- }}}
-            (Just (OC.InProgress currDatum), "contribute" : amountStr : dOF : rOF : _               ) ->
+            (Just currDatum, "contribute" : amountStr : dOF : rOF : _               ) ->
               -- {{{
               case readMaybe amountStr of
                 Nothing ->
@@ -434,9 +434,9 @@ main =
                   fromAction (OC.Contribute amount) currDatum (Just dOF) rOF
                   -- }}}
               -- }}}
-            (Just (OC.InProgress currDatum), "set-deadline" : deadlineStr : dOF : rOF : _           ) ->
+            (Just currDatum, "set-deadline" : deadlineStr : dOF : rOF : _           ) ->
               -- {{{
-              case readMaybe deadlineStr of
+              case Ledger.POSIXTime <$> readMaybe deadlineStr of
                 Nothing ->
                   -- {{{
                   putStrLn "FAILED to parse the new deadline."
@@ -446,7 +446,7 @@ main =
                   fromAction (OC.SetDeadline $ Just deadline) currDatum (Just dOF) rOF
                   -- }}}
               -- }}}
-            (Just (OC.InProgress currDatum), "unset-deadline" : dOF : rOF : _                       ) ->
+            (Just currDatum, "unset-deadline" : dOF : rOF : _                       ) ->
               -- {{{
               fromAction (OC.SetDeadline Nothing) currDatum (Just dOF) rOF
               -- }}}
