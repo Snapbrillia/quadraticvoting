@@ -34,52 +34,54 @@ let
     })
     { };
 
+  # No thanks
   # For Sphinx, and ad-hoc usage
-  sphinxTools = python3.withPackages (ps: [
-    sphinxcontrib-haddock.sphinxcontrib-domaintools
-    sphinx-markdown-tables
-    sphinxemoji
-    ps.sphinxcontrib_plantuml
-    ps.sphinxcontrib-bibtex
-    ps.sphinx
-    ps.sphinx_rtd_theme
-    ps.recommonmark
-  ]);
+  # sphinxTools = python3.withPackages (ps: [
+  #   sphinxcontrib-haddock.sphinxcontrib-domaintools
+  #   sphinx-markdown-tables
+  #   sphinxemoji
+  #   ps.sphinxcontrib_plantuml
+  #   ps.sphinxcontrib-bibtex
+  #   ps.sphinx
+  #   ps.sphinx_rtd_theme
+  #   ps.recommonmark
+  # ]);
 
+  # No now, thanks. Maybe later.
   # Configure project pre-commit hooks
-  pre-commit-check = nix-pre-commit-hooks.run {
-    src = (lib.cleanSource ./.);
-    tools = {
-      stylish-haskell = stylish-haskell;
-      nixpkgs-fmt = nixpkgs-fmt;
-      shellcheck = pkgs.shellcheck;
-    };
-    hooks = {
-      purs-tidy-hook = {
-        enable = true;
-        name = "purs-tidy";
-        entry = "${plutus-apps.purs-tidy}/bin/purs-tidy format-in-place";
-        files = "\\.purs$";
-        language = "system";
-      };
-      stylish-haskell.enable = true;
-      nixpkgs-fmt = {
-        enable = true;
-        # While nixpkgs-fmt does exclude patterns specified in `.ignore` this
-        # does not appear to work inside the hook. For now we have to thus
-        # maintain excludes here *and* in `./.ignore` and *keep them in sync*.
-        excludes = [ ".*nix/pkgs/haskell/materialized.*/.*" ".*/spago-packages.nix$" ];
-      };
-      shellcheck.enable = true;
-      png-optimization = {
-        enable = true;
-        name = "png-optimization";
-        description = "Ensure that PNG files are optimized";
-        entry = "${pkgs.optipng}/bin/optipng";
-        files = "\\.png$";
-      };
-    };
-  };
+  # pre-commit-check = nix-pre-commit-hooks.run {
+  #   src = (lib.cleanSource ./.);
+  #   tools = {
+  #     stylish-haskell = stylish-haskell;
+  #     nixpkgs-fmt = nixpkgs-fmt;
+  #     shellcheck = pkgs.shellcheck;
+  #   };
+  #   hooks = {
+  #     purs-tidy-hook = {
+  #       enable = true;
+  #       name = "purs-tidy";
+  #       entry = "${plutus-apps.purs-tidy}/bin/purs-tidy format-in-place";
+  #       files = "\\.purs$";
+  #       language = "system";
+  #     };
+  #     stylish-haskell.enable = true;
+  #     nixpkgs-fmt = {
+  #       enable = true;
+  #       # While nixpkgs-fmt does exclude patterns specified in `.ignore` this
+  #       # does not appear to work inside the hook. For now we have to thus
+  #       # maintain excludes here *and* in `./.ignore` and *keep them in sync*.
+  #       excludes = [ ".*nix/pkgs/haskell/materialized.*/.*" ".*/spago-packages.nix$" ];
+  #     };
+  #     shellcheck.enable = true;
+  #     png-optimization = {
+  #       enable = true;
+  #       name = "png-optimization";
+  #       description = "Ensure that PNG files are optimized";
+  #       entry = "${pkgs.optipng}/bin/optipng";
+  #       files = "\\.png$";
+  #     };
+  #   };
+  # };
 
   nixFlakesAlias = pkgs.runCommand "nix-flakes-alias" { } ''
     mkdir -p $out/bin
@@ -113,8 +115,8 @@ let
     cardano-repo-tool
     docs.build-and-serve-docs
     fixPngOptimization
-    fix-purs-tidy
-    fixStylishHaskell
+    # fix-purs-tidy
+    # fixStylishHaskell
     haskell-language-server
     haskell-language-server-wrapper
     hie-bios
@@ -123,33 +125,38 @@ let
     #pab-nami-demo.start-backend
     #plutus-playground.generate-purescript
     #plutus-playground.start-backend
-    psa
-    purescript-language-server
-    purs
-    purs-tidy
-    spago
-    spago2nix
-    stylish-haskell
+    # psa
+    # purescript-language-server
+    # purs
+    # purs-tidy
+    # spago
+    # spago2nix
+    # stylish-haskell
     updateMaterialized
     updateClientDeps
   ]);
 
 in
 haskell.project.shellFor {
-  nativeBuildInputs = nixpkgsInputs ++ localInputs ++ [ sphinxTools ];
+  # no sphinxtools thanks.
+  # nativeBuildInputs = nixpkgsInputs ++ localInputs ++ [ sphinxTools ];
+  nativeBuildInputs = nixpkgsInputs ++ localInputs;
   # We don't currently use this, and it's a pain to materialize, and otherwise
   # costs a fair bit of eval time.
   withHoogle = false;
 
-  shellHook = ''
-    ${pre-commit-check.shellHook}
-  ''
+  # Not now - maybe later. Thanks.
+  # shellHook = ''
+  #   ${pre-commit-check.shellHook}
+  # ''
+
   # Work around https://github.com/NixOS/nix/issues/3345, which makes
   # tests etc. run single-threaded in a nix-shell.
   # Sets the affinity to cores 0-1000 for $$ (current PID in bash)
   # Only necessary for linux - darwin doesn't even expose thread
   # affinity APIs!
-  + lib.optionalString stdenv.isLinux ''
+  shellHook = 
+    lib.optionalString stdenv.isLinux ''
     ${utillinux}/bin/taskset -pc 0-1000 $$
   ''
   + ''
