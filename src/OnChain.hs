@@ -36,6 +36,7 @@ import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
+import qualified Plutus.V1.Ledger.Interval   as Interval
 import           Plutus.V1.Ledger.Value
 import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
 import           PlutusTx                    (Data (..))
@@ -56,10 +57,10 @@ import           Schema                      (ToSchema)
 -- QVF PARAMETERS
 -- {{{
 data QVFParams = QVFParams
-  { qvfKeyHolder    :: !PubKeyHash
-  , qvfSymbol       :: !CurrencySymbol
-  , qvfTokenName    :: !TokenName
-  , qvfTokenCount   :: !Integer
+  { qvfKeyHolder  :: !PubKeyHash
+  , qvfSymbol     :: !CurrencySymbol
+  , qvfTokenName  :: !TokenName
+  , qvfTokenCount :: !Integer
   }
 
 PlutusTx.makeLift ''QVFParams
@@ -136,6 +137,7 @@ PlutusTx.unstableMakeIsData ''Project
 data QVFInfo = QVFInfo
   { qvfProjects :: ![Project]
   , qvfPool     :: !Integer
+  , qvfDeadline :: !(Maybe POSIXTime)
   }
 
 {-# INLINABLE sortProjects #-}
@@ -193,14 +195,20 @@ instance Eq QVFInfo where
 
 instance Semigroup QVFInfo where
   {-# INLINABLE mappend #-}
-  mappend (QVFInfo projs0 pool0) (QVFInfo projs1 pool1) =
+  mappend (QVFInfo projs0 pool0 mDl0) (QVFInfo projs1 pool1 mDl1) =
     QVFInfo
       (mergeProjects projs0 projs1)
       (pool0 + pool1)
+      ( case (mDl0, mDl1) of
+          (Nothing, Nothing)   -> Nothing
+          (Just dl, Nothing)   -> Just dl
+          (Nothing, Just dl)   -> Just dl
+          (Just dl0, Just dl1) -> Just $ max dl0 dl1
+      )
 
 instance Monoid QVFInfo where
   {-# INLINABLE mempty #-}
-  mempty = QVFInfo [] minLovelace
+  mempty = QVFInfo [] 0 Nothing
 
 PlutusTx.unstableMakeIsData ''QVFInfo
 
@@ -257,12 +265,12 @@ PlutusTx.unstableMakeIsData ''DonateParams
 -- QVF ACTION
 -- {{{
 data QVFAction
-  = InitiateFund                -- ^ Endpoint meant to be invoked by the keyholder for distributing authentication tokens.
-  | AddProject AddProjectParams -- ^ Add projects that can be funded.
-  | Donate     DonateParams     -- ^ Attempt donation to a project (identified simply by its public key hash).
-  | Contribute Integer          -- ^ Add to the prize pool.
-  | Distribute                  -- ^ Distribute the fund to projects per QVF
-  | QueryDatum                  -- ^ Endpoint for simply validating a provided datum after the funding round has been closed.
+  = InitiateFund                  -- ^ Endpoint meant to be invoked by the keyholder for distributing authentication tokens.
+  | AddProject AddProjectParams   -- ^ Add projects that can be funded.
+  | Donate     DonateParams       -- ^ Attempt donation to a project (identified simply by its public key hash).
+  | Contribute Integer            -- ^ Add to the prize pool.
+  | Distribute                    -- ^ Distribute the fund to projects per QVF
+  | SetDeadline (Maybe POSIXTime) -- ^ Deadline before users can interact with the contract.
  
 
 PlutusTx.makeIsDataIndexed ''QVFAction
@@ -271,7 +279,7 @@ PlutusTx.makeIsDataIndexed ''QVFAction
   , ('Donate      , 2)
   , ('Contribute  , 3)
   , ('Distribute  , 4)
-  , ('QueryDatum  , 5)
+  , ('SetDeadline , 5)
   ]
 -- }}}
 -- }}}
@@ -367,6 +375,36 @@ mkQVFValidator qvfParams datum action ctx =
          traceIfFalse "There should be exactly one authentication token in input." (outputHasXTokens ownInput 1)
       && traceIfFalse "There should be exactly one authentication token in output." (outputHasXTokens ownOutput 1)
       -- }}}
+
+    deadlinePassed :: POSIXTime -> Bool
+    deadlinePassed dl =
+      -- {{{
+      let
+        txTimeRange = txInfoValidRange info
+        dlToInf     = Interval.from dl
+      in
+      Interval.overlaps txTimeRange dlToInf
+      -- }}}
+
+    currDeadlinePassed :: QVFInfo -> Bool
+    currDeadlinePassed currDatum =
+      -- {{{
+      case qvfDeadline currDatum of
+        Nothing ->
+          False
+        Just dl ->
+          traceIfTrue 
+            "Deadline passed."
+            (deadlinePassed dl)
+      -- }}}
+
+    signedByKeyHolder :: Bool
+    signedByKeyHolder =
+      -- {{{
+      traceIfFalse
+        "Unauthorized."
+        (txSignedBy info keyHolder)
+      -- }}}
   in
   case (datum, action) of
     (NotStarted          , InitiateFund                ) ->
@@ -384,8 +422,23 @@ mkQVFValidator qvfParams datum action ctx =
               -- {{{
                  all
                    ( \o ->
-                          outputHasXTokens o 1
-                       && lovelaceFromValue (txOutValue o) == minAuthLovelace
+                       case getDatumFromUTxO o (`findDatum` info) of
+                         Nothing ->
+                           -- {{{
+                           traceError "All outputs should carry datum hashes."
+                           -- }}}
+                         Just oD ->
+                           -- {{{
+                              traceIfFalse
+                                "All outputs should carry exactly one authentication token."
+                                (outputHasXTokens o 1)
+                           && traceIfFalse
+                                "All outputs should carry exactly the set minimum Lovelace count."
+                                (lovelaceFromValue (txOutValue o) == minAuthLovelace)
+                           && traceIfFalse
+                                "All outputs should carry mempty datums."
+                                (oD == InProgress mempty)
+                           -- }}}
                    )
                    os
               && length os == tokenCount
@@ -398,53 +451,38 @@ mkQVFValidator qvfParams datum action ctx =
       && traceIfFalse
            "Authentication tokens are not distributed properly."
            outputsAreValid
+      && signedByKeyHolder
       -- }}}
     (NotStarted          , _                           ) ->
       -- {{{
       traceError "Funding round not started yet."
       -- }}}
-    (InProgress currDatum, AddProject addProjectParams ) ->
-      -- {{{
-      case addProjectToDatum addProjectParams currDatum of
-        Left err       ->
-          traceError err
-        Right newDatum ->
-             traceIfFalse
-               "Project submission fees not paid."
-               (enoughAddedInOutput minLovelace)
-          && traceIfFalse
-               "Invalid output datum hash."
-               (isOutputDatumValid $ InProgress newDatum)
-      -- }}}
-    (InProgress currDatum, Donate dPs@DonateParams {..}) ->
-      -- {{{
-      case addDonationToDatum dPs currDatum of
-        Left err       ->
-          traceError err
-        Right newDatum ->
-             traceIfFalse
-               "Not enough Lovelaces provided."
-               (enoughAddedInOutput dpAmount)
-          && traceIfFalse
-               "Invalid output datum hash."
-               (isOutputDatumValid newDatum)
-      -- }}}
-    (InProgress currDatum, Contribute contribution     ) ->
-      -- {{{
-      case addContributionToDatum contribution currDatum of
-        Left err       ->
-          traceError err
-        Right newDatum ->
-             traceIfFalse
-               "Not enough Lovelaces provided."
-               (enoughAddedInOutput contribution)
-          && traceIfFalse
-               "Invalid output datum hash."
-               (isOutputDatumValid newDatum)
-      -- }}}
-    (InProgress currDatum, Distribute                  ) ->
+    (_                   , Distribute                  ) ->
       -- {{{
       let
+        datumFold inTx acc  =
+          -- {{{
+          let
+            o = txInInfoResolved inTx
+          in
+          if outputHasXTokens o 1 then
+            -- {{{
+            case getDatumFromUTxO o (`findDatum` info) of
+              Just (InProgress dInfo) ->
+                -- {{{
+                dInfo <> acc
+                -- }}}
+              _                       ->
+                -- {{{
+                traceError "Invalid datum found in input."
+                -- }}}
+            -- }}}
+          else
+            -- {{{
+            traceError "All inputs must have exactly one authentication token."
+            -- }}}
+          -- }}}
+        currDatum           = foldr datumFold mempty $ txInfoInputs info
         tokenCount          = qvfTokenCount qvfParams
         outputs             = txInfoOutputs info
         validOutputCount    = length outputs >= length projects + 2
@@ -467,15 +505,25 @@ mkQVFValidator qvfParams datum action ctx =
           -- }}}
         -- | The folding already checks that each project is getting their
         --   won prize.
-        forKeyHolder = foldr foldFn extraFromRounding prizeMappings
-        keyHolderImbursed =
-           (lovelaceFromValue (valuePaidTo info keyHolder)) == forKeyHolder
+        forKeyHolder        =
+          -- {{{
+          foldr
+            foldFn
+            (extraFromRounding + (tokenCount - 1) * minAuthLovelace)
+            prizeMappings --     ^--------------------------------^
+            -- Initial minimum Lovelaces accompanied by each authentication
+            -- token should be returned to the key holder. One is reduced for
+            -- the @Closed@ datum that is sent back to the script address.
+          -- }}}
+        keyHolderImbursed   =
+          (lovelaceFromValue (valuePaidTo info keyHolder)) == forKeyHolder
       in
-         traceIfFalse
-           "Unauthorized."
-           (txSignedBy info keyHolder)
+         signedByKeyHolder
       && traceIfFalse
-           "Improper distribution."
+           "Deadline not reached yet."
+           (currDeadlinePassed currDatum)
+      && traceIfFalse
+           "Improper consumption and production of the authentication tokens."
             allTokensPresent
       && traceIfFalse
            "Key holder not imbursed."
@@ -487,10 +535,66 @@ mkQVFValidator qvfParams datum action ctx =
            "Invalid output count."
            validOutputCount
       -- }}}
-    (InProgress currDatum, QueryDatum                  ) ->
-      True -- TODO.
-    (Closed     currDatum, QueryDatum                  ) ->
-      True -- TODO.
+    (InProgress currDatum, AddProject addProjectParams ) ->
+      -- {{{
+      -- NOTE that there is no prevention mechanism for registering a project
+      -- on multiple UTxO's. This should probably be handled off-chain for the
+      -- time being.
+      case addProjectToDatum addProjectParams currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+             traceIfFalse
+               "Project submission fees not paid."
+               (enoughAddedInOutput minLovelace)
+          && traceIfFalse
+               "Invalid output datum hash."
+               (isOutputDatumValid $ InProgress newDatum)
+          && currDeadlinePassed currDatum
+      -- }}}
+    (InProgress currDatum, Donate dPs@DonateParams {..}) ->
+      -- {{{
+      case addDonationToDatum dPs currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+             traceIfFalse
+               "Not enough Lovelaces provided."
+               (enoughAddedInOutput dpAmount)
+          && traceIfFalse
+               "Invalid output datum hash."
+               (isOutputDatumValid newDatum)
+          && currDeadlinePassed currDatum
+      -- }}}
+    (InProgress currDatum, Contribute contribution     ) ->
+      -- {{{
+      case addContributionToDatum contribution currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+             traceIfFalse
+               "Not enough Lovelaces provided."
+               (enoughAddedInOutput contribution)
+          && traceIfFalse
+               "Invalid output datum hash."
+               (isOutputDatumValid newDatum)
+          && currDeadlinePassed currDatum
+      -- }}}
+    (InProgress currDatum, SetDeadline mNewDl          ) ->
+      -- {{{
+      signedByKeyHolder &&
+      case (qvfDeadline currDatum, mNewDl) of
+        (_, Just newDl) ->
+          -- {{{
+          traceIfTrue
+            "New deadline is in the past."
+            (deadlinePassed newDl)
+          -- }}}
+        _               ->
+          -- {{{
+          True
+          -- }}}
+      -- }}}
     (Closed     currDatum, _                           ) ->
       -- {{{
       traceError "This funding round has ended."
@@ -777,8 +881,8 @@ addDonationToDatum DonateParams {..} currDatum =
 
 {-# INLINABLE addContributionToDatum #-}
 addContributionToDatum :: Integer
-                       -> QVFDatum
-                       -> Either BuiltinString QVFDatum
+                       -> QVFInfo
+                       -> Either BuiltinString QVFInfo
 addContributionToDatum contribution currDatum =
   -- {{{
   if contribution < minLovelace then
@@ -790,22 +894,28 @@ addContributionToDatum contribution currDatum =
 
 {-# INLINABLE updateDatum #-}
 updateDatum :: QVFAction -> QVFDatum -> Either BuiltinString QVFDatum
-updateDatum action currDatum =
+updateDatum action datum =
   -- {{{
-  case action of
-    AddProject addProjectParams ->
+  case (datum, action) of
+    (InProgress currDatum, AddProject addProjectParams) ->
       -- {{{
-      addProjectToDatum addProjectParams currDatum
+      InProgress <$> (addProjectToDatum addProjectParams currDatum)
       -- }}}
-    Donate donateParams         ->
+    (InProgress currDatum, Donate donateParams        ) ->
       -- {{{
-      addDonationToDatum donateParams currDatum
+      InProgress <$> (addDonationToDatum donateParams currDatum)
       -- }}}
-    Contribute contribution     ->
+    (InProgress currDatum, Contribute contribution    ) ->
       -- {{{
-      addContributionToDatum contribution currDatum
+      InProgress <$> (addContributionToDatum contribution currDatum)
       -- }}}
-    Distribute                  ->
+    (InProgress currDatum, SetDeadline mNewDeadline   ) ->
+      -- {{{
+      -- Since this function is only used by the CLI application, this
+      -- invokation results to a non-conditional acceptance of the new deadline.
+      Right $ currDatum {qvfDeadline = mNewDeadline}
+      -- }}}
+    _                                                   ->
       -- {{{
       Left "No datum needed."
       -- }}}
@@ -816,6 +926,7 @@ updateDatum action currDatum =
 pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
 pluck p [] = Nothing
 pluck p xs =
+  -- {{{
   case go xs ([], Nothing, []) of
     (_, Nothing, _)      ->
       Nothing
@@ -827,7 +938,8 @@ pluck p xs =
       | p y       =
           (soFar, Just y, ys)
       | otherwise =
-          go ys (soFar, Nothing, [])
+          go ys (y : soFar, Nothing, [])
+  -- }}}
 -- }}}
 
 

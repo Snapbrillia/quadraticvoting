@@ -18,6 +18,7 @@ import qualified Data.Text             as T
 import           Data.Text             (Text)
 import           PlutusTx              (Data (..))
 import qualified PlutusTx
+import           PlutusTx.Monoid       (mempty)
 import qualified Ledger
 import           System.Environment    (getArgs)
 import           Text.Read             (readMaybe)
@@ -144,7 +145,7 @@ main =
       ++ "\tGenerate the initial datum:\n\n"
 
       ++ "\tcabal run qvf-cli -- generate      \\\n"
-      ++ "\t                     initial-datum \\\n"
+      ++ "\t                     mempty-datum  \\\n"
       ++ "\t                     <output.json>\n\n\n"
 
 
@@ -228,9 +229,9 @@ main =
   in do
   allArgs <- getArgs
   case allArgs of
-    "generate" : "initial-datum" : outFile : _                               ->
+    "generate" : "mempty-datum" : outFile : _                                ->
       -- {{{
-      andPrintSuccess outFile $ writeJSON outFile OC.initialDatum
+      andPrintSuccess outFile $ writeJSON outFile mempty
       -- }}}
     "generate" : "distribution-redeemer" : outFile : _                       ->
       -- {{{
