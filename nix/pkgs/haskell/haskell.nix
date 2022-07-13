@@ -6,7 +6,7 @@
 , gitignore-nix
 , z3
 , libsodium-vrf
-, libsecp256k1
+, checkMaterialization
 , compiler-nix-name
 , enableHaskellProfiling
   # Whether to set the `defer-plugin-errors` flag on those packages that need
@@ -25,6 +25,18 @@ let
         # particularly bad on Hercules, see https://github.com/hercules-ci/support/issues/40
         name = "plutus-apps";
       };
+    # These files need to be regenerated when you change the cabal files.
+    # See ../CONTRIBUTING.doc for more information.
+    # Unfortuntely, they are *not* constant across all possible systems, so in some circumstances we need different sets of files
+    # At the moment, we only need one but conceivably we might need one for darwin in future.
+    # See https://github.com/input-output-hk/nix-tools/issues/97
+    materialized =
+      if pkgs.stdenv.hostPlatform.isLinux then ./materialized-linux
+      else if pkgs.stdenv.hostPlatform.isDarwin then ./materialized-darwin
+      else if pkgs.stdenv.hostPlatform.isWindows then ./materialized-windows
+      else builtins.error "Don't have materialized files for this platform";
+    # If true, we check that the generated files are correct. Set in the CI so we don't make mistakes.
+    inherit checkMaterialization;
     sha256map = import ./sha256map.nix;
     # Configuration settings needed for cabal configure to work when cross compiling
     # for windows. We can't use `modules` for these as `modules` are only applied
@@ -60,9 +72,6 @@ let
             plutus-pab.package.buildable = false;
             plutus-pab-executables.package.buildable = false;
             plutus-playground-server.package.buildable = false; # Would also require libpq
-            plutus-script-utils.package.buildable = false;
-            plutus-streaming.package.buildable = false;
-            plutus-tx-constraints.package.buildable = false;
             plutus-tx-plugin.package.buildable = false;
             plutus-use-cases.package.buildable = false;
             plutus-example.package.buildable = false;
@@ -114,20 +123,14 @@ let
             plutus-ledger.doHaddock = deferPluginErrors;
             plutus-ledger.flags.defer-plugin-errors = deferPluginErrors;
 
-            plutus-script-utils.doHaddock = deferPluginErrors;
-            plutus-script-utils.flags.defer-plugin-errors = deferPluginErrors;
-
             plutus-example.doHaddock = deferPluginErrors;
             plutus-example.flags.defer-plugin-errors = deferPluginErrors;
             plutus-example.preCheck = "
-              export CARDANO_CLI=${config.hsPkgs.cardano-cli.components.exes.cardano-cli}/bin/cardano-cli${pkgs.stdenv.hostPlatform.extensions.executable}
-              export CARDANO_NODE=${config.hsPkgs.cardano-node.components.exes.cardano-node}/bin/cardano-node${pkgs.stdenv.hostPlatform.extensions.executable}
-              export CARDANO_SUBMIT_API=${config.hsPkgs.cardano-submit-api.components.exes.cardano-submit-api}/bin/cardano-submit-api${pkgs.stdenv.hostPlatform.extensions.executable}
-              export CREATE_SCRIPT_CONTEXT=${config.hsPkgs.plutus-example.components.exes.create-script-context}/bin/create-script-context${pkgs.stdenv.hostPlatform.extensions.executable}
-              export CARDANO_NODE_SRC=${src}
-            ";
-            plutus-example.components.tests.plutus-example-test.build-tools =
-              lib.mkForce (with pkgs.buildPackages; [ jq coreutils shellcheck lsof ]);
+            export CARDANO_CLI=${config.hsPkgs.cardano-cli.components.exes.cardano-cli}/bin/cardano-cli${pkgs.stdenv.hostPlatform.extensions.executable}
+            export CARDANO_NODE=${config.hsPkgs.cardano-node.components.exes.cardano-node}/bin/cardano-node${pkgs.stdenv.hostPlatform.extensions.executable}
+            export CARDANO_SUBMIT_API=${config.hsPkgs.cardano-submit-api.components.exes.cardano-submit-api}/bin/cardano-submit-api${pkgs.stdenv.hostPlatform.extensions.executable}
+            export CARDANO_NODE_SRC=${src}
+          ";
 
             # FIXME: Haddock mysteriously gives a spurious missing-home-modules warning
             plutus-tx-plugin.doHaddock = false;
@@ -141,23 +144,20 @@ let
 
             # Broken due to warnings, unclear why the setting that fixes this for the build doesn't work here.
             iohk-monitoring.doHaddock = false;
-            cardano-wallet.doHaddock = false;
 
             # Werror everything. This is a pain, see https://github.com/input-output-hk/haskell.nix/issues/519
             playground-common.ghcOptions = [ "-Werror" ];
             plutus-chain-index.ghcOptions = [ "-Werror" ];
             plutus-chain-index-core.ghcOptions = [ "-Werror" ];
             plutus-contract.ghcOptions = [ "-Werror" ];
-            plutus-doc.ghcOptions = [ "-Werror" ];
-            plutus-example.ghcOptions = [ "-Werror" ];
             plutus-ledger.ghcOptions = [ "-Werror" ];
             plutus-ledger-constraints.ghcOptions = [ "-Werror" ];
             plutus-playground-server.ghcOptions = [ "-Werror" ];
             plutus-pab.ghcOptions = [ "-Werror" ];
             plutus-pab-executables.ghcOptions = [ "-Werror" ];
-            plutus-script-utils.ghcOptions = [ "-Werror" ];
-            plutus-tx-constraints.ghcOptions = [ "-Werror" ];
+            plutus-doc.ghcOptions = [ "-Werror" ];
             plutus-use-cases.ghcOptions = [ "-Werror" ];
+            plutus-example.ghcOptions = [ "-Werror" ];
 
             # Honestly not sure why we need this, it has a mysterious unused dependency on "m"
             # This will go away when we upgrade nixpkgs and things use ieee754 anyway.
@@ -165,7 +165,7 @@ let
 
             # See https://github.com/input-output-hk/iohk-nix/pull/488
             cardano-crypto-praos.components.library.pkgconfig = lib.mkForce [ [ libsodium-vrf ] ];
-            cardano-crypto-class.components.library.pkgconfig = lib.mkForce [ [ libsodium-vrf libsecp256k1 ] ];
+            cardano-crypto-class.components.library.pkgconfig = lib.mkForce [ [ libsodium-vrf ] ];
           };
         })
       ] ++ lib.optional enableHaskellProfiling {

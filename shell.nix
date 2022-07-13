@@ -5,11 +5,10 @@
 , packages ? import ./. { inherit system enableHaskellProfiling sources sourcesOverride; }
 }:
 let
-  # pab-nami-demo fails to build so don't include it yet and we don't want plutus-playgrounf
-  # inherit (packages) pkgs plutus-apps plutus-playground pab-nami-demo docs webCommon;
+  #inherit (packages) pkgs plutus-apps plutus-playground pab-nami-demo docs webCommon;
   inherit (packages) pkgs plutus-apps docs webCommon;
   inherit (pkgs) stdenv lib utillinux python3 nixpkgs-fmt;
-  inherit (plutus-apps) haskell stylish-haskell sphinxcontrib-haddock sphinx-markdown-tables sphinxemoji nix-pre-commit-hooks cabal-fmt;
+  inherit (plutus-apps) haskell stylish-haskell sphinxcontrib-haddock sphinx-markdown-tables sphinxemoji nix-pre-commit-hooks;
 
   # Feed cardano-wallet, cardano-cli & cardano-node to our shell.
   # This is stable as it doesn't mix dependencies with this code-base;
@@ -22,16 +21,16 @@ let
         type = "github";
         owner = "input-output-hk";
         repo = "cardano-wallet";
-        rev = "a73d8c9717dc4e174745f8568d6f3fe84f0f9d76";
-        narHash = "sha256-ncoAaIPWRhJ2FShesmrp4q5LK1PtWuzqOKuhlwerWac=";
+        rev = "f6d4db733c4e47ee11683c343b440552f59beff7";
+        narHash = "sha256-3oeHsrAhDSSKBSzpGIAqmOcFmBdAJ5FR02UXPLb/Yz0=";
       };
   }).defaultNix;
   cardano-node = import
     (pkgs.fetchgit {
       url = "https://github.com/input-output-hk/cardano-node";
       # A standard release compatible with the cardano-wallet commit above is always preferred.
-      rev = "1.35.0";
-      sha256 = "06arx9hv7dn3qxfy83f0b6018rxbsvh841nvfyg5w6qclm1hddj7";
+      rev = "1.34.1";
+      sha256 = "1hh53whcj5y9kw4qpkiza7rmkniz18r493vv4dzl1a8r5fy3b2bv";
     })
     { };
 
@@ -42,7 +41,6 @@ let
     sphinxemoji
     ps.sphinxcontrib_plantuml
     ps.sphinxcontrib-bibtex
-    ps.sphinx-autobuild
     ps.sphinx
     ps.sphinx_rtd_theme
     ps.recommonmark
@@ -55,7 +53,6 @@ let
       stylish-haskell = stylish-haskell;
       nixpkgs-fmt = nixpkgs-fmt;
       shellcheck = pkgs.shellcheck;
-      cabal-fmt = cabal-fmt;
     };
     hooks = {
       purs-tidy-hook = {
@@ -73,7 +70,6 @@ let
         # maintain excludes here *and* in `./.ignore` and *keep them in sync*.
         excludes = [ ".*nix/pkgs/haskell/materialized.*/.*" ".*/spago-packages.nix$" ];
       };
-      cabal-fmt.enable = true;
       shellcheck.enable = true;
       png-optimization = {
         enable = true;
@@ -92,23 +88,17 @@ let
 
   # build inputs from nixpkgs ( -> ./nix/default.nix )
   nixpkgsInputs = with pkgs; [
-    awscli2
-    bzip2
     cacert
     editorconfig-core-c
     ghcid
     jq
     nixFlakesAlias
     nixpkgs-fmt
-    cabal-fmt
     nodejs
     plantuml
-    # See https://github.com/cachix/pre-commit-hooks.nix/issues/148 for why we need this
-    pre-commit
     shellcheck
     sqlite-interactive
     stack
-    wget
     yq
     z3
     zlib
@@ -124,17 +114,15 @@ let
     docs.build-and-serve-docs
     fixPngOptimization
     fix-purs-tidy
-    fixCabalFmt
     fixStylishHaskell
     haskell-language-server
     haskell-language-server-wrapper
     hie-bios
     hlint
-    # pab-nami-demo not build, so don't include (until fixed)
-    # pab-nami-demo.generate-purescript
-    # we don't bild the playground
-    # plutus-playground.generate-purescript
-    # plutus-playground.start-backend
+    #pab-nami-demo.generate-purescript
+    #pab-nami-demo.start-backend
+    #plutus-playground.generate-purescript
+    #plutus-playground.start-backend
     psa
     purescript-language-server
     purs
@@ -142,6 +130,7 @@ let
     spago
     spago2nix
     stylish-haskell
+    updateMaterialized
     updateClientDeps
   ]);
 
@@ -164,6 +153,6 @@ haskell.project.shellFor {
     ${utillinux}/bin/taskset -pc 0-1000 $$
   ''
   + ''
-    export WEB_COMMON_SRC=${webCommon.cleanSrc}
+    export WEB_COMMON_SRC=${webCommon}
   '';
 }

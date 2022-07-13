@@ -1,4 +1,5 @@
 { pkgs
+, checkMaterialization
 , system ? builtins.currentSystem
 , config ? { }
 , sources
@@ -12,8 +13,7 @@ let
   # { index-state, compiler-nix-name, project, projectPackages, packages, extraPackages }
   haskell = pkgs.callPackage ./haskell {
     inherit gitignore-nix sources;
-    inherit enableHaskellProfiling;
-    libsecp256k1 = pkgs.secp256k1;
+    inherit checkMaterialization enableHaskellProfiling;
 
     # This ensures that the utility scripts produced in here will run on the current system, not
     # the build system, so we can run e.g. the darwin ones on linux
@@ -27,7 +27,6 @@ let
   cabal-install = haskell.extraPackages.cabal-install.components.exes.cabal;
   cardano-repo-tool = exeFromExtras "cardano-repo-tool";
   stylish-haskell = exeFromExtras "stylish-haskell";
-  cabal-fmt = exeFromExtras "cabal-fmt";
   hlint = exeFromExtras "hlint";
   haskell-language-server = exeFromExtras "haskell-language-server";
   haskell-language-server-wrapper = pkgs.writeShellScriptBin "haskell-language-server-wrapper" ''${haskell-language-server}/bin/haskell-language-server "$@"'';
@@ -37,9 +36,22 @@ let
   # dev convenience scripts
   #
   fix-purs-tidy = pkgs.callPackage ./fix-purs-tidy { inherit purs-tidy; };
-  fixCabalFmt = pkgs.callPackage ./fix-cabal-fmt { inherit cabal-fmt; };
   fixStylishHaskell = pkgs.callPackage ./fix-stylish-haskell { inherit stylish-haskell; };
   fixPngOptimization = pkgs.callPackage ./fix-png-optimization { };
+  updateMaterialized = pkgs.writeShellScriptBin "updateMaterialized" ''
+    # This runs the 'updateMaterialize' script in all platform combinations we care about.
+    # See the comment in ./haskell/haskell.nix
+
+    # Update the linux files (will do for all unixes atm).
+    $(nix-build default.nix -A plutus-apps.haskell.project.plan-nix.passthru.updateMaterialized --argstr system x86_64-linux)
+    $(nix-build default.nix -A plutus-apps.haskell.project.plan-nix.passthru.updateMaterialized --argstr system x86_64-darwin)
+    $(nix-build default.nix -A plutus-apps.haskell.project.plan-nix.passthru.updateMaterialized --argstr system windows)
+    $(nix-build default.nix -A plutus-apps.haskell.project.projectCross.mingwW64.plan-nix.passthru.updateMaterialized --argstr system x86_64-linux)
+
+    # This updates the sha files for the extra packages
+    $(nix-build default.nix -A plutus-apps.haskell.extraPackages.updateAllShaFiles --argstr system x86_64-linux)
+    $(nix-build default.nix -A plutus-apps.haskell.extraPackages.updateAllShaFiles --argstr system x86_64-darwin)
+  '';
   updateClientDeps = pkgs.callPackage ./update-client-deps {
     inherit purs spago spago2nix;
   };
@@ -111,9 +123,9 @@ in
 {
   inherit sphinx-markdown-tables sphinxemoji sphinxcontrib-haddock;
   inherit nix-pre-commit-hooks;
-  inherit haskell cabal-install cardano-repo-tool stylish-haskell hlint haskell-language-server haskell-language-server-wrapper hie-bios cabal-fmt;
+  inherit haskell cabal-install cardano-repo-tool stylish-haskell hlint haskell-language-server haskell-language-server-wrapper hie-bios;
   inherit purs-tidy purs spago spago2nix purescript-language-server psa;
-  inherit fix-purs-tidy fixStylishHaskell fixCabalFmt fixPngOptimization updateClientDeps;
+  inherit fix-purs-tidy fixStylishHaskell fixPngOptimization updateMaterialized updateClientDeps;
   inherit web-ghc;
   inherit easyPS plutus-haddock-combined;
   inherit lib;

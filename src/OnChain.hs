@@ -157,7 +157,7 @@ pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
 pluck _ [] = Nothing
 pluck p xs =
   -- {{{
-  case go xs ([], Nothing, zs) of
+  case go xs ([], Nothing, []) of
     (_, Nothing, _)      ->
       Nothing
     (prevYs, Just y, ys) ->

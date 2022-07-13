@@ -231,7 +231,7 @@ main =
   case allArgs of
     "generate" : "mempty-datum" : outFile : _                                ->
       -- {{{
-      andPrintSuccess outFile $ writeJSON outFile mempty
+      andPrintSuccess outFile $ writeJSON outFile Prelude.mempty
       -- }}}
     "generate" : "distribution-redeemer" : outFile : _                       ->
       -- {{{

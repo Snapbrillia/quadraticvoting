@@ -30,6 +30,7 @@ library
                      , containers
                      , data-default
                      , plutus-ledger-constraints
+                     , playground-common
                      , serialise
   default-language:    Haskell2010
   ghc-options:         -Wall -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fno-strictness -fno-spec-constr -fno-specialise -fplugin-opt PlutusTx.Plugin:defer-errors
