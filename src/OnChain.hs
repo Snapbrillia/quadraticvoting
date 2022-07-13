@@ -48,7 +48,6 @@ import           PlutusTx.Builtins.Internal  (BuiltinInteger)
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
--- import           PlutusTx.Trace              (traceError, traceIfFalse)
 import           Schema                      (ToSchema)
 -- }}}
 
