@@ -23,11 +23,12 @@ This means:
 
 # Direnv
    '[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
-   The project supports direnv for those who want to use it. If you have direnv installed when you checkout this branch you should be prompted to allow direnv for the project's root directory. If that doesn't happen you can execute the following in the projects root directory
+
+   The project supports [direnv](https://direnv.net) for those who want to use it. If you have [direnv](https://direnv.net) installed then you should be prompted to allow [direnv](https://direnv.net) for the project's root directory when you checkout this branch . If that doesn't happen (for some reason) then after the checkout completes you can execute the following in the quadraticvoting's 'root' directory
    ```bash
    $ direnv allow .
    ```
-   N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'shell.nix'. This will cause the same activity as if you had typed 'nix-shell' in the root directory. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer to invoke 'nix-shell' explicitly.
+   N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'shell.nix'. This will cause the same activity as if you had typed 'nix-shell' in the root directory. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
 
 # Clone this repo and/or checkout this branch.
    You may prefer to play with the support this branch provides with out interfering (too much) with your current development environment. If so clone [quadraticvoting](https://github.com/Snapbrillia/quadraticvoting) into a new location (recommended). 
@@ -35,8 +36,10 @@ This means:
    $ mkdir -p ~/tmp/repos
    $ cd ~/tmp/repos
    $ git clone https://github.com/Snapbrillia/quadraticvoting.git
+   $ cd quadraticvoting
+   $ git checkout feature/vscode-nix-plutonomy
    ```
-   Or you could just checkout this branch in your existing directory.
+   Or you could just checkout this branch in your quadraticvoting directory.
    ```bash
    $ git checkout feature/vscode-nix-plutonomy
    ```
@@ -48,16 +51,19 @@ This means:
    $ cd ~/tmp/repos
    $ nix-shell
    ```
-   On first invocation this will take some time as it populates your nix cache. On my machine, in Vietnam, it took 10 minutes. And then
+   On first invocation this will take some time as it populates your nix cache. On my machine, in Vietnam, it took 10 minutes. So, more coffee...
+   
+   And then
    ```bash
    $ cabal build
    ```
-   And that's it. You should be able to use the repl at this point. i.e. The following should work:
+
+   Or
    ```bash
    $ cabal repl
    ```
 
-# Vscode - again
+# Vscode - one more tweak
    Start vscode from your projects root dir. Wait for things to settle down :-). Then use the 'Nix Environment Selector'
    extension to make the correct versions of the tools are used (in particular the haskell-language-server) and that they run in the right environment. Follow the instructions in 'Nix Environment Selector' documentation. You will be presented with a list of nix files to select from. Choose 'life'. Err, actually choose 'shell.nix'. Then exit and restart. Give it a few seconds to warm up, then open e.g. OnChain.hs. You should see activity in the status bar - hls getting to work. 
 
