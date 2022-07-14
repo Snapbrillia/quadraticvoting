@@ -12,14 +12,14 @@ This means:
 ## Setting up
 
 # Vscode
-   If you want to use vscode 
-   a. Install it from xxx
-   b. Start vscode and add the following extensions:
-      i.   Haskell (id: haskell.haskell)
-      ii.  Haskell Syntax Highlighting (id: justusadam.language-haskell)
-      iii. Nix Environment Selector (id: arrterian.nix-env-selector)
-      iv.  direnv (id: mkhl.direnv) -- optional (see 2. below)
-   c. Exit vscode.
+   If you want to use vscode:
+1. Install it from [here](https://code.visualstudio.com/download)
+2. Start vscode and add the following extensions:
+- Haskell (id: haskell.haskell)
+- Haskell Syntax Highlighting (id: justusadam.language-haskell)
+- Nix Environment Selector (id: arrterian.nix-env-selector)
+- direnv (id: mkhl.direnv) -- optional (see 2. below)
+3. Exit vscode.
 
 # Direnv
    '[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
