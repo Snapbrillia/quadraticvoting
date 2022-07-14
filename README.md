@@ -1,16 +1,17 @@
 # Snapbrillia Quadratic Voting Project
 
-This branch introduces a Nix build system for the project. So?
+This branch introduces a Nix build system for the project. 'So what?' I hear you say...
+
 This means: 
-- no more faffing around with cloning plutus-apps and/or setting up links to its dist-newstyle directory etc.
-- no need to explicitly clone the plutonomy repo and set it up
-- support for Vscode (i.e. code completion and all that stuff). (This does *NOT* use the devcontainer. I haven't got that working yet. Not sure it's a priority given we can use Vscode without it).
-- most importantly it provides a 'reproduceable' build. i.e. the build should be the 'same' on everyone's machine.
-- it provides the basis for setting up pipeline builds on github
+- No more faffing around with cloning plutus-apps and/or setting up links to its dist-newstyle directory etc.
+- No need to explicitly clone the plutonomy repo and set it up
+- Support for Vscode (i.e. code completion and all that stuff). (This does *NOT* use the devcontainer. I haven't got that working yet. Not sure it's a priority given we can use Vscode without it).
+- *Most importantly* it provides a 'reproduceable' build. i.e. the build should be the 'same' on everyone's machine.
+- It provides the basis for setting up pipeline builds on github
 
 ## Setting up
 
-1. Vscode
+# Vscode
    If you want to use vscode 
    a. Install it from xxx
    b. Start vscode and add the following extensions:
@@ -20,7 +21,7 @@ This means:
       iv.  direnv (id: mkhl.direnv) -- optional (see 2. below)
    c. Exit vscode.
 
-2. Direnv
+# Direnv
    '[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
    The project supports direnv for those who want to use it. If you have direnv installed when you checkout this branch you should be prompted to allow direnv for the project's root directory. If that doesn't happen you can execute the following in the projects root directory
    ```bash
@@ -28,7 +29,7 @@ This means:
    ```
    N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'shell.nix'. This will cause the same activity as if you had typed 'nix-shell' in the root directory. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer to invoke 'nix-shell' explicitly.
 
-3. Clone this repo and/or checkout this branch.
+# Clone this repo and/or checkout this branch.
    You may prefer to play with the support this branch provides with out interfering (too much) with your current development environment. If so clone [quadraticvoting](https://github.com/Snapbrillia/quadraticvoting) into a new location (recommended). 
    ```bash
    $ mkdir -p ~/tmp/repos
@@ -41,7 +42,7 @@ This means:
    ```
    If you've installed [direnv](https://direnv.net) you should get prompted at this point (see 2 above). If you decide to allow 'direnv' on prompting or explicitly, go and get a coffee at this point. The project's 'shell.nix' will get invoked to setup your nix (build) environment.
 
-4. Build
+# Build
    If you're not using [direnv](https://direnv.net) invoke 'nix-shell' in the project's root directory.
    ```bash
    $ cd ~/tmp/repos
@@ -56,7 +57,7 @@ This means:
    $ cabal repl
    ```
 
-5. Vscode - again
+# Vscode - again
    Start vscode from your projects root dir. Wait for things to settle down :-). Then use the 'Nix Environment Selector'
    extension to make the correct versions of the tools are used (in particular the haskell-language-server) and that they run in the right environment. Follow the instructions in 'Nix Environment Selector' documentation. You will be presented with a list of nix files to select from. Choose 'life'. Err, actually choose 'shell.nix'. Then exit and restart. Give it a few seconds to warm up, then open e.g. OnChain.hs. You should see activity in the status bar - hls getting to work. 
 
