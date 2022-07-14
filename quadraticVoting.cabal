@@ -29,6 +29,8 @@ library
                      , cardano-api
                      , containers
                      , data-default
+                     , playground-common
+                     , plutonomy
                      , plutus-ledger-constraints
                      , playground-common
                      , serialise

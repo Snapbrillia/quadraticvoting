@@ -16,6 +16,7 @@
 module Token where
 
 
+import qualified Plutonomy
 import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Ledger                      hiding (mint, singleton)
@@ -68,7 +69,7 @@ mkQVFPolicy PolicyParams {..} () ctx =
 qvfPolicy :: PolicyParams -> Scripts.MintingPolicy
 qvfPolicy pParams =
   -- {{{
-  mkMintingPolicyScript $
+  Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
     $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkQVFPolicy ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode pParams

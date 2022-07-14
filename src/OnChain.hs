@@ -34,6 +34,7 @@ import           GHC.Generics
 import           Ledger
 import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
+import qualified Plutonomy
 import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
 import qualified Plutus.V1.Ledger.Interval   as Interval
@@ -654,7 +655,10 @@ typedQVFValidator qvfParams =
 
 
 qvfValidator :: QVFParams -> Validator
-qvfValidator = Scripts.validatorScript . typedQVFValidator
+qvfValidator =
+    Plutonomy.optimizeUPLC
+  . Scripts.validatorScript
+  . typedQVFValidator
 
 
 qvfValidatorHash :: QVFParams -> ValidatorHash

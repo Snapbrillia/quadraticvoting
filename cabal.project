@@ -3,6 +3,8 @@ index-state: 2022-02-22T20:47:03Z
 
 packages: ./.
 
+-- flags:      +plutus-4710dff23
+
 -- You never, ever, want this.
 write-ghc-environment-files: never
 
