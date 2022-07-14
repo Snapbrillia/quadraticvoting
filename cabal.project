@@ -3,7 +3,8 @@ index-state: 2022-02-22T20:47:03Z
 
 packages: ./.
 
--- flags:      +plutus-4710dff23
+-- flags for the plutonomy optimizer
+flags:      +plutus-4710dff2e
 
 -- You never, ever, want this.
 write-ghc-environment-files: never
@@ -331,4 +332,9 @@ source-repository-package
   type: git
   location: https://github.com/input-output-hk/Win32-network
   tag: 3825d3abf75f83f406c1f7161883c438dac7277d
+
+source-repository-package
+  type: git
+  location:  https://github.com/well-typed/plutonomy
+  tag: f60abbb244892a4e237b51df963e5c544143f01d
   
