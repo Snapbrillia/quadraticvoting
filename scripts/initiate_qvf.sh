@@ -5,30 +5,30 @@
 # assigned.
 . env.sh
 
-$cli="cardano-cli"
-$qvf="cabal run qvf-cli --"
+cli="cardano-cli"
+qvf="cabal run qvf-cli --"
 
-$keyHolderAddressFile="wallets/keyHolder.addr"
-$keyHolderPubKeyHashFile="wallets/keyHolder.pkh"
-$keyHolderSigningKeyFile="wallets/keyHolder.skey"
+keyHolderAddressFile="wallets/keyHolder.addr"
+keyHolderPubKeyHashFile="wallets/keyHolder.pkh"
+keyHolderSigningKeyFile="wallets/keyHolder.skey"
 
-$startingWallet=1
-$endingWallet=10
-$totalLovelaceToDistribute=2000000000
+startingWallet=1
+endingWallet=10
+totalLovelaceToDistribute=2000000000
 
-$tokenName="QuadraToken"
-$tokenCount=10
+tokenName="QuadraToken"
+tokenCount=10
 
-$policyFile="minting.plutus"
-$validatorFile="qvf.plutus"
-$scriptAddressFile="qvf.addr"
-$tokenNameHexFile="token.hex"
-$qvf string-to-hex $tokenName $tokenNameHexFile
-$tokenNameHex=$(cat $tokenNameHexFile)
+policyFile="minting.plutus"
+validatorFile="qvf.plutus"
+scriptAddressFile="qvf.addr"
+tokenNameHexFile="token.hex"
+qvf="qvf string-to-hex $tokenName $tokenNameHexFile"
+tokenNameHex=$(cat $tokenNameHexFile)
 
-$notStartedDatum="notStarted-datum.json"
-$initiateFundRedeemer="initiate-fund.json"
-$memptyDatum="mempty-datum.json"
+notStartedDatum="notStarted-datum.json"
+initiateFundRedeemer="initiate-fund.json"
+memptyDatum="mempty-datum.json"
 
 
 generate_wallets_and_distribute() {
@@ -82,15 +82,15 @@ construct_and_submit_genesis_tx() {
         $initiateFundRedeemer \ # output file for `InitiateFund` redeemer.
         $memptyDatum            # output file for `InProgress mempty` datum.
     
-    $scriptAddr=$(get_script_address)
-    $authAsset=$(get_auth_asset)
-    $notStartedDatumHash=$(get_script_data_hash $notStartedDatum)
-    $memptyDatumHash=$(get_script_data_hash $memptyDatum)
+    scriptAddr=$(get_script_address)
+    authAsset=$(get_auth_asset)
+    notStartedDatumHash=$(get_script_data_hash $notStartedDatum)
+    memptyDatumHash=$(get_script_data_hash $memptyDatum)
     
     # Structure of the first UTxO to be sent to the script
     # address. The 2 ADA here is to compensate the required
     # minimum of ~1.2 ADA.
-    $firstUTxO="$scriptAddr + 2000000 lovelace + $tokenCount $authAsset"
+    firstUTxO="$scriptAddr + 2000000 lovelace + $tokenCount $authAsset"
 
     $cli transaction build                         \
         --babbage-era                              \
@@ -125,11 +125,11 @@ construct_and_submit_genesis_tx() {
 # Constructing Transaction with $tokenCount outputs, 1 for each authentication
 # token.
 initiate_fund() {
-    $authAsset=$(get_auth_asset)
-    $utxoWithAllAuths=$(get_first_utxo_of $scriptAddr)
-    $oneAuthUTxO="--tx-out $scriptAddr + 10000000 lovelace + 1 $authAsset --tx-out-datum-embed-file $memptyDatum "
-    $utxoFromKeyHolder=$(get_first_utxo_of $keyHolderAddressFile)
-    $txOut=""
+    authAsset=$(get_auth_asset)
+    utxoWithAllAuths=$(get_first_utxo_of $scriptAddr)
+    oneAuthUTxO="--tx-out $scriptAddr + 10000000 lovelace + 1 $authAsset --tx-out-datum-embed-file $memptyDatum "
+    utxoFromKeyHolder=$(get_first_utxo_of $keyHolderAddressFile)
+    txOut=""
     for i in $(seq 1 $tokenCount)
     do
         txOut=$txOut$oneAuthUTxO
