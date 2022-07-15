@@ -6,25 +6,27 @@ module Main (main) where
 
 
 import           Cardano.Api
-import           Cardano.Api.Shelley   (PlutusScript (..))
-import           Codec.Serialise       (Serialise, serialise)
--- import           Control.Monad         (forM, foldM)
-import qualified Data.Aeson            as A
-import           Data.Aeson            (encode)
-import qualified Data.ByteString.Char8 as BS8
-import qualified Data.ByteString.Lazy  as LBS
-import qualified Data.ByteString.Short as SBS
-import           Data.String           (fromString)
-import qualified Data.Text             as T
-import           Data.Text             (Text)
-import           PlutusTx              (Data (..))
+import           Cardano.Api.Shelley    (PlutusScript (..))
+import           Codec.Serialise        (Serialise, serialise)
+import qualified Data.Aeson             as A
+import           Data.Aeson             (encode)
+import qualified Data.ByteString.Char8  as BS8
+import qualified Data.ByteString.Lazy   as LBS
+import qualified Data.ByteString.Short  as SBS
+import           Data.Maybe             (fromJust)
+import           Data.String            (fromString)
+import qualified Data.Text              as T
+import           Data.Text              (Text)
+import           Plutus.V1.Ledger.Api   (fromBuiltin)
+import           Plutus.V1.Ledger.Value (TokenName (..))
+import           PlutusTx               (Data (..))
 import qualified PlutusTx
-import qualified PlutusTx.Monoid       as PlutusMonoid
+import qualified PlutusTx.Monoid        as PlutusMonoid
 import qualified Ledger
-import           System.Environment    (getArgs)
-import           Text.Read             (readMaybe)
+import           System.Environment     (getArgs)
+import           Text.Read              (readMaybe)
 
-import qualified OnChain               as OC
+import qualified OnChain                as OC
 import qualified Token
 
 -- UTILS
@@ -132,15 +134,12 @@ readTxOutRef s =
 unsafeTokenNameToHex :: TokenName -> String
 unsafeTokenNameToHex =
   -- {{{
-  let
-    getByteString (BuiltinByteString bs) = bs
-  in
     BS8.unpack
   . serialiseToRawBytesHex
   . fromJust
   . deserialiseFromRawBytes AsAssetName
-  . getByteString
-  . Ledger.unTokenName
+  . fromBuiltin
+  . unTokenName
   -- }}}
 -- }}}
 
