@@ -23,7 +23,10 @@ policyFile="minting.plutus"
 validatorFile="qvf.plutus"
 scriptAddressFile="qvf.addr"
 tokenNameHexFile="token.hex"
-qvf="qvf string-to-hex $tokenName $tokenNameHexFile"
+
+# Storing the hex format of the token name:
+$qvf string-to-hex $tokenName $tokenNameHexFile
+
 tokenNameHex=$(cat $tokenNameHexFile)
 
 notStartedDatum="notStarted-datum.json"
