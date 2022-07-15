@@ -11,6 +11,7 @@ import           Codec.Serialise       (Serialise, serialise)
 -- import           Control.Monad         (forM, foldM)
 import qualified Data.Aeson            as A
 import           Data.Aeson            (encode)
+import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy  as LBS
 import qualified Data.ByteString.Short as SBS
 import           Data.String           (fromString)
@@ -125,6 +126,22 @@ readTxOutRef s =
       Nothing
       -- }}}
   -- }}}
+
+
+-- | From PPP's 6th lecture.
+unsafeTokenNameToHex :: TokenName -> String
+unsafeTokenNameToHex =
+  -- {{{
+  let
+    getByteString (BuiltinByteString bs) = bs
+  in
+    BS8.unpack
+  . serialiseToRawBytesHex
+  . fromJust
+  . deserialiseFromRawBytes AsAssetName
+  . getByteString
+  . Ledger.unTokenName
+  -- }}}
 -- }}}
 
 
@@ -133,6 +150,15 @@ readTxOutRef s =
 main :: IO ()
 main =
   let
+    toHexHelp         :: String
+    toHexHelp         =
+      -- {{{
+         "\n\n\tExport the hex serialization of a token name:\n\n"
+
+      ++ "\tcabal run qvf-cli -- string-to-hex \\\n"
+      ++ "\t                     <token-name>  \\\n"
+      ++ "\t                     <output.hex>\n"
+      -- }}}
     scriptHelp        :: String
     scriptHelp        =
       -- {{{
@@ -227,6 +253,7 @@ main =
       ++ "You can also separately print the argument guide for each action\n"
       ++ "with (-h|--help|man) following the desired action, e.g.:\n\n"
 
+      ++ "\tcabal run qvf-cli -- string-to-hex    --help\n\n"
       ++ "\tcabal run qvf-cli -- generate scripts --help\n\n"
       ++ "\tcabal run qvf-cli -- add-project      --help\n\n"
       ++ "\tcabal run qvf-cli -- donate           --help\n\n"
@@ -235,8 +262,9 @@ main =
       ++ "\tcabal run qvf-cli -- unset-deadline   --help\n\n"
       ++ "\tcabal run qvf-cli -- distribute       --help\n\n"
 
-      ++ "Or simple use (-h|--help|man) to print this help text.\n"
+      ++ "Or simply use (-h|--help|man) to print this help text.\n"
 
+      ++ toHexHelp
       ++ scriptHelp
       ++ addProjectHelp
       ++ donateHelp
@@ -296,16 +324,27 @@ main =
   in do
   allArgs <- getArgs
   case allArgs of
-    "generate" : "distribution-redeemer" : outFile : _                       ->
+    "string-to-hex" : "-h"     : _                     -> putStrLn toHexHelp
+    "string-to-hex" : "--help" : _                     -> putStrLn toHexHelp
+    "string-to-hex" : "man"    : _                     -> putStrLn toHexHelp
+    "string-to-hex" : tn : outFile : _                 ->
+      -- {{{
+      andPrintSuccess outFile
+        $ LBS.writeFile outFile
+        $ fromString
+        $ unsafeTokenNameToHex
+        $ fromString tn
+      -- }}}
+    "generate" : "distribution-redeemer" : outFile : _ ->
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    "generate" : "scripts" : "-h"     : _ -> putStrLn scriptHelp
-    "generate" : "scripts" : "--help" : _ -> putStrLn scriptHelp
-    "generate" : "scripts" : "man"    : _ -> putStrLn scriptHelp
-    actionStr : "-h"     : _              -> printActionHelp actionStr
-    actionStr : "--help" : _              -> printActionHelp actionStr
-    actionStr : "man"    : _              -> printActionHelp actionStr
+    "generate" : "scripts" : "-h"     : _              -> putStrLn scriptHelp
+    "generate" : "scripts" : "--help" : _              -> putStrLn scriptHelp
+    "generate" : "scripts" : "man"    : _              -> putStrLn scriptHelp
+    actionStr : "-h"     : _                           -> printActionHelp actionStr
+    actionStr : "--help" : _                           -> printActionHelp actionStr
+    actionStr : "man"    : _                           -> printActionHelp actionStr
     "generate" : "scripts" : pkhStr : txRefStr : tn : amtStr : mOF : vOF : fstDatOF : initRedOF : distDatOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, readMaybe amtStr) of
