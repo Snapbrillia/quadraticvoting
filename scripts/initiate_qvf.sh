@@ -132,7 +132,7 @@ initiate_fund() {
     $txOut=""
     for i in $(seq 1 $tokenCount)
     do
-        txOut=$txOut$txOut
+        txOut=$txOut$oneAuthUTxO
     done
     
     $cli transaction build                            \
