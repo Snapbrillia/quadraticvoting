@@ -42,6 +42,7 @@ executable qvf-cli
                      , bytestring
                      , cardano-api
                      , plutus-ledger
+                     , plutus-ledger-api
                      , plutus-tx
                      , quadraticVoting
                      , serialise
