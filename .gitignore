@@ -96,6 +96,7 @@ pkgs/.stack
 .dir-locals.el
 *.code-workspace
 .*.sw*
+.#*
 
 # Frontend files (NPM/Yarn, Spago, etc.)
 # N.B. officially we use NPM; ignoring Yarn files allows the local use of Yarn for those that want
