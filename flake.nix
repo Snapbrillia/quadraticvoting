@@ -27,11 +27,10 @@
       url = "github:input-output-hk/flake-compat/fixes";
       flake = false;
     };
-    # TODO - remove or replace with cardano-node to get cardano-cli
-    # plutus-apps = {
-    #   url = "github:input-output-hk/plutus-apps";
-    #   flake = false;
-    # };
+    plutus-apps = {
+      url = "github:input-output-hk/plutus-apps";
+      flake = false;
+    };
 
     # Custom user config (default: empty), eg.:
     # { outputs = {...}: {
@@ -50,7 +49,7 @@
     # qvf-snapshot = {
     #   url = "github:input-output-hk/cardano-node/7f00e3ea5a61609e19eeeee4af35241571efdf5c";
     # };
-    qvf-process = {
+    qvf-cli = {
       url = "github:snapbrillia/quadraticvoting";
       flake = false;
     };
@@ -66,12 +65,11 @@
     , utils
     , haskellNix
     , iohkNix
-    # TODO maybe cardano node (to get cardano-cli and maybe other stuff)
-    # , plutus-apps 
+    , plutus-apps 
     , cardano-mainnet-mirror
     # , qvf-snapshot
     # , qvf-measured
-    , qvf-process
+    , qvf-cli
     , ...
     }@input:
     let
