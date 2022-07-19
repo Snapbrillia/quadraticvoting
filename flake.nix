@@ -55,8 +55,8 @@
       flake = false;
     };
     
-    # TODO - remove?
-    # cardano-mainnet-mirror.url = "github:input-output-hk/cardano-mainnet-mirror/nix";
+    # TODO !@! - remove?
+    cardano-mainnet-mirror.url = "github:input-output-hk/cardano-mainnet-mirror/nix";
   };
 
   outputs =
@@ -68,7 +68,7 @@
     , iohkNix
     # TODO maybe cardano node (to get cardano-cli and maybe other stuff)
     # , plutus-apps 
-    # , cardano-mainnet-mirror
+    , cardano-mainnet-mirror
     # , qvf-snapshot
     # , qvf-measured
     , qvf-process
