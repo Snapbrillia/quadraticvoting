@@ -29,7 +29,7 @@
     };
     plutus-apps = {
       url = "github:input-output-hk/plutus-apps";
-      flake = false;
+      flake = true;
     };
 
     # Custom user config (default: empty), eg.:
@@ -164,6 +164,7 @@
               value)
             project.hsPkgs;
           projectPackages = lib.mapAttrs (n: _: hsPkgsWithPassthru.${n}) projectPackagesExes;
+
         in
         {
           # TODO - remove
@@ -268,7 +269,7 @@
           # TODO !@! - not doing this - yet
           # inherit (pkgs) workbench all-profiles-json supervisord-workbench-nix supervisord-workbench-for-profile;
 
-          packages = exes;
+          packages = projectPackages;
             # TODO !@! - not doing this yey
             # let
             #   supervisord-workbench =
