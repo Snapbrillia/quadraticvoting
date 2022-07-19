@@ -1,1 +1,1 @@
-{ quadraticvoting = [ "quadraticvoting" ]; qvf-cli = [ "qvf-cli" ]; }
+{ quadraticvoting = [ ]; qvf-cli = [ "qvf-cli" ]; }
