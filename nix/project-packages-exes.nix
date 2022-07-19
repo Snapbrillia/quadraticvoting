@@ -1,0 +1,1 @@
+{ quadraticvoting = [ "quadraticvoting" ]; qvf-cli = [ "qvf-cli" ]; }
