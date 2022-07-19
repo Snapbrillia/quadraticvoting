@@ -453,7 +453,7 @@
     builtins.removeAttrs flake [ "systemHydraJobs" ] // {
 
       # TODO !@! - not doing hydraJobsPr yet
-      inherit hydraJobs hydraJobsPr;
+      # inherit hydraJobs hydraJobsPr;
       inherit hydraJobs;
 
       overlay = final: prev: {
