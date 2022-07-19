@@ -1,4 +1,5 @@
 {
+  "https://github:input-output-hk/plutus-apps"."e4062bca213f233cdf9822833b07aa69dff6d22a" = "13yg3vb6a6gmjawlfa3wam5c6krqm7lip4w1p0j30hflca23x2h2";
   "https://github.com/input-output-hk/ekg-forward"."297cd9db5074339a2fb2e5ae7d0780debb670c63" = "1zcwry3y5rmd9lgxy89wsb3k4kpffqji35dc7ghzbz603y1gy24g";
   "https://github.com/input-output-hk/cardano-addresses"."71006f9eb956b0004022e80aadd4ad50d837b621" = "11dl3fmq7ry5wdmz8kw07ji8yvrxnrsf7pgilw5q9mi4aqyvnaqk";
   "https://github.com/input-output-hk/cardano-base"."41545ba3ac6b3095966316a99883d678b5ab8da8" = "0icq9y3nnl42fz536da84414av36g37894qnyw4rk3qkalksqwir";
