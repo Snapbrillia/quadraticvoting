@@ -104,7 +104,6 @@
             // final.cardanoLib
             // import ./nix/svclib.nix { inherit (final) pkgs; };
         })
-        # TODO !@! - need to do something here
         (import ./nix/pkgs.nix)
         self.overlay
       ];
@@ -204,7 +203,6 @@
           inherit (pkgs.commonLib) eachEnv environments;
           inherit (project.pkgs.stdenv) hostPlatform;
 
-          # TODO !@! - need to do something here
           project = (import ./nix/haskell.nix {
             inherit (pkgs) haskell-nix gitrev;
             inherit projectPackagesExes;
