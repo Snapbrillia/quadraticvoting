@@ -309,7 +309,9 @@
         in
         {
 
-          inherit environments packages checks apps project;
+          # TODO !@! - not doing checks yet
+          # inherit environments packages checks apps project;
+          inherit environments packages apps project;
 
           legacyPackages = pkgs;
 
