@@ -155,7 +155,6 @@ let
             plutus-playground-server.ghcOptions = [ "-Werror" ];
             plutus-pab.ghcOptions = [ "-Werror" ];
             plutus-pab-executables.ghcOptions = [ "-Werror" ];
-            plutus-doc.ghcOptions = [ "-Werror" ];
             plutus-use-cases.ghcOptions = [ "-Werror" ];
             plutus-example.ghcOptions = [ "-Werror" ];
 

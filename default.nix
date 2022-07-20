@@ -1,8 +1,8 @@
 ########################################################################
-# default.nix -- The top-level nix build file for Plutus apps.
+# default.nix -- The top-level nix build file for quadraticvoting.
 #
 # This file defines various attributes that are used for building and
-# developing Plutus apps.
+# developing quadraticvoting.
 #
 ########################################################################
 { system ? builtins.currentSystem
@@ -36,28 +36,6 @@ rec {
 
   webCommon = pkgs.callPackage sources.web-common { inherit (plutus-apps.lib) gitignore-nix; };
 
-  # don't build playground related stuff
-  # plutus-playground = pkgs.recurseIntoAttrs rec {
-  #   haddock = plutus-apps.plutus-haddock-combined;
-
-  #   inherit (pkgs.callPackage ./plutus-playground-client {
-  #     inherit (plutus-apps) purs-tidy;
-  #     inherit (plutus-apps.lib) buildPursPackage buildNodeModules filterNpm gitignore-nix;
-  #     inherit haskell webCommon;
-  #   }) client server start-backend generate-purescript generated-purescript;
-  # };
-
-  # Won't attempt tp build this while its known to fail
-  # TODO: Fails for now because of webpack can't include `nami-wallet` lib in it's bundle.
-  # To reproduce the error, run `npm run build:webpack:prod` in `plutus-pab-executables/demo/pab-nami/client`
-  # pab-nami-demo = pkgs.recurseIntoAttrs rec {
-  #   inherit (pkgs.callPackage ./plutus-pab-executables/demo/pab-nami/client {
-  #     inherit (plutus-apps) purs-tidy;
-  #     inherit pkgs haskell webCommon;
-  #     inherit (plutus-apps.lib) buildPursPackage buildNodeModules filterNpm gitignore-nix;
-  #   }) client pab-setup-invoker pab-nami-demo-invoker pab-nami-demo-generator generate-purescript generated-purescript start-backend;
-  # };
-
   plutus-use-cases = pkgs.recurseIntoAttrs (pkgs.callPackage ./plutus-use-cases {
     inherit haskell;
   });
@@ -68,27 +46,10 @@ rec {
 
   marconi = plutus-apps.haskell.packages.plutus-chain-index.components.exes.marconi;
 
-  tests = import ./nix/tests/default.nix {
-    inherit pkgs docs;
-    inherit (plutus-apps.lib) gitignore-nix;
-    inherit (plutus-apps) fixStylishHaskell fix-purs-tidy fixPngOptimization fixCabalFmt;
-    # haven't built playground related stuff
-    # inherit plutus-playground web-ghc;
-    # src = ./.;
-    # play-generated = plutus-playground.generated-purescript;
-
-    # not built -- see above
-    # nami-generated = pab-nami-demo.generated-purescript;
-  };
-
   docs = import ./nix/docs.nix { inherit pkgs plutus-apps; };
 
   # This builds a vscode devcontainer that can be used with the plutus-starter project (or probably the plutus project itself).
   devcontainer = import ./nix/devcontainer/plutus-devcontainer.nix { inherit pkgs plutus-apps; };
 
   build-and-push-devcontainer-script = import ./nix/devcontainer/deploy/default.nix { inherit pkgs plutus-apps; };
-
-  # Packages needed for the bitte deployment
-  # Don't build packages for deployment yet - and won't be this way anyway
-  # bitte-packages = import ./bitte { inherit plutus-playground docs pkgs web-ghc; };
 }
