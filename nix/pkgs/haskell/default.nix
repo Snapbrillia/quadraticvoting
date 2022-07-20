@@ -39,9 +39,7 @@ let
       inherit enableHaskellProfiling;
       inherit deferPluginErrors;
     };
-  project = baseProject { deferPluginErrors = false; };
-  # The same as above, but this time with we defer plugin errors so that we
-  # can build "all" (the interesting) haddocks that would otherwise fail.
+  project = baseProject { deferPluginErrors = true; };
   projectAllHaddock = baseProject { deferPluginErrors = true; };
 
   # All the packages defined by our project, including dependencies

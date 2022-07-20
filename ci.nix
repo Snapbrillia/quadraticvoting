@@ -1,7 +1,7 @@
 {
   # 'supportedSystems' restricts the set of systems that we will evaluate for. Useful when you're evaluting
   # on a machine with e.g. no way to build the Darwin IFDs you need!
-  supportedSystems ? [ "x86_64-linux" "x86_64-darwin" ]
+  supportedSystems ? [ "x86_64-linux" ]
 , rootsOnly ? false
   # We explicitly pass true here in the GitHub action but don't want to slow down hydra
 , checkMaterialization ? false
@@ -95,7 +95,7 @@ let
           inherit forceNewEval;
         } // pkgs.lib.optionalAttrs (!rootsOnly) (filterCross {
           # build relevant top level attributes from default.nix
-          inherit (packages) docs tests plutus-playground plutus-use-cases;
+          inherit (packages) plutus-playground plutus-use-cases;
 
           # Build the shell expression to be sure it works on all platforms
           #

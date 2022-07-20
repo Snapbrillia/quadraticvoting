@@ -135,13 +135,6 @@ let
             # FIXME: Haddock mysteriously gives a spurious missing-home-modules warning
             plutus-tx-plugin.doHaddock = false;
 
-            # Relies on cabal-doctest, just turn it off in the Nix build
-            prettyprinter-configurable.components.tests.prettyprinter-configurable-doctest.buildable = lib.mkForce false;
-
-            plutus-pab-executables.components.tests.plutus-pab-test-full-long-running = {
-              platforms = lib.platforms.linux;
-            };
-
             # Broken due to warnings, unclear why the setting that fixes this for the build doesn't work here.
             iohk-monitoring.doHaddock = false;
 
