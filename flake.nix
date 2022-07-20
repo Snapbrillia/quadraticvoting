@@ -1,11 +1,5 @@
-# NOTE: This flake is only provided as interface to `bitte` and shouldn't be used otherwise
-#
-# Occasionally building flake builds will segfault. The workaround for this is to
-# disable the garbage collector  `GC_DONT_GC=1  nix build .#web-ghc-server
-#
-# In case you are not sure if you should be using this flake, the answer is: No.
 {
-  description = "plutus-apps flake for pinning sources and bitte deployments";
+  description = "snapbrillia flake for pinning sources";
 
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
@@ -26,10 +20,6 @@
 
     cardano-repo-tool = {
       url = "github:input-output-hk/cardano-repo-tool";
-      flake = false;
-    };
-    easy-purescript-nix = {
-      url = "github:justinwoo/easy-purescript-nix";
       flake = false;
     };
     flake-compat = {
@@ -65,20 +55,8 @@
       url = "github:cachix/pre-commit-hooks.nix";
       flake = false;
     };
-    spago2nix = {
-      url = "github:justinwoo/spago2nix";
-      flake = false;
-    };
-    sphinxcontrib-haddock = {
-      url = "github:michaelpj/sphinxcontrib-haddock";
-      flake = false;
-    };
     stackage-nix = {
       url = "github:input-output-hk/stackage.nix";
-      flake = false;
-    };
-    web-common = {
-      url = "github:input-output-hk/purescript-web-common";
       flake = false;
     };
   };
