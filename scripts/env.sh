@@ -336,3 +336,44 @@ interact_with_smart_contract () {
 #         --testnet-magic 1097911063 \
 #         --tx-file tx.signed
 }
+
+# Updates protocol.json to be current
+update_protocol_json () {
+    cardano-cli query protocol-parameters \
+        $MAGIC
+        --out-file protocol.json
+}
+
+# WIP
+# Attempts to run qvf-cli cmds with nix-shell from outside nix-shell
+# Uses a HERE doc to try to do this
+update_datum_donate_qvf_cli () {
+
+    path_to_plutus_apps=$HOME/plutus-apps
+    path_to_quadratic_voting=$HOME/quadratic-voting
+    current_path=$(pwd)
+
+    # Make the script to execute within the nix-shell with a HERE DOC
+    cat > "$path_to_quadratic_voting"/update-datum.sh <<EOF
+Put the cabal run qvf-cli cmd here
+exit # Exit nix-shell
+EOF
+
+    # Run the HERE file commands in nix-shell
+    cd path_to_plutus_apps
+    nix-shell "$path_to_quadratic_voting"/update-datum.sh
+    cp NAME.json "$current_path" # Optional, see how workflow works out
+    cd "$current_path"
+
+}
+
+# WIP
+# cardano-cli transaction cmd to donate
+donate_to_smart_contract () {
+
+    # cardano-cli CMD AFTER USING ABOVE TWO FNS
+    # FILL IN
+
+}
+
+
