@@ -12,7 +12,7 @@ export MAGIC='--testnet-magic 1097911063'
 # Takes 2 arguments:
 #   1. Verification key output file,
 #   2. Signing key output file.
-generate_skey_and_vke() {
+generate_skey_and_vkey() {
     cardano-cli address key-gen    \
         --verification-key-file $1 \
         --signing-key-file $2
@@ -24,7 +24,7 @@ generate_skey_and_vke() {
 # Takes 2 arguments:
 #   1. Verification key file,
 #   2. Address output file.
-vkey_to_addres() {
+vkey_to_address() {
     cardano-cli address build              \
         --payment-verification-key-file $1 \
         $MAGIC                             \
@@ -37,7 +37,7 @@ vkey_to_addres() {
 # Takes 2 arguments:
 #   1. Verification key file,
 #   2. Public key hash output file.
-vkey_to_public_key_has() {
+vkey_to_public_key_hash() {
     cardano-cli address key-hash           \
         --payment-verification-key-file $1 \
         --out-file $2
@@ -49,7 +49,7 @@ vkey_to_public_key_has() {
 # Takes 2 arguments:
 #   1. Compiled Plutus script file,
 #   2. Address output file.
-plutus_script_to_addres() {
+plutus_script_to_address() {
     cardano-cli address build-script \
         --script-file $1             \
         $MAGIC                       \
@@ -67,7 +67,7 @@ plutus_script_to_addres() {
 # Takes 2 arguments:
 #   1. Starting number,
 #   2. Ending number.
-generate_wallets_from_t() {
+generate_wallets_from_to() {
 
     max_amt=100
 
@@ -102,7 +102,7 @@ generate_wallets_from_t() {
 #
 # Takes 1 argument:
 #   1. Wallet address file.
-get_first_utxo_o() {
+get_first_utxo_of() {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -116,7 +116,7 @@ get_first_utxo_o() {
 # 
 # Takes 1 argument:
 #   1. Wallet address file.
-get_all_input_utxos_a() {
+get_all_input_utxos_at() {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -143,7 +143,7 @@ get_all_input_utxos_a() {
 #   3. Ending number of the receiving wallets,
 #   4. Total amount of Lovelace to be distributed equally,
 #   5. Signing key file of the spending wallet. # TODO: Can this be removed?
-distribute_from_to_wallet() {
+distribute_from_to_wallets() {
 
     tx_in_str=$(get_all_input_utxos_at $1)
     tx_out_str=''
@@ -205,7 +205,7 @@ distribute_from_to_wallet() {
 #   1. Starting number of the spending wallets,
 #   2. Ending number of the spending wallets,
 #   3. Address file of the receiving wallet.
-drain_from_wallets_t() {
+drain_from_wallets_to() {
 
     tx_in_str=''
     signing_keys_str=''
@@ -248,7 +248,7 @@ drain_from_wallets_t() {
 #
 # Takes 1 argument:
 #   1. User's wallet address file.
-get_first_lovelace_count_o() {
+get_first_lovelace_count_of() {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -268,7 +268,7 @@ get_first_lovelace_count_o() {
 #   5. Redeemer's JSON file for the intended endpoint,
 #   6. Amount that should be added to script's holding,
 #   7. Updated datum of the script after the transaction.
-interact_with_smart_contrac() {
+interact_with_smart_contract() {
 
     # Build script address from a script, if script address does not exist. 
     # The address name is the same as the script, except its extension is changed to .addr
@@ -338,7 +338,7 @@ interact_with_smart_contrac() {
 }
 
 # Updates protocol.json to be current
-update_protocol_jso() {
+update_protocol_json() {
     cardano-cli query protocol-parameters \
         $MAGIC                            \
         --out-file protocol.json
@@ -347,7 +347,7 @@ update_protocol_jso() {
 # Runs qvf-cli cmds with nix-shell from outside nix-shell
 # Uses a HERE doc to do this
 # PARAMS: $1=donor_pkh $2=receiver_pkh $3=lovelace_amt $4=current_datum
-update_datum_donate_qvf_cl() {
+update_datum_donate_qvf_cli() {
 
     donor_pkh=$1
     receiver_pkh=$2
