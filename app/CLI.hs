@@ -62,17 +62,17 @@ writeJSON file =
   -- {{{
     LBS.writeFile file
   . encode
+  -- . scriptDataToJson ScriptDataJsonNoSchema
   . scriptDataToJson ScriptDataJsonDetailedSchema
   . dataToScriptData
   . PlutusTx.toData
   -- }}}
 
 
-parseJSON :: FilePath -> IO (Either String Data)
-parseJSON file = do
+parseJSONValue :: LBS.ByteString -> IO (Either String Data)
+parseJSONValue bs =
   -- {{{
-  fileContent <- LBS.readFile file
-  case A.decode fileContent of
+  case A.decode bs of
     Just decoded ->
       case scriptDataFromJson ScriptDataJsonDetailedSchema decoded of
         Right scriptData ->
@@ -81,6 +81,14 @@ parseJSON file = do
           return $ Left $ show err
     Nothing ->
       return $ Left "Invalid JSON."
+  -- }}}
+
+
+parseJSON :: FilePath -> IO (Either String Data)
+parseJSON file = do
+  -- {{{
+  fileContent <- LBS.readFile file
+  parseJSONValue fileContent
   -- }}}
 
 
@@ -383,10 +391,10 @@ main =
         _                   ->
           printHelp
       -- }}}
-    fromDatum :: String -> (OC.QVFDatum -> IO ()) -> IO ()
-    fromDatum datumJSON datumToIO = do
+    fromDatumValue :: LBS.ByteString -> (OC.QVFDatum -> IO ()) -> IO ()
+    fromDatumValue datumVal datumToIO = do
       -- {{{
-      eitherErrData <- parseJSON datumJSON
+      eitherErrData <- parseJSONValue datumVal
       case eitherErrData of
         Left parseError ->
           -- {{{
@@ -408,6 +416,12 @@ main =
               putStrLn $ "FAILED: Improper datum."
               -- }}}
           -- }}}
+      -- }}}
+    fromDatum :: String -> (OC.QVFDatum -> IO ()) -> IO ()
+    fromDatum datumJSON datumToIO = do
+      -- {{{
+      datumVal <- LBS.readFile datumJSON
+      fromDatumValue datumVal datumToIO
       -- }}}
   in do
   allArgs <- getArgs
@@ -509,9 +523,9 @@ main =
           OC.Closed     info -> fromQVFInfo info
           OC.InProgress info -> fromQVFInfo info
       -- }}}
-    "pretty-datum" : datumJSON : _                                      ->
+    "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
-      fromDatum datumJSON print
+      fromDatumValue (fromString datumJSONStr) print
       -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{
