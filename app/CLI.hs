@@ -351,7 +351,7 @@ main =
     printGenerateHelp genStr =
       -- {{{
       case genStr of
-        "script"                ->
+        "scripts"               ->
           putStrLn scriptHelp
         "distribution-redeemer" ->
           putStrLn distributeHelp
