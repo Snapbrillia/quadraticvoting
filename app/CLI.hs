@@ -13,6 +13,7 @@ import           Data.Aeson             (encode)
 import qualified Data.ByteString.Char8  as BS8
 import qualified Data.ByteString.Lazy   as LBS
 import qualified Data.ByteString.Short  as SBS
+import qualified Data.List              as List
 import           Data.Maybe             (fromJust)
 import           Data.String            (fromString)
 import qualified Data.Text              as T
@@ -149,99 +150,145 @@ unsafeTokenNameToHex =
 main :: IO ()
 main =
   let
+    helpCurrDatum     :: String
+    helpCurrDatum     = "<current.datum>"
+    helpUpdatedDatum  :: String
+    helpUpdatedDatum  = "<updated.datum>"
+    helpRedeemer      :: String
+    helpRedeemer      = "<action.redeemer>"
+    commonLastThree   = [helpCurrDatum, helpUpdatedDatum, helpRedeemer]
+    makeHelpText :: String -> String -> String -> [String] -> String
+    makeHelpText description elem0 elem1 restOfElems =
+      -- {{{
+      let
+        elems              = elem0 : elem1 : restOfElems
+        cmd                = "cabal run qvf-cli -- "
+        makeBlank x        = replicate x ' '
+        preBlank           = "\t" ++ makeBlank (length cmd)
+        longest            =
+          -- {{{
+          length $ List.maximumBy
+            (\arg0 arg1 -> compare (length arg0) (length arg1))
+            elems
+          -- }}}
+        withPostBlank elem = elem ++ makeBlank (longest - length elem) ++ " \\\n"
+        elemsWithBlanks    = map ((preBlank ++) . withPostBlank) $ tail $ init elems
+        lastElem           = preBlank ++ last elems ++ "\n"
+      in
+         "\n\n\t" ++ description ++ "\n\n"
+      ++ "\t" ++ cmd
+      ++ withPostBlank elem0
+      ++ concat elemsWithBlanks
+      ++ preBlank ++ last elems ++ "\n"
+      -- }}}
     toHexHelp         :: String
     toHexHelp         =
       -- {{{
-         "\n\n\tExport the hex serialization of a token name:\n\n"
-
-      ++ "\tcabal run qvf-cli -- string-to-hex \\\n"
-      ++ "\t                     <token-name>  \\\n"
-      ++ "\t                     <output.hex>\n"
+      makeHelpText
+        "Export the hex serialization of a token name:"
+        "string-to-hex"
+        "<token-name>"
+        ["<output.hex>"]
+      -- }}}
+    datumHasProjHelp  :: String
+    datumHasProjHelp  =
+      -- {{{
+      makeHelpText
+        (    "Check if a given datum can be used for donation to a\n"
+          ++ "\tspecific project:"
+        )
+        "datum-has-project"
+        "<current.datum>"
+        ["<project.pkh>"]
+      -- }}}
+    prettyDatumHelp   :: String
+    prettyDatumHelp   =
+      -- {{{
+      makeHelpText
+        "Print an easy-to-read parsing of a given datum JSON:"
+        "pretty-datum"
+        "<current.datum>"
+        []
       -- }}}
     scriptHelp        :: String
     scriptHelp        =
       -- {{{
-         "\n\n\tGenerate the compiled Plutus validation and minting script\n"
-      ++ "\t(note the UTxO format):\n\n"
-
-      ++ "\tcabal run qvf-cli -- generate                          \\\n"
-      ++ "\t                     scripts                           \\\n"
-      ++ "\t                     <key-holders-public-key-hash>     \\\n"
-      ++ "\t                     <txID>#<output-index>             \\\n"
-      ++ "\t                     <auth-token-name>                 \\\n"
-      ++ "\t                     <auth-token-count>                \\\n"
-      ++ "\t                     <output-minting.plutus>           \\\n"
-      ++ "\t                     <output-validation.plutus>        \\\n"
-      ++ "\t                     <output-first-datum.json>         \\\n"
-      ++ "\t                     <output-initiation-redeemer.json> \\\n"
-      ++ "\t                     <output-mempty-datum.json>\n"
-      -- }}}
-    addProjectHelp    :: String
-    addProjectHelp    =
-      -- {{{
-         "\n\n\tUpdate a given datum by adding a project:\n\n"
-
-      ++ "\tcabal run qvf-cli -- <current-datum.json>      \\\n"
-      ++ "\t                     add-project               \\\n"
-      ++ "\t                     <project-public-key-hash> \\\n"
-      ++ "\t                     <project-label>           \\\n"
-      ++ "\t                     <requested-fund>          \\\n"
-      ++ "\t                     <output-datum.json>       \\\n"
-      ++ "\t                     <output-redeemer.json>\n"
-      -- }}}
-    donateHelp        :: String
-    donateHelp        =
-      -- {{{
-         "\n\n\tUpdate a given datum by donating to a project:\n\n"
-
-      ++ "\tcabal run qvf-cli -- <current-datum.json>              \\\n"
-      ++ "\t                     donate                            \\\n"
-      ++ "\t                     <donors-public-key-hash>          \\\n"
-      ++ "\t                     <target-projects-public-key-hash> \\\n"
-      ++ "\t                     <donation-amount>                 \\\n"
-      ++ "\t                     <output-datum.json>               \\\n"
-      ++ "\t                     <output-redeemer.json>\n"
-      -- }}}
-    contributeHelp    :: String
-    contributeHelp    =
-      -- {{{
-         "\n\n\tUpdate a given datum by contributing to the pool:\n\n"
-
-      ++ "\tcabal run qvf-cli -- <current-datum.json>   \\\n"
-      ++ "\t                     contribute             \\\n"
-      ++ "\t                     <contribution-amount>  \\\n"
-      ++ "\t                     <output-datum.json>    \\\n"
-      ++ "\t                     <output-redeemer.json>\n"
-      -- }}}
-    setDeadlineHelp   :: String
-    setDeadlineHelp   =
-      -- {{{
-         "\n\n\tUpdate a given datum by setting a new deadline:\n\n"
-
-      ++ "\tcabal run qvf-cli -- <current-datum.json>   \\\n"
-      ++ "\t                     set-deadline           \\\n"
-      ++ "\t                     <new-deadline>         \\\n"
-      ++ "\t                     <output-datum.json>    \\\n"
-      ++ "\t                     <output-redeemer.json>\n"
-      -- }}}
-    unsetDeadlineHelp :: String
-    unsetDeadlineHelp =
-      -- {{{
-         "\n\n\tUpdate a given datum by removing its deadline:\n\n"
-
-      ++ "\tcabal run qvf-cli -- <current-datum.json>   \\\n"
-      ++ "\t                     unset-deadline         \\\n"
-      ++ "\t                     <output-datum.json>    \\\n"
-      ++ "\t                     <output-redeemer.json>\n"
+      makeHelpText
+        (    "Generate the compiled Plutus validation and minting script\n"
+          ++ "\t(note the UTxO format):"
+        )
+        "generate"
+        "scripts"
+        [ "<key-holder.pkh>"
+        , "<txID>#<output-index>"
+        , "<auth-token-name>"
+        , "<auth-token-count>"
+        , "<output-minting.plutus>"
+        , "<output-validation.plutus>"
+        , "<output-NotStarted.datum>"
+        , "<output-InitiateFund.redeemer>"
+        , "<output-mempty.datum>"
+        ]
       -- }}}
     distributeHelp    :: String
     distributeHelp    =
       -- {{{
-         "\n\n\tGenerate the redeemer for trigerring the distribution of funds:\n\n"
-
-      ++ "\tcabal run qvf-cli -- generate               \\\n"
-      ++ "\t                     distribution-redeemer  \\\n"
-      ++ "\t                     <output-redeemer.json>\n"
+      makeHelpText
+        "Generate the redeemer for trigerring the distribution of funds:"
+        "generate"
+        "distribution-redeemer"
+        [helpRedeemer]
+      -- }}}
+    addProjectHelp    :: String
+    addProjectHelp    =
+      -- {{{
+      makeHelpText
+       "Update a given datum by adding a project:"
+       "add-project"
+       "<project-public-key-hash>" $
+       [ "<project-label>"
+       , "<requested-fund>"
+       ] ++ commonLastThree
+      -- }}}
+    donateHelp        :: String
+    donateHelp        =
+      -- {{{
+      makeHelpText
+        "Update a given datum by donating to a project:"
+        "donate"
+        "<donors-public-key-hash>" $
+        [ "<target-projects-public-key-hash>"
+        , "<donation-amount>"
+        ] ++ commonLastThree
+      -- }}}
+    contributeHelp    :: String
+    contributeHelp    =
+      -- {{{
+      makeHelpText
+        "Update a given datum by contributing to the pool:"
+        "contribute"
+        "<contribution-amount>"
+        commonLastThree
+      -- }}}
+    setDeadlineHelp   :: String
+    setDeadlineHelp   =
+      -- {{{
+      makeHelpText
+        "Update a given datum by setting a new deadline:"
+        "set-deadline"
+        "<new-deadline>"
+        commonLastThree
+      -- }}}
+    unsetDeadlineHelp :: String
+    unsetDeadlineHelp =
+      -- {{{
+      makeHelpText
+        "Update a given datum by removing its deadline:"
+        "unset-deadline"
+        helpCurrDatum
+        [ helpUpdatedDatum
+        , helpRedeemer
+        ]
       -- }}}
     helpText          :: String
     helpText          =
@@ -249,29 +296,27 @@ main =
          "\nCLI application to generate various redeemer values to interact "
       ++ "with the QVF smart contract.\n\n"
 
-      ++ "You can also separately print the argument guide for each action\n"
-      ++ "with (-h|--help|man) following the desired action, e.g.:\n\n"
+      ++ "You can separately print the argument guide for each action\n"
+      ++ "with (-h|--help|man) following the desired action. Available\n"
+      ++ "options are:\n\n"
 
-      ++ "\tcabal run qvf-cli -- string-to-hex    --help\n\n"
-      ++ "\tcabal run qvf-cli -- generate scripts --help\n\n"
-      ++ "\tcabal run qvf-cli -- add-project      --help\n\n"
-      ++ "\tcabal run qvf-cli -- donate           --help\n\n"
-      ++ "\tcabal run qvf-cli -- contribute       --help\n\n"
-      ++ "\tcabal run qvf-cli -- set-deadline     --help\n\n"
-      ++ "\tcabal run qvf-cli -- unset-deadline   --help\n\n"
-      ++ "\tcabal run qvf-cli -- distribute       --help\n\n"
+      ++ "Primary interactions:\n"
+      ++ "\tcabal run qvf-cli -- add-project --help\n"
+      ++ "\tcabal run qvf-cli -- donate      --help\n"
+      ++ "\tcabal run qvf-cli -- contribute  --help\n\n"
 
-      ++ "Or simply use (-h|--help|man) to print this help text.\n"
+      ++ "Utility:\n"
+      ++ "\tcabal run qvf-cli -- generate scripts  --help\n"
+      ++ "\tcabal run qvf-cli -- datum-has-project --help\n"
+      ++ "\tcabal run qvf-cli -- pretty-datum      --help\n"
+      ++ "\tcabal run qvf-cli -- string-to-hex     --help\n\n"
 
-      ++ toHexHelp
-      ++ scriptHelp
-      ++ addProjectHelp
-      ++ donateHelp
-      ++ contributeHelp
-      ++ setDeadlineHelp
-      ++ unsetDeadlineHelp
-      ++ distributeHelp
-      ++ "\n\n"
+      ++ "Limited to key holder:\n"
+      ++ "\tcabal run qvf-cli -- set-deadline                   --help\n"
+      ++ "\tcabal run qvf-cli -- unset-deadline                 --help\n"
+      ++ "\tcabal run qvf-cli -- generate distribution-redeemer --help\n\n"
+
+      ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
     printHelp         :: IO ()
     printHelp         = putStrLn helpText
@@ -286,7 +331,7 @@ main =
       case OC.updateDatum action currDatum of
         Left err       ->
           -- {{{
-          putStrLn $ "BAD REDEEMER: " ++ show err
+          putStrLn $ "FAILED: Bad redeemer, " ++ show err
           -- }}}
         Right newDatum ->
           -- {{{
@@ -301,49 +346,80 @@ main =
               writeRedeemer
           -- }}}
       -- }}}
+    printGenerateHelp :: String -> IO ()
+    printGenerateHelp genStr =
+      -- {{{
+      case genStr of
+        "script"                ->
+          putStrLn scriptHelp
+        "distribution-redeemer" ->
+          putStrLn distributeHelp
+        _                       ->
+          printHelp
+      -- }}}
     printActionHelp :: String -> IO ()
     printActionHelp action =
       -- {{{
       case action of
-        "add-project"    ->
+        "add-project"       ->
           putStrLn addProjectHelp
-        "donate"         ->
+        "donate"            ->
           putStrLn donateHelp
-        "contribute"     ->
+        "contribute"        ->
           putStrLn contributeHelp
-        "set-deadline"   ->
+        "set-deadline"      ->
           putStrLn setDeadlineHelp
-        "unset-deadline" ->
+        "unset-deadline"    ->
           putStrLn unsetDeadlineHelp
-        "distribute" ->
+        "distribute"        ->
           putStrLn distributeHelp
-        _                ->
+        "string-to-hex"     ->
+          putStrLn toHexHelp
+        "datum-has-project" ->
+          putStrLn datumHasProjHelp
+        "pretty-datum"      ->
+          putStrLn prettyDatumHelp
+        _                   ->
           printHelp
+      -- }}}
+    fromDatum :: String -> (OC.QVFDatum -> IO ()) -> IO ()
+    fromDatum datumJSON datumToIO = do
+      -- {{{
+      eitherErrData <- parseJSON datumJSON
+      case eitherErrData of
+        Left parseError ->
+          -- {{{
+          putStrLn $ "FAILED to parse datum JSON: " ++ parseError
+          -- }}}
+        Right datumData ->
+          -- {{{
+          let
+            mDatum :: Maybe OC.QVFDatum
+            mDatum = PlutusTx.fromData datumData
+          in
+          case mDatum of
+            Just givenDatum ->
+              -- {{{
+              datumToIO givenDatum
+              -- }}}
+            Nothing ->
+              -- {{{
+              putStrLn $ "FAILED: Improper datum."
+              -- }}}
+          -- }}}
       -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
-    "string-to-hex" : "-h"     : _                     -> putStrLn toHexHelp
-    "string-to-hex" : "--help" : _                     -> putStrLn toHexHelp
-    "string-to-hex" : "man"    : _                     -> putStrLn toHexHelp
-    "string-to-hex" : tn : outFile : _                 ->
-      -- {{{
-      andPrintSuccess outFile
-        $ LBS.writeFile outFile
-        $ fromString
-        $ unsafeTokenNameToHex
-        $ fromString tn
-      -- }}}
-    "generate" : "distribution-redeemer" : outFile : _ ->
-      -- {{{
-      andPrintSuccess outFile $ writeJSON outFile OC.Distribute
-      -- }}}
-    "generate" : "scripts" : "-h"     : _              -> putStrLn scriptHelp
-    "generate" : "scripts" : "--help" : _              -> putStrLn scriptHelp
-    "generate" : "scripts" : "man"    : _              -> putStrLn scriptHelp
-    actionStr : "-h"     : _                           -> printActionHelp actionStr
-    actionStr : "--help" : _                           -> printActionHelp actionStr
-    actionStr : "man"    : _                           -> printActionHelp actionStr
+    "generate" : genStr : "-h"     : _ -> printGenerateHelp genStr
+    "generate" : genStr : "--help" : _ -> printGenerateHelp genStr
+    "generate" : genStr : "man"    : _ -> printGenerateHelp genStr
+    actionStr  : "-h"     : _          -> printActionHelp actionStr
+    actionStr  : "--help" : _          -> printActionHelp actionStr
+    actionStr  : "man"    : _          -> printActionHelp actionStr
+    "-h"       : _                     -> printHelp
+    "--help"   : _                     -> printHelp
+    "man"      : _                     -> printHelp
     "generate" : "scripts" : pkhStr : txRefStr : tn : amtStr : mOF : vOF : fstDatOF : initRedOF : distDatOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, readMaybe amtStr) of
@@ -400,100 +476,123 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "-h"       : _                                                           -> printHelp
-    "--help"   : _                                                           -> printHelp
-    "man"      : _                                                           -> printHelp
-    datumJSON  : restOfArgs                                                  -> do
+    "generate" : "distribution-redeemer" : outFile : _                  ->
       -- {{{
-      eitherErrData <- parseJSON datumJSON
-      case eitherErrData of
-        Left parseError ->
-          -- {{{
-          putStrLn $ "FAILED to parse datum JSON: " ++ parseError
-          -- }}}
-        Right datumData ->
-          -- {{{
-          let
-            mDatum :: Maybe OC.QVFDatum
-            mDatum = PlutusTx.fromData datumData
-          in
-          case (mDatum, restOfArgs) of
-            (Nothing       , _                                                      ) ->
-              -- {{{
-              putStrLn $ "FAILED: Improper datum."
-              -- }}}
-            (Just currDatum, "add-project" : pPKH : pLabel : pReqStr : dOF : rOF : _) ->
-              -- {{{
-              case readMaybe pReqStr of
-                Nothing ->
-                  -- {{{
-                  putStrLn "FAILED to parse the requested fund."
-                  -- }}}
-                Just pReq ->
-                  -- {{{
-                  let
-                    action = OC.AddProject $ OC.AddProjectParams
-                      { OC.appPubKeyHash = fromString pPKH
-                      , OC.appLabel      = fromString pLabel
-                      , OC.appRequested  = pReq
-                      }
-                  in
-                  fromAction action currDatum (Just dOF) rOF
-                  -- }}}
-              -- }}}
-            (Just currDatum, "donate" : dDonor : dProject : dAmount : dOF : rOF : _ ) ->
-              -- {{{
-              case readMaybe dAmount of
-                Nothing ->
-                  -- {{{
-                  putStrLn "FAILED to parse the donation amount."
-                  -- }}}
-                Just amount ->
-                  -- {{{
-                  let
-                    action = OC.Donate $ OC.DonateParams
-                      { OC.dpDonor   = fromString dDonor
-                      , OC.dpProject = fromString dProject
-                      , OC.dpAmount  = amount
-                      }
-                  in
-                  fromAction action currDatum (Just dOF) rOF
-                  -- }}}
-              -- }}}
-            (Just currDatum, "contribute" : amountStr : dOF : rOF : _               ) ->
-              -- {{{
-              case readMaybe amountStr of
-                Nothing ->
-                  -- {{{
-                  putStrLn "FAILED to parse the contribution amount."
-                  -- }}}
-                Just amount ->
-                  -- {{{
-                  fromAction (OC.Contribute amount) currDatum (Just dOF) rOF
-                  -- }}}
-              -- }}}
-            (Just currDatum, "set-deadline" : deadlineStr : dOF : rOF : _           ) ->
-              -- {{{
-              case Ledger.POSIXTime <$> readMaybe deadlineStr of
-                Nothing ->
-                  -- {{{
-                  putStrLn "FAILED to parse the new deadline."
-                  -- }}}
-                Just deadline ->
-                  -- {{{
-                  fromAction (OC.SetDeadline $ Just deadline) currDatum (Just dOF) rOF
-                  -- }}}
-              -- }}}
-            (Just currDatum, "unset-deadline" : dOF : rOF : _                       ) ->
-              -- {{{
-              fromAction (OC.SetDeadline Nothing) currDatum (Just dOF) rOF
-              -- }}}
-            _                                                                         ->
-              -- {{{
-              printHelp
-              -- }}}
-          -- }}}
+      andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    _ ->
-      printHelp
+    "datum-has-project" : datumJSON : pPKH : _                          ->
+      -- {{{
+      fromDatum datumJSON $ \givenDatum ->
+        let
+          pkh              = fromString pPKH
+          fromQVFInfo info =
+            -- {{{
+            let
+              mProject =
+                -- {{{
+                List.find
+                  ((== pkh) . OC.pPubKeyHash)
+                  (OC.qvfProjects info)
+                -- }}}
+            in
+            case mProject of
+              Nothing ->
+                putStrLn "False"
+              Just _  ->
+                putStrLn "True"
+            -- }}}
+        in
+        case givenDatum of
+          OC.NotStarted      -> putStrLn "False"
+          OC.Closed     info -> fromQVFInfo info
+          OC.InProgress info -> fromQVFInfo info
+      -- }}}
+    "pretty-datum" : datumJSON : _                                      ->
+      -- {{{
+      fromDatum datumJSON $ putStrLn . show
+      -- }}}
+    "string-to-hex" : tn : outFile : _                                  ->
+      -- {{{
+      andPrintSuccess outFile
+        $ LBS.writeFile outFile
+        $ fromString
+        $ unsafeTokenNameToHex
+        $ fromString tn
+      -- }}}
+    "add-project" : pPKH : pLabel : pReqStr : datumJSON : dOF : rOF : _ ->
+      -- {{{
+      fromDatum datumJSON $ \currDatum ->
+        case readMaybe pReqStr of
+          Nothing ->
+            -- {{{
+            putStrLn "FAILED to parse the requested fund."
+            -- }}}
+          Just pReq ->
+            -- {{{
+            let
+              action = OC.AddProject $ OC.AddProjectParams
+                { OC.appPubKeyHash = fromString pPKH
+                , OC.appLabel      = fromString pLabel
+                , OC.appRequested  = pReq
+                }
+            in
+            fromAction action currDatum (Just dOF) rOF
+            -- }}}
+      -- }}}
+    "donate" : dDonor : dProject : dAmount : datumJSON : dOF : rOF : _  ->
+      -- {{{
+      fromDatum datumJSON $ \currDatum ->
+        case readMaybe dAmount of
+          Nothing ->
+            -- {{{
+            putStrLn "FAILED to parse the donation amount."
+            -- }}}
+          Just amount ->
+            -- {{{
+            let
+              action = OC.Donate $ OC.DonateParams
+                { OC.dpDonor   = fromString dDonor
+                , OC.dpProject = fromString dProject
+                , OC.dpAmount  = amount
+                }
+            in
+            fromAction action currDatum (Just dOF) rOF
+            -- }}}
+      -- }}}
+    "contribute" : amountStr : datumJSON : dOF : rOF : _                ->
+      -- {{{
+      fromDatum datumJSON $ \currDatum ->
+        case readMaybe amountStr of
+          Nothing ->
+            -- {{{
+            putStrLn "FAILED to parse the contribution amount."
+            -- }}}
+          Just amount ->
+            -- {{{
+            fromAction (OC.Contribute amount) currDatum (Just dOF) rOF
+            -- }}}
+      -- }}}
+    "set-deadline" : deadlineStr : datumJSON : dOF : rOF : _            ->
+      -- {{{
+      fromDatum datumJSON $ \currDatum ->
+        case Ledger.POSIXTime <$> readMaybe deadlineStr of
+          Nothing ->
+            -- {{{
+            putStrLn "FAILED to parse the new deadline."
+            -- }}}
+          Just deadline ->
+            -- {{{
+            fromAction (OC.SetDeadline $ Just deadline) currDatum (Just dOF) rOF
+            -- }}}
+      -- }}}
+    "unset-deadline" : datumJSON : dOF : rOF : _                        ->
+      -- {{{
+      fromDatum datumJSON $ \currDatum ->
+        fromAction
+          (OC.SetDeadline Nothing)
+          currDatum
+          (Just dOF)
+          rOF
+      -- }}}
+    _              -> printHelp
 -- }}}

@@ -44,6 +44,8 @@ import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
+import           Prelude                     (Show, show)
+import qualified Prelude                     as P
 import           Utils
 -- }}}
 
@@ -79,6 +81,21 @@ data Donations = Donations
   { getDonations :: !(Map PubKeyHash Integer)
   }
 
+instance Show Donations where
+  show (Donations ds) =
+    -- {{{
+    let
+      vs      = Map.elems ds
+      total   = foldr (+) 0 vs
+      dsCount = length ds
+    in
+         "Total of "
+    P.++ show total
+    P.++ " Lovelace, by "
+    P.++ show dsCount
+    P.++ " donor(s)."
+    -- }}}
+
 instance Eq Donations where
   {-# INLINABLE (==) #-}
   Donations ds0 == Donations ds1 = ds0 == ds1
@@ -105,6 +122,14 @@ data Project = Project
   , pDonations  :: !Donations
   }
 
+instance Show Project where
+  show Project {..} =
+    -- {{{
+         "\t{ Label:     " P.++ show pLabel     P.++ "\n"
+    P.++ "\t, Donations: " P.++ show pDonations P.++ "\n"
+    P.++ "\t}\n"
+    -- }}}
+
 instance Eq Project where
   {-# INLINABLE (==) #-}
   a == b = pPubKeyHash a == pPubKeyHash b
@@ -121,6 +146,14 @@ data QVFInfo = QVFInfo
   , qvfPool     :: !Integer
   , qvfDeadline :: !(Maybe POSIXTime)
   }
+
+instance Show QVFInfo where
+  show QVFInfo {..} =
+    -- {{{
+         "Projects:\n"   P.++ P.concatMap show qvfProjects
+    P.++ "Pool:\n\t"     P.++ show qvfPool P.++ " Lovelace\n"
+    P.++ "Deadline:\n\t" P.++ show qvfDeadline P.++ "\n"
+    -- }}}
 
 
 {-# INLINABLE mergeProjects #-}
@@ -196,6 +229,11 @@ data QVFDatum
   = NotStarted
   | InProgress QVFInfo
   | Closed     QVFInfo
+
+instance Show QVFDatum where
+  show NotStarted        = "\n<<<  NOT STARTED  >>>"
+  show (InProgress info) = "\n<<<  IN PROGRESS  >>>\n" P.++ show info
+  show (Closed     info) = "\n<<< FUNDING ENDED >>>\n" P.++ show info
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
