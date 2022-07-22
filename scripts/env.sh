@@ -375,27 +375,23 @@ EOF
 
 # WIP
 # cardano-cli transaction cmd to donate
-# PARAMS: $1=donor_pkh $2=receiver_pkh $3=lovelace_amt
+# PARAMS: $1=donorAddrFile $2=donorSKeyFile $3=utxoFromDonor $4=utxoAtScript $5=currentDatum $6lovelace_amt_script $7=lovelace_amt_donation
 donate_to_smart_contract () {
-
-    #donor_pkh=$1
-    #receiver_pkh=$2
-    #lovelace_amt=$3
-
-    path_to_quadratic_voting=$HOME/quadratic-voting
     # Edit these: ---------
     authAsset=62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261546f6b656e
     scriptAddr=addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx
     scriptFile="qvf.plutus"      # The Plutus script file (qvf.plutus)
-    donorAddrFile="1.addr"   # The file that contains donor's wallet address.
-    donorSKeyFile="1.skey"   # The file that contains donor's signing key.
+    donorAddrFile="$1"   # The file that contains donor's wallet address.
+    donorSKeyFile="$2"   # The file that contains donor's signing key.
     #utxoFromDonor="efd9d27b0ba008b8495aee6d4d01c5ebe0c281b55a623a31fe0b631c6365cb22"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-    utxoFromDonor="cee81a9357217912f57ee70c48931d4404005d67437a6210cf76a78f456ba6be#1"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-    utxoAtScript="7c86c52eb3a53dea9d959f3a71f069ddb0f0a529ce7027e5c0408dc03f5fd129#1"    # The UTxO at the script with the current datum attached.
-    currentDatum="1_curr.datum"    # JSON file containing current state of the contract, about to be updated.
+    utxoFromDonor="$3"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
+    utxoAtScript="$4"    # The UTxO at the script with the current datum attached.
+    currentDatum="$5"    # JSON file containing current state of the contract, about to be updated.
     newDatum="out_datum.json"        # JSON file containing updated state of the contract.
     redeemer="out_redeem.json"        # JSON file containing the `Donate` redeemer.
-    newLovelaceCount=$(expr 277000000 + $lovelace_amt) # Current Lovelace count of $utxoAtScript, plus the donated amount.
+    lovelace_amt_script="$6"
+    lovelace_amt_donation="$7"
+    newLovelaceCount=$(expr lovelace_amt_script + lovelace_amt_donation) # Current Lovelace count of $utxoAtScript, plus the donated amount.
     # ---------------------
 
     # Construct the transaction:
