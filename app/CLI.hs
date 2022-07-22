@@ -495,9 +495,9 @@ main =
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.Distribute
       -- }}}
-    "datum-has-project" : datumJSON : pPKH : _                          ->
+    "datum-has-project" : datumJSONStr : pPKH : _                       ->
       -- {{{
-      fromDatum datumJSON $ \givenDatum ->
+      fromDatumValue (fromString datumJSONStr) $ \givenDatum ->
         let
           pkh              :: Ledger.PubKeyHash
           pkh              = fromString pPKH
