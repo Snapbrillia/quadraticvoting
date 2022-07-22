@@ -376,7 +376,7 @@ EOF
 # WIP
 # cardano-cli transaction cmd to donate
 # PARAMS: $1=donorAddrFile $2=donorSKeyFile $3=utxoFromDonor $4=utxoAtScript $5=currentDatum $6lovelace_amt_script $7=lovelace_amt_donation
-donate_to_smart_contrac() {
+donate_to_smart_contract() {
     # Edit these: ---------
     authAsset=62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261546f6b656e
     scriptAddr=addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx
