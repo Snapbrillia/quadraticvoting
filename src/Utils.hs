@@ -1,16 +1,11 @@
 -- EXTENSIONS
 -- {{{
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -39,7 +34,12 @@ import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
+import qualified Prelude                     as P
 -- }}}
+
+
+lovelaceToAda :: Integer -> P.Double
+lovelaceToAda lovelace = P.fromIntegral lovelace P./ 1_000_000
 
 
 {-# INLINABLE addressToBuiltinByteString #-}

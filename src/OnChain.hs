@@ -86,12 +86,12 @@ instance Show Donations where
     -- {{{
     let
       vs      = Map.elems ds
-      total   = foldr (+) 0 vs
+      total   = lovelaceToAda $ foldr (+) 0 vs
       dsCount = length ds
     in
          "Total of "
     P.++ show total
-    P.++ " Lovelace, by "
+    P.++ " Ada, by "
     P.++ show dsCount
     P.++ " donor(s)."
     -- }}}
@@ -151,7 +151,7 @@ instance Show QVFInfo where
   show QVFInfo {..} =
     -- {{{
          "Projects:\n"   P.++ P.concatMap show qvfProjects
-    P.++ "Pool:\n\t"     P.++ show qvfPool P.++ " Lovelace\n"
+    P.++ "Pool:\n\t"     P.++ show (lovelaceToAda qvfPool) P.++ " Ada\n"
     P.++ "Deadline:\n\t" P.++ show qvfDeadline P.++ "\n"
     -- }}}
 

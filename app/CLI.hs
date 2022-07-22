@@ -161,19 +161,20 @@ main =
     makeHelpText description elem0 elem1 restOfElems =
       -- {{{
       let
-        elems              = elem0 : elem1 : restOfElems
-        cmd                = "cabal run qvf-cli -- "
-        makeBlank x        = replicate x ' '
-        preBlank           = "\t" ++ makeBlank (length cmd)
-        longest            =
+        elems           = elem0 : elem1 : restOfElems
+        cmd             :: String
+        cmd             = "cabal run qvf-cli -- "
+        makeBlank x     = replicate x ' '
+        preBlank        :: String
+        preBlank        = "\t" ++ makeBlank (length cmd)
+        longest         =
           -- {{{
           length $ List.maximumBy
             (\arg0 arg1 -> compare (length arg0) (length arg1))
             elems
           -- }}}
-        withPostBlank elem = elem ++ makeBlank (longest - length elem) ++ " \\\n"
-        elemsWithBlanks    = map ((preBlank ++) . withPostBlank) $ tail $ init elems
-        lastElem           = preBlank ++ last elems ++ "\n"
+        withPostBlank e = e ++ makeBlank (longest - length e) ++ " \\\n"
+        elemsWithBlanks = map ((preBlank ++) . withPostBlank) $ tail $ init elems
       in
          "\n\n\t" ++ description ++ "\n\n"
       ++ "\t" ++ cmd
@@ -484,6 +485,7 @@ main =
       -- {{{
       fromDatum datumJSON $ \givenDatum ->
         let
+          pkh              :: Ledger.PubKeyHash
           pkh              = fromString pPKH
           fromQVFInfo info =
             -- {{{
@@ -509,7 +511,7 @@ main =
       -- }}}
     "pretty-datum" : datumJSON : _                                      ->
       -- {{{
-      fromDatum datumJSON $ putStrLn . show
+      fromDatum datumJSON print
       -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{
