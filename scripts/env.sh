@@ -13,7 +13,7 @@ export preDir="testnet"
 # Takes 2 arguments:
 #   1. Verification key output file,
 #   2. Signing key output file.
-generate_skey_and_vkey () {
+generate_skey_and_vkey() {
     cardano-cli address key-gen    \
         --verification-key-file $1 \
         --signing-key-file $2
@@ -25,7 +25,7 @@ generate_skey_and_vkey () {
 # Takes 2 arguments:
 #   1. Verification key file,
 #   2. Address output file.
-vkey_to_address () {
+vkey_to_address() {
     cardano-cli address build              \
         --payment-verification-key-file $1 \
         $MAGIC                             \
@@ -38,7 +38,7 @@ vkey_to_address () {
 # Takes 2 arguments:
 #   1. Verification key file,
 #   2. Public key hash output file.
-vkey_to_public_key_hash () {
+vkey_to_public_key_hash() {
     cardano-cli address key-hash           \
         --payment-verification-key-file $1 \
         --out-file $2
@@ -50,7 +50,7 @@ vkey_to_public_key_hash () {
 # Takes 2 arguments:
 #   1. Compiled Plutus script file,
 #   2. Address output file.
-plutus_script_to_address () {
+plutus_script_to_address() {
     cardano-cli address build-script \
         --script-file $1             \
         $MAGIC                       \
@@ -68,7 +68,7 @@ plutus_script_to_address () {
 # Takes 2 arguments:
 #   1. Starting number,
 #   2. Ending number.
-generate_wallets_from_to () {
+generate_wallets_from_to() {
 
     max_amt=100
 
@@ -103,7 +103,7 @@ generate_wallets_from_to () {
 #
 # Takes 1 argument:
 #   1. Wallet address file.
-get_first_utxo_of () {
+get_first_utxo_of() {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -117,7 +117,7 @@ get_first_utxo_of () {
 # 
 # Takes 1 argument:
 #   1. Wallet address file.
-get_all_input_utxos_at () {
+get_all_input_utxos_at() {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -144,7 +144,7 @@ get_all_input_utxos_at () {
 #   3. Ending number of the receiving wallets,
 #   4. Total amount of Lovelace to be distributed equally,
 #   5. Signing key file of the spending wallet. # TODO: Can this be removed?
-distribute_from_to_wallets () {
+distribute_from_to_wallets() {
 
     tx_in_str=$(get_all_input_utxos_at $1)
     tx_out_str=''
@@ -206,7 +206,7 @@ distribute_from_to_wallets () {
 #   1. Starting number of the spending wallets,
 #   2. Ending number of the spending wallets,
 #   3. Address file of the receiving wallet.
-drain_from_wallets_to () {
+drain_from_wallets_to() {
 
     tx_in_str=''
     signing_keys_str=''
@@ -249,7 +249,7 @@ drain_from_wallets_to () {
 #
 # Takes 1 argument:
 #   1. User's wallet address file.
-get_first_lovelace_count_of () {
+get_first_lovelace_count_of() {
     echo `cardano-cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
@@ -269,7 +269,7 @@ get_first_lovelace_count_of () {
 #   5. Redeemer's JSON file for the intended endpoint,
 #   6. Amount that should be added to script's holding,
 #   7. Updated datum of the script after the transaction.
-interact_with_smart_contract () {
+interact_with_smart_contract() {
 
     # Build script address from a script, if script address does not exist. 
     # The address name is the same as the script, except its extension is changed to .addr
@@ -339,7 +339,7 @@ interact_with_smart_contract () {
 }
 
 # Updates protocol.json to be current
-update_protocol_json () {
+update_protocol_json() {
     cardano-cli query protocol-parameters \
         $MAGIC                            \
         --out-file protocol.json
@@ -347,8 +347,8 @@ update_protocol_json () {
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell
 # Uses a HERE doc to do this
-# PARAMS: $1=donor_pkh $2=receiver_pkh $3=lovelace_amt
-update_datum_donate_qvf_cli () {
+# PARAMS: $1=donor_pkh $2=receiver_pkh $3=lovelace_amt $4=current_datum
+update_datum_donate_qvf_cli() {
 
     donor_pkh=$1
     receiver_pkh=$2
@@ -363,7 +363,7 @@ update_datum_donate_qvf_cli () {
 #! /usr/bin/env nix-shell
 #! nix-shell --extra-experimental-features flakes -i sh
 cd path_to_quadratic_voting
-cabal run qvf-cli 1_curr.datum donate $(cat donor_pkh) $(cat receiver_pkh) $lovelace_amt out_datum.json out_redeem.json
+cabal run qvf-cli $current_datum donate $(cat donor_pkh) $(cat receiver_pkh) $lovelace_amt out_datum.json out_redeem.json
 cp out_datum.json "$current_path" # Optional, see how workflow works out
 cp out_redeem.json "$current_path" # Optional, see how workflow works out
 exit # Exit nix-shell
@@ -376,27 +376,23 @@ EOF
 
 # WIP
 # cardano-cli transaction cmd to donate
-# PARAMS: $1=donor_pkh $2=receiver_pkh $3=lovelace_amt
-donate_to_smart_contract () {
-
-    donor_pkh=$1
-    receiver_pkh=$2
-    lovelace_amt=$3
-
-    path_to_quadratic_voting=$HOME/quadratic-voting
+# PARAMS: $1=donorAddrFile $2=donorSKeyFile $3=utxoFromDonor $4=utxoAtScript $5=currentDatum $6lovelace_amt_script $7=lovelace_amt_donation
+donate_to_smart_contract() {
     # Edit these: ---------
     authAsset=62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261546f6b656e
     scriptAddr=addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx
     scriptFile="qvf.plutus"      # The Plutus script file (qvf.plutus)
-    donorAddrFile="1.addr"   # The file that contains donor's wallet address.
-    donorSKeyFile="1.skey"   # The file that contains donor's signing key.
+    donorAddrFile="$1"   # The file that contains donor's wallet address.
+    donorSKeyFile="$2"   # The file that contains donor's signing key.
     #utxoFromDonor="efd9d27b0ba008b8495aee6d4d01c5ebe0c281b55a623a31fe0b631c6365cb22"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-    utxoFromDonor="cee81a9357217912f57ee70c48931d4404005d67437a6210cf76a78f456ba6be#1"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-    utxoAtScript="7c86c52eb3a53dea9d959f3a71f069ddb0f0a529ce7027e5c0408dc03f5fd129#1"    # The UTxO at the script with the current datum attached.
-    currentDatum="1_curr.datum"    # JSON file containing current state of the contract, about to be updated.
+    utxoFromDonor="$3"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
+    utxoAtScript="$4"    # The UTxO at the script with the current datum attached.
+    currentDatum="$5"    # JSON file containing current state of the contract, about to be updated.
     newDatum="out_datum.json"        # JSON file containing updated state of the contract.
     redeemer="out_redeem.json"        # JSON file containing the `Donate` redeemer.
-    newLovelaceCount=$(expr 266000000 + 11000000) # Current Lovelace count of $utxoAtScript, plus the donated amount.
+    lovelace_amt_script="$6"
+    lovelace_amt_donation="$7"
+    newLovelaceCount=$(expr lovelace_amt_script + lovelace_amt_donation) # Current Lovelace count of $utxoAtScript, plus the donated amount.
     # ---------------------
 
     # Construct the transaction:
@@ -423,54 +419,3 @@ donate_to_smart_contract () {
     cardano-cli transaction submit $MAGIC --tx-file tx.signed
 
 }
-
-
-
-# Updated datum with
-# cd ~/plutus-apps
-# nix-shell --extra-experimental-features flakes
-# cd ~/quadraticvotingbuild/quadraticvoting # Or wherever latest folder is
-# cabal run qvf-cli 1_curr.datum donate $(cat 1.pkh) $(cat C.pkh) 11000000 outdat.json outred.json
-unique_transaction () {
-
-P=/home/paul/quadraticvotingbuild/quadraticvoting
-# Edit these: ---------
-authAsset=62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261546f6b656e
-scriptAddr=addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx
-scriptFile="$P/qvf.plutus"      # The Plutus script file (qvf.plutus)
-donorAddrFile="1.addr"   # The file that contains donor's wallet address.
-donorSKeyFile="1.skey"   # The file that contains donor's signing key.
-#utxoFromDonor="efd9d27b0ba008b8495aee6d4d01c5ebe0c281b55a623a31fe0b631c6365cb22"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-utxoFromDonor="cee81a9357217912f57ee70c48931d4404005d67437a6210cf76a78f456ba6be#1"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-utxoAtScript="7c86c52eb3a53dea9d959f3a71f069ddb0f0a529ce7027e5c0408dc03f5fd129#1"    # The UTxO at the script with the current datum attached.
-currentDatum="$P/1_curr.datum"    # JSON file containing current state of the contract, about to be updated.
-newDatum="$P/outdat.json"        # JSON file containing updated state of the contract.
-redeemer="$P/outred.json"        # JSON file containing the `Donate` redeemer.
-newLovelaceCount=$(expr 266000000 + 11000000) # Current Lovelace count of $utxoAtScript, plus the donated amount.
-# ---------------------
-
-# Construct the transaction:
-cardano-cli transaction build --babbage-era $MAGIC                     \
-    --tx-in $utxoFromDonor                                             \
-    --tx-in-collateral $utxoFromDonor                                  \
-    --tx-in $utxoAtScript                                              \
-    --tx-in-datum-file $currentDatum                                   \
-    --tx-in-script-file $scriptFile                                    \
-    --tx-in-redeemer-file $redeemer                                    \
-    --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
-    --tx-out-datum-embed-file $newDatum                                \
-    --change-address $(cat $donorAddrFile)                             \
-    --protocol-params-file protocol.json                               \
-    --out-file tx.unsigned
-
-# Sign the transaction:
-cardano-cli transaction sign $MAGIC   \
-    --tx-body-file tx.unsigned        \
-    --signing-key-file $donorSKeyFile \
-    --out-file tx.signed
-
-# Submit the transaction:
-cardano-cli transaction submit $MAGIC --tx-file tx.signed
-
-}
-
