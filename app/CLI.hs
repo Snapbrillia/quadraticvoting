@@ -8,6 +8,7 @@ module Main (main) where
 import           Cardano.Api
 import           Cardano.Api.Shelley    (PlutusScript (..))
 import           Codec.Serialise        (Serialise, serialise)
+import           Control.Monad          (foldM)
 import qualified Data.Aeson             as A
 import           Data.Aeson             (encode)
 import qualified Data.ByteString.Char8  as BS8
@@ -23,6 +24,7 @@ import           Plutus.V1.Ledger.Value (TokenName (..))
 import           PlutusTx               (Data (..))
 import qualified PlutusTx
 import qualified PlutusTx.Monoid        as PlutusMonoid
+import qualified PlutusTx.Semigroup     as PlutusSemigroup
 import qualified Ledger
 import           System.Environment     (getArgs)
 import           Text.Read              (readMaybe)
@@ -207,7 +209,7 @@ main =
           ++ "\tspecific project:"
         )
         "datum-has-project"
-        "<current.datum>"
+        "{current-datum-json-value}"
         ["<project.pkh>"]
       -- }}}
     prettyDatumHelp   :: String
@@ -216,8 +218,21 @@ main =
       makeHelpText
         "Print an easy-to-read parsing of a given datum JSON:"
         "pretty-datum"
-        "<current.datum>"
+        "{current-datum-json-value}"
         []
+      -- }}}
+    mergeDatumsHelp   :: String
+    mergeDatumsHelp   =
+      -- {{{
+      makeHelpText
+        "Print contracts current combined state:"
+        "merge-datums"
+        "{datum0-json-value}"
+        [ "{datum0-json-value}"
+        , "{datum1-json-value}"
+        , "{datum2-json-value}"
+        , "{etc...}"
+        ]
       -- }}}
     scriptHelp        :: String
     scriptHelp        =
@@ -318,6 +333,7 @@ main =
       ++ "\tcabal run qvf-cli -- generate scripts  --help\n"
       ++ "\tcabal run qvf-cli -- datum-has-project --help\n"
       ++ "\tcabal run qvf-cli -- pretty-datum      --help\n"
+      ++ "\tcabal run qvf-cli -- merge-datums      --help\n"
       ++ "\tcabal run qvf-cli -- string-to-hex     --help\n\n"
 
       ++ "Limited to key holder:\n"
@@ -388,17 +404,23 @@ main =
           putStrLn datumHasProjHelp
         "pretty-datum"      ->
           putStrLn prettyDatumHelp
+        "merge-datums"      ->
+          putStrLn mergeDatumsHelp
         _                   ->
           printHelp
       -- }}}
-    fromDatumValue :: LBS.ByteString -> (OC.QVFDatum -> IO ()) -> IO ()
-    fromDatumValue datumVal datumToIO = do
+    fromDatumValueHelper :: LBS.ByteString
+                         -> (String -> IO a)
+                         -> IO a
+                         -> (OC.QVFDatum -> IO a)
+                         -> IO a
+    fromDatumValueHelper datumVal parseFailureAction badDatumAction datumToIO = do
       -- {{{
       eitherErrData <- parseJSONValue datumVal
       case eitherErrData of
         Left parseError ->
           -- {{{
-          putStrLn $ "FAILED to parse datum JSON: " ++ parseError
+          parseFailureAction parseError
           -- }}}
         Right datumData ->
           -- {{{
@@ -406,16 +428,18 @@ main =
             mDatum :: Maybe OC.QVFDatum
             mDatum = PlutusTx.fromData datumData
           in
-          case mDatum of
-            Just givenDatum ->
-              -- {{{
-              datumToIO givenDatum
-              -- }}}
-            Nothing ->
-              -- {{{
-              putStrLn $ "FAILED: Improper datum."
-              -- }}}
+          maybe badDatumAction datumToIO mDatum
           -- }}}
+      -- }}}
+    fromDatumValue :: LBS.ByteString -> (OC.QVFDatum -> IO ()) -> IO ()
+    fromDatumValue datumVal =
+      -- {{{
+      fromDatumValueHelper
+        datumVal
+        ( \parseError ->
+            putStrLn $ "FAILED to parse datum JSON: " ++ parseError
+        )
+        (putStrLn $ "FAILED: Improper datum.")
       -- }}}
     fromDatum :: String -> (OC.QVFDatum -> IO ()) -> IO ()
     fromDatum datumJSON datumToIO = do
@@ -526,6 +550,30 @@ main =
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
+      -- }}}
+    "merge-datums" : datumJSONStrs                                      ->
+      -- {{{
+      let
+        foldFn :: Either String OC.QVFDatum
+               -> String
+               -> IO (Either String OC.QVFDatum)
+        foldFn eith datumJSONStr =
+          -- {{{
+          case eith of
+            Left err ->
+              return $ Left err
+            Right soFar ->
+              fromDatumValueHelper
+                (fromString datumJSONStr)
+                (return . Left)
+                (return $ Left "Bad datum encountered.")
+                (\qvfDatum -> return $ Right $ qvfDatum PlutusSemigroup.<> soFar)
+          -- }}}
+      in do
+      eithMerged <- foldM foldFn (Right PlutusMonoid.mempty) datumJSONStrs
+      case eithMerged of
+        Left err     -> putStrLn $ "FAILED: " ++ err
+        Right merged -> print merged
       -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{

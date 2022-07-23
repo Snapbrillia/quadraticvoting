@@ -242,6 +242,16 @@ instance Eq QVFDatum where
   Closed     info0 == Closed     info1 = info0 == info1
   _                == _                = False
 
+instance Semigroup QVFDatum where
+  {-# INLINABLE (<>) #-}
+  InProgress info0 <> InProgress info1 = InProgress (info0 <> info1)
+  Closed info0     <> Closed info1     = if info0 == info1 then Closed info0 else NotStarted
+  _                <> _                = NotStarted
+
+instance Monoid QVFDatum where
+  {-# inlinable mempty #-}
+  mempty = InProgress mempty
+
 PlutusTx.makeIsDataIndexed ''QVFDatum
   [ ('NotStarted, 0)
   , ('InProgress, 1)

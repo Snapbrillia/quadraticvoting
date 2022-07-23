@@ -6,6 +6,7 @@
 export CARDANO_NODE_SOCKET_PATH=node.socket
 # ========================================== #
 export MAGIC='--testnet-magic 1097911063'
+export preDir="testnet"
 
 # Generates a key pair.
 #
@@ -138,7 +139,7 @@ get_all_input_utxos_at () {
 #       stored inside.
 #
 # Takes 5 arguments:
-#   1. The spending wallet,
+#   1. The spending wallet address file,
 #   2. Starting number of the receiving wallets,
 #   3. Ending number of the receiving wallets,
 #   4. Total amount of Lovelace to be distributed equally,

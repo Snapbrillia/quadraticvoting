@@ -1,5 +1,7 @@
 . env.sh
-. blockfrost.sh
+
+# MATCH THIS WITH THE ONE FROM `env.sh`
+preDir="testnet"
 
 # DONATE TO A PROJECT
 scriptAddr="addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx"
@@ -7,16 +9,26 @@ authAsset="62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261
 MAGIC="--testnet-magic 1097911063"
 
 # Edit these: ---------
-scriptFile="testnet/qvf.plutus" # The Plutus script file (qvf.plutus)
-donorAddrFile=$1                # The file that contains donor's wallet address.
-donorSKeyFile=$2                # The file that contains donor's signing key.
-utxoFromDonor=$3                # A UTxO from donor's wallet that has enough ADA for donation and tx fee.
-utxoAtScript=$4                 # The UTxO at the script with the current datum attached.
-currentDatum=$5                 # JSON file containing current state of the contract, about to be updated.
-newDatum=$6                     # JSON file containing updated state of the contract.
-redeemer=$7                     # JSON file containing the `Donate` redeemer.
-newLovelaceCount=$8             # Current Lovelace count of $utxoAtScript, plus the donated amount.
+scriptFile="qvf/qvf.plutus"            # The Plutus script file (qvf.plutus)
+donorAddrFile="$1.addr"                # The file that contains donor's wallet address.
+donorSKeyFile="$1.skey"                # The file that contains donor's signing key.
+utxoFromDonor="$2"                     # A UTxO from donor's wallet that has enough ADA for donation and tx fee.
+utxoAtScript="$3"                      # The UTxO at the script with the current datum attached.
+currentDatum="qvf/$preDir/curr.datum"  # JSON file containing current state of the contract, about to be updated.
+newDatum="qvf/$preDir/updated.datum"   # JSON file containing updated state of the contract.
+redeemer="qvf/$preDir/donate.redeemer" # JSON file containing the `Donate` redeemer.
+newLovelaceCount="$4"                  # Current Lovelace count of $utxoAtScript, plus the donated amount.
 # ---------------------
+
+echo $scriptFile
+echo $donorAddrFile
+echo $donorSKeyFile
+echo $utxoFromDonor
+echo $utxoAtScript
+echo $currentDatum
+echo $newDatum
+echo $redeemer
+echo $newLovelaceCount
 
 # Construct the transaction:
 $cli transaction build --babbage-era $MAGIC                            \
