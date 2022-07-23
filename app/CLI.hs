@@ -225,7 +225,7 @@ main =
     mergeDatumsHelp   =
       -- {{{
       makeHelpText
-        "Print contracts current combined state:"
+        "Combine multiple states, and print contract's merged state:"
         "merge-datums"
         "{datum0-json-value}"
         [ "{datum0-json-value}"
