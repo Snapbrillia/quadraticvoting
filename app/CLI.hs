@@ -328,7 +328,7 @@ main =
     helpText          :: String
     helpText          =
       -- {{{
-         "\nCLI application to generate various redeemer values to interact "
+         "\nCLI application to generate various redeemer values to interact\n"
       ++ "with the QVF smart contract.\n\n"
 
       ++ "You can separately print the argument guide for each action\n"
