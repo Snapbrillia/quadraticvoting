@@ -14,8 +14,10 @@ import           Data.Aeson             (encode)
 import qualified Data.ByteString.Char8  as BS8
 import qualified Data.ByteString.Lazy   as LBS
 import qualified Data.ByteString.Short  as SBS
+import qualified Data.Char              as Char
 import qualified Data.List              as List
 import           Data.Maybe             (fromJust)
+import qualified Data.String            as String
 import           Data.String            (fromString)
 import qualified Data.Text              as T
 import           Data.Text              (Text)
@@ -221,6 +223,15 @@ main =
         "{current-datum-json-value}"
         []
       -- }}}
+    dataToCBORHelp    :: String
+    dataToCBORHelp    =
+      -- {{{
+      makeHelpText
+        "Return the CBOR encoding of a given JSON formatted `Data` value:"
+        "data-to-cbor"
+        "{arbitrary-data-json-value}"
+        []
+      -- }}}
     mergeDatumsHelp   :: String
     mergeDatumsHelp   =
       -- {{{
@@ -334,6 +345,7 @@ main =
       ++ "\tcabal run qvf-cli -- datum-has-project --help\n"
       ++ "\tcabal run qvf-cli -- pretty-datum      --help\n"
       ++ "\tcabal run qvf-cli -- merge-datums      --help\n"
+      ++ "\tcabal run qvf-cli -- data-to-cbor      --help\n"
       ++ "\tcabal run qvf-cli -- string-to-hex     --help\n\n"
 
       ++ "Limited to key holder:\n"
@@ -398,51 +410,60 @@ main =
           putStrLn unsetDeadlineHelp
         "distribute"        ->
           putStrLn distributeHelp
-        "string-to-hex"     ->
-          putStrLn toHexHelp
         "datum-has-project" ->
           putStrLn datumHasProjHelp
         "pretty-datum"      ->
           putStrLn prettyDatumHelp
+        "data-to-cbor"      ->
+          putStrLn dataToCBORHelp
+        "string-to-hex"     ->
+          putStrLn toHexHelp
         "merge-datums"      ->
           putStrLn mergeDatumsHelp
         _                   ->
           printHelp
+      -- }}}
+    fromConcreteDataValue :: LBS.ByteString
+                          -> (String -> IO a)
+                          -> (Data -> IO a)
+                          -> IO a
+    fromConcreteDataValue datVal parseFailureAction dataToIO = do
+      -- {{{
+      eitherErrData <- parseJSONValue datVal
+      case eitherErrData of
+        Left parseError ->
+          -- {{{
+          parseFailureAction parseError
+          -- }}}
+        Right dataData ->
+          -- {{{
+          dataToIO dataData
+          -- }}}
       -- }}}
     fromDatumValueHelper :: LBS.ByteString
                          -> (String -> IO a)
                          -> IO a
                          -> (OC.QVFDatum -> IO a)
                          -> IO a
-    fromDatumValueHelper datumVal parseFailureAction badDatumAction datumToIO = do
+    fromDatumValueHelper datVal parseFailureAction badDataAction dataToIO =
       -- {{{
-      eitherErrData <- parseJSONValue datumVal
-      case eitherErrData of
-        Left parseError ->
-          -- {{{
-          parseFailureAction parseError
-          -- }}}
-        Right datumData ->
-          -- {{{
-          let
-            mDatum :: Maybe OC.QVFDatum
-            mDatum = PlutusTx.fromData datumData
-          in
-          maybe badDatumAction datumToIO mDatum
-          -- }}}
+      fromConcreteDataValue datVal parseFailureAction $ \dataData ->
+        maybe badDataAction dataToIO $ PlutusTx.fromData dataData
       -- }}}
-    fromDatumValue :: LBS.ByteString -> (OC.QVFDatum -> IO ()) -> IO ()
-    fromDatumValue datumVal =
+    fromDatumValue :: LBS.ByteString
+                   -> (OC.QVFDatum -> IO ())
+                   -> IO ()
+    fromDatumValue datVal =
       -- {{{
       fromDatumValueHelper
-        datumVal
+        datVal
         ( \parseError ->
-            putStrLn $ "FAILED to parse datum JSON: " ++ parseError
+            putStrLn $ "FAILED to parse data JSON: " ++ parseError
         )
-        (putStrLn $ "FAILED: Improper datum.")
+        (putStrLn "FAILED: Improper data.")
       -- }}}
-    fromDatum :: String -> (OC.QVFDatum -> IO ()) -> IO ()
-    fromDatum datumJSON datumToIO = do
+    actOnData :: String -> (OC.QVFDatum -> IO ()) -> IO ()
+    actOnData datumJSON datumToIO = do
       -- {{{
       datumVal <- LBS.readFile datumJSON
       fromDatumValue datumVal datumToIO
@@ -551,6 +572,19 @@ main =
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
       -- }}}
+    "data-to-cbor" : dataJSONStr : _                                    ->
+      -- {{{
+      fromConcreteDataValue
+        (fromString dataJSONStr)
+        ( \parseError ->
+            putStrLn $ "FAILED to parse data JSON: " ++ parseError
+        )
+        ( putStrLn
+          . filter (\c -> c /= '"' && c /= '\\')
+          . show
+          . encode
+        )
+        -- }}}
     "merge-datums" : datumJSONStrs                                      ->
       -- {{{
       let
@@ -585,7 +619,7 @@ main =
       -- }}}
     "add-project" : pPKH : pLabel : pReqStr : datumJSON : dOF : rOF : _ ->
       -- {{{
-      fromDatum datumJSON $ \currDatum ->
+      actOnData datumJSON $ \currDatum ->
         case readMaybe pReqStr of
           Nothing ->
             -- {{{
@@ -605,7 +639,7 @@ main =
       -- }}}
     "donate" : dDonor : dProject : dAmount : datumJSON : dOF : rOF : _  ->
       -- {{{
-      fromDatum datumJSON $ \currDatum ->
+      actOnData datumJSON $ \currDatum ->
         case readMaybe dAmount of
           Nothing ->
             -- {{{
@@ -625,7 +659,7 @@ main =
       -- }}}
     "contribute" : amountStr : datumJSON : dOF : rOF : _                ->
       -- {{{
-      fromDatum datumJSON $ \currDatum ->
+      actOnData datumJSON $ \currDatum ->
         case readMaybe amountStr of
           Nothing ->
             -- {{{
@@ -638,7 +672,7 @@ main =
       -- }}}
     "set-deadline" : deadlineStr : datumJSON : dOF : rOF : _            ->
       -- {{{
-      fromDatum datumJSON $ \currDatum ->
+      actOnData datumJSON $ \currDatum ->
         case Ledger.POSIXTime <$> readMaybe deadlineStr of
           Nothing ->
             -- {{{
@@ -651,7 +685,7 @@ main =
       -- }}}
     "unset-deadline" : datumJSON : dOF : rOF : _                        ->
       -- {{{
-      fromDatum datumJSON $ \currDatum ->
+      actOnData datumJSON $ \currDatum ->
         fromAction
           (OC.SetDeadline Nothing)
           currDatum

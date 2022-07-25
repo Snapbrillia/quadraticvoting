@@ -41,6 +41,7 @@ executable qvf-cli
                      , base >= 4.9 && < 5
                      , bytestring
                      , cardano-api
+                     , cardano-binary
                      , plutus-ledger
                      , plutus-ledger-api
                      , plutus-tx
