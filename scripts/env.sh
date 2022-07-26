@@ -285,7 +285,7 @@ interact_with_smart_contract() {
 
     users_utxo=$(get_first_utxo_of $1)
     script_holding=$(get_first_lovelace_count_of $script_addr)
-    extra_output=$(expr $6 + $script_holding) # Done? TODO: Should add $6 with $script_holding.
+    extra_output=$(expr $6 + $script_holding)
 
     cardano-cli transaction build                 \
         --tx-in $users_utxo                       \
@@ -310,32 +310,6 @@ interact_with_smart_contract() {
     cardano-cli transaction submit                \
         $MAGIC                                    \
         --tx-file tx.signed
-
-
-#     cardano-cli transaction build \
-#         --tx-in e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#0 \
-#         --tx-in e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#1 \
-#         --tx-in-script-file testnet/demoScript.plutus \
-#         --tx-in-datum-file initial.json \
-#         --tx-in-redeemer-file contr-redeemer.json \
-#         --tx-in-collateral e32e72881fc632efe5f8f387fffdd2c0dcf8871e2bebf55dc371eb8a3340b5e4#0 \
-#         --tx-out $(cat script.addr)+86900000 \
-#         --tx-out-datum-embed-file contr-datum.json \
-#         --change-address $(cat testnet/01.addr) \
-#         --protocol-params-file protocol.json \
-#         --out-file tx.raw \
-#         --testnet-magic 1097911063
-#         
-#         
-#         cardano-cli transaction sign \
-#         --tx-body-file tx.raw \
-#         --signing-key-file testnet/01.skey \
-#         --testnet-magic 1097911063 \
-#         --out-file tx.signed
-#         
-#         cardano-cli transaction submit \
-#         --testnet-magic 1097911063 \
-#         --tx-file tx.signed
 }
 
 # Updates protocol.json to be current
@@ -347,25 +321,49 @@ update_protocol_json() {
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell
 # Uses a HERE doc to do this
-# PARAMS: $1=donor_pkh $2=receiver_pkh $3=lovelace_amt $4=current_datum
+# PARAMS: $1=donor_pkh_file $2=receiver_pkh_file $3=lovelace_amt $4=current_datum
 update_datum_donate_qvf_cli() {
 
-    donor_pkh=$1
-    receiver_pkh=$2
-    lovelace_amt=$3
-
+    # Edit these: ---------
     path_to_plutus_apps=$HOME/plutus-apps
     path_to_quadratic_voting=$HOME/quadratic-voting
     current_path=$(pwd)
+    # ---------------------
+
+    donor_pkh_file=$1
+    receiver_pkh_file=$2
+    lovelace_amt=$3
 
     # Make the script to execute within the nix-shell with a HERE DOC
     cat > "$path_to_quadratic_voting"/update-datum.sh <<EOF
 #! /usr/bin/env nix-shell
 #! nix-shell --extra-experimental-features flakes -i sh
 cd path_to_quadratic_voting
-cabal run qvf-cli -- donate $(cat donor_pkh) $(cat receiver_pkh) $lovelace_amt $current_datum out_datum.json out_redeem.json
-cp out_datum.json "$current_path" # Optional, see how workflow works out
-cp out_redeem.json "$current_path" # Optional, see how workflow works out
+. test_remote.sh
+donorsPKH=$(cat $preDir/$1)
+obj=$(find_utxo_with_project $scriptAddr "$policyId$tokenName" $2)
+len=$(echo $obj | jq length)
+if [ $len -eq 0 ]; then
+    echo "FAILED to find the project."
+else
+    currDatum="$preDir/curr.datum"
+    updatedDatum="$preDir/updated.datum"
+    action="$preDir/donate.redeemer"
+    obj=$(echo $obj | jq .[0])
+    utxo=$(echo $obj | jq .utxo)
+    datumHash=$(echo $obj | jq .datumHash)
+    datumValue=$(echo $obj | jq .datumValue)
+    lovelace=$(echo $obj | jq .lovelace | jq tonumber)
+    newLovelace=$(expr $lovelace + $3)
+    echo $lovelace
+    echo $newLovelace
+    echo $datumValue > $currDatum
+    cabal run qvf-cli -- donate $(cat donor_pkh_file) $(cat receiver_pkh_file) $lovelace_amt $current_datum out_datum.json out_redeem.json
+    cabal run qvf-cli -- pretty-datum $(cat $updatedDatum)
+    cp out_datum.json "$current_path" # Optional, see how workflow works out
+    cp out_redeem.json "$current_path" # Optional, see how workflow works out
+    echo "DONE."
+fi
 exit # Exit nix-shell
 EOF
     # Run the HERE file commands in nix-shell
