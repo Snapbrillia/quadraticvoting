@@ -4,6 +4,8 @@ tokenName=$(cat $preDir/token.hex)
 authAsset="$policyId.$tokenName"
 remoteAddr="Keyan@172.16.42.6"
 remoteDir="/e/cardanoTestnet"
+cli="cardano-cli"
+qvf="cabal run qvf-cli --"
 
 . scripts/env.sh
 . scripts/blockfrost.sh
@@ -26,7 +28,7 @@ get_current_state() {
     datumValue=$(get_datum_value_from_hash $(remove_quotes $datumHash) | jq -c .json_value)
     datumValues="$datumValues $datumValue"
   done
-  cabal run qvf-cli -- merge-datums $datumValues
+  $qvf merge-datums $datumValues
 }
 
 
@@ -54,7 +56,7 @@ donate_from_to_with() {
     echo $lovelace
     echo $newLovelace
     echo $datumValue > $currDatum
-    cabal run qvf-cli -- donate        \
+    $qvf donate        \
 	                       $donorsPKH    \
                          $2            \
                          $3            \
@@ -70,7 +72,7 @@ donate_from_to_with() {
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
     # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
     # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
-    cabal run qvf-cli -- pretty-datum $(cat $updatedDatum)
+    $qvf pretty-datum $(cat $updatedDatum)
     echo "DONE."
   fi
 }

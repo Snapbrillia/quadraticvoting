@@ -1,6 +1,7 @@
 AUTH_ID=$(cat ../blockfrost.id)
 URL="https://cardano-testnet.blockfrost.io/api/v0"
-
+cli="cardano-cli"
+qvf="cabal run qvf-cli --"
 
 remove_quotes() {
   echo $1           \
@@ -68,7 +69,7 @@ find_utxo_with_project() {
     utxo=$(echo $obj | jq .utxo)
     datumHash=$(echo $obj | jq .datumHash)
     datumValue=$(get_datum_value_from_hash $(remove_quotes $datumHash) | jq -c .json_value)
-    isPresent=$(cabal run qvf-cli -- datum-has-project $datumValue $3)
+    isPresent=$($qvf datum-has-project $datumValue $3)
     for j in $isPresent; do
       if [ $j = "True" ] || [ $j = "False" ]; then
         isPresent=$j

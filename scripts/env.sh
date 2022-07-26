@@ -7,6 +7,8 @@ export CARDANO_NODE_SOCKET_PATH=node.socket
 # ========================================== #
 export MAGIC='--testnet-magic 1097911063'
 export preDir="testnet"
+cli="cardano-cli"
+qvf="cabal run qvf-cli --"
 
 # Generates a key pair.
 #
@@ -14,7 +16,7 @@ export preDir="testnet"
 #   1. Verification key output file,
 #   2. Signing key output file.
 generate_skey_and_vkey() {
-    cardano-cli address key-gen    \
+    $cli address key-gen    \
         --verification-key-file $1 \
         --signing-key-file $2
 }
@@ -26,7 +28,7 @@ generate_skey_and_vkey() {
 #   1. Verification key file,
 #   2. Address output file.
 vkey_to_address() {
-    cardano-cli address build              \
+    $cli address build              \
         --payment-verification-key-file $1 \
         $MAGIC                             \
         --out-file $2
@@ -39,7 +41,7 @@ vkey_to_address() {
 #   1. Verification key file,
 #   2. Public key hash output file.
 vkey_to_public_key_hash() {
-    cardano-cli address key-hash           \
+    $cli address key-hash           \
         --payment-verification-key-file $1 \
         --out-file $2
 }
@@ -51,7 +53,7 @@ vkey_to_public_key_hash() {
 #   1. Compiled Plutus script file,
 #   2. Address output file.
 plutus_script_to_address() {
-    cardano-cli address build-script \
+    $cli address build-script \
         --script-file $1             \
         $MAGIC                       \
         --out-file $2
@@ -104,7 +106,7 @@ generate_wallets_from_to() {
 # Takes 1 argument:
 #   1. Wallet address file.
 get_first_utxo_of() {
-    echo `cardano-cli query utxo                      \
+    echo `$cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
         | sed 1,2d                                    \
@@ -118,7 +120,7 @@ get_first_utxo_of() {
 # Takes 1 argument:
 #   1. Wallet address file.
 get_all_input_utxos_at() {
-    echo `cardano-cli query utxo                      \
+    echo `$cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
         | sed 1,2d                                    \
@@ -174,7 +176,7 @@ distribute_from_to_wallets() {
     echo $tx_out_str
 
     # Transaction
-    cardano-cli transaction build   \
+    $cli transaction build   \
         --alonzo-era                \
         $MAGIC                      \
         $tx_in_str                  \
@@ -182,13 +184,13 @@ distribute_from_to_wallets() {
         $tx_out_str                 \
         --out-file multiTx.body
 
-    cardano-cli transaction sign    \
+    $cli transaction sign    \
         --tx-body-file multiTx.body \
         --signing-key-file $5       \
         $MAGIC                      \
         --out-file multiTx.signed
 
-    cardano-cli transaction submit  \
+    $cli transaction submit  \
         $MAGIC                      \
         --tx-file multiTx.signed
 }
@@ -224,7 +226,7 @@ drain_from_wallets_to() {
     done
 
     # Transaction
-    cardano-cli transaction build    \
+    $cli transaction build    \
         --alonzo-era                 \
         $MAGIC                       \
         $tx_in_str                   \
@@ -232,13 +234,13 @@ drain_from_wallets_to() {
         --tx-out $(cat $3)'+1000000' \
         --out-file multiTx.body
 
-    cardano-cli transaction sign     \
+    $cli transaction sign     \
         --tx-body-file multiTx.body  \
         $signing_keys_str            \
         $MAGIC                       \
         --out-file multiTx.signed
 
-    cardano-cli transaction submit   \
+    $cli transaction submit   \
         $MAGIC                       \
         --tx-file multiTx.signed
 }
@@ -250,7 +252,7 @@ drain_from_wallets_to() {
 # Takes 1 argument:
 #   1. User's wallet address file.
 get_first_lovelace_count_of() {
-    echo `cardano-cli query utxo                      \
+    echo `$cli query utxo                      \
         --address $(cat $1)                           \
         $MAGIC                                        \
         | sed 1,2d                                    \
@@ -287,7 +289,7 @@ interact_with_smart_contract() {
     script_holding=$(get_first_lovelace_count_of $script_addr)
     extra_output=$(expr $6 + $script_holding)
 
-    cardano-cli transaction build                 \
+    $cli transaction build                 \
         --tx-in $users_utxo                       \
         --tx-in $(get_first_utxo_of $script_addr) \
         --tx-in-script-file $3                    \
@@ -301,20 +303,20 @@ interact_with_smart_contract() {
         --out-file tx.raw                         \
         $MAGIC
 
-    cardano-cli transaction sign                  \
+    $cli transaction sign                  \
         --tx-body-file tx.raw                     \
         --signing-key-file $2                     \
         $MAGIC                                    \
         --out-file tx.signed
 
-    cardano-cli transaction submit                \
+    $cli transaction submit                \
         $MAGIC                                    \
         --tx-file tx.signed
 }
 
 # Updates protocol.json to be current
 update_protocol_json() {
-    cardano-cli query protocol-parameters \
+    $cli query protocol-parameters \
         $MAGIC                            \
         --out-file protocol.json
 }
@@ -358,8 +360,8 @@ else
     echo $lovelace
     echo $newLovelace
     echo $datumValue > $currDatum
-    cabal run qvf-cli -- donate $(cat donor_pkh_file) $(cat receiver_pkh_file) $lovelace_amt $current_datum out_datum.json out_redeem.json
-    cabal run qvf-cli -- pretty-datum $(cat $updatedDatum)
+    $qvf donate $(cat donor_pkh_file) $(cat receiver_pkh_file) $lovelace_amt $current_datum out_datum.json out_redeem.json
+    $qvf pretty-datum $(cat $updatedDatum)
     cp out_datum.json "$current_path" # Optional, see how workflow works out
     cp out_redeem.json "$current_path" # Optional, see how workflow works out
     echo "DONE."
@@ -394,7 +396,7 @@ donate_to_smart_contract() {
     # ---------------------
 
     # Construct the transaction:
-    cardano-cli transaction build --babbage-era $MAGIC                     \
+    $cli transaction build --babbage-era $MAGIC                     \
         --tx-in $utxoFromDonor                                             \
         --tx-in-collateral $utxoFromDonor                                  \
         --tx-in $utxoAtScript                                              \
@@ -408,12 +410,12 @@ donate_to_smart_contract() {
         --out-file tx.unsigned
 
     # Sign the transaction:
-    cardano-cli transaction sign $MAGIC   \
+    $cli transaction sign $MAGIC   \
         --tx-body-file tx.unsigned        \
         --signing-key-file $donorSKeyFile \
         --out-file tx.signed
 
     # Submit the transaction:
-    cardano-cli transaction submit $MAGIC --tx-file tx.signed
+    $cli transaction submit $MAGIC --tx-file tx.signed
 
 }

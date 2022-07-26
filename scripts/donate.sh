@@ -1,4 +1,6 @@
 . env.sh
+cli="cardano-cli"
+qvf="cabal run qvf-cli --"
 
 # MATCH THIS WITH THE ONE FROM `env.sh`
 preDir="testnet"
