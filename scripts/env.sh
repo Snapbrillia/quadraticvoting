@@ -363,7 +363,7 @@ update_datum_donate_qvf_cli() {
 #! /usr/bin/env nix-shell
 #! nix-shell --extra-experimental-features flakes -i sh
 cd path_to_quadratic_voting
-cabal run qvf-cli $current_datum donate $(cat donor_pkh) $(cat receiver_pkh) $lovelace_amt out_datum.json out_redeem.json
+cabal run qvf-cli -- donate $(cat donor_pkh) $(cat receiver_pkh) $lovelace_amt $current_datum out_datum.json out_redeem.json
 cp out_datum.json "$current_path" # Optional, see how workflow works out
 cp out_redeem.json "$current_path" # Optional, see how workflow works out
 exit # Exit nix-shell
