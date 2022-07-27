@@ -1,3 +1,6 @@
+. scripts/env.sh
+. scripts/blockfrost.sh
+
 scriptAddr="addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx"
 policyId=$(cat $preDir/qvf.symbol)
 tokenName=$(cat $preDir/token.hex)
@@ -6,9 +9,6 @@ remoteAddr="Keyan@172.16.42.6"
 remoteDir="/e/cardanoTestnet"
 cli="cardano-cli"
 qvf="cabal run qvf-cli --"
-
-. scripts/env.sh
-. scripts/blockfrost.sh
 
 
 remoteCLI() {
@@ -32,10 +32,47 @@ get_current_state() {
 }
 
 
-# Takes 3 arguments:
+donate() {
+  scriptFile="$preDir/qvf.plutus"
+  donorAddrFile="$1.addr"
+  donorSKeyFile="$1.skey"
+  utxoFromDonor="$2"
+  utxoAtScript="$3"
+  newLovelaceCount="$4"
+  currentDatum="$5"
+  newDatum="$6"
+  redeemer="$7"
+  # Construct the transaction:
+  $cli transaction build --babbage-era $MAGIC                            \
+      --tx-in $utxoFromDonor                                             \
+      --tx-in-collateral $utxoFromDonor                                  \
+      --tx-in $utxoAtScript                                              \
+      --tx-in-datum-file $currentDatum                                   \
+      --tx-in-script-file $scriptFile                                    \
+      --tx-in-redeemer-file $redeemer                                    \
+      --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
+      --tx-out-datum-embed-file $newDatum                                \
+      --change-address $(cat $donorAddrFile)                             \
+      --protocol-params-file protocol.json                               \
+      --out-file $preDir/tx.unsigned
+  
+  # Sign the transaction:
+  $cli transaction sign $MAGIC   \
+      --tx-body-file $preDir/tx.unsigned        \
+      --signing-key-file $donorSKeyFile \
+      --out-file $preDir/tx.signed
+  
+  # Submit the transaction:
+  $cli transaction submit $MAGIC --tx-file $preDir/tx.signed
+}
+
+
+
+# Takes 4 arguments:
 #   1. Donor's number,
 #   2. Target project's public key hash,
 #   3. Donation amount.
+#   4. Flag to indicate whether to use a remote node or not.
 donate_from_to_with() {
   donorsPKH=$(cat $preDir/$1.pkh)
   donorsAddr=$(cat $preDir/$1.addr)
@@ -57,18 +94,25 @@ donate_from_to_with() {
     echo $newLovelace
     echo $datumValue > $currDatum
     $qvf donate        \
-	                       $donorsPKH    \
-                         $2            \
-                         $3            \
-                         $currDatum    \
-	                       $updatedDatum \
-                         $action
-    cpPath="$remoteAddr:$remoteDir/qvf"
-    scp $currDatum    $cpPath/$currDatum
-    scp $updatedDatum $cpPath/$updatedDatum
-    scp $action       $cpPath/$action
+	       $donorsPKH    \
+         $2            \
+         $3            \
+         $currDatum    \
+	       $updatedDatum \
+         $action
     txIn=$(get_first_utxo_of_wallet $donorsAddr)
-    remoteCLI $1 $txIn $utxo $newLovelace
+    case $4 in
+      remote)
+        cpPath="$remoteAddr:$remoteDir/qvf"
+        scp $currDatum    $cpPath/$currDatum
+        scp $updatedDatum $cpPath/$updatedDatum
+        scp $action       $cpPath/$action
+        remoteCLI $1 $txIn $utxo $newLovelace
+        ;;
+      *)
+        donate $1 $txIn $utxo $newLovelace
+        ;;
+    esac
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
     # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
     # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
