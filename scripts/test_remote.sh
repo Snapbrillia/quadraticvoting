@@ -40,6 +40,17 @@ donate() {
   currentDatum="$5"
   newDatum="$6"
   redeemer="$7"
+
+  echo $scriptFile
+  echo $donorAddrFile
+  echo $donorSKeyFile
+  echo $utxoFromDonor
+  echo $utxoAtScript
+  echo $newLovelaceCount
+  echo $currentDatum
+  echo $newDatum
+  echo $redeemer
+
   # Construct the transaction:
   $cli transaction build --babbage-era $MAGIC                            \
       --tx-in $utxoFromDonor                                             \
@@ -108,7 +119,7 @@ donate_from_to_with() {
         remoteCLI $1 $txIn $utxo $newLovelace
         ;;
       *)
-        donate $1 $txIn $utxo $newLovelace $currDatum $updatedDatum $action
+        donate $1 $txIn $(remove_quotes $utxo) $newLovelace $currDatum $updatedDatum $action
         ;;
     esac
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
