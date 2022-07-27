@@ -1,6 +1,5 @@
 dist
 dist-*
-testnet
 .vscode
 tx.raw
 tx.sign
