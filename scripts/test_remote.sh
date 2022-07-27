@@ -32,8 +32,8 @@ get_current_state() {
 
 donate() {
   scriptFile="$preDir/qvf.plutus"
-  donorAddrFile="$1.addr"
-  donorSKeyFile="$1.skey"
+  donorAddrFile="$preDir/$1.addr"
+  donorSKeyFile="$preDir/$1.skey"
   utxoFromDonor="$2"
   utxoAtScript="$3"
   newLovelaceCount="$4"
