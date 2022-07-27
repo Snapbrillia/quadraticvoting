@@ -108,7 +108,7 @@ donate_from_to_with() {
         remoteCLI $1 $txIn $utxo $newLovelace
         ;;
       *)
-        donate $1 $txIn $utxo $newLovelace
+        donate $1 $txIn $utxo $newLovelace $currDatum $updatedDatum $action
         ;;
     esac
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
