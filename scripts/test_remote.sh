@@ -54,14 +54,15 @@ donate() {
 
   # Generate the protocol parameters:
   $cli query protocol-parameters $MAGIC --out-file $protocols
+
   # Construct the transaction:
   $cli transaction build --babbage-era $MAGIC                            \
       --tx-in $utxoFromDonor                                             \
       --tx-in-collateral $utxoFromDonor                                  \
       --tx-in $utxoAtScript                                              \
       --tx-in-datum-file $currentDatum                                   \
-      --tx-in-script-file $scriptFile                                    \
       --tx-in-redeemer-file $redeemer                                    \
+      --tx-in-script-file $scriptFile                                    \
       --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
       --tx-out-datum-embed-file $newDatum                                \
       --change-address $(cat $donorAddrFile)                             \
