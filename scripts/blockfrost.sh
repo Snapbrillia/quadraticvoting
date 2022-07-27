@@ -1,7 +1,7 @@
+. scripts/env.sh
+
 AUTH_ID=$(cat ../blockfrost.id)
 URL="https://cardano-testnet.blockfrost.io/api/v0"
-cli="cardano-cli"
-qvf="cabal run qvf-cli --"
 
 remove_quotes() {
   echo $1           \

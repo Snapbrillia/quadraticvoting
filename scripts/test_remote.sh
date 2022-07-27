@@ -7,8 +7,6 @@ tokenName=$(cat $preDir/token.hex)
 authAsset="$policyId.$tokenName"
 remoteAddr="Keyan@172.16.42.6"
 remoteDir="/e/cardanoTestnet"
-cli="cardano-cli"
-qvf="cabal run qvf-cli --"
 
 
 remoteCLI() {
