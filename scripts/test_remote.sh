@@ -31,6 +31,7 @@ get_current_state() {
 
 
 donate() {
+  protocols="$preDir/protocol.json"
   scriptFile="$preDir/qvf.plutus"
   donorAddrFile="$preDir/$1.addr"
   donorSKeyFile="$preDir/$1.skey"
@@ -51,6 +52,8 @@ donate() {
   echo $newDatum
   echo $redeemer
 
+  # Generate the protocol parameters:
+  $cli query protocol-parameters $MAGIC --out-file $protocols
   # Construct the transaction:
   $cli transaction build --babbage-era $MAGIC                            \
       --tx-in $utxoFromDonor                                             \
@@ -62,7 +65,7 @@ donate() {
       --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
       --tx-out-datum-embed-file $newDatum                                \
       --change-address $(cat $donorAddrFile)                             \
-      --protocol-params-file protocol.json                               \
+      --protocol-params-file $protocols                                  \
       --out-file $preDir/tx.unsigned
   
   # Sign the transaction:
