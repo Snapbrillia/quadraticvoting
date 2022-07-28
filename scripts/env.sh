@@ -4,18 +4,13 @@
 #export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.sock
 #export CARDANO_NODE_SOCKET_PATH=~/plutus-pioneer-program/code/week03/testnet/node.socket
 export CARDANO_NODE_SOCKET_PATH=/home/ubuntu/src/cardano-node/node-ipc/testnet/node.socket
-# ========================================== #
 export MAGIC='--testnet-magic 1097911063'
 export preDir="testnet"
 cli="cardano-cli"
 qvf="qvf-cli"
 #qvf="cabal run qvf-cli --"
+# ========================================== #
 
-##########ALIASES: FIX LATER#############
-alias donate="echo rundonatecommand"
-alias endpoint2="echo runep2command"
-alias endpoint3="echo runep3command"
-#########################################
 
 # Generates a key pair.
 #
@@ -351,7 +346,7 @@ update_datum_donate_qvf_cli() {
 cd $path_to_quadratic_voting
 . scripts/test_remote.sh
 donorsPKH=$(cat $current_path/$1)
-obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" $2)
+obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" \$(cat $2))
 len=\$(echo \$obj | jq length)
 if [ \$len -eq 0 ]; then
     echo "FAILED to find the project."
