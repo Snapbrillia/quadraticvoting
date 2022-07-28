@@ -6,7 +6,8 @@
 . env.sh
 
 cli="cardano-cli"
-qvf="cabal run qvf-cli --"
+qvf="qvf-cli"
+#qvf="cabal run qvf-cli --"
 
 keyHolderAddressFile="wallets/keyHolder.addr"
 keyHolderPubKeyHashFile="wallets/keyHolder.pkh"

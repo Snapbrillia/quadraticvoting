@@ -9,6 +9,7 @@ export MAGIC='--testnet-magic 1097911063'
 export preDir="testnet"
 cli="cardano-cli"
 qvf="qvf-cli"
+#qvf="cabal run qvf-cli --"
 
 # Generates a key pair.
 #
