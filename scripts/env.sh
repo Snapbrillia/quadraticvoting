@@ -338,7 +338,7 @@ update_datum_donate_qvf_cli() {
     lovelace_amt=$3
 
     # Make the script to execute within the nix-shell with a HERE DOC
-    cat > "$path_to_quadratic_voting"/update-datum.sh <<EOF
+    cat > "$path_to_plutus_apps"/update-datum.sh <<EOF
 #! /usr/bin/env nix-shell
 #! nix-shell -i sh
 
