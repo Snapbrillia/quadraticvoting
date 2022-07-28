@@ -134,6 +134,46 @@ donate_from_to_with() {
   fi
 }
 
+
+# Takes 2 arguments:
+#   1. Donor's number,
+#   2. Donation amount.
 contribute_from_with() {
-  echo
+  donorsAddr=$(cat $preDir/$1.addr)
+  echo "A"
+  txIn=$(get_first_utxo_of_wallet $donorsAddr)
+  echo "B"
+  obj=$(get_first_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName")
+  echo "$obj"
+  obj=$(add_datum_value_to_utxo $(echo $obj | jq -c .))
+  #
+  currDatum="$preDir/curr.datum"
+  updatedDatum="$preDir/updated.datum"
+  action="$preDir/donate.redeemer"
+  utxo=$(echo $obj | jq .utxo)
+  datumHash=$(echo $obj | jq .datumHash)
+  datumValue=$(echo $obj | jq -c .datumValue)
+  lovelace=$(echo $obj | jq .lovelace | jq tonumber)
+  newLovelace=$(expr $lovelace + $2)
+  #
+  echo "#################"
+  echo $currDatum
+  echo $updatedDatum
+  echo $action
+  echo $utxo
+  echo $datumHash
+  echo $datumValue
+  echo $lovelace
+  echo $newLovelace
+  echo "#################"
+  #
+  echo $datumValue > $currDatum
+  $qvf contribute    \
+       $2            \
+       $currDatum    \
+	     $updatedDatum \
+       $action
+  donate $1 $txIn $(remove_quotes $utxo) $newLovelace $currDatum $updatedDatum $action
+  $qvf pretty-datum $(cat $updatedDatum)
+  echo "DONE."
 }

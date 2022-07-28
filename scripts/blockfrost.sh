@@ -31,7 +31,7 @@ get_first_utxo_of_wallet() {
 #      from Blockfrost.
 keep_utxos_with_asset() {
   echo $2 \
-    | jq --arg authAsset "$1" 'map(
+    | jq -c --arg authAsset "$1" 'map(
         select(
           .amount | .[] | contains (
             { "unit": $authAsset
@@ -59,33 +59,44 @@ reconstruct_utxos() {
 #   1. Script address,
 #   2. Authentication asset (policy ID plus the token name,
 #      without a `.` in between).
-get_utxos_hashes_lovelaces() {
-  authAsset="$2"
-  curl -H                             \
-    "project_id: $AUTH_ID"            \
-    "$URL/addresses/$1/utxos"         \
-    | jq --arg authAsset "$authAsset" 'map(
-        select(
-          .amount | .[] | contains (
-            { "unit": $authAsset
-            }
-          )
-        )
-      )'                              \
-    | jq -c 'map(
-      { utxo: (.tx_hash + "#" + (.tx_index|tostring))
-      , datumHash: .data_hash
-      , lovelace: (.amount | .[0] | .quantity)
-      })'
-    # | jq -c 'map({(.tx_hash + "#" + (.tx_index|tostring)): .data_hash}) | .[]'
-    # | sed 's|[",]||g'
+get_first_utxo_hash_lovelaces() {
+  echo $(get_utxos_hashes_lovelaces $1 $2) \
+    | jq .[0]
 }
 
+
+# Takes 2 arguments:
+#   1. Script address,
+#   2. Authentication asset (policy ID plus the token name,
+#      without a `.` in between).
+get_utxos_hashes_lovelaces() {
+  zero=$(query_wallet $1)
+  one=$(keep_utxos_with_asset $2 $zero)
+  echo $(reconstruct_utxos $one)
+}
+
+
+# Takes 1 argument:
+#   1. Datum hash.
 get_datum_value_from_hash() {
   curl -H                     \
     "project_id: $AUTH_ID"    \
     -s "$URL/scripts/datum/$1"
 }
+
+
+# Assumes the object format os the one returned by
+# `get_utxos_hashes_lovelaces`.
+#
+# Takes 1 argument:
+#   1. JSON value with the format described above.
+add_datum_value_to_utxo() {
+  obj=$(echo $1 | jq -c .)
+  datumHash=$(echo $obj | jq .datumHash)
+  datumValue=$(get_datum_value_from_hash $(remove_quotes $datumHash) | jq -c .json_value)
+  echo $($obj | jq -c --arg datumValue "$datumValue" '[. += {datumValue: ($datumValue | fromjson)}]')
+}
+
 
 # Takes 3 arguements:
 #   1. Script address,
