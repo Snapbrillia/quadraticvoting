@@ -11,6 +11,12 @@ cli="cardano-cli"
 qvf="qvf-cli"
 #qvf="cabal run qvf-cli --"
 
+##########ALIASES: FIX LATER#############
+alias donate="echo rundonatecommand"
+alias endpoint2="echo runep2command"
+alias endpoint3="echo runep3command"
+#########################################
+
 # Generates a key pair.
 #
 # Takes 2 arguments:
@@ -329,7 +335,7 @@ update_datum_donate_qvf_cli() {
 
     # Edit these: ---------
     path_to_plutus_apps=$HOME/plutus-apps
-    path_to_quadratic_voting=$HOME/quadratic-voting
+    path_to_quadratic_voting=$HOME/quadraticvoting
     current_path=$(pwd)
     # ---------------------
 
@@ -344,15 +350,15 @@ update_datum_donate_qvf_cli() {
 
 cd $path_to_quadratic_voting
 . scripts/test_remote.sh
-donorsPKH=$(cat $path_to_quadratic_voting/$1)
+donorsPKH=$(cat $current_path/$1)
 obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" $2)
 len=\$(echo \$obj | jq length)
 if [ \$len -eq 0 ]; then
     echo "FAILED to find the project."
 else
-    currDatum="$path_to_quadratic_voting/curr.datum"
-    updatedDatum="$path_to_quadratic_voting/updated.datum"
-    action="$path_to_quadratic_voting/donate.redeemer"
+    currDatum="$current_path/curr.datum"
+    updatedDatum="$current_path/updated.datum"
+    action="$current_path/donate.redeemer"
     obj=\$(echo \$obj | jq .[0])
     utxo=\$(echo \$obj | jq .utxo)
     datumHash=\$(echo \$obj | jq .datumHash)
