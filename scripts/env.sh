@@ -339,37 +339,40 @@ update_datum_donate_qvf_cli() {
     # Make the script to execute within the nix-shell with a HERE DOC
     cat > "$path_to_quadratic_voting"/update-datum.sh <<EOF
 #! /usr/bin/env nix-shell
-#! nix-shell --extra-experimental-features flakes -i sh
-cd path_to_quadratic_voting
-. test_remote.sh
-donorsPKH=$(cat $preDir/$1)
-obj=$(find_utxo_with_project $scriptAddr "$policyId$tokenName" $2)
-len=$(echo $obj | jq length)
-if [ $len -eq 0 ]; then
+#! nix-shell -i sh
+
+cd $path_to_quadratic_voting
+. scripts/test_remote.sh
+donorsPKH=$(cat $path_to_quadratic_voting/$1)
+obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" $2)
+len=\$(echo \$obj | jq length)
+if [ \$len -eq 0 ]; then
     echo "FAILED to find the project."
 else
-    currDatum="$preDir/curr.datum"
-    updatedDatum="$preDir/updated.datum"
-    action="$preDir/donate.redeemer"
-    obj=$(echo $obj | jq .[0])
-    utxo=$(echo $obj | jq .utxo)
-    datumHash=$(echo $obj | jq .datumHash)
-    datumValue=$(echo $obj | jq .datumValue)
-    lovelace=$(echo $obj | jq .lovelace | jq tonumber)
-    newLovelace=$(expr $lovelace + $3)
-    echo $lovelace
-    echo $newLovelace
-    echo $datumValue > $currDatum
-    $qvf donate $(cat donor_pkh_file) $(cat receiver_pkh_file) $lovelace_amt $current_datum out_datum.json out_redeem.json
-    $qvf pretty-datum $(cat $updatedDatum)
+    currDatum="$path_to_quadratic_voting/curr.datum"
+    updatedDatum="$path_to_quadratic_voting/updated.datum"
+    action="$path_to_quadratic_voting/donate.redeemer"
+    obj=\$(echo \$obj | jq .[0])
+    utxo=\$(echo \$obj | jq .utxo)
+    datumHash=\$(echo \$obj | jq .datumHash)
+    datumValue=\$(echo \$obj | jq .datumValue)
+    lovelace=\$(echo \$obj | jq .lovelace | jq tonumber)
+    newLovelace=\$(expr \$lovelace + $3)
+    echo \$lovelace
+    echo \$newLovelace > newLovelace
+    echo \$datumValue > \$currDatum
+    $qvf donate $(cat $donor_pkh_file) $(cat $receiver_pkh_file) \$lovelace_amt \$current_datum out_datum.json out_redeem.json
+    $qvf pretty-datum \$(cat \$updatedDatum)
     cp out_datum.json "$current_path" # Optional, see how workflow works out
     cp out_redeem.json "$current_path" # Optional, see how workflow works out
+    cp newLovelace "$current_path" # Optional, see how workflow works out
     echo "DONE."
 fi
 exit # Exit nix-shell
 EOF
     # Run the HERE file commands in nix-shell
-    cd path_to_plutus_apps
+    cd "$path_to_plutus_apps"
+    chmod +x update-datum.sh
     ./update-datum.sh
     cd "$current_path"
 }
