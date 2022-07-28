@@ -1,14 +1,17 @@
 #!/bin/bash
 
+export MAGIC='--testnet-magic 1097911063'
+
 # ==== CHANGE THIS VARIABLE ACCORDINGLY ==== #
 #export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.sock
 #export CARDANO_NODE_SOCKET_PATH=~/plutus-pioneer-program/code/week03/testnet/node.socket
-export CARDANO_NODE_SOCKET_PATH=/home/kair/code/snapbrillia/quadraticvoting/testnet/node.socket
-# ========================================== #
-export MAGIC='--testnet-magic 1097911063'
+export CARDANO_NODE_SOCKET_PATH=/home/ubuntu/src/cardano-node/node-ipc/testnet/node.socket
 export preDir="testnet"
 cli="cardano-cli"
 qvf="qvf-cli"
+#qvf="cabal run qvf-cli --"
+# ========================================== #
+
 
 # Generates a key pair.
 #
@@ -16,7 +19,7 @@ qvf="qvf-cli"
 #   1. Verification key output file,
 #   2. Signing key output file.
 generate_skey_and_vkey() {
-    $cli address key-gen    \
+    $cli address key-gen           \
         --verification-key-file $1 \
         --signing-key-file $2
 }
@@ -28,7 +31,7 @@ generate_skey_and_vkey() {
 #   1. Verification key file,
 #   2. Address output file.
 vkey_to_address() {
-    $cli address build              \
+    $cli address build                     \
         --payment-verification-key-file $1 \
         $MAGIC                             \
         --out-file $2
@@ -41,7 +44,7 @@ vkey_to_address() {
 #   1. Verification key file,
 #   2. Public key hash output file.
 vkey_to_public_key_hash() {
-    $cli address key-hash           \
+    $cli address key-hash                  \
         --payment-verification-key-file $1 \
         --out-file $2
 }
@@ -53,7 +56,7 @@ vkey_to_public_key_hash() {
 #   1. Compiled Plutus script file,
 #   2. Address output file.
 plutus_script_to_address() {
-    $cli address build-script \
+    $cli address build-script        \
         --script-file $1             \
         $MAGIC                       \
         --out-file $2
@@ -106,7 +109,7 @@ generate_wallets_from_to() {
 # Takes 1 argument:
 #   1. Wallet address file.
 get_first_utxo_of() {
-    echo `$cli query utxo                      \
+    echo `$cli query utxo                             \
         --address $(cat $1)                           \
         $MAGIC                                        \
         | sed 1,2d                                    \
@@ -120,7 +123,7 @@ get_first_utxo_of() {
 # Takes 1 argument:
 #   1. Wallet address file.
 get_all_input_utxos_at() {
-    echo `$cli query utxo                      \
+    echo `$cli query utxo                             \
         --address $(cat $1)                           \
         $MAGIC                                        \
         | sed 1,2d                                    \
@@ -176,7 +179,7 @@ distribute_from_to_wallets() {
     echo $tx_out_str
 
     # Transaction
-    $cli transaction build   \
+    $cli transaction build          \
         --alonzo-era                \
         $MAGIC                      \
         $tx_in_str                  \
@@ -184,13 +187,13 @@ distribute_from_to_wallets() {
         $tx_out_str                 \
         --out-file multiTx.body
 
-    $cli transaction sign    \
+    $cli transaction sign           \
         --tx-body-file multiTx.body \
         --signing-key-file $5       \
         $MAGIC                      \
         --out-file multiTx.signed
 
-    $cli transaction submit  \
+    $cli transaction submit         \
         $MAGIC                      \
         --tx-file multiTx.signed
 }
@@ -226,7 +229,7 @@ drain_from_wallets_to() {
     done
 
     # Transaction
-    $cli transaction build    \
+    $cli transaction build           \
         --alonzo-era                 \
         $MAGIC                       \
         $tx_in_str                   \
@@ -234,13 +237,13 @@ drain_from_wallets_to() {
         --tx-out $(cat $3)'+1000000' \
         --out-file multiTx.body
 
-    $cli transaction sign     \
+    $cli transaction sign            \
         --tx-body-file multiTx.body  \
         $signing_keys_str            \
         $MAGIC                       \
         --out-file multiTx.signed
 
-    $cli transaction submit   \
+    $cli transaction submit          \
         $MAGIC                       \
         --tx-file multiTx.signed
 }
@@ -252,7 +255,7 @@ drain_from_wallets_to() {
 # Takes 1 argument:
 #   1. User's wallet address file.
 get_first_lovelace_count_of() {
-    echo `$cli query utxo                      \
+    echo `$cli query utxo                             \
         --address $(cat $1)                           \
         $MAGIC                                        \
         | sed 1,2d                                    \
@@ -289,7 +292,7 @@ interact_with_smart_contract() {
     script_holding=$(get_first_lovelace_count_of $script_addr)
     extra_output=$(expr $6 + $script_holding)
 
-    $cli transaction build                 \
+    $cli transaction build                        \
         --tx-in $users_utxo                       \
         --tx-in $(get_first_utxo_of $script_addr) \
         --tx-in-script-file $3                    \
@@ -303,20 +306,20 @@ interact_with_smart_contract() {
         --out-file tx.raw                         \
         $MAGIC
 
-    $cli transaction sign                  \
+    $cli transaction sign                         \
         --tx-body-file tx.raw                     \
         --signing-key-file $2                     \
         $MAGIC                                    \
         --out-file tx.signed
 
-    $cli transaction submit                \
+    $cli transaction submit                       \
         $MAGIC                                    \
         --tx-file tx.signed
 }
 
 # Updates protocol.json to be current
 update_protocol_json() {
-    $cli query protocol-parameters \
+    $cli query protocol-parameters        \
         $MAGIC                            \
         --out-file protocol.json
 }
@@ -328,7 +331,7 @@ update_datum_donate_qvf_cli() {
 
     # Edit these: ---------
     path_to_plutus_apps=$HOME/plutus-apps
-    path_to_quadratic_voting=$HOME/quadratic-voting
+    path_to_quadratic_voting=$HOME/quadraticvoting
     current_path=$(pwd)
     # ---------------------
 
@@ -337,21 +340,21 @@ update_datum_donate_qvf_cli() {
     lovelace_amt=$3
 
     # Make the script to execute within the nix-shell with a HERE DOC
-    cat > "$path_to_quadratic_voting"/update-datum.sh <<EOF
+    cat > "$path_to_plutus_apps"/update-datum.sh <<EOF
 #! /usr/bin/env nix-shell
 #! nix-shell -i sh
 
 cd $path_to_quadratic_voting
 . scripts/test_remote.sh
-donorsPKH=$(cat $path_to_quadratic_voting/$1)
-obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" $2)
+donorsPKH=$(cat $current_path/$1)
+obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" \$(cat $2))
 len=\$(echo \$obj | jq length)
 if [ \$len -eq 0 ]; then
     echo "FAILED to find the project."
 else
-    currDatum="$path_to_quadratic_voting/curr.datum"
-    updatedDatum="$path_to_quadratic_voting/updated.datum"
-    action="$path_to_quadratic_voting/donate.redeemer"
+    currDatum="$current_path/curr.datum"
+    updatedDatum="$current_path/updated.datum"
+    action="$current_path/donate.redeemer"
     obj=\$(echo \$obj | jq .[0])
     utxo=\$(echo \$obj | jq .utxo)
     datumHash=\$(echo \$obj | jq .datumHash)
@@ -399,7 +402,7 @@ donate_to_smart_contract() {
     # ---------------------
 
     # Construct the transaction:
-    $cli transaction build --babbage-era $MAGIC                     \
+    $cli transaction build --babbage-era $MAGIC                            \
         --tx-in $utxoFromDonor                                             \
         --tx-in-collateral $utxoFromDonor                                  \
         --tx-in $utxoAtScript                                              \
@@ -413,7 +416,7 @@ donate_to_smart_contract() {
         --out-file tx.unsigned
 
     # Sign the transaction:
-    $cli transaction sign $MAGIC   \
+    $cli transaction sign $MAGIC          \
         --tx-body-file tx.unsigned        \
         --signing-key-file $donorSKeyFile \
         --out-file tx.signed
