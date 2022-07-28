@@ -25,6 +25,37 @@ get_first_utxo_of_wallet() {
 
 
 # Takes 2 arguments:
+#   1. Authentication asset (policy ID plus the token name,
+#      without a `.` in between).
+#   2. The JSON value containing list of UTxO's returned
+#      from Blockfrost.
+keep_utxos_with_asset() {
+  echo $2 \
+    | jq --arg authAsset "$1" 'map(
+        select(
+          .amount | .[] | contains (
+            { "unit": $authAsset
+            }
+          )
+        )
+      )'
+}
+
+
+# Takes 1 argument:
+#   1. The JSON value containing list of UTxO's returned
+#      from Blockfrost.
+reconstruct_utxos() {
+  echo $1 \
+    | jq -c 'map(
+      { utxo: (.tx_hash + "#" + (.tx_index|tostring))
+      , datumHash: .data_hash
+      , lovelace: (.amount | .[0] | .quantity)
+      })'
+}
+
+
+# Takes 2 arguments:
 #   1. Script address,
 #   2. Authentication asset (policy ID plus the token name,
 #      without a `.` in between).

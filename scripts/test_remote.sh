@@ -57,12 +57,12 @@ donate() {
 
   # Construct the transaction:
   $cli transaction build --babbage-era $MAGIC                            \
-      --tx-in $utxoAtScript                                              \
-      --tx-in-datum-file $currentDatum                                   \
-      --tx-in-redeemer-file $redeemer                                    \
-      --tx-in-script-file $scriptFile                                    \
       --tx-in $utxoFromDonor                                             \
       --tx-in-collateral $utxoFromDonor                                  \
+      --tx-in $utxoAtScript                                              \
+      --tx-in-datum-file $currentDatum                                   \
+      --tx-in-script-file $scriptFile                                    \
+      --tx-in-redeemer-file $redeemer                                    \
       --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
       --tx-out-datum-embed-file $newDatum                                \
       --change-address $(cat $donorAddrFile)                             \
@@ -132,4 +132,8 @@ donate_from_to_with() {
     $qvf pretty-datum $(cat $updatedDatum)
     echo "DONE."
   fi
+}
+
+contribute_from_with() {
+  echo
 }
