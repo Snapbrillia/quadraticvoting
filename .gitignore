@@ -17,6 +17,7 @@ initial.json
 .hpc
 .hsenv
 .cabal-sandbox/
+.nix-shell-cabal.project
 cabal.sandbox.config
 *.prof
 *.aux
