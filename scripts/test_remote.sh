@@ -140,13 +140,9 @@ donate_from_to_with() {
 #   2. Donation amount.
 contribute_from_with() {
   donorsAddr=$(cat $preDir/$1.addr)
-  echo "A"
   txIn=$(get_first_utxo_of_wallet $donorsAddr)
-  echo "B"
-  obj=$(get_first_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName")
-  echo "$obj"
-  obj=$(add_datum_value_to_utxo $(echo $obj | jq -c .))
-  #
+  obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
+  obj=$(add_datum_value_to_utxo $obj)
   currDatum="$preDir/curr.datum"
   updatedDatum="$preDir/updated.datum"
   action="$preDir/donate.redeemer"
@@ -156,7 +152,7 @@ contribute_from_with() {
   lovelace=$(echo $obj | jq .lovelace | jq tonumber)
   newLovelace=$(expr $lovelace + $2)
   #
-  echo "#################"
+  echo
   echo $currDatum
   echo $updatedDatum
   echo $action
@@ -165,7 +161,7 @@ contribute_from_with() {
   echo $datumValue
   echo $lovelace
   echo $newLovelace
-  echo "#################"
+  echo
   #
   echo $datumValue > $currDatum
   $qvf contribute    \
