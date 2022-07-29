@@ -133,6 +133,44 @@ get_all_input_utxos_at() {
 }
 
 
+# Displays the utxo information table of one or multiple addresses.
+#
+# Takes at least 1 argument:
+#   1. Wallet address file.
+#   2 - infinity. Any additional wallet address files.
+show_utxo_tables () {
+    for i in $@
+    do
+        cardano-cli query utxo  \
+            --address $(cat $i) \
+            $MAGIC
+    done
+}
+
+# Given a numeric range (inclusive), displays the utxo information table from
+# the address of the .addr file of each number, and displays any addresses
+# provided after the numeric range.
+# Takes at least 2 arguments:
+#
+#   1.            Starting number,
+#   2.            Ending number.
+#   3 - infinity. Any additional wallet address files.
+show_utxo_tables_from_to () {
+
+    for i in $(seq $1 $2)
+    do
+        echo "$i.addr utxos: "
+        show_utxo_tables $i.addr
+    done
+
+    shift 2
+    if [ -n $1 ]
+    then
+        echo "$i.addr utxos: "
+        show_utxo_tables $@
+    fi
+}
+
 # Equally distributes a given total Lovelace count from a wallet, between a
 # number of wallets designated with a numeric range.
 #
