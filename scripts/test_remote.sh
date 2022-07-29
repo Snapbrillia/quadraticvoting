@@ -9,6 +9,28 @@ remoteAddr="Keyan@172.16.42.6"
 remoteDir="/e/cardanoTestnet"
 
 
+# CAUTIOUSLY DEFINING GLOBAL VARIABLES:
+currDatum="$preDir/curr.datum"
+updatedDatum="$preDir/updated.datum"
+action="$preDir/action.redeemer"
+#
+utxo=""
+datumHash=""
+datumValue=""
+lovelace=""
+newLovelace=""
+
+setCommonVariables() {
+  utxo=$(echo $1 | jq .utxo)
+  datumHash=$(echo $1 | jq .datumHash)
+  datumValue=$(echo $1 | jq -c .datumValue)
+  lovelace=$(echo $1 | jq .lovelace | jq tonumber)
+  newLovelace=$(expr $lovelace + $2)
+  echo $datumValue > $currDatum
+}
+# =====================================
+
+
 remoteCLI() {
   scp scripts/donate.sh $remoteAddr:$remoteDir/donate.sh
   ssh $remoteAddr "cd $remoteDir && donate.sh $1 $2 $3 $4"
@@ -30,27 +52,19 @@ get_current_state() {
 }
 
 
-donate() {
+update_contract() {
   protocols="$preDir/protocol.json"
   scriptFile="$preDir/qvf.plutus"
   donorAddrFile="$preDir/$1.addr"
   donorSKeyFile="$preDir/$1.skey"
   utxoFromDonor="$2"
-  utxoAtScript="$3"
-  newLovelaceCount="$4"
-  currentDatum="$5"
-  newDatum="$6"
-  redeemer="$7"
+  utxoAtScript=$(remove_quotes $utxo)
 
   echo $scriptFile
   echo $donorAddrFile
   echo $donorSKeyFile
   echo $utxoFromDonor
   echo $utxoAtScript
-  echo $newLovelaceCount
-  echo $currentDatum
-  echo $newDatum
-  echo $redeemer
 
   # Generate the protocol parameters:
   $cli query protocol-parameters $MAGIC --out-file $protocols
@@ -60,11 +74,11 @@ donate() {
       --tx-in $utxoFromDonor                                             \
       --tx-in-collateral $utxoFromDonor                                  \
       --tx-in $utxoAtScript                                              \
-      --tx-in-datum-file $currentDatum                                   \
+      --tx-in-datum-file $currDatum                                   \
       --tx-in-script-file $scriptFile                                    \
-      --tx-in-redeemer-file $redeemer                                    \
-      --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
-      --tx-out-datum-embed-file $newDatum                                \
+      --tx-in-redeemer-file $action                                    \
+      --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
+      --tx-out-datum-embed-file $updatedDatum                                \
       --change-address $(cat $donorAddrFile)                             \
       --protocol-params-file $protocols                                  \
       --out-file $preDir/tx.unsigned
@@ -77,6 +91,9 @@ donate() {
   
   # Submit the transaction:
   $cli transaction submit $MAGIC --tx-file $preDir/tx.signed
+  echo
+  $qvf pretty-datum $(cat $updatedDatum)
+  echo "DONE."
 }
 
 
@@ -94,18 +111,10 @@ donate_from_to_with() {
   if [ $len -eq 0 ]; then
     echo "FAILED to find the project."
   else
-    currDatum="$preDir/curr.datum"
-    updatedDatum="$preDir/updated.datum"
-    action="$preDir/donate.redeemer"
     obj=$(echo $obj | jq .[0])
-    utxo=$(echo $obj | jq .utxo)
-    datumHash=$(echo $obj | jq .datumHash)
-    datumValue=$(echo $obj | jq -c .datumValue)
-    lovelace=$(echo $obj | jq .lovelace | jq tonumber)
-    newLovelace=$(expr $lovelace + $3)
+    setCommonVariables $(echo $obj | jq -c .) $3
     echo $lovelace
     echo $newLovelace
-    echo $datumValue > $currDatum
     $qvf donate        \
 	       $donorsPKH    \
          $2            \
@@ -123,14 +132,12 @@ donate_from_to_with() {
         remoteCLI $1 $txIn $utxo $newLovelace
         ;;
       *)
-        donate $1 $txIn $(remove_quotes $utxo) $newLovelace $currDatum $updatedDatum $action
+        update_contract $1 $txIn
         ;;
     esac
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
     # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
     # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
-    $qvf pretty-datum $(cat $updatedDatum)
-    echo "DONE."
   fi
 }
 
@@ -143,14 +150,7 @@ contribute_from_with() {
   txIn=$(get_first_utxo_of_wallet $donorsAddr)
   obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
   obj=$(add_datum_value_to_utxo $obj)
-  currDatum="$preDir/curr.datum"
-  updatedDatum="$preDir/updated.datum"
-  action="$preDir/donate.redeemer"
-  utxo=$(echo $obj | jq .utxo)
-  datumHash=$(echo $obj | jq .datumHash)
-  datumValue=$(echo $obj | jq -c .datumValue)
-  lovelace=$(echo $obj | jq .lovelace | jq tonumber)
-  newLovelace=$(expr $lovelace + $2)
+  setCommonVariables $(echo $obj | jq -c .) $2
   #
   echo
   echo $currDatum
@@ -163,13 +163,40 @@ contribute_from_with() {
   echo $newLovelace
   echo
   #
-  echo $datumValue > $currDatum
   $qvf contribute    \
        $2            \
        $currDatum    \
 	     $updatedDatum \
        $action
-  donate $1 $txIn $(remove_quotes $utxo) $newLovelace $currDatum $updatedDatum $action
-  $qvf pretty-datum $(cat $updatedDatum)
-  echo "DONE."
+  update_contract $1 $txIn
+}
+
+
+# Takes 3 arguments:
+#   1. Project's wallet number/name,
+#   2. Project's label,
+#   3. Requested fund.
+
+# qvf-cli -- add-project               \
+#            <project-public-key-hash> \
+#            <project-label>           \
+#            <requested-fund>          \
+#            <current.datum>           \
+#            <updated.datum>           \
+#            <action.redeemer>
+register_project() {
+  projectsPKH=$(cat $preDir/$1.pkh)
+  projectsAddr=$(cat $preDir/$1.addr)
+  txIn=$(get_first_utxo_of_wallet $projectsAddr)
+  obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
+  obj=$(add_datum_value_to_utxo $obj)
+  setCommonVariables $(echo $obj | jq -c .) 2000000
+  $qvf add-project   \
+       $projectsPKH  \
+       $2            \
+       $3            \
+       $currDatum    \
+	     $updatedDatum \
+       $action
+  update_contract $1 $txIn
 }

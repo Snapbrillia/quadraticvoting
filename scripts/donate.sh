@@ -16,7 +16,7 @@ utxoFromDonor="$2"                     # A UTxO from donor's wallet that has eno
 utxoAtScript="$3"                      # The UTxO at the script with the current datum attached.
 currentDatum="qvf/$preDir/curr.datum"  # JSON file containing current state of the contract, about to be updated.
 newDatum="qvf/$preDir/updated.datum"   # JSON file containing updated state of the contract.
-redeemer="qvf/$preDir/donate.redeemer" # JSON file containing the `Donate` redeemer.
+redeemer="qvf/$preDir/action.redeemer" # JSON file containing the `Donate` redeemer.
 newLovelaceCount="$4"                  # Current Lovelace count of $utxoAtScript, plus the donated amount.
 # ---------------------
 
