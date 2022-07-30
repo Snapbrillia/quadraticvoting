@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -294,7 +295,7 @@ PlutusTx.unstableMakeIsData ''DonateParams
 data QVFAction
   = InitiateFund                  -- ^ Endpoint meant to be invoked by the keyholder for distributing authentication tokens.
   | AddProject AddProjectParams   -- ^ Add projects that can be funded.
-  | Donate     DonateParams       -- ^ Attempt donation to a project (identified simply by its public key hash).
+  | Donate     [DonateParams]     -- ^ Attempt donation to a list of projects (identified simply by their public key hashes).
   | Contribute Integer            -- ^ Add to the prize pool.
   | Distribute                    -- ^ Distribute the fund to projects per QVF
   | SetDeadline (Maybe POSIXTime) -- ^ Deadline before users can interact with the contract.
@@ -591,22 +592,26 @@ mkQVFValidator qvfParams datum action ctx =
         Right newDatum ->
              traceIfFalse "E23" (enoughAddedInOutput minLovelace)
           && traceIfFalse "E24" (isOutputDatumValid $ InProgress newDatum)
-          && currDeadlineTouched currDatum
+          && traceIfTrue
+               "E5"
+               (currDeadlineTouched currDatum)
           && oneTokenInOneTokenOut ()
       -- }}}
-    (InProgress currDatum, Donate dPs@DonateParams {..}) ->
+    (InProgress currDatum, Donate dPs                  ) ->
       -- {{{
-      case addDonationToDatum dPs currDatum of
+      case addDonationsToDatum dPs currDatum of
         Left err       ->
           traceError err
-        Right newDatum ->
+        Right (totalDonations, newDatum) ->
              traceIfFalse
                "E25"
-               (enoughAddedInOutput dpAmount)
+               (enoughAddedInOutput totalDonations)
           && traceIfFalse
                "E26"
                (isOutputDatumValid $ InProgress newDatum)
-          && currDeadlineTouched currDatum
+          && traceIfTrue
+               "E5"
+               (currDeadlineTouched currDatum)
           && oneTokenInOneTokenOut ()
       -- }}}
     (InProgress currDatum, Contribute contribution     ) ->
@@ -621,7 +626,9 @@ mkQVFValidator qvfParams datum action ctx =
           && traceIfFalse
                "28"
                (isOutputDatumValid $ InProgress newDatum)
-          && currDeadlineTouched currDatum
+          && traceIfTrue
+               "E5"
+               (currDeadlineTouched currDatum)
           && oneTokenInOneTokenOut ()
       -- }}}
     (InProgress currDatum, SetDeadline mNewDl          ) ->
@@ -634,8 +641,8 @@ mkQVFValidator qvfParams datum action ctx =
                "E29"
                (deadlineTouched newDl)
           && oneTokenInOneTokenOut ()
-          -- Updating only one of the UTxO's suffices (check the @mappend@
-          -- implementation of the @QVFInfo@).
+          -- For extending a deadline, updating only one of the UTxO's
+          -- suffices (check the @mappend@ implementation of the @QVFInfo@).
           -- }}}
         _               ->
           -- {{{
@@ -884,6 +891,20 @@ addDonationToDatum DonateParams {..} currDatum =
   -- }}}
 
 
+{-# INLINABLE addDonationsToDatum #-}
+addDonationsToDatum :: [DonateParams]
+                    -> QVFInfo
+                    -> Either BuiltinString (Integer, QVFInfo)
+addDonationsToDatum dPs currDatum =
+  -- {{{
+  let
+    foldFn dP (acc, info) =
+      (acc + dpAmount dP,) <$> addDonationToDatum dP info
+  in
+  foldrM foldFn (0, currDatum) dPs
+  -- }}}
+
+
 {-# INLINABLE addContributionToDatum #-}
 addContributionToDatum :: Integer
                        -> QVFInfo
@@ -908,7 +929,7 @@ updateDatum action datum =
       -- }}}
     (InProgress currDatum, Donate donateParams        ) ->
       -- {{{
-      InProgress <$> (addDonationToDatum donateParams currDatum)
+      InProgress . snd <$> addDonationsToDatum donateParams currDatum
       -- }}}
     (InProgress currDatum, Contribute contribution    ) ->
       -- {{{

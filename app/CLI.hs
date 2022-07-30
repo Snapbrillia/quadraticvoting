@@ -289,11 +289,16 @@ main =
     donateHelp        =
       -- {{{
       makeHelpText
-        "Update a given datum by donating to a project:"
+        "Update a given datum by donating to a list of projects:"
         "donate"
         "<donors-public-key-hash>" $
-        [ "<target-projects-public-key-hash>"
-        , "<donation-amount>"
+        [ "<projects-pubkeyhash-0>"
+        , "<donation-amount-----0>"
+        , "<projects-pubkeyhash-1>"
+        , "<donation-amount-----1>"
+        , "<projects-pubkeyhash-2>"
+        , "<donation-amount-----2>"
+        , "<...etc...>"
         ] ++ commonLastThree
       -- }}}
     contributeHelp    :: String
@@ -637,25 +642,51 @@ main =
             fromAction action currDatum (Just dOF) rOF
             -- }}}
       -- }}}
-    "donate" : dDonor : dProject : dAmount : datumJSON : dOF : rOF : _  ->
+    "donate" : dDonor : restOfArgs                                      ->
       -- {{{
-      actOnData datumJSON $ \currDatum ->
-        case readMaybe dAmount of
-          Nothing ->
-            -- {{{
-            putStrLn "FAILED to parse the donation amount."
-            -- }}}
-          Just amount ->
-            -- {{{
-            let
-              action = OC.Donate $ OC.DonateParams
-                { OC.dpDonor   = fromString dDonor
-                , OC.dpProject = fromString dProject
-                , OC.dpAmount  = amount
-                }
-            in
-            fromAction action currDatum (Just dOF) rOF
-            -- }}}
+      let
+        theDonor = fromString dDonor
+        go (Right (dPs, _))   c3@[_, _, _]           = Right (dPs, c3)
+        go (Left err)         _                      = Left err
+        go (Right (soFar, _)) (dProj : dAmnt : rest) =
+          -- {{{
+          case readMaybe dAmnt of
+            Nothing   ->
+              -- {{{
+              Left $ "Bad donation amount: " ++ dAmnt
+              -- }}}
+            Just amnt ->
+              -- {{{
+              go
+                ( Right
+                    ( OC.DonateParams
+                        { OC.dpDonor   = theDonor
+                        , OC.dpProject = fromString dProj
+                        , OC.dpAmount  = amnt
+                        }
+                        : soFar
+                    , []
+                    )
+                )
+                rest
+              -- }}}
+          -- }}}
+        go _                  _                      = Left "Bad args."
+      in
+      case go (Right ([], [])) restOfArgs of
+        Right (dPs, [datumJSON, dOF, rOF]) ->
+          -- {{{
+          actOnData datumJSON $ \currDatum ->
+            fromAction (OC.Donate dPs) currDatum (Just dOF) rOF
+          -- }}}
+        Left err                           ->
+          -- {{{
+          putStrLn $ "FAILED: " ++ err
+          -- }}}
+        _                                  ->
+          -- {{{
+          putStrLn "FAILED: The impossible happened."
+          -- }}}
       -- }}}
     "contribute" : amountStr : datumJSON : dOF : rOF : _                ->
       -- {{{
