@@ -35,10 +35,6 @@ haskell-nix.cabalProject' ({ pkgs
   compiler-nix-name = "ghc8107";
   cabalProjectLocal = ''
     allow-newer: terminfo:base
-  '' + lib.optionalString pkgs.stdenv.hostPlatform.isWindows ''
-    -- When cross compiling we don't have a `ghc` package
-    package plutus-tx-plugin
-      flags: +use-ghc-stub
   '';
   shell = {
     name = "cabal-dev-shell";
@@ -61,7 +57,7 @@ haskell-nix.cabalProject' ({ pkgs
     # *all* dependencies are provided by Nix.
     exactDeps = true;
 
-    withHoogle = true;
+    withHoogle = false;
   };
   modules =
     let
@@ -78,12 +74,26 @@ haskell-nix.cabalProject' ({ pkgs
           components.library.pkgconfig = lib.mkForce [ [ pkgs.libsodium-vrf ] ];
         });
       })
+      ({ pkgs, options, ... }: {
+        # make sure that libsodium DLLs are available for windows binaries,
+        # stamp executables with the git revision, add shell completion, strip/rewrite:
+        packages = lib.mapAttrs
+          (name: exes: {
+            components.exes = lib.genAttrs exes (exe: {
+              postInstall = ''
+                ${setGitRev}
+                ${pkgs.buildPackages.binutils-unwrapped}/bin/*strip $out/bin/*
+              '';
+            });
+          })
+          projectPackagesExes;
+      })
       {
         packages = lib.genAttrs projectPackageNames
           (name: { configureFlags = [ "--ghc-option=-Werror" ]; });
       }
-      # !!! Musl libc fully static build !!!
-      ({ pkgs, ... }: lib.mkIf pkgs.stdenv.hostPlatform.isMusl (
+      # !!! Disable shared build and Enable static build
+      ({ pkgs, ... }: 
         let
           # Module options which adds GHC flags and libraries for a fully static build
           fullyStaticOptions = {
@@ -93,9 +103,8 @@ haskell-nix.cabalProject' ({ pkgs
         in
         {
           packages = lib.genAttrs projectPackageNames (name: fullyStaticOptions);
-          # Haddock not working and not needed for cross builds
           doHaddock = false;
         }
-      ))
+      )
     ];
 })
