@@ -74,19 +74,20 @@ update_contract() {
       --tx-in $utxoFromDonor                                             \
       --tx-in-collateral $utxoFromDonor                                  \
       --tx-in $utxoAtScript                                              \
-      --tx-in-datum-file $currDatum                                   \
+      --tx-in-datum-file $currDatum                                      \
       --tx-in-script-file $scriptFile                                    \
-      --tx-in-redeemer-file $action                                    \
-      --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
-      --tx-out-datum-embed-file $updatedDatum                                \
+      --tx-in-redeemer-file $action                                      \
+      --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset"      \
+      --tx-out-datum-embed-file $updatedDatum                            \
       --change-address $(cat $donorAddrFile)                             \
       --protocol-params-file $protocols                                  \
+      --cddl-format                                                      \
       --out-file $preDir/tx.unsigned
   
   # Sign the transaction:
-  $cli transaction sign $MAGIC   \
-      --tx-body-file $preDir/tx.unsigned        \
-      --signing-key-file $donorSKeyFile \
+  $cli transaction sign $MAGIC           \
+      --tx-body-file $preDir/tx.unsigned \
+      --signing-key-file $donorSKeyFile  \
       --out-file $preDir/tx.signed
   
   # Submit the transaction:
