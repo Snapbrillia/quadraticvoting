@@ -13,47 +13,37 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
-module Token where
+module Genesis where
 
 
 import qualified Plutonomy
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Ledger                      hiding (mint, singleton)
-import qualified Ledger.Typed.Scripts        as Scripts
-import           Ledger.Value                as Value
+import           Ledger
+import qualified Ledger.Typed.Scripts as Scripts
+import           Ledger.Value         as Value
 
-
--- POLICY PARAMETERS
--- {{{
-data PolicyParams = PolicyParams
-  { ppORef   :: !TxOutRef
-  , ppToken  :: !TokenName
-  , ppAmount :: !Integer
-  }
-
-PlutusTx.makeLift ''PolicyParams
--- }}}
+import Utils
 
 
 {-# INLINABLE mkQVFPolicy #-}
-mkQVFPolicy :: PolicyParams -> () -> ScriptContext -> Bool
-mkQVFPolicy PolicyParams {..} () ctx =
+mkQVFPolicy :: TxOutRef -> TokenName -> () -> ScriptContext -> Bool
+mkQVFPolicy oref tn () ctx =
   -- {{{
   let
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
     hasUTxO :: Bool
-    hasUTxO = any (\i -> txInInfoOutRef i == ppORef) $ txInfoInputs info
+    hasUTxO = any (\i -> txInInfoOutRef i == oref) $ txInfoInputs info
 
     checkMintedAmount :: Bool
     checkMintedAmount =
       -- {{{
       case flattenValue (txInfoMint info) of
-        [(_, tn, amt)] ->
+        [(_, tn', amt)] ->
           -- {{{
-          tn  == ppToken && amt == ppAmount
+          tn' == tn && amt == 1
           -- }}}
         _              ->
           -- {{{
@@ -62,19 +52,21 @@ mkQVFPolicy PolicyParams {..} () ctx =
       -- }}}
   in
      traceIfFalse "UTxO not consumed." hasUTxO
-  && traceIfFalse "Amount of minted token is not valid." checkMintedAmount
+  && traceIfFalse "Exactly one auth token must be minted." checkMintedAmount
   -- }}}
 
 
-qvfPolicy :: PolicyParams -> Scripts.MintingPolicy
-qvfPolicy pParams =
+qvfPolicy :: TxOutRef -> Scripts.MintingPolicy
+qvfPolicy oref =
   -- {{{
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkQVFPolicy ||])
+    $$(PlutusTx.compile [|| \oref' tn' -> Scripts.wrapMintingPolicy $ mkQVFPolicy oref' tn' ||])
     `PlutusTx.applyCode`
-    PlutusTx.liftCode pParams
+    PlutusTx.liftCode oref
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode emptyTokenName
   -- }}}
 
 
-qvfSymbol :: PolicyParams -> CurrencySymbol
+qvfSymbol :: TxOutRef -> CurrencySymbol
 qvfSymbol = scriptCurrencySymbol . qvfPolicy

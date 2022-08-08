@@ -38,8 +38,18 @@ import qualified Prelude                     as P
 -- }}}
 
 
+-- OFF-CHAIN FUNCTIONS 
+-- {{{
 lovelaceToAda :: Integer -> P.Double
 lovelaceToAda lovelace = P.fromIntegral lovelace P./ 1_000_000
+-- }}}
+
+
+-- ON-CHAIN FUNCTIONS 
+-- {{{
+{-# INLINABLE emptyTokenName #-}
+emptyTokenName :: TokenName
+emptyTokenName = TokenName emptyByteString
 
 
 {-# INLINABLE addressToBuiltinByteString #-}
@@ -114,6 +124,28 @@ updateIfWith predicate fn xs =
     (leftXs, Just updatedX, rightXs) ->
       Just $ leftXs ++ (updatedX : rightXs)
   -- }}}
+
+
+{-# INLINABLE getDatumFromUTxO #-}
+getDatumFromUTxO :: FromData a
+                 => TxOut
+                 -> (DatumHash -> Maybe Datum)
+                 -> Maybe a
+getDatumFromUTxO TxOut {..} converter = do
+  -- {{{
+  dh      <- txOutDatumHash
+  Datum d <- converter dh
+  return d
+  -- }}}
+
+-- | Helper function to count a specific tokens in a UTxO.
+getTokenCountIn :: AssetClass -> TxOut -> Integer
+getTokenCountIn tokenAsset utxo =
+  -- {{{
+  assetClassValueOf (txOutValue utxo) tokenAsset
+  -- }}}
+-- }}}
+
 
 
 -- ERRORS

@@ -741,12 +741,11 @@ addDonationToProject donor lovelaces proj =
   -- }}}
 
 
-{-# INLINABLE getDatumFromUTxO #-}
-getDatumFromUTxO :: TxOut -> (DatumHash -> Maybe Datum) -> Maybe QVFDatum
-getDatumFromUTxO TxOut {..} converter = do
+{-# INLINABLE getQVFDatumFromUTxO #-}
+getQVFDatumFromUTxO :: TxOut -> (DatumHash -> Maybe Datum) -> Maybe QVFDatum
+getQVFDatumFromUTxO txOut converter = do
   -- {{{
-  dh      <- txOutDatumHash
-  Datum d <- converter dh
+  d <- getDatumFromUTxO txOut converter
   PlutusTx.fromBuiltinData d
   -- }}}
 
