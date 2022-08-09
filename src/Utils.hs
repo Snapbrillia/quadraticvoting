@@ -138,56 +138,67 @@ getDatumFromUTxO TxOut {..} converter = do
   return d
   -- }}}
 
--- | Helper function to count a specific tokens in a UTxO.
+-- | Helper function to count a specific token in a UTxO.
+{-# INLINABLE getTokenCountIn #-}
 getTokenCountIn :: AssetClass -> TxOut -> Integer
 getTokenCountIn tokenAsset utxo =
   -- {{{
   assetClassValueOf (txOutValue utxo) tokenAsset
   -- }}}
+
+
+-- | Checks if exactly one asset is being sent to a specific script address,
+--   and also that this output UTxO has a retreivable datum attached. Returns
+--   the datum.
+{-# INLINABLE checkOutputToScriptAndGetDatum #-}
+checkOutputToScriptAndGetDatum :: FromData a
+                               => TxInfo
+                               -> CurrencySymbol
+                               -> TokenName
+                               -> ValidatorHash
+                               -> a
+checkOutputToScriptAndGetDatum txInfo currencySymbol tokenName validatorHash =
+  -- {{{
+  case scriptOutputsAt validatorHash info of
+    [(outputDatumHash, outputValue)] ->
+      -- {{{
+      let
+        mOutputDatum =
+          -- {{{
+          outputDatumHash >>= (`findDatum` info) >>= PlutusTx.fromBuiltinData
+          -- }}}
+        oneTokenOut =
+          -- {{{
+          case flattenValue outputValue of
+            [(symbol, tn, amt)] ->
+              -- {{{
+                 symbol == ownSymbol
+              && tn     == tokenName
+              && amt    == 1
+              -- }}}
+            _                   ->
+              -- {{{
+              False
+              -- }}}
+          -- }}}
+      in
+      case mOutputDatum of
+        Nothing ->
+          -- {{{
+          traceError "Datum either missing, or invalid."
+          -- }}}
+        Just d  ->
+          -- {{{
+          d
+          -- }}}
+      -- }}}
+    _                                ->
+      -- {{{
+      traceError
+        "There should be exactly one output to the project script address."
+      -- }}}
+  -- }}}
 -- }}}
 
 
-
--- ERRORS
--- E0  : Square root of a negative number.
--- E1  : Expected an input from own address.
--- E2  : Expected exactly one output to own address.
--- E3  : There should be exactly one authentication token in input.
--- E4  : There should be exactly one authentication token in output.
--- E5  : Deadline passed.
--- E6  : Unauthorized.
--- E7  : No UTxO is sent back to the address.
--- E8  : All outputs should carry datum hashes.
--- E9  : All outputs should carry exactly one authentication token.
--- E10 : All outputs should carry exactly the set minimum Lovelace count.
--- E11 : All outputs should carry mempty datums.
--- E12 : Not all authentication tokens are consumed.
--- E13 : Authentication tokens are not distributed properly.
--- E14 : Funding round not started yet.
--- E15 : Found an input with invalid datum.
--- E16 : All inputs must have exactly one authentication token.
--- E17 : Invalid prize distribution.
--- E18 : Deadline not reached yet.
--- E19 : Improper consumption and production of the authentication tokens.
--- E20 : Key holder not imbursed.
--- E21 : Invalid output datum hash.
--- E22 : Invalid output count.
--- E23 : Project submission fees not paid.
--- E24 : Invalid output datum hash.
--- E25 : Not enough Lovelaces provided.
--- E26 : Invalid output datum hash.
--- E27 : Not enough Lovelaces provided.
--- E28 : Invalid output datum hash.
--- E29 : New deadline is in the past.
--- E30 : This funding round has ended.
--- E31 : Invalid datum/redeemer combination.
--- E32 : No votes cast.
--- E33 : Project already exists.
--- E34 : Donation less than minimum.
--- E35 : Target project not found.
--- E36 : Donation less than minimum.
--- E37 : No datum needed.
--- E38 : Closed state doesn't have minimum Lovelaces.
--- E39 : 
--- E40 : 
 

@@ -26,6 +26,28 @@ import           Ledger.Value         as Value
 import Utils
 
 
+-- QVF FUNDING ROUND DATUM
+-- {{{
+data FundingRoundState
+  = NotStarted
+  | InProgress
+  | Concluded
+
+instance Eq FundingRoundState where
+  {-# INLINABLE (==) #-}
+  NotStarted == NotStarted = True
+  InProgress == InProgress = True
+  Concluded  == Concluded  = True
+  _          == _          = False
+
+PlutusTx.makeIsDataIndexed ''FundingRoundState
+  [ ('NotStarted, 0)
+  , ('InProgress, 1)
+  , ('Concluded , 2)
+  ]
+-- }}}
+
+
 {-# INLINABLE mkQVFPolicy #-}
 mkQVFPolicy :: TxOutRef -> TokenName -> () -> ScriptContext -> Bool
 mkQVFPolicy oref tn () ctx =

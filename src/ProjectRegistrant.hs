@@ -50,29 +50,60 @@ mkProjectRegistrant RegistrantParams {..} () ctx =
 
 
 
-{-# INLINABLE checkScriptOutput #-}
-checkScriptOutput :: FromData a
-                  => TxInfo
-                  -> CurrencySymbol
-                  -> (DatumHash -> Maybe a)
-                  -> ValidatorHash
-                  -> Bool
-checkScriptOutput txInfo currSymbol fromDatumHash scriptValHash =
-  case scriptOutputsAt scriptValHash info of
+-- | Checks if exactly one asset is being sent to a specific script address,
+--   and also that this output UTxO has a retreivable datum attached. Returns
+--   the datum.
+{-# INLINABLE checkOutputToScriptAndGetDatum #-}
+checkOutputToScriptAndGetDatum :: FromData a
+                               => TxInfo
+                               -> CurrencySymbol
+                               -> TokenName
+                               -> (DatumHash -> Maybe a)
+                               -> ValidatorHash
+                               -> a
+checkOutputToScriptAndGetDatum txInfo
+                               currencySymbol
+                               tokenName
+                               fromDatumHash
+                               validatorHash =
+  -- {{{
+  case scriptOutputsAt validatorHash info of
     [(outputDatumHash, outputValue)] ->
+      -- {{{
       let
-        mOutputDatum :: Maybe Integer
-        mOutputDatum = do
-          Datum d <- findDatum outputDatumHash info
-          PlutusTx.fromBuiltinData d
+        mOutputDatum = fromDatumHash outputDatumHash
+        -- mOutputDatum :: Maybe Integer
+        -- mOutputDatum = do
+        --   Datum d <- findDatum outputDatumHash info
+        --   PlutusTx.fromBuiltinData d
         oneTokenOut =
+          -- {{{
           case flattenValue outputValue of
             [(symbol, tn, amt)] ->
+              -- {{{
                  symbol == ownSymbol
-              && tn     == emptyTokenName
+              && tn     == tokenName
               && amt    == 1
+              -- }}}
+            _                   ->
+              -- {{{
+              False
+              -- }}}
+          -- }}}
       in
-      undefined
+      case mOutputDatum of
+        Nothing ->
+          -- {{{
+          traceError "Datum not found."
+          -- }}}
+        Just d  ->
+          -- {{{
+          d
+          -- }}}
+      -- }}}
     _                                ->
+      -- {{{
       traceError
         "There should be exactly one output to the project script address."
+      -- }}}
+  -- }}}
