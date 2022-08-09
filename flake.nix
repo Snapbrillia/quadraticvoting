@@ -63,9 +63,10 @@
         (final: prev: {
           inherit customConfig;
           gitrev = final.customConfig.gitrev or self.rev or "0000000000000000000000000000000000000000";
+          # TODO !@! remove?
           commonLib = lib
-            // iohkNix.lib
-            // final.cardanoLib;
+            // final.cardanoLib
+            // iohkNix.lib;
         })
         (import ./nix/pkgs.nix)
         self.overlay
@@ -84,12 +85,9 @@
           projectExes = flatten (haskellLib.collectComponents' "exes" projectPackages);
         };
 
-      # TODO !@! do we need cardanoLib (like cardano-node does)?
-      # mkQuadraticVotingPackages = project: (mkPackages project).projectExes // {
-      #   inherit (project.pkgs) cardanoLib;
-      # };
-
-      mkQuadraticVotingPackages = project: (mkPackages project).projectExes;
+      mkQuadraticVotingPackages = project: (mkPackages project).projectExes // {
+        inherit (project.pkgs) cardanoLib;
+      };
 
       flake = eachSystem supportedSystems (system:
         let
@@ -99,12 +97,15 @@
           };
           inherit (pkgs.haskell-nix) haskellLib;
           inherit (haskellLib) collectComponents';
+          # TODO !@! remove?
           inherit (project.pkgs.stdenv) hostPlatform;
 
           project = (import ./nix/haskell.nix {
             inherit (pkgs) haskell-nix gitrev;
             inherit projectPackagesExes;
           }).appendModule customConfig.haskellNix;
+
+          # project = stdProject.projectCross.musl64;
 
           inherit (mkPackages project) projectPackages projectExes;
 
@@ -128,22 +129,16 @@
 
           legacyPackages = pkgs;
 
-          # Built by `nix build .`
-          defaultPackage = packages.qvf-cli;
-
-          # Run by `nix run .`
-          defaultApp = apps.qvf-cli;
-
           # This is used by `nix develop .` to open a devShell
           #inherit devShell devShells;
 
-          jobs = 
+          jobs = optionalAttrs (system == "x86_64-linux")
             {
               linux = {
                 native = packages // {
-                  #shells = devShells // {
-                  #  default = devShell;
-                  #};
+                  # shells = devShells // {
+                  #   default = devShell;
+                  # };
                   internal = {
                     roots.project = project.roots;
                     plan-nix.project = project.plan-nix;
@@ -155,15 +150,31 @@
                     inherit (mkPackages muslProject) projectPackages projectExes;
                   in
                   projectExes // {
+                    qvf-cli-linux = import ./nix/binary-release.nix {
+                      inherit pkgs;
+                      inherit (exes.qvf-cli.identifier) version;
+                      platform = "linux";
+                      exes = lib.collect lib.isDerivation projectExes;
+                    };
                     internal.roots.project = muslProject.roots;
                   };
               };
-            }; 
+            };
+                    # Built by `nix build .`
+          defaultPackage = jobs.x86_64-linux.linux.musl.qvf-cli;
+
+          # Run by `nix run .`
+          defaultApp = apps.qvf-cli;
+
+
         }
       );
-
+      jobs = flake.jobs;
     in
     flake // {
+
+      inherit jobs;
+
       overlay = final: prev: {
         quadraticVotingProject = flake.project.${final.system};
         quadraticVotingPackages = mkQuadraticVotingPackages final.quadraticVotingProject;

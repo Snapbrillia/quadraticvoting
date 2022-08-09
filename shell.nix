@@ -22,7 +22,7 @@ let
   inherit (customConfig) withHoogle localCluster;
   inherit (localCluster) profileName;
   inherit (pkgs.haskell-nix) haskellLib;
-  project = quadraticvotingProject;
+  project = quadraticVotingProject;
 
   ## The default shell is defined by flake.nix: (quadraticvotingProject = flake.project.${final.system})
   inherit (project) shell;
