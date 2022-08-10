@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -44,6 +45,8 @@ import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
+import           Prelude                     (Show, show)
+import qualified Prelude                     as P
 import           Utils
 -- }}}
 
@@ -79,6 +82,21 @@ data Donations = Donations
   { getDonations :: !(Map PubKeyHash Integer)
   }
 
+instance Show Donations where
+  show (Donations ds) =
+    -- {{{
+    let
+      vs      = Map.elems ds
+      total   = lovelaceToAda $ foldr (+) 0 vs
+      dsCount = length ds
+    in
+         "Total of "
+    P.++ show total
+    P.++ " Ada, by "
+    P.++ show dsCount
+    P.++ " donor(s)."
+    -- }}}
+
 instance Eq Donations where
   {-# INLINABLE (==) #-}
   Donations ds0 == Donations ds1 = ds0 == ds1
@@ -105,6 +123,14 @@ data Project = Project
   , pDonations  :: !Donations
   }
 
+instance Show Project where
+  show Project {..} =
+    -- {{{
+         "\t{ Label:     " P.++ show pLabel     P.++ "\n"
+    P.++ "\t, Donations: " P.++ show pDonations P.++ "\n"
+    P.++ "\t}\n"
+    -- }}}
+
 instance Eq Project where
   {-# INLINABLE (==) #-}
   a == b = pPubKeyHash a == pPubKeyHash b
@@ -121,6 +147,14 @@ data QVFInfo = QVFInfo
   , qvfPool     :: !Integer
   , qvfDeadline :: !(Maybe POSIXTime)
   }
+
+instance Show QVFInfo where
+  show QVFInfo {..} =
+    -- {{{
+         "Projects:\n"   P.++ P.concatMap show qvfProjects
+    P.++ "Pool:\n\t"     P.++ show (lovelaceToAda qvfPool) P.++ " Ada\n"
+    P.++ "Deadline:\n\t" P.++ show qvfDeadline P.++ "\n"
+    -- }}}
 
 
 {-# INLINABLE mergeProjects #-}
@@ -197,12 +231,27 @@ data QVFDatum
   | InProgress QVFInfo
   | Closed     QVFInfo
 
+instance Show QVFDatum where
+  show NotStarted        = "\n<<<  NOT STARTED  >>>"
+  show (InProgress info) = "\n<<<  IN PROGRESS  >>>\n" P.++ show info
+  show (Closed     info) = "\n<<< FUNDING ENDED >>>\n" P.++ show info
+
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   NotStarted       == NotStarted       = True
   InProgress info0 == InProgress info1 = info0 == info1
   Closed     info0 == Closed     info1 = info0 == info1
   _                == _                = False
+
+instance Semigroup QVFDatum where
+  {-# INLINABLE (<>) #-}
+  InProgress info0 <> InProgress info1 = InProgress (info0 <> info1)
+  Closed info0     <> Closed info1     = if info0 == info1 then Closed info0 else NotStarted
+  _                <> _                = NotStarted
+
+instance Monoid QVFDatum where
+  {-# inlinable mempty #-}
+  mempty = InProgress mempty
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
   [ ('NotStarted, 0)
@@ -246,7 +295,7 @@ PlutusTx.unstableMakeIsData ''DonateParams
 data QVFAction
   = InitiateFund                  -- ^ Endpoint meant to be invoked by the keyholder for distributing authentication tokens.
   | AddProject AddProjectParams   -- ^ Add projects that can be funded.
-  | Donate     DonateParams       -- ^ Attempt donation to a project (identified simply by its public key hash).
+  | Donate     [DonateParams]     -- ^ Attempt donation to a list of projects (identified simply by their public key hashes).
   | Contribute Integer            -- ^ Add to the prize pool.
   | Distribute                    -- ^ Distribute the fund to projects per QVF
   | SetDeadline (Maybe POSIXTime) -- ^ Deadline before users can interact with the contract.
@@ -543,22 +592,26 @@ mkQVFValidator qvfParams datum action ctx =
         Right newDatum ->
              traceIfFalse "E23" (enoughAddedInOutput minLovelace)
           && traceIfFalse "E24" (isOutputDatumValid $ InProgress newDatum)
-          && currDeadlineTouched currDatum
+          && traceIfTrue
+               "E5"
+               (currDeadlineTouched currDatum)
           && oneTokenInOneTokenOut ()
       -- }}}
-    (InProgress currDatum, Donate dPs@DonateParams {..}) ->
+    (InProgress currDatum, Donate dPs                  ) ->
       -- {{{
-      case addDonationToDatum dPs currDatum of
+      case addDonationsToDatum dPs currDatum of
         Left err       ->
           traceError err
-        Right newDatum ->
+        Right (totalDonations, newDatum) ->
              traceIfFalse
                "E25"
-               (enoughAddedInOutput dpAmount)
+               (enoughAddedInOutput totalDonations)
           && traceIfFalse
                "E26"
                (isOutputDatumValid $ InProgress newDatum)
-          && currDeadlineTouched currDatum
+          && traceIfTrue
+               "E5"
+               (currDeadlineTouched currDatum)
           && oneTokenInOneTokenOut ()
       -- }}}
     (InProgress currDatum, Contribute contribution     ) ->
@@ -573,7 +626,9 @@ mkQVFValidator qvfParams datum action ctx =
           && traceIfFalse
                "28"
                (isOutputDatumValid $ InProgress newDatum)
-          && currDeadlineTouched currDatum
+          && traceIfTrue
+               "E5"
+               (currDeadlineTouched currDatum)
           && oneTokenInOneTokenOut ()
       -- }}}
     (InProgress currDatum, SetDeadline mNewDl          ) ->
@@ -586,8 +641,8 @@ mkQVFValidator qvfParams datum action ctx =
                "E29"
                (deadlineTouched newDl)
           && oneTokenInOneTokenOut ()
-          -- Updating only one of the UTxO's suffices (check the @mappend@
-          -- implementation of the @QVFInfo@).
+          -- For extending a deadline, updating only one of the UTxO's
+          -- suffices (check the @mappend@ implementation of the @QVFInfo@).
           -- }}}
         _               ->
           -- {{{
@@ -836,6 +891,20 @@ addDonationToDatum DonateParams {..} currDatum =
   -- }}}
 
 
+{-# INLINABLE addDonationsToDatum #-}
+addDonationsToDatum :: [DonateParams]
+                    -> QVFInfo
+                    -> Either BuiltinString (Integer, QVFInfo)
+addDonationsToDatum dPs currDatum =
+  -- {{{
+  let
+    foldFn dP (acc, info) =
+      (acc + dpAmount dP,) <$> addDonationToDatum dP info
+  in
+  foldrM foldFn (0, currDatum) dPs
+  -- }}}
+
+
 {-# INLINABLE addContributionToDatum #-}
 addContributionToDatum :: Integer
                        -> QVFInfo
@@ -860,7 +929,7 @@ updateDatum action datum =
       -- }}}
     (InProgress currDatum, Donate donateParams        ) ->
       -- {{{
-      InProgress <$> (addDonationToDatum donateParams currDatum)
+      InProgress . snd <$> addDonationsToDatum donateParams currDatum
       -- }}}
     (InProgress currDatum, Contribute contribution    ) ->
       -- {{{

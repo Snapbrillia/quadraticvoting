@@ -41,8 +41,10 @@ executable qvf-cli
                      , serialise
                      , aeson
                      , bytestring
-                     , base >= 4.9 && < 5
-                     , text
+                     , cardano-api
+                     , cardano-binary
+                     , plutus-ledger
+                     , plutus-ledger-api
                      , plutus-tx
                      , plutus-ledger
                      , plutus-ledger-api
