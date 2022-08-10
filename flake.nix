@@ -154,7 +154,8 @@
                   };
               };
             };
-                    # Built by `nix build .`
+            
+          # Built by `nix build .`
           defaultPackage = jobs.x86_64-linux.linux.musl.qvf-cli;
 
           # Run by `nix run .`
