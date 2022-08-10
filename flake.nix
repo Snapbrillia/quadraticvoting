@@ -97,7 +97,6 @@
           };
           inherit (pkgs.haskell-nix) haskellLib;
           inherit (haskellLib) collectComponents';
-          # TODO !@! remove?
           inherit (project.pkgs.stdenv) hostPlatform;
 
           project = (import ./nix/haskell.nix {
@@ -105,19 +104,14 @@
             inherit projectPackagesExes;
           }).appendModule customConfig.haskellNix;
 
-          # project = stdProject.projectCross.musl64;
-
           inherit (mkPackages project) projectPackages projectExes;
 
-          # TODO !@! - need to do something here
-          #shell = import ./shell.nix { inherit pkgs customConfig; };
-          #devShells = {
-          #  inherit (shell) devops;
-          #  cluster = shell;
-          #  profiled = project.profiled.shell;
-          #};
+          shell = import ./shell.nix { inherit pkgs customConfig; };
+          devShells = {
+           inherit (shell) devops;
+          };
 
-          #devShell = shell.dev;
+          devShell = shell.dev;
 
           exes = projectExes;
           packages = projectPackages;
@@ -130,15 +124,15 @@
           legacyPackages = pkgs;
 
           # This is used by `nix develop .` to open a devShell
-          #inherit devShell devShells;
+          inherit devShell devShells;
 
           jobs = optionalAttrs (system == "x86_64-linux")
             {
               linux = {
                 native = packages // {
-                  # shells = devShells // {
-                  #   default = devShell;
-                  # };
+                  shells = devShells // {
+                    default = devShell;
+                  };
                   internal = {
                     roots.project = project.roots;
                     plan-nix.project = project.plan-nix;
