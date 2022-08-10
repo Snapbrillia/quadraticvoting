@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 
 
 module Main (main) where
 
+import           Prelude                
 
 import           Cardano.Api
 import           Cardano.Api.Shelley    (PlutusScript (..))
@@ -14,13 +16,9 @@ import           Data.Aeson             (encode)
 import qualified Data.ByteString.Char8  as BS8
 import qualified Data.ByteString.Lazy   as LBS
 import qualified Data.ByteString.Short  as SBS
-import qualified Data.Char              as Char
 import qualified Data.List              as List
 import           Data.Maybe             (fromJust)
-import qualified Data.String            as String
 import           Data.String            (fromString)
-import qualified Data.Text              as T
-import           Data.Text              (Text)
 import           Plutus.V1.Ledger.Api   (fromBuiltin)
 import           Plutus.V1.Ledger.Value (TokenName (..))
 import           PlutusTx               (Data (..))
@@ -88,12 +86,12 @@ parseJSONValue bs =
   -- }}}
 
 
-parseJSON :: FilePath -> IO (Either String Data)
-parseJSON file = do
-  -- {{{
-  fileContent <- LBS.readFile file
-  parseJSONValue fileContent
-  -- }}}
+-- parseJSON :: FilePath -> IO (Either String Data)
+-- parseJSON file = do
+--   -- {{{
+--   fileContent <- LBS.readFile file
+--   parseJSONValue fileContent
+--   -- }}}
 
 
 writeScript :: Serialise a => FilePath -> a -> IO (Either (FileError ()) ())

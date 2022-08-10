@@ -18,21 +18,9 @@ module Utils where
 -- IMPORTS
 -- {{{
 import           Ledger
-import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
-import qualified Plutonomy
-import           Plutus.Contract
 import           Plutus.V1.Ledger.Credential (Credential (..))
-import qualified Plutus.V1.Ledger.Interval   as Interval
-import           Plutus.V1.Ledger.Value
-import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
-import           PlutusTx                    (Data (..))
-import qualified PlutusTx
-import qualified PlutusTx.AssocMap           as Map
-import           PlutusTx.AssocMap           (Map)
-import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Prelude            hiding (unless)
-import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
 import qualified Prelude                     as P
 -- }}}
