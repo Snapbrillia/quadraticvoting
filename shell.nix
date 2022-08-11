@@ -16,12 +16,6 @@ let
   inherit (pkgs.haskell-nix) haskellLib;
   project = qvf-cli-project;
 
-  ## The default shell is defined by flake.nix: (qvf-cli-project = flake.project.${final.system})
-  inherit (project) shell;
-
-  ## XXX: remove this once people retrain their muscle memory:
-  dev = project.shell;
-
   commandHelp =
     ''
       echo "
@@ -31,6 +25,45 @@ let
       "
     '';
   haveGlibcLocales = false;
+
+  shell = project.shellFor {
+    name = "dev-shell";
+
+    inherit withHoogle;
+
+    packages = ps: builtins.attrValues (haskellLib.selectProjectPackages ps);
+
+    tools = {
+      haskell-language-server = {
+        # version = "latest";
+        inherit (project) index-state;
+      };
+    };
+
+    # These programs will be available inside the nix-shell.
+    nativeBuildInputs = with haskellPackages; with qvf-cli-packages; [
+      cabalWrapped
+      haskell-language-server
+      ghcid
+      haskellBuildUtils
+      pkgs.graphviz
+      nixWrapped
+      pkgconfig
+      pkgs.git
+      pkgs.hlint
+      pkgs.moreutils
+      pkgs.pstree
+      pkgs.time
+    ];
+
+    # Prevents cabal from choosing alternate plans, so that
+    # *all* dependencies are provided by Nix.
+    exactDeps = true;
+  };
+
+  ## XXX: remove this once people retrain their muscle memory:
+  dev = project.shell;
+
 
   # Prevents cabal from choosing alternate plans, so that
   # *all* dependencies are provided by Nix.

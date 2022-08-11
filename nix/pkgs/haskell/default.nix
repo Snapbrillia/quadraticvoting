@@ -53,13 +53,13 @@ let
     inherit (projectAllHaddock.hsPkgs) plutus-core plutus-tx plutus-tx-plugin plutus-ledger-api;
   };
 
-  extraPackages = import ./extra.nix {
-    inherit stdenv lib haskell-nix sources buildPackages writeShellScript;
-    inherit index-state checkMaterialization compiler-nix-name;
-  };
+  # extraPackages = import ./extra.nix {
+  #   inherit stdenv lib haskell-nix sources buildPackages writeShellScript;
+  #   inherit index-state checkMaterialization compiler-nix-name;
+  # };
 
 in
 rec {
   inherit index-state compiler-nix-name project projectAllHaddock projectPackages projectPackagesAllHaddock packages;
-  inherit extraPackages;
+  # inherit extraPackages;
 }

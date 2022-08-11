@@ -108,7 +108,7 @@
 
           shell = import ./shell.nix { inherit pkgs customConfig; };
           devShells = {
-           inherit (shell) devops;
+           inherit shell;
           };
 
           devShell = shell.dev;
