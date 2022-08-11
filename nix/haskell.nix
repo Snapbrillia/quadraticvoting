@@ -23,10 +23,10 @@ haskell-nix.cabalProject' ({ pkgs
                            , buildProject
                            , ...
                            }: {
-  name = "quadraticVoting";
+  name = "qvf-cli";
   src = haskellLib.cleanSourceWith {
     src = ../.;
-    name = "quadraticVoting-src";
+    name = "qvf-cli-src";
     filter = name: type: (lib.cleanSourceFilter name type)
       && (haskell-nix.haskellSourceFilter name type)
       # removes socket files

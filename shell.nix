@@ -14,9 +14,9 @@ let
   inherit (pkgs) customConfig;
   inherit (customConfig) withHoogle;
   inherit (pkgs.haskell-nix) haskellLib;
-  project = quadraticVotingProject;
+  project = qvf-cli-project;
 
-  ## The default shell is defined by flake.nix: (quadraticVotingProject = flake.project.${final.system})
+  ## The default shell is defined by flake.nix: (qvf-cli-project = flake.project.${final.system})
   inherit (project) shell;
 
   ## XXX: remove this once people retrain their muscle memory:
