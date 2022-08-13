@@ -979,6 +979,15 @@ minAuthLovelace = 10_000_000
 --   , txInInfoResolved  :: TxOut
 --   }
 
+-- TxOutRef = TxOutRef
+--   { txOutRefId  :: TxId
+--   , txOutRefIdx :: Integer
+--   }
+--
+-- TxId = TxId
+--   { getTxId :: BuiltinByteString
+--   }
+
 -- TxOut = TxOut
 --   { txOutAddress      :: Address
 --   , txOutValue        :: Value

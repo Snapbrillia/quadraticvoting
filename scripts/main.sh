@@ -1,9 +1,10 @@
 . scripts/env.sh
 . scripts/blockfrost.sh
 
-scriptAddr="addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx"
-policyId=$(cat $preDir/qvf.symbol)
-tokenName=$(cat $preDir/token.hex)
+# scriptAddr="addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx"
+scriptAddr=$(cat $scriptAddressFile)
+policyId=$(cat $policyIdFile)
+tokenName=$(cat $tokenNameHexFile)
 authAsset="$policyId.$tokenName"
 remoteAddr="Keyan@172.16.42.6"
 remoteDir="/e/cardanoTestnet"
@@ -70,18 +71,18 @@ update_contract() {
   $cli query protocol-parameters $MAGIC --out-file $protocols
 
   # Construct the transaction:
-  $cli transaction build --babbage-era $MAGIC                            \
-      --tx-in $utxoFromDonor                                             \
-      --tx-in-collateral $utxoFromDonor                                  \
-      --tx-in $utxoAtScript                                              \
-      --tx-in-datum-file $currDatum                                      \
-      --tx-in-script-file $scriptFile                                    \
-      --tx-in-redeemer-file $action                                      \
-      --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset"      \
-      --tx-out-datum-embed-file $updatedDatum                            \
-      --change-address $(cat $donorAddrFile)                             \
-      --protocol-params-file $protocols                                  \
-      --cddl-format                                                      \
+  $cli transaction build --babbage-era $MAGIC                       \
+      --tx-in $utxoFromDonor                                        \
+      --tx-in-collateral $utxoFromDonor                             \
+      --tx-in $utxoAtScript                                         \
+      --tx-in-datum-file $currDatum                                 \
+      --tx-in-script-file $scriptFile                               \
+      --tx-in-redeemer-file $action                                 \
+      --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
+      --tx-out-datum-embed-file $updatedDatum                       \
+      --change-address $(cat $donorAddrFile)                        \
+      --protocol-params-file $protocols                             \
+      --cddl-format                                                 \
       --out-file $preDir/tx.unsigned
   
   # Sign the transaction:
@@ -117,25 +118,14 @@ donate_from_to_with() {
     echo $lovelace
     echo $newLovelace
     $qvf donate        \
-	       $donorsPKH    \
+         $donorsPKH    \
          $2            \
          $3            \
          $currDatum    \
 	       $updatedDatum \
          $action
     txIn=$(get_first_utxo_of_wallet $donorsAddr)
-    case $4 in
-      remote)
-        cpPath="$remoteAddr:$remoteDir/qvf"
-        scp $currDatum    $cpPath/$currDatum
-        scp $updatedDatum $cpPath/$updatedDatum
-        scp $action       $cpPath/$action
-        remoteCLI $1 $txIn $utxo $newLovelace
-        ;;
-      *)
-        update_contract $1 $txIn
-        ;;
-    esac
+    update_contract $1 $txIn
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
     # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
     # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
@@ -167,7 +157,7 @@ contribute_from_with() {
   $qvf contribute    \
        $2            \
        $currDatum    \
-	     $updatedDatum \
+       $updatedDatum \
        $action
   update_contract $1 $txIn
 }
@@ -177,14 +167,6 @@ contribute_from_with() {
 #   1. Project's wallet number/name,
 #   2. Project's label,
 #   3. Requested fund.
-
-# qvf-cli -- add-project               \
-#            <project-public-key-hash> \
-#            <project-label>           \
-#            <requested-fund>          \
-#            <current.datum>           \
-#            <updated.datum>           \
-#            <action.redeemer>
 register_project() {
   projectsPKH=$(cat $preDir/$1.pkh)
   projectsAddr=$(cat $preDir/$1.addr)
@@ -197,7 +179,7 @@ register_project() {
        $2            \
        $3            \
        $currDatum    \
-	     $updatedDatum \
+       $updatedDatum \
        $action
   update_contract $1 $txIn
 }

@@ -1,13 +1,13 @@
 #!/bin/bash
 
-
 # Make sure you have edited `env.sh` to have CARDANO_NODE_SOCKET_PATH properly
 # assigned.
 . env.sh
 
-keyHolderAddressFile="wallets/keyHolder.addr"
-keyHolderPubKeyHashFile="wallets/keyHolder.pkh"
-keyHolderSigningKeyFile="wallets/keyHolder.skey"
+keyHolder="keyHolder"
+keyHolderAddressFile="$preDir/$keyHolder.addr"
+keyHolderPubKeyHashFile="$preDir/$keyHolder.pkh"
+keyHolderSigningKeyFile="$preDir/$keyHolder.skey"
 
 startingWallet=1
 endingWallet=10
@@ -16,19 +16,14 @@ totalLovelaceToDistribute=2000000000
 tokenName="QuadraToken"
 tokenCount=10
 
-policyFile="minting.plutus"
-validatorFile="qvf.plutus"
-scriptAddressFile="qvf.addr"
-tokenNameHexFile="token.hex"
-
 # Storing the hex format of the token name:
 $qvf string-to-hex $tokenName $tokenNameHexFile
 
 tokenNameHex=$(cat $tokenNameHexFile)
 
-notStartedDatum="notStarted-datum.json"
-initiateFundRedeemer="initiate-fund.json"
-memptyDatum="mempty-datum.json"
+notStartedDatum="NotStarted.datum"
+initiateFundRedeemer="InitiateFund.redeemer"
+memptyDatum="InProgress-mempty.datum"
 
 
 generate_wallets_and_distribute() {
@@ -38,22 +33,25 @@ generate_wallets_and_distribute() {
     # Distributing the given amount of Lovelaces equally between the generated
     # wallets:
     distribute_from_to_wallets     \
-        $keyHolderAddressFile      \
+        $keyHolder                 \
         $startingWallet            \
         $endingWallet              \
-        $totalLovelaceToDistribute \
-        $keyHolderSigningKeyFile
+        $totalLovelaceToDistribute
 }
 
 # ----------------------------------------------------------
 
 get_script_address() {
-    plutus_script_to_address $validatorFile $scriptAddressFile
+    plutus_script_to_address
     cat $scriptAddressFile
 }
 
 get_policy_id() {
-    $cli transaction policyid --script-file $policyFile
+    $cli transaction policyid --script-file $policyScriptFile
+}
+
+store_policy_id() {
+    $policyId=$($cli transaction policyid --script-file $policyScriptFile)
 }
 
 get_auth_asset() {
@@ -68,19 +66,28 @@ construct_and_submit_genesis_tx() {
     # Since the key holder wallet is going to hold a single UTxO after the
     # distribution, we can get the first UTxO of the wallet address and use
     # it as the genesis UTxO:
-    $genesisUTxO=$(get_first_utxo_of $keyHolderAddressFile)
+    $genesisUTxO=$(get_first_utxo_of $keyHolder)
     
     # Generating the validation script, minting script,
-    $qvf generate scripts     \ # the command
-        $keyHolderPubKeyHash  \ # key holder's pub key hash.
-        $genesisUTxO          \ # auth token identifier utxo.
-        $tokenName            \ # auth token name.
-        $tokenCount           \ # auth token count.
-        $policyFile           \ # output minitng script file.
-        $validatorFile        \ # output validation script file.
-        $notStartedDatum      \ # output file for `NotStarted` datum.
-        $initiateFundRedeemer \ # output file for `InitiateFund` redeemer.
-        $memptyDatum            # output file for `InProgress mempty` datum.
+    $qvf generate scripts     \
+        # key holder's pub key hash:
+        $keyHolderPubKeyHash  \
+        # auth token identifier utxo:
+        $genesisUTxO          \
+        # auth token name:
+        $tokenName            \
+        # auth token count:
+        $tokenCount           \
+        # output minitng script file:
+        $policyScript         \
+        # output validation script file:
+        $scriptPlutusFile     \
+        # output file for `NotStarted` datum:
+        $notStartedDatum      \
+        # output file for `InitiateFund` redeemer:
+        $initiateFundRedeemer \
+        # output file for `InProgress mempty` datum:
+        $memptyDatum
     
     scriptAddr=$(get_script_address)
     authAsset=$(get_auth_asset)
@@ -95,15 +102,24 @@ construct_and_submit_genesis_tx() {
     $cli transaction build                         \
         --babbage-era                              \
         $MAGIC                                     \
-        --tx-in $genesisUTxO                       \ # consuming the utxo from key holder's wallet.
-        --tx-in-collateral $genesisUTxO            \ # using that same utxo as collateral.
-        --tx-out "$firstUTxO"                      \ # sending the tokens to the script address.
-        --tx-out-datum-hash $notStartedDatumHash   \ # attaching the hash of the `NotStarted` datum to the utxo being produced.
-        --mint "$tokenCount $authAsset"            \ # minting of 10 authentication tokens.
-        --mint-script-file $policyFile             \ # providing the serialized minting script.
-        --mint-redeemer-file $initiateFundRedeemer \ # providing the required redeemer (the value is not important).
-        --change-address $keyHolderAddress         \ # returning the excess ADA back to the key holder.
-        --protocol-params-file protocol.json       \ # this file can be generated using the `cardano-cli` application.
+        # consuming the utxo from key holder's wallet:
+        --tx-in $genesisUTxO                       \
+        # using that same utxo as collateral:
+        --tx-in-collateral $genesisUTxO            \
+        # sending the tokens to the script address:
+        --tx-out "$firstUTxO"                      \
+        # attaching the hash of the `NotStarted` datum to the utxo being produced:
+        --tx-out-datum-hash $notStartedDatumHash   \
+        # minting of 10 authentication tokens:
+        --mint "$tokenCount $authAsset"            \
+        # providing the serialized minting script:
+        --mint-script-file $policyScript           \
+        # providing the required redeemer (the value is not important):
+        --mint-redeemer-file $initiateFundRedeemer \
+        # returning the excess ADA back to the key holder:
+        --change-address $keyHolderAddress         \
+        # this file can be generated using the `cardano-cli` application:
+        --protocol-params-file protocol.json       \
         --out-file tx.unsigned 
     
     # Signing of the transaction:
@@ -142,7 +158,7 @@ initiate_fund() {
         --tx-in-collateral $utxoFromKeyHolder         \
         --tx-in $utxoWithAllAuths                     \
         --tx-in-datum-file $notStartedDatum           \
-        --tx-in-script-file $validatorFile            \
+        --tx-in-script-file $scriptPlutusFile         \
         --tx-in-redeemer-file $initiateFundRedeemer   \
         --required-signer $keyHolderSigningKeyFile    \
         $txOut                                        \
