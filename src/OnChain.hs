@@ -656,7 +656,6 @@ mkQVFValidator qvfParams datum action ctx =
               traceIfFalse
                 "E28"
                 (isOutputDatumValid $ InProgress newDatum)
-              True
               -- }}}
       -- }}}
     (Closed _            , _                           ) ->
