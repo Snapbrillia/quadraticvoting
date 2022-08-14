@@ -162,20 +162,14 @@ unsafeTokenNameToHex =
 main :: IO ()
 main =
   let
-    helpCurrDatum     :: String
-    helpCurrDatum     = "<current.datum>"
-    helpUpdatedDatum  :: String
-    helpUpdatedDatum  = "<updated.datum>"
-    helpRedeemer      :: String
-    helpRedeemer      = "<action.redeemer>"
-    commonLastThree   = [helpCurrDatum, helpUpdatedDatum, helpRedeemer]
+    -- {{{
     makeHelpText :: String -> String -> String -> [String] -> String
     makeHelpText description elem0 elem1 restOfElems =
       -- {{{
       let
         elems           = elem0 : elem1 : restOfElems
         cmd             :: String
-        cmd             = "cabal run qvf-cli -- "
+        cmd             = "qvf-cli "
         makeBlank x     = replicate x ' '
         preBlank        :: String
         preBlank        = "\t" ++ makeBlank (length cmd)
@@ -194,6 +188,16 @@ main =
       ++ concat elemsWithBlanks
       ++ preBlank ++ last elems ++ "\n"
       -- }}}
+
+    -- SUB-HELP TEXTS: 
+    -- {{{
+    helpCurrDatum     :: String
+    helpCurrDatum     = "<current.datum>"
+    helpUpdatedDatum  :: String
+    helpUpdatedDatum  = "<updated.datum>"
+    helpRedeemer      :: String
+    helpRedeemer      = "<action.redeemer>"
+    commonLastThree   = [helpCurrDatum, helpUpdatedDatum, helpRedeemer]
     toHexHelp         :: String
     toHexHelp         =
       -- {{{
@@ -213,6 +217,15 @@ main =
         "datum-has-project"
         "{current-datum-json-value}"
         ["<project.pkh>"]
+      -- }}}
+    datumDeadlineHelp :: String
+    datumDeadlineHelp =
+      -- {{{
+      makeHelpText
+        "Check if a given datum has a deadline further in future:"
+        "datum-has-later-deadline"
+        "{current-datum-json-value}"
+        ["<new-deadline>"]
       -- }}}
     prettyDatumHelp   :: String
     prettyDatumHelp   =
@@ -330,6 +343,9 @@ main =
         , helpRedeemer
         ]
       -- }}}
+    -- }}}
+
+    -- GENERIC HELP TEXT: 
     helpText          :: String
     helpText          =
       -- {{{
@@ -341,33 +357,37 @@ main =
       ++ "options are:\n\n"
 
       ++ "Primary interactions:\n"
-      ++ "\tcabal run qvf-cli -- add-project --help\n"
-      ++ "\tcabal run qvf-cli -- donate      --help\n"
-      ++ "\tcabal run qvf-cli -- contribute  --help\n\n"
+      ++ "\tqvf-cli add-project --help\n"
+      ++ "\tqvf-cli donate      --help\n"
+      ++ "\tqvf-cli contribute  --help\n\n"
 
       ++ "Utility:\n"
-      ++ "\tcabal run qvf-cli -- generate scripts  --help\n"
-      ++ "\tcabal run qvf-cli -- datum-has-project --help\n"
-      ++ "\tcabal run qvf-cli -- pretty-datum      --help\n"
-      ++ "\tcabal run qvf-cli -- merge-datums      --help\n"
-      ++ "\tcabal run qvf-cli -- data-to-cbor      --help\n"
-      ++ "\tcabal run qvf-cli -- string-to-hex     --help\n\n"
+      ++ "\tqvf-cli generate scripts         --help\n"
+      ++ "\tqvf-cli datum-has-project        --help\n"
+      ++ "\tqvf-cli datum-has-later-deadline --help\n"
+      ++ "\tqvf-cli pretty-datum             --help\n"
+      ++ "\tqvf-cli merge-datums             --help\n"
+      ++ "\tqvf-cli data-to-cbor             --help\n"
+      ++ "\tqvf-cli string-to-hex            --help\n\n"
 
       ++ "Limited to key holder:\n"
-      ++ "\tcabal run qvf-cli -- set-deadline                   --help\n"
-      ++ "\tcabal run qvf-cli -- unset-deadline                 --help\n"
-      ++ "\tcabal run qvf-cli -- generate distribution-redeemer --help\n\n"
+      ++ "\tqvf-cli set-deadline                   --help\n"
+      ++ "\tqvf-cli unset-deadline                 --help\n"
+      ++ "\tqvf-cli generate distribution-redeemer --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
+
     printHelp         :: IO ()
     printHelp         = putStrLn helpText
+
     andPrintSuccess :: FilePath -> IO () -> IO ()
     andPrintSuccess outFile ioAction = do
       -- {{{
       ioAction
       putStrLn $ outFile ++ " generated SUCCESSFULLY."
       -- }}}
+
     fromAction action currDatum mDOF rOF =
       -- {{{
       case OC.updateDatum action currDatum of
@@ -388,6 +408,7 @@ main =
               writeRedeemer
           -- }}}
       -- }}}
+
     printGenerateHelp :: String -> IO ()
     printGenerateHelp genStr =
       -- {{{
@@ -399,6 +420,7 @@ main =
         _                       ->
           printHelp
       -- }}}
+
     printActionHelp :: String -> IO ()
     printActionHelp action =
       -- {{{
@@ -417,6 +439,8 @@ main =
           putStrLn distributeHelp
         "datum-has-project" ->
           putStrLn datumHasProjHelp
+        "datum-has-later-deadline" ->
+          putStrLn datumDeadlineHelp
         "pretty-datum"      ->
           putStrLn prettyDatumHelp
         "data-to-cbor"      ->
@@ -428,6 +452,7 @@ main =
         _                   ->
           printHelp
       -- }}}
+
     fromConcreteDataValue :: LBS.ByteString
                           -> (String -> IO a)
                           -> (Data -> IO a)
@@ -445,6 +470,7 @@ main =
           dataToIO dataData
           -- }}}
       -- }}}
+
     fromDatumValueHelper :: LBS.ByteString
                          -> (String -> IO a)
                          -> IO a
@@ -455,6 +481,7 @@ main =
       fromConcreteDataValue datVal parseFailureAction $ \dataData ->
         maybe badDataAction dataToIO $ PlutusTx.fromData dataData
       -- }}}
+
     fromDatumValue :: LBS.ByteString
                    -> (OC.QVFDatum -> IO ())
                    -> IO ()
@@ -467,12 +494,14 @@ main =
         )
         (putStrLn "FAILED: Improper data.")
       -- }}}
+
     actOnData :: String -> (OC.QVFDatum -> IO ()) -> IO ()
     actOnData datumJSON datumToIO = do
       -- {{{
       datumVal <- LBS.readFile datumJSON
       fromDatumValue datumVal datumToIO
       -- }}}
+    -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
@@ -572,6 +601,40 @@ main =
           OC.NotStarted      -> putStrLn "False"
           OC.Closed     info -> fromQVFInfo info
           OC.InProgress info -> fromQVFInfo info
+      -- }}}
+    "datum-has-later-deadline" : datumJSONStr : deadlineStr : _         ->
+      -- {{{
+      fromDatumValue (fromString datumJSONStr) $ \givenDatum ->
+        case Ledger.POSIXTime <$> readMaybe deadlineStr of
+          Nothing ->
+            -- {{{
+            putStrLn "FAILED to parse deadline."
+            -- }}}
+          Just newDeadline ->
+            -- {{{
+            case givenDatum of
+              OC.InProgress info ->
+                -- {{{
+                case OC.qvfDeadline info of
+                  Just currDeadline ->
+                    -- {{{
+                    print $ currDeadline > newDeadline
+                    -- }}}
+                  Nothing           ->
+                    -- {{{
+                    -- Since this endpoint is meant to be used for when the
+                    -- key holder intends to bring the deadline closer, a
+                    -- @Nothing@ deadline means that this UTxO doesn't need
+                    -- to be updated (checkout `QVFDatum`'s @Semigroup@ 
+                    -- instance).
+                    putStrLn "False"
+                    -- }}}
+                -- }}}
+              _                  ->
+                -- {{{
+                putStrLn "False"
+                -- }}}
+            -- }}}
       -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
@@ -723,5 +786,6 @@ main =
           (Just dOF)
           rOF
       -- }}}
-    _              -> printHelp
+    _                                                                   ->
+      printHelp
 -- }}}

@@ -624,7 +624,7 @@ mkQVFValidator qvfParams datum action ctx =
                "E27"
                (enoughAddedInOutput contribution)
           && traceIfFalse
-               "28"
+               "E28"
                (isOutputDatumValid $ InProgress newDatum)
           && traceIfTrue
                "E5"
@@ -633,21 +633,31 @@ mkQVFValidator qvfParams datum action ctx =
       -- }}}
     (InProgress currDatum, SetDeadline mNewDl          ) ->
       -- {{{
-      signedByKeyHolder () &&
-      case (qvfDeadline currDatum, mNewDl) of
-        (_, Just newDl) ->
-          -- {{{
-             traceIfTrue
-               "E29"
-               (deadlineTouched newDl)
-          && oneTokenInOneTokenOut ()
-          -- For extending a deadline, updating only one of the UTxO's
-          -- suffices (check the @mappend@ implementation of the @QVFInfo@).
-          -- }}}
-        _               ->
-          -- {{{
-          True
-          -- }}}
+      case setDeadlineOfDatum contribution currDatum of
+        Left err       ->
+          traceError err
+        Right newDatum ->
+          signedByKeyHolder () &&
+          case (qvfDeadline currDatum, mNewDl) of
+            (_, Just newDl) ->
+              -- {{{
+                 traceIfTrue
+                   "E29"
+                   (deadlineTouched newDl)
+              && oneTokenInOneTokenOut ()
+              && traceIfFalse
+                   "E28"
+                   (isOutputDatumValid $ InProgress newDatum)
+              -- For extending a deadline, updating only one of the UTxO's
+              -- suffices (check the @mappend@ implementation of the @QVFInfo@).
+              -- }}}
+            _               ->
+              -- {{{
+              traceIfFalse
+                "E28"
+                (isOutputDatumValid $ InProgress newDatum)
+              True
+              -- }}}
       -- }}}
     (Closed _            , _                           ) ->
       -- {{{
@@ -918,6 +928,14 @@ addContributionToDatum contribution currDatum =
   -- }}}
 
 
+{-# INLINABLE addContributionToDatum #-}
+setDeadlineOfDatum :: Maybe POSIXTime
+                   -> QVFInfo
+                   -> Either BuiltinString QVFInfo
+setDeadlineOfDatum mNewDeadline currDatum =
+  Right $ currDatum {qvfDeadline = mNewDeadline}
+
+
 {-# INLINABLE updateDatum #-}
 updateDatum :: QVFAction -> QVFDatum -> Either BuiltinString QVFDatum
 updateDatum action datum =
@@ -938,8 +956,8 @@ updateDatum action datum =
     (InProgress currDatum, SetDeadline mNewDeadline   ) ->
       -- {{{
       -- Since this function is only used by the CLI application, this
-      -- invokation results to a non-conditional acceptance of the new deadline.
-      Right $ InProgress $ currDatum {qvfDeadline = mNewDeadline}
+      -- is an unconditional acceptance of the new deadline.
+      InProgress <$> setDeadlineOfDatum mNewDeadline currDatum
       -- }}}
     _                                                   ->
       -- {{{

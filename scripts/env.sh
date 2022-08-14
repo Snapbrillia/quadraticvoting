@@ -4,17 +4,26 @@ export MAGIC='--testnet-magic 1097911063'
 
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
 export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
-export preDir="$HOME/quadraticvoting/testnet"
-cli="cardano-cli"
-qvf="qvf-cli"
-# qvf="cabal run qvf-cli --"
+export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet"
+export cli="cardano-cli"
+export qvf="qvf-cli"
+# export qvf="cabal run qvf-cli --"
 # ========================================== #
 
-export policyIdFile="$preDir/qvf.symbol"
+export keyHolder="keyHolder"
+export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
+export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
+export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
+export scriptLabel="qvf"
+export scriptPlutusFile="$preDir/$scriptLabel.plutus"
+export scriptAddressFile="$preDir/$scriptLabel.addr"
+export policyIdFile="$preDir/$scriptLabel.symbol"
 export tokenNameHexFile="$preDir/token.hex"
 export policyScriptFile="$preDir/minting.plutus"
-export scriptPlutusFile="$preDir/qvf.plutus"
-export scriptAddressFile="$preDir/qvf.addr"
+export authAssetUTxOFile="$preDir/authAsset.utxo"
+export protocolsFile="$preDir/protocol.json"
+export txBody="$preDir/tx.unsigned"
+export txSigned="$preDir/tx.signed"
 
 
 # Generates a key pair.
@@ -114,6 +123,13 @@ get_first_utxo_of() {
         | sed 1,2d                        \
         | awk 'FNR == 1 {print $1"#"$2}'`
 }
+get_nth_utxo_of() {
+    echo `$cli query utxo                    \
+        --address $(cat $preDir/$1.addr)     \
+        $MAGIC                               \
+        | sed 1,2d                           \
+        | awk 'FNR == '$2' {print $1"#"$2}'`
+}
 
 
 # Returns a list of all UTxO's available at the given wallet address file, each
@@ -180,7 +196,7 @@ show_utxo_tables_from_to () {
 #       not a harmful limitation, it just fails if the given wallet has tokens
 #       stored inside.
 #
-# Takes 5 arguments:
+# Takes 4 arguments:
 #   1. The spending wallet number/name,
 #   2. Starting number of the receiving wallets,
 #   3. Ending number of the receiving wallets,
@@ -216,8 +232,6 @@ distribute_from_to_wallets() {
     echo "Output addresses are:"
     echo $tx_out_str
 
-    txBody="$preDir/distTx.unsigned"
-    txSigned="$preDir/distTx.signed"
     # Transaction
     $cli transaction build             \
         --alonzo-era                   \
@@ -228,7 +242,7 @@ distribute_from_to_wallets() {
         --out-file $txBody
 
     $cli transaction sign                         \
-        --tx-body-file $txBod    y                \
+        --tx-body-file $txBody                    \
         --signing-key-file $(cat $preDir/$1.skey) \
         $MAGIC                                    \
         --out-file $txSigned
@@ -271,8 +285,6 @@ drain_from_wallets_to() {
     done
 
     # Transaction
-    txBody="$preDir/distTx.unsigned"
-    txSigned="$preDir/distTx.signed"
     $cli transaction build                 \
         --alonzo-era                       \
         $MAGIC                             \
@@ -360,11 +372,34 @@ interact_with_smart_contract() {
         --tx-file tx.signed
 }
 
-# Updates protocol.json to be current
-update_protocol_json() {
-    $cli query protocol-parameters        \
-        $MAGIC                            \
-        --out-file protocol.json
+
+# Generate a fresh protocol parametsrs JSON file.
+generate_protocol_params() {
+    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+}
+
+
+# Takes at least 1 argument:
+#   1. The signing key file.
+#   *. Any additional signing key files.
+sign_tx_by() {
+    signArg=""
+    for i in $@; do
+      signArg="$signArg --signing-key-file $i"
+    done
+    $cli transaction sign      \
+        --tx-body-file $txBody \
+        $signArg               \
+        $MAGIC                 \
+        --out-file $txSigned
+}
+
+
+# Submits $txSigned to the chain.
+submit_tx() {
+    $cli transaction submit \
+        $MAGIC              \
+        --tx-file $txSigned
 }
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell

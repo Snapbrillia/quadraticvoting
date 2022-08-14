@@ -98,7 +98,7 @@ get_datum_value_from_hash() {
 }
 
 
-# Assumes the object format os the one returned by
+# Assumes the object format is the one returned by
 # `get_utxos_hashes_lovelaces`.
 #
 # Takes 1 argument:

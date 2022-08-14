@@ -21,6 +21,9 @@ datumValue=""
 lovelace=""
 newLovelace=""
 
+# Takes 2 arguments:
+#   1. The JSON object,
+#   2. Lovelace to add to script's UTxO.
 setCommonVariables() {
   utxo=$(echo $1 | jq .utxo)
   datumHash=$(echo $1 | jq .datumHash)
@@ -53,13 +56,27 @@ get_current_state() {
 }
 
 
+# Takes 2 arguments:
+#   1. Payer's wallet number/name.
+#   2. Payer's UTxO to be spent.
+#   3. (Optional) Custom change address.
+#   4. (Optional) Required signer's wallet number/name.
 update_contract() {
-  protocols="$preDir/protocol.json"
   scriptFile="$preDir/qvf.plutus"
   donorAddrFile="$preDir/$1.addr"
   donorSKeyFile="$preDir/$1.skey"
   utxoFromDonor="$2"
   utxoAtScript=$(remove_quotes $utxo)
+  changeAddress=$(cat $donorAddrFile)
+  if [ ! -z "$3" ]; then
+    changeAddress=$3
+  fi
+  additionalSigner=""
+  requiredSigner=""
+  if [ ! -z "$4" ]; then
+    additionalSigner="$preDir/$4.skey"
+    requiredSigner="--required-signer $additionalSigner"
+  fi
 
   echo $scriptFile
   echo $donorAddrFile
@@ -68,34 +85,83 @@ update_contract() {
   echo $utxoAtScript
 
   # Generate the protocol parameters:
-  $cli query protocol-parameters $MAGIC --out-file $protocols
+  generate_protocol_params
 
   # Construct the transaction:
-  $cli transaction build --babbage-era $MAGIC                       \
-      --tx-in $utxoFromDonor                                        \
-      --tx-in-collateral $utxoFromDonor                             \
-      --tx-in $utxoAtScript                                         \
-      --tx-in-datum-file $currDatum                                 \
-      --tx-in-script-file $scriptFile                               \
-      --tx-in-redeemer-file $action                                 \
-      --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
-      --tx-out-datum-embed-file $updatedDatum                       \
-      --change-address $(cat $donorAddrFile)                        \
-      --protocol-params-file $protocols                             \
-      --cddl-format                                                 \
-      --out-file $preDir/tx.unsigned
+  $cli transaction build --babbage-era $MAGIC                     \
+    --tx-in $utxoFromDonor                                        \
+    --tx-in-collateral $utxoFromDonor                             \
+    --tx-in $utxoAtScript                                         \
+    --tx-in-datum-file $currDatum                                 \
+    --tx-in-script-file $scriptFile                               \
+    --tx-in-redeemer-file $action                                 \
+    --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
+    --tx-out-datum-embed-file $updatedDatum                       \
+    --change-address $changeAddress                               \
+    --protocol-params-file $protocolsFile                         \
+    --cddl-format   $requiredSigner                               \
+    --out-file $txBody
   
   # Sign the transaction:
-  $cli transaction sign $MAGIC           \
-      --tx-body-file $preDir/tx.unsigned \
-      --signing-key-file $donorSKeyFile  \
-      --out-file $preDir/tx.signed
+  sign_tx_by $donorSKeyFile $additionalSigner
   
   # Submit the transaction:
-  $cli transaction submit $MAGIC --tx-file $preDir/tx.signed
+  submit_tx
+
   echo
   $qvf pretty-datum $(cat $updatedDatum)
   echo "DONE."
+}
+
+
+# Takes 1 argument:
+#   1. New POSIX time in milliseconds.
+#   2. (Optional) Number/name of an alternate wallet for covering the fee.
+#   3. (Optional) Starting index for script UTxOs.
+set_earlier_deadline() {
+  payer=$keyHolder
+  if [ ! -z "$2" ]; then
+    payer=$2
+  fi
+  utxosAndHashes=$(get_utxos_hashes_lovelaces $scriptAddr $policyId$tokenName)
+  last=$(echo $utxosAndHashes | jq length)
+  startInd=0
+  if [ ! -z "$3" ] && [ $3 -lt $last ]; then
+    startInd=$3
+  fi
+  for i in $(seq $startInd $last); do
+    obj=$(echo $utxosAndHashes | jq -c .[$i])
+    obj=$(add_datum_value_to_utxo $obj)
+    datumValue=$(echo $obj | jq .datumValue)
+    setCommonVariables $(echo $obj | jq -c .) 0
+    shouldBeUpdated=$($qvf datum-has-later-deadline $datumValue $1)
+    for j in $shouldBeUpdated; do
+      if [ $j = "True" ] || [ $j = "False" ]; then
+        shouldBeUpdated=$j
+      else
+        shouldBeUpdated="False"
+      fi
+    done
+    if [ $shouldBeUpdated = "True" ]; then
+      txIn=$(get_first_utxo_of $payer)
+      echo "Generating datum and redeemer files..."
+      $qvf set-deadline  \
+	         $1            \
+           $currDatum    \
+	         $updatedDatum \
+           $action
+      echo "Datum and redeemer files generated."
+      update_contract $payer $txIn $(cat $preDir/$payer.addr) $keyHolder
+      break
+    else
+      echo "PASSED: Deadline doesn't need updating."
+      echo "CURRENT DATUM:"
+      echo $datumValue
+      echo
+      echo "NEW DEADLINE:"
+      echo $1
+    fi
+  done
 }
 
 
@@ -124,7 +190,7 @@ donate_from_to_with() {
          $currDatum    \
 	       $updatedDatum \
          $action
-    txIn=$(get_first_utxo_of_wallet $donorsAddr)
+    txIn=$(get_first_utxo_of $donorsAddr)
     update_contract $1 $txIn
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
     # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
@@ -138,7 +204,7 @@ donate_from_to_with() {
 #   2. Donation amount.
 contribute_from_with() {
   donorsAddr=$(cat $preDir/$1.addr)
-  txIn=$(get_first_utxo_of_wallet $donorsAddr)
+  txIn=$(get_first_utxo_of $donorsAddr)
   obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
   obj=$(add_datum_value_to_utxo $obj)
   setCommonVariables $(echo $obj | jq -c .) $2
@@ -170,7 +236,7 @@ contribute_from_with() {
 register_project() {
   projectsPKH=$(cat $preDir/$1.pkh)
   projectsAddr=$(cat $preDir/$1.addr)
-  txIn=$(get_first_utxo_of_wallet $projectsAddr)
+  txIn=$(get_first_utxo_of $projectsAddr)
   obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
   obj=$(add_datum_value_to_utxo $obj)
   setCommonVariables $(echo $obj | jq -c .) 2000000
