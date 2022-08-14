@@ -736,7 +736,7 @@ minLovelace = 2_000_000
 -- | Bigger value than the required minimum to
 --   leave some "headspace."
 minAuthLovelace :: Integer
-minAuthLovelace = 10_000_000
+minAuthLovelace = 2_000_000
 -- }}}
 
 

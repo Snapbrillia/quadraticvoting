@@ -240,6 +240,7 @@ main =
         , "<deadline-posix-milliseconds>"
         , "<output-minting.plutus>"
         , "<output-validation.plutus>"
+        , "<unit.redeemer>"
         , "<output-mempty.datum>"
         ]
       -- }}}
@@ -456,7 +457,7 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : tn : deadlineStr : mOF : vOF : dOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : tn : deadlineStr : mOF : vOF : rOF : dOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
         (Nothing   , _      ) ->
@@ -497,6 +498,7 @@ main =
                   -- {{{
                   andPrintSuccess mOF $ return ()
                   andPrintSuccess vOF $ return ()
+                  andPrintSuccess rOF $ writeJSON rOF ()
                   andPrintSuccess dOF $ writeJSON dOF (OC.initialDatum dl)
                   -- }}}
               -- }}}

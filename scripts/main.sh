@@ -6,8 +6,6 @@ scriptAddr=$(cat $scriptAddressFile)
 policyId=$(cat $policyIdFile)
 tokenName=$(cat $tokenNameHexFile)
 authAsset="$policyId.$tokenName"
-remoteAddr="Keyan@172.16.42.6"
-remoteDir="/e/cardanoTestnet"
 
 
 # CAUTIOUSLY DEFINING GLOBAL VARIABLES:
@@ -35,24 +33,12 @@ setCommonVariables() {
 # =====================================
 
 
-remoteCLI() {
-  scp scripts/donate.sh $remoteAddr:$remoteDir/donate.sh
-  ssh $remoteAddr "cd $remoteDir && donate.sh $1 $2 $3 $4"
-}
-
-
 get_current_state() {
-  utxosAndHashes=$(get_utxos_hashes_lovelaces $scriptAddr $policyId$tokenName)
-  last=$(echo $utxosAndHashes | jq length)
-  datumValues=""
-  for i in $(seq 0 $(expr $last - 1)); do
-    obj=$(echo $utxosAndHashes | jq .[$i])
-    utxo=$(echo $obj | jq .utxo)
-    datumHash=$(echo $obj | jq .datumHash)
-    datumValue=$(get_datum_value_from_hash $(remove_quotes $datumHash) | jq -c .json_value)
-    datumValues="$datumValues $datumValue"
-  done
-  $qvf merge-datums $datumValues
+  obj=$(bf_get_first_utxo_of_address $scriptAddr $policyId$tokenName)
+  utxo=$(echo $obj | jq .utxo)
+  datumHash=$(echo $obj | jq .datumHash)
+  datumValue=$(bf_get_datum_value_from_hash $(remove_quotes $datumHash) | jq -c .json_value)
+  $qvf pretty-datum $datumValue
 }
 
 
@@ -114,54 +100,27 @@ update_contract() {
 }
 
 
-# Takes 1 (up to 3) argument(s):
+# Takes 1 (or 2) argument(s):
 #   1. New POSIX time in milliseconds.
 #   2. (Optional) Number/name of an alternate wallet for covering the fee.
-#   3. (Optional) Starting index for script UTxOs.
 set_earlier_deadline() {
   payer=$keyHolder
   if [ ! -z "$2" ]; then
     payer=$2
   fi
-  utxosAndHashes=$(get_utxos_hashes_lovelaces $scriptAddr $policyId$tokenName)
-  last=$(echo $utxosAndHashes | jq length)
-  startInd=0
-  if [ ! -z "$3" ] && [ $3 -lt $last ]; then
-    startInd=$3
-  fi
-  for i in $(seq $startInd $last); do
-    obj=$(echo $utxosAndHashes | jq -c .[$i])
-    obj=$(add_datum_value_to_utxo $obj)
-    datumValue=$(echo $obj | jq .datumValue)
-    setCommonVariables $(echo $obj | jq -c .) 0
-    shouldBeUpdated=$($qvf datum-has-later-deadline $datumValue $1)
-    for j in $shouldBeUpdated; do
-      if [ $j = "True" ] || [ $j = "False" ]; then
-        shouldBeUpdated=$j
-      else
-        shouldBeUpdated="False"
-      fi
-    done
-    if [ $shouldBeUpdated = "True" ]; then
-      txIn=$(get_first_utxo_of $payer)
-      echo "Generating datum and redeemer files..."
-      $qvf set-deadline  \
-	         $1            \
-           $currDatum    \
-	         $updatedDatum \
-           $action
-      echo "Datum and redeemer files generated."
-      update_contract $payer $txIn $(cat $preDir/$payer.addr) $keyHolder
-      break
-    else
-      echo "PASSED: Deadline doesn't need updating."
-      echo "CURRENT DATUM:"
-      echo $datumValue
-      echo
-      echo "NEW DEADLINE:"
-      echo $1
-    fi
-  done
+  obj=$(bf_get_first_utxo_of_address $scriptAddr "$policyId$tokenName" | jq -c .)
+  obj=$(bf_add_datum_value_to_utxo $obj)
+  datumValue=$(echo $obj | jq .datumValue)
+  setCommonVariables $(echo $obj | jq -c .) 0
+  txIn=$(get_first_utxo_of $payer)
+  echo "Generating datum and redeemer files..."
+  $qvf set-deadline  \
+	     $1            \
+       $currDatum    \
+	     $updatedDatum \
+       $action
+  echo "Datum and redeemer files generated."
+  update_contract $payer $txIn $(cat $preDir/$payer.addr) $keyHolder
 }
 
 
@@ -178,28 +137,22 @@ donate_from_to_with() {
   if [ ! -z "$4" ]; then
     changeAddr=$4
   fi
-  obj=$(find_utxo_with_project $scriptAddr "$policyId$tokenName" $2)
-  len=$(echo $obj | jq length)
-  if [ $len -eq 0 ]; then
-    echo "FAILED to find the project."
-  else
-    obj=$(echo $obj | jq .[0])
-    setCommonVariables $(echo $obj | jq -c .) $3
-    echo $lovelace
-    echo $newLovelace
-    $qvf donate        \
-         $donorsPKH    \
-         $2            \
-         $3            \
-         $currDatum    \
-	       $updatedDatum \
-         $action
-    txIn=$(get_first_utxo_of $donorsAddr)
-    update_contract $1 $txIn $changeAddr
-    # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
-    # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
-    # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
-  fi
+  obj=$(bf_get_first_utxo_of_address $scriptAddr "$policyId$tokenName" $2)
+  setCommonVariables $(echo $obj | jq -c .) $3
+  echo $lovelace
+  echo $newLovelace
+  $qvf donate        \
+       $donorsPKH    \
+       $2            \
+       $3            \
+       $currDatum    \
+	     $updatedDatum \
+       $action
+  txIn=$(get_first_utxo_of $donorsAddr)
+  update_contract $1 $txIn $changeAddr
+  # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
+  # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
+  # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
 }
 
 
@@ -214,8 +167,8 @@ contribute_from_with() {
     changeAddr=$3
   fi
   txIn=$(get_first_utxo_of $donorsAddr)
-  obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
-  obj=$(add_datum_value_to_utxo $obj)
+  obj=$(bf_get_first_utxo_of_address $scriptAddr "$policyId$tokenName" | jq -c .)
+  obj=$(bf_add_datum_value_to_utxo $obj)
   setCommonVariables $(echo $obj | jq -c .) $2
   #
   echo
@@ -251,8 +204,8 @@ register_project() {
     changeAddr=$4
   fi
   txIn=$(get_first_utxo_of $projectsAddr)
-  obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
-  obj=$(add_datum_value_to_utxo $obj)
+  obj=$(bf_get_first_utxo_of_address $scriptAddr "$policyId$tokenName" | jq -c .)
+  obj=$(bf_add_datum_value_to_utxo $obj)
   setCommonVariables $(echo $obj | jq -c .) 2000000
   $qvf add-project   \
        $projectsPKH  \

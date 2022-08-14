@@ -18,12 +18,22 @@ export scriptLabel="qvf"
 export scriptPlutusFile="$preDir/$scriptLabel.plutus"
 export scriptAddressFile="$preDir/$scriptLabel.addr"
 export policyIdFile="$preDir/$scriptLabel.symbol"
+export policyId=$(cat $policyIdFile)
 export tokenNameHexFile="$preDir/token.hex"
 export policyScriptFile="$preDir/minting.plutus"
 export authAssetUTxOFile="$preDir/authAsset.utxo"
 export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
+
+# Removes the double quotes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_quotes() {
+  echo $1           \
+  | sed 's|[",]||g'
+}
 
 
 # Generates a key pair.
