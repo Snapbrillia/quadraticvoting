@@ -45,7 +45,7 @@ import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
-import           Prelude                     (Show, show)
+import           Prelude                     (Show, show, String)
 import qualified Prelude                     as P
 import           Utils
 -- }}}
@@ -57,7 +57,6 @@ data QVFParams = QVFParams
   { qvfKeyHolder  :: !PubKeyHash
   , qvfSymbol     :: !CurrencySymbol
   , qvfTokenName  :: !TokenName
-  , qvfTokenCount :: !Integer
   }
 
 PlutusTx.makeLift ''QVFParams
@@ -74,60 +73,35 @@ qvfAsset qvf =
 
 -- DATUM
 -- {{{
--- DONATIONS
--- {{{
-data Donations = Donations
-  -- Switching to @Map@ for code simplification.
-  -- { getDonations :: ![(PubKeyHash, Integer)]
-  { getDonations :: !(Map PubKeyHash Integer)
-  }
-
-instance Show Donations where
-  show (Donations ds) =
-    -- {{{
-    let
-      vs      = Map.elems ds
-      total   = lovelaceToAda $ foldr (+) 0 vs
-      dsCount = length ds
-    in
-         "Total of "
-    P.++ show total
-    P.++ " Ada, by "
-    P.++ show dsCount
-    P.++ " donor(s)."
-    -- }}}
-
-instance Eq Donations where
-  {-# INLINABLE (==) #-}
-  Donations ds0 == Donations ds1 = ds0 == ds1
-
-instance Semigroup Donations where
-  {-# INLINABLE (<>) #-}
-  (Donations ds0) <> (Donations ds1) =
-    Donations (Map.unionWith (+) ds0 ds1)
-
-instance Monoid Donations where
-  {-# INLINABLE mempty #-}
-  mempty = Donations Map.empty
-
-PlutusTx.unstableMakeIsData ''Donations
--- }}}
-
-
 -- PROJECT
 -- {{{
 data Project = Project
   { pPubKeyHash :: !PubKeyHash
   , pLabel      :: !BuiltinByteString
   , pRequested  :: !Integer
-  , pDonations  :: !Donations
+  , pDonations  :: !(Map PubKeyHash Integer)
   }
+
+showDonations :: Map PubKeyHash Integer -> String
+showDonations ds =
+  -- {{{
+  let
+    vs      = Map.elems ds
+    total   = lovelaceToAda $ foldr (+) 0 vs
+    dsCount = length ds
+  in
+       "Total of "
+  P.++ show total
+  P.++ " Ada, by "
+  P.++ show dsCount
+  P.++ " donor(s)."
+  -- }}}
 
 instance Show Project where
   show Project {..} =
     -- {{{
-         "\t{ Label:     " P.++ show pLabel     P.++ "\n"
-    P.++ "\t, Donations: " P.++ show pDonations P.++ "\n"
+         "\t{ Label:     " P.++ show          pLabel     P.++ "\n"
+    P.++ "\t, Donations: " P.++ showDonations pDonations P.++ "\n"
     P.++ "\t}\n"
     -- }}}
 
@@ -142,53 +116,36 @@ PlutusTx.unstableMakeIsData ''Project
 
 -- QVF DATUM
 -- {{{
-data QVFInfo = QVFInfo
-  { qvfProjects :: ![Project]
-  , qvfPool     :: !Integer
-  , qvfDeadline :: !(Maybe POSIXTime)
+data QVFDatum = QVFDatum
+  { qvfProjects   :: ![Project]
+  , qvfPool       :: !Integer
+  , qvfDeadline   :: !POSIXTime
+  , qvfInProgress :: !Bool
   }
 
-instance Show QVFInfo where
-  show QVFInfo {..} =
+instance Show QVFDatum where
+  show QVFDatum {..} =
     -- {{{
-         "Projects:\n"   P.++ P.concatMap show qvfProjects
-    P.++ "Pool:\n\t"     P.++ show (lovelaceToAda qvfPool) P.++ " Ada\n"
-    P.++ "Deadline:\n\t" P.++ show qvfDeadline P.++ "\n"
+    ( if qvfInProgress then 
+        "\n<<<  IN PROGRESS  >>>\n"
+      else
+        "\n<<< FUNDING ENDED >>>\n"
+    ) P.++ "Projects:\n"   P.++ P.concatMap show qvfProjects
+      P.++ "Pool:\n\t"     P.++ show (lovelaceToAda qvfPool) P.++ " Ada\n"
+      P.++ "Deadline:\n\t" P.++ show qvfDeadline P.++ "\n"
     -- }}}
 
-
-{-# INLINABLE mergeProjects #-}
-mergeProjects :: [Project] -> [Project] -> [Project]
-mergeProjects projects0 projects1 =
-  -- {{{
-  let
-    foldFn :: Project
-           -> ([Project], [Project])
-           -> ([Project], [Project])
-    foldFn project (acc, ps1) =
-      -- {{{
-      case pluck (== project) ps1 of
-        Nothing ->
-          (project : acc, ps1)
-        Just (p, newPs1)  ->
-          let
-            newProject =
-              project
-                {pDonations = pDonations project <> pDonations p}
-          in
-          (newProject : acc, newPs1)
-      -- }}}
-    (initAcc, newProjects1)   =
-      foldr foldFn ([], projects1) projects0
-  in
-  initAcc ++ newProjects1
-  -- }}}
-
-
-instance Eq QVFInfo where
+instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   qvf0 == qvf1 =
-    if qvfPool qvf0 == qvfPool qvf1 then
+    -- {{{
+    let
+      cond =
+           qvfPool       qvf0 == qvfPool       qvf1
+        && qvfDeadline   qvf0 == qvfDeadline   qvf1
+        && qvfInProgress qvf0 == qvfInProgress qvf1
+    in
+    if cond then
       -- {{{
       let
         go []         []  = True
@@ -205,59 +162,17 @@ instance Eq QVFInfo where
       -- {{{
       False
       -- }}}
+    -- }}}
 
-instance Semigroup QVFInfo where
-  {-# INLINABLE (<>) #-}
-  (QVFInfo projs0 pool0 mDl0) <> (QVFInfo projs1 pool1 mDl1) =
-    QVFInfo
-      (mergeProjects projs0 projs1)
-      (pool0 + pool1)
-      ( case (mDl0, mDl1) of
-          (Nothing, Nothing)   -> Nothing
-          (Just dl, Nothing)   -> Just dl
-          (Nothing, Just dl)   -> Just dl
-          (Just dl0, Just dl1) -> Just $ max dl0 dl1
-      )
+initialDatum :: POSIXTime -> QVFDatum
+initialDatum dl = QVFDatum
+  { qvfProjects   = []
+  , qvfPool       = 0
+  , qvfDeadline   = dl
+  , qvfInProgress = True
+  }
 
-instance Monoid QVFInfo where
-  {-# INLINABLE mempty #-}
-  mempty = QVFInfo [] 0 Nothing
-
-PlutusTx.unstableMakeIsData ''QVFInfo
-
-
-data QVFDatum
-  = NotStarted
-  | InProgress QVFInfo
-  | Closed     QVFInfo
-
-instance Show QVFDatum where
-  show NotStarted        = "\n<<<  NOT STARTED  >>>"
-  show (InProgress info) = "\n<<<  IN PROGRESS  >>>\n" P.++ show info
-  show (Closed     info) = "\n<<< FUNDING ENDED >>>\n" P.++ show info
-
-instance Eq QVFDatum where
-  {-# INLINABLE (==) #-}
-  NotStarted       == NotStarted       = True
-  InProgress info0 == InProgress info1 = info0 == info1
-  Closed     info0 == Closed     info1 = info0 == info1
-  _                == _                = False
-
-instance Semigroup QVFDatum where
-  {-# INLINABLE (<>) #-}
-  InProgress info0 <> InProgress info1 = InProgress (info0 <> info1)
-  Closed info0     <> Closed info1     = if info0 == info1 then Closed info0 else NotStarted
-  _                <> _                = NotStarted
-
-instance Monoid QVFDatum where
-  {-# inlinable mempty #-}
-  mempty = InProgress mempty
-
-PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('NotStarted, 0)
-  , ('InProgress, 1)
-  , ('Closed    , 2)
-  ]
+PlutusTx.unstableMakeIsData ''QVFDatum
 -- }}}
 -- }}}
 
@@ -293,21 +208,19 @@ PlutusTx.unstableMakeIsData ''DonateParams
 -- QVF ACTION
 -- {{{
 data QVFAction
-  = InitiateFund                  -- ^ Endpoint meant to be invoked by the keyholder for distributing authentication tokens.
-  | AddProject AddProjectParams   -- ^ Add projects that can be funded.
-  | Donate     [DonateParams]     -- ^ Attempt donation to a list of projects (identified simply by their public key hashes).
-  | Contribute Integer            -- ^ Add to the prize pool.
-  | Distribute                    -- ^ Distribute the fund to projects per QVF
-  | SetDeadline (Maybe POSIXTime) -- ^ Deadline before users can interact with the contract.
+  = AddProject AddProjectParams  -- ^ Add projects that can be funded.
+  | Donate     [DonateParams]    -- ^ Attempt donation to a list of projects (identified simply by their public key hashes).
+  | Contribute Integer           -- ^ Add to the prize pool.
+  | Distribute                   -- ^ Distribute the fund to projects per QVF
+  | SetDeadline POSIXTime        -- ^ Deadline before users can interact with the contract.
  
 
 PlutusTx.makeIsDataIndexed ''QVFAction
-  [ ('InitiateFund, 0)
-  , ('AddProject  , 1)
-  , ('Donate      , 2)
-  , ('Contribute  , 3)
-  , ('Distribute  , 4)
-  , ('SetDeadline , 5)
+  [ ('AddProject  , 0)
+  , ('Donate      , 1)
+  , ('Contribute  , 2)
+  , ('Distribute  , 3)
+  , ('SetDeadline , 4)
   ]
 -- }}}
 -- }}}
@@ -321,19 +234,18 @@ mkQVFValidator :: QVFParams
                -> QVFAction
                -> ScriptContext
                -> Bool
-mkQVFValidator qvfParams datum action ctx =
+mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
   -- {{{
   let
     keyHolder  = qvfKeyHolder qvfParams
     tokenAsset = qvfAsset qvfParams
     info       = scriptContextTxInfo ctx
 
-    -- | Helper function to count the provided
-    --   authentication tokens in a UTxO.
-    tokenCountIn :: TxOut -> Integer
-    tokenCountIn utxo =
+    -- | Checks if UTxO is carrying an authenticity tokens.
+    outputHasOneToken :: TxOut -> Bool
+    outputHasOneToken utxo =
       -- {{{
-      assetClassValueOf (txOutValue utxo) tokenAsset
+      assetClassValueOf (txOutValue utxo) tokenAsset == 1
       -- }}}
 
     -- | UTxO sitting at this script address being spent.
@@ -347,9 +259,8 @@ mkQVFValidator qvfParams datum action ctx =
           txInInfoResolved i
       -- }}}
 
-    -- | UTxO being sent to this script address.
-    --   Defined as a function to impose laziness.
-    --   Shouldn't fail for some of the endpoints.
+    -- | UTxO being sent to this script address. Defined as a function to
+    --   impose laziness. Shouldn't fail for some of the endpoints.
     ownOutput :: () -> TxOut
     ownOutput _ =
       -- {{{
@@ -360,21 +271,15 @@ mkQVFValidator qvfParams datum action ctx =
           traceError "E2"
       -- }}}
 
-    -- | Checks if the output UTxO is carrying a
-    --   specified amount of authenticity tokens.
-    outputHasXTokens :: TxOut -> Integer -> Bool
-    outputHasXTokens txOut x = tokenCountIn txOut == x
-
-    -- | Possible attached datum to the output UTxO.
-    --   Defined as a function to impose laziness.
+    -- | Possible attached datum to the output UTxO. Defined as a function to
+    --   impose laziness.
     mOutputDatum :: () -> Maybe QVFDatum
     mOutputDatum _ =
       -- {{{
       getDatumFromUTxO (ownOutput ()) (`findDatum` info)
       -- }}}
 
-    -- | Checks if the attached output datum is
-    --   properly updated.
+    -- | Checks if the attached output datum is properly updated.
     isOutputDatumValid :: QVFDatum -> Bool
     isOutputDatumValid newDatum =
       -- {{{
@@ -385,16 +290,16 @@ mkQVFValidator qvfParams datum action ctx =
           outputDatum == newDatum
       -- }}}
 
-    -- | Helper function to see if the given UTxO has
-    --   the given amount of Lovelaces.
+    -- | Helper function to see if the given UTxO has the given amount of
+    --   Lovelaces.
     utxoHasLovelaces :: TxOut -> Integer -> Bool
     utxoHasLovelaces txOut lovelaces =
       -- {{{
       txOutValue txOut == Ada.lovelaceValueOf lovelaces
       -- }}}
 
-    -- | Helper function to see if Lovelace count of @ownOutput@
-    --   has increased by a given amount.
+    -- | Helper function to see if Lovelace count of @ownOutput@ has
+    --   increased by a given amount.
     enoughAddedInOutput :: Integer -> Bool
     enoughAddedInOutput addedAmount =
       -- {{{
@@ -405,267 +310,126 @@ mkQVFValidator qvfParams datum action ctx =
       outVal == (inVal <> Ada.lovelaceValueOf addedAmount)
       -- }}}
 
-    -- | Checks authenticity of the input/output UTxO's.
-    --   Turned into a function to impose laziness.
+    -- | Checks authenticity of the input/output UTxO's.  Turned into a
+    --   function to impose laziness.
     oneTokenInOneTokenOut :: () -> Bool
     oneTokenInOneTokenOut _ =
       -- {{{
-         traceIfFalse "E3" (outputHasXTokens ownInput 1)
-      && traceIfFalse "E4" (outputHasXTokens (ownOutput ()) 1)
+         traceIfFalse "E3" (outputHasOneToken ownInput)
+      && traceIfFalse "E4" (outputHasOneToken $ ownOutput ())
       -- }}}
 
-    -- | Checks whether transaction's valid time range overlaps
-    --   with the <given deadline to infinity> interval.
+    -- | Checks whether transaction's valid time range overlaps with the
+    --   <given deadline to infinity> interval.
     deadlineTouched :: POSIXTime -> Bool
     deadlineTouched =
       -- {{{
       Interval.overlaps (txInfoValidRange info) . Interval.from
       -- }}}
 
-    -- | Checks whether transaction's valid time range is contained
-    --   within the <given deadline to infinity> interval.
+    -- | Checks whether transaction's valid time range is contained within the
+    --   <given deadline to infinity> interval.
     deadlinePassed :: POSIXTime -> Bool
     deadlinePassed dl =
       -- {{{
       Interval.from dl `Interval.contains` txInfoValidRange info
       -- }}}
 
-    -- | Checks if the deadline of the given datum has been
-    --   touched by transaction's valid range or not. Returns
-    --   @False@ if no deadline is set.
-    currDeadlineTouched :: QVFInfo -> Bool
-    currDeadlineTouched currDatum =
-      -- {{{
-      case qvfDeadline currDatum of
-        Nothing -> False
-        Just dl -> traceIfTrue "E5" $ deadlineTouched dl
-      -- }}}
-
-    -- | Checks if the deadline of the given datum has been
-    --   fully passed. Returns @False@ if no deadline is set.
-    currDeadlinePassed :: QVFInfo -> Bool
-    currDeadlinePassed =
-      -- {{{
-      maybe False deadlinePassed . qvfDeadline
-      -- }}}
-
     -- | Turned into a function to impose laziness.
     signedByKeyHolder :: () -> Bool
     signedByKeyHolder _ =
       -- {{{
-      traceIfFalse
-        "E6"
-        (txSignedBy info keyHolder)
+      traceIfFalse "E6" (txSignedBy info keyHolder)
       -- }}}
   in
-  case (datum, action) of
-    (NotStarted          , InitiateFund                ) ->
-      -- {{{
-      let
-        tokenCount      = qvfTokenCount qvfParams
-        outputsAreValid =
-          -- {{{
-          case getContinuingOutputs ctx of
-            [] ->
-              -- {{{
-              traceError "E7"
-              -- }}}
-            os ->
-              -- {{{
-                 all
-                   ( \o ->
-                       case getDatumFromUTxO o (`findDatum` info) of
-                         Nothing ->
-                           -- {{{
-                           traceError "E8"
-                           -- }}}
-                         Just oD ->
-                           -- {{{
-                              traceIfFalse
-                                "E9"
-                                (outputHasXTokens o 1)
-                           && traceIfFalse
-                                "E10"
-                                (lovelaceFromValue (txOutValue o) == minAuthLovelace)
-                           && traceIfFalse
-                                "E11"
-                                (oD == InProgress mempty)
-                           -- }}}
-                   )
-                   os
-              && length os == tokenCount
-              -- }}}
-          -- }}}
-      in
-         traceIfFalse
-           "E12"
-           (outputHasXTokens ownInput tokenCount)
-      && traceIfFalse
-           "E13"
-           outputsAreValid
-      && signedByKeyHolder ()
-      -- }}}
-    (NotStarted          , _                           ) ->
-      -- {{{
-      traceError "E14"
-      -- }}}
-    (_                   , Distribute                  ) ->
-      -- {{{
-      let
-        datumFold inTx acc  =
-          -- {{{
-          let
-            o = txInInfoResolved inTx
-          in
-          if outputHasXTokens o 1 then
+  if qvfInProgress then
+    case action of
+      AddProject addProjectParams  ->
+        -- {{{
+        case addProjectToDatum addProjectParams currDatum of
+          Left err       ->
+            traceError err
+          Right newDatum ->
+               traceIfFalse "E23" (enoughAddedInOutput minLovelace)
+            && traceIfFalse "E24" (isOutputDatumValid newDatum)
+            && traceIfTrue  "E5"  (deadlineTouched qvfDeadline)
+            && oneTokenInOneTokenOut ()
+        -- }}}
+      Donate dPs                   ->
+        -- {{{
+        case addDonationsToDatum dPs currDatum of
+          Left err       ->
+            traceError err
+          Right (totalDonations, newDatum) ->
+               traceIfFalse "E25" (enoughAddedInOutput totalDonations)
+            && traceIfFalse "E26" (isOutputDatumValid newDatum)
+            && traceIfTrue  "E5"  (deadlineTouched qvfDeadline)
+            && oneTokenInOneTokenOut ()
+        -- }}}
+      Contribute contribution      ->
+        -- {{{
+        case addContributionToDatum contribution currDatum of
+          Left err       ->
+            traceError err
+          Right newDatum ->
+               traceIfFalse "E27" (enoughAddedInOutput contribution)
+            && traceIfFalse "E28" (isOutputDatumValid newDatum)
+            && traceIfTrue  "E5"  (deadlineTouched qvfDeadline)
+            && oneTokenInOneTokenOut ()
+        -- }}}
+      SetDeadline newDl            ->
+        -- {{{
+        case setDeadlineOfDatum newDl currDatum of
+          Left err       ->
+            traceError err
+          Right newDatum ->
+               signedByKeyHolder ()
+            && traceIfTrue  "E29" (deadlineTouched newDl)
+            && traceIfFalse "E28" (isOutputDatumValid newDatum)
+            && oneTokenInOneTokenOut ()
+        -- }}}
+      Distribute                   ->
+        -- {{{
+        let
+          newDatum            = currDatum {qvfInProgress = False}
+          outputUTxOs         = txInfoOutputs info
+          projectCount        = length qvfProjects
+          validOutputCount    = length outputUTxOs >= projectCount + 2
+          closedOutput        = ownOutput ()
+          -- For each project, the initial registration costs are meant to be
+          -- refunded.                    v------------------------v
+          initialPool         = qvfPool - minLovelace * projectCount
+          prizeMappings :: [(PubKeyHash, Integer)]
+          (extraFromRounding, prizeMappings)    =
+            foldProjects initialPool qvfProjects
+          foldFn (projPKH, prize) keyHolderFees =
             -- {{{
-            case getDatumFromUTxO o (`findDatum` info) of
-              Just (InProgress dInfo) ->
-                -- {{{
-                dInfo <> acc
-                -- }}}
-              _                       ->
-                -- {{{
-                traceError "E15"
-                -- }}}
+            let
+              forKH = max 0 $ 5 * (prize - minLovelace) `divide` 100
+            in
+            if (prize - forKH) == lovelaceFromValue (valuePaidTo info projPKH) then
+              forKH + keyHolderFees
+            else
+              traceError "E17"
             -- }}}
-          else
-            -- {{{
-            traceError "E16"
-            -- }}}
-          -- }}}
-        currDatum           = foldr datumFold mempty $ txInfoInputs info
-        projects            = qvfProjects currDatum
-        tokenCount          = qvfTokenCount qvfParams
-        outputUTxOs         = txInfoOutputs info
-        projectCount        = length projects
-        validOutputCount    = length outputUTxOs >= projectCount + 2
-        closedOutput        = ownOutput ()
-        allTokensPresent    = outputHasXTokens closedOutput tokenCount
-        -- For each project, the initial registration costs are meant to be
-        -- refunded.                              v------------------------v
-        initialPool         = qvfPool currDatum - minLovelace * projectCount
-        prizeMappings :: [(PubKeyHash, Integer)]
-        (extraFromRounding, prizeMappings)    =
-          foldProjects initialPool projects
-        foldFn (projPKH, prize) keyHolderFees =
-          -- {{{
-          let
-            forKH = max 0 $ 5 * (prize - minLovelace) `divide` 100
-          in
-          if (prize - forKH) == lovelaceFromValue (valuePaidTo info projPKH) then
-            forKH + keyHolderFees
-          else
-            traceError "E17"
-          -- }}}
-        -- | The folding already checks that each project is getting their
-        --   won prize.
-        forKeyHolder        =
-          -- {{{
-          foldr
-            foldFn
-            (extraFromRounding + (tokenCount - 1) * minAuthLovelace)
-            prizeMappings --     ^--------------------------------^
-            -- Initial minimum Lovelaces accompanied by each authentication
-            -- token should be returned to the key holder. One is reduced for
-            -- the @Closed@ datum that is sent back to the script address.
-          -- }}}
-        keyHolderImbursed   =
-          lovelaceFromValue (valuePaidTo info keyHolder) == forKeyHolder
-      in
-         signedByKeyHolder ()
-      && traceIfFalse "E18" (currDeadlinePassed currDatum)
-      && traceIfFalse "E19" allTokensPresent
-      && traceIfFalse "E38" (utxoHasLovelaces closedOutput minAuthLovelace)
-      && traceIfFalse "E20" keyHolderImbursed
-      && traceIfFalse "E21" (isOutputDatumValid $ Closed currDatum)
-      && traceIfFalse "E22" validOutputCount
-      -- }}}
-    (InProgress currDatum, AddProject addProjectParams ) ->
-      -- {{{
-      -- NOTE that there is no prevention mechanism for registering a project
-      -- on multiple UTxO's. This should probably be handled off-chain for the
-      -- time being.
-      case addProjectToDatum addProjectParams currDatum of
-        Left err       ->
-          traceError err
-        Right newDatum ->
-             traceIfFalse "E23" (enoughAddedInOutput minLovelace)
-          && traceIfFalse "E24" (isOutputDatumValid $ InProgress newDatum)
-          && traceIfTrue
-               "E5"
-               (currDeadlineTouched currDatum)
-          && oneTokenInOneTokenOut ()
-      -- }}}
-    (InProgress currDatum, Donate dPs                  ) ->
-      -- {{{
-      case addDonationsToDatum dPs currDatum of
-        Left err       ->
-          traceError err
-        Right (totalDonations, newDatum) ->
-             traceIfFalse
-               "E25"
-               (enoughAddedInOutput totalDonations)
-          && traceIfFalse
-               "E26"
-               (isOutputDatumValid $ InProgress newDatum)
-          && traceIfTrue
-               "E5"
-               (currDeadlineTouched currDatum)
-          && oneTokenInOneTokenOut ()
-      -- }}}
-    (InProgress currDatum, Contribute contribution     ) ->
-      -- {{{
-      case addContributionToDatum contribution currDatum of
-        Left err       ->
-          traceError err
-        Right newDatum ->
-             traceIfFalse
-               "E27"
-               (enoughAddedInOutput contribution)
-          && traceIfFalse
-               "E28"
-               (isOutputDatumValid $ InProgress newDatum)
-          && traceIfTrue
-               "E5"
-               (currDeadlineTouched currDatum)
-          && oneTokenInOneTokenOut ()
-      -- }}}
-    (InProgress currDatum, SetDeadline mNewDl          ) ->
-      -- {{{
-      case setDeadlineOfDatum contribution currDatum of
-        Left err       ->
-          traceError err
-        Right newDatum ->
-          signedByKeyHolder () &&
-          case (qvfDeadline currDatum, mNewDl) of
-            (_, Just newDl) ->
-              -- {{{
-                 traceIfTrue
-                   "E29"
-                   (deadlineTouched newDl)
-              && oneTokenInOneTokenOut ()
-              && traceIfFalse
-                   "E28"
-                   (isOutputDatumValid $ InProgress newDatum)
-              -- For extending a deadline, updating only one of the UTxO's
-              -- suffices (check the @mappend@ implementation of the @QVFInfo@).
-              -- }}}
-            _               ->
-              -- {{{
-              traceIfFalse
-                "E28"
-                (isOutputDatumValid $ InProgress newDatum)
-              -- }}}
-      -- }}}
-    (Closed _            , _                           ) ->
-      -- {{{
-      traceError "E30"
-      -- }}}
-    _                                                    ->
-      -- {{{
-      traceError "E31"
-      -- }}}
+          -- | The folding already checks that each project is getting their
+          --   won prize.
+          forKeyHolder        = foldr foldFn extraFromRounding prizeMappings
+          keyHolderImbursed   =
+            lovelaceFromValue (valuePaidTo info keyHolder) == forKeyHolder
+        in
+           signedByKeyHolder ()
+        && traceIfFalse "E18" (deadlinePassed qvfDeadline)
+        && traceIfFalse "E38" (utxoHasLovelaces closedOutput minAuthLovelace)
+        && traceIfFalse "E20" keyHolderImbursed
+        && traceIfFalse "E21" (isOutputDatumValid newDatum)
+        && traceIfFalse "E22" validOutputCount
+        && oneTokenInOneTokenOut ()
+        -- }}}
+  else
+    -- {{{
+    traceError "E30"
+    -- }}}
   -- }}}
 
 
@@ -718,7 +482,7 @@ initiateProject AddProjectParams {..} =
     { pPubKeyHash = appPubKeyHash
     , pLabel      = appLabel
     , pRequested  = appRequested
-    , pDonations  = mempty
+    , pDonations  = Map.empty
     }
   -- }}}
 
@@ -726,16 +490,11 @@ initiateProject AddProjectParams {..} =
 {-# INLINABLE addDonation #-}
 addDonation :: PubKeyHash
             -> Integer
-            -> Donations
-            -> Donations
+            -> Map PubKeyHash Integer
+            -> Map PubKeyHash Integer
 addDonation donor lovelaces donations =
   -- {{{
-  donations <> Donations (Map.singleton donor lovelaces)
-  -- case updateIfWith ((== donor) . fst) (fmap (lovelaces +)) kvs of
-  --   Nothing     ->
-  --     Donations $ (donor, lovelaces) : kvs
-  --   Just newKVs ->
-  --     Donations newKVs
+  Map.unionWith (+) donations (Map.singleton donor lovelaces)
   -- }}}
 
 
@@ -767,11 +526,10 @@ getDatumFromUTxO TxOut {..} converter = do
 --   \[
 --       V = (\sum{\sqrt{v}})^2
 --   \]
-foldDonations :: Donations -> (Integer, Integer)
-foldDonations (Donations ds) =
+foldDonations :: Map PubKeyHash Integer -> (Integer, Integer)
+foldDonations ds =
   -- {{{
   let
-    -- foldFn (_, lovelaces) (pool, votes) =
     foldFn lovelaces (pool, votes) =
       ( pool + lovelaces
       , takeSqrt lovelaces + votes
@@ -853,8 +611,8 @@ foldProjects initialPool ps =
 
 {-# INLINABLE addProjectToDatum #-}
 addProjectToDatum :: AddProjectParams
-                  -> QVFInfo
-                  -> Either BuiltinString QVFInfo
+                  -> QVFDatum
+                  -> Either BuiltinString QVFDatum
 addProjectToDatum addProjectParams currDatum =
   -- {{{
   let
@@ -875,8 +633,8 @@ addProjectToDatum addProjectParams currDatum =
 
 {-# INLINABLE addDonationToDatum #-}
 addDonationToDatum :: DonateParams
-                   -> QVFInfo
-                   -> Either BuiltinString QVFInfo
+                   -> QVFDatum
+                   -> Either BuiltinString QVFDatum
 addDonationToDatum DonateParams {..} currDatum =
   -- {{{
   if dpAmount < minLovelace then
@@ -902,8 +660,8 @@ addDonationToDatum DonateParams {..} currDatum =
 
 {-# INLINABLE addDonationsToDatum #-}
 addDonationsToDatum :: [DonateParams]
-                    -> QVFInfo
-                    -> Either BuiltinString (Integer, QVFInfo)
+                    -> QVFDatum
+                    -> Either BuiltinString (Integer, QVFDatum)
 addDonationsToDatum dPs currDatum =
   -- {{{
   let
@@ -916,8 +674,8 @@ addDonationsToDatum dPs currDatum =
 
 {-# INLINABLE addContributionToDatum #-}
 addContributionToDatum :: Integer
-                       -> QVFInfo
-                       -> Either BuiltinString QVFInfo
+                       -> QVFDatum
+                       -> Either BuiltinString QVFDatum
 addContributionToDatum contribution currDatum =
   -- {{{
   if contribution < minLovelace then
@@ -927,38 +685,42 @@ addContributionToDatum contribution currDatum =
   -- }}}
 
 
-{-# INLINABLE addContributionToDatum #-}
-setDeadlineOfDatum :: Maybe POSIXTime
-                   -> QVFInfo
-                   -> Either BuiltinString QVFInfo
-setDeadlineOfDatum mNewDeadline currDatum =
-  Right $ currDatum {qvfDeadline = mNewDeadline}
+{-# INLINABLE setDeadlineOfDatum #-}
+setDeadlineOfDatum :: POSIXTime
+                   -> QVFDatum
+                   -> Either BuiltinString QVFDatum
+setDeadlineOfDatum newDeadline currDatum =
+  Right $ currDatum {qvfDeadline = newDeadline}
 
 
 {-# INLINABLE updateDatum #-}
 updateDatum :: QVFAction -> QVFDatum -> Either BuiltinString QVFDatum
-updateDatum action datum =
+updateDatum action currDatum@QVFDatum {..} =
   -- {{{
-  case (datum, action) of
-    (InProgress currDatum, AddProject addProjectParams) ->
+  case (qvfInProgress, action) of
+    (False, _                          ) ->
       -- {{{
-      InProgress <$> (addProjectToDatum addProjectParams currDatum)
+      Left "E30"
       -- }}}
-    (InProgress currDatum, Donate donateParams        ) ->
+    (True,  AddProject addProjectParams) ->
       -- {{{
-      InProgress . snd <$> addDonationsToDatum donateParams currDatum
+      addProjectToDatum addProjectParams currDatum
       -- }}}
-    (InProgress currDatum, Contribute contribution    ) ->
+    (True,  Donate donateParams        ) ->
       -- {{{
-      InProgress <$> (addContributionToDatum contribution currDatum)
+      snd <$> addDonationsToDatum donateParams currDatum
       -- }}}
-    (InProgress currDatum, SetDeadline mNewDeadline   ) ->
+    (True,  Contribute contribution    ) ->
+      -- {{{
+      addContributionToDatum contribution currDatum
+      -- }}}
+    (True,  SetDeadline newDeadline    ) ->
       -- {{{
       -- Since this function is only used by the CLI application, this
       -- is an unconditional acceptance of the new deadline.
-      InProgress <$> setDeadlineOfDatum mNewDeadline currDatum
+      setDeadlineOfDatum newDeadline currDatum
       -- }}}
-    _                                                   ->
+    (True,  _                          ) ->
       -- {{{
       Left "E37"
       -- }}}

@@ -42,18 +42,6 @@ lovelaceToAda :: Integer -> P.Double
 lovelaceToAda lovelace = P.fromIntegral lovelace P./ 1_000_000
 
 
-{-# INLINABLE addressToBuiltinByteString #-}
-addressToBuiltinByteString :: Address -> BuiltinByteString
-addressToBuiltinByteString Address {..} =
-  -- {{{
-  case addressCredential of
-    PubKeyCredential (PubKeyHash bbs) ->
-      bbs
-    ScriptCredential (ValidatorHash bbs) ->
-      bbs
-  -- }}}
-
-
 {-# INLINABLE pluck #-}
 pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
 pluck _ [] = Nothing

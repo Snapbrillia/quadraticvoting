@@ -207,26 +207,6 @@ main =
         "<token-name>"
         ["<output.hex>"]
       -- }}}
-    datumHasProjHelp  :: String
-    datumHasProjHelp  =
-      -- {{{
-      makeHelpText
-        (    "Check if a given datum can be used for donation to a\n"
-          ++ "\tspecific project:"
-        )
-        "datum-has-project"
-        "{current-datum-json-value}"
-        ["<project.pkh>"]
-      -- }}}
-    datumDeadlineHelp :: String
-    datumDeadlineHelp =
-      -- {{{
-      makeHelpText
-        "Check if a given datum has a deadline further in future:"
-        "datum-has-later-deadline"
-        "{current-datum-json-value}"
-        ["<new-deadline>"]
-      -- }}}
     prettyDatumHelp   :: String
     prettyDatumHelp   =
       -- {{{
@@ -245,19 +225,6 @@ main =
         "{arbitrary-data-json-value}"
         []
       -- }}}
-    mergeDatumsHelp   :: String
-    mergeDatumsHelp   =
-      -- {{{
-      makeHelpText
-        "Combine multiple states, and print contract's merged state:"
-        "merge-datums"
-        "{datum0-json-value}"
-        [ "{datum1-json-value}"
-        , "{datum2-json-value}"
-        , "{datum3-json-value}"
-        , "{etc...}"
-        ]
-      -- }}}
     scriptHelp        :: String
     scriptHelp        =
       -- {{{
@@ -270,11 +237,9 @@ main =
         [ "<key-holder.pkh>"
         , "<txID>#<output-index>"
         , "<auth-token-name>"
-        , "<auth-token-count>"
+        , "<deadline-posix-milliseconds>"
         , "<output-minting.plutus>"
         , "<output-validation.plutus>"
-        , "<output-NotStarted.datum>"
-        , "<output-InitiateFund.redeemer>"
         , "<output-mempty.datum>"
         ]
       -- }}}
@@ -332,17 +297,6 @@ main =
         "<new-deadline>"
         commonLastThree
       -- }}}
-    unsetDeadlineHelp :: String
-    unsetDeadlineHelp =
-      -- {{{
-      makeHelpText
-        "Update a given datum by removing its deadline:"
-        "unset-deadline"
-        helpCurrDatum
-        [ helpUpdatedDatum
-        , helpRedeemer
-        ]
-      -- }}}
     -- }}}
 
     -- GENERIC HELP TEXT: 
@@ -362,17 +316,13 @@ main =
       ++ "\tqvf-cli contribute  --help\n\n"
 
       ++ "Utility:\n"
-      ++ "\tqvf-cli generate scripts         --help\n"
-      ++ "\tqvf-cli datum-has-project        --help\n"
-      ++ "\tqvf-cli datum-has-later-deadline --help\n"
-      ++ "\tqvf-cli pretty-datum             --help\n"
-      ++ "\tqvf-cli merge-datums             --help\n"
-      ++ "\tqvf-cli data-to-cbor             --help\n"
-      ++ "\tqvf-cli string-to-hex            --help\n\n"
+      ++ "\tqvf-cli generate scripts --help\n"
+      ++ "\tqvf-cli pretty-datum     --help\n"
+      ++ "\tqvf-cli data-to-cbor     --help\n"
+      ++ "\tqvf-cli string-to-hex    --help\n\n"
 
       ++ "Limited to key holder:\n"
       ++ "\tqvf-cli set-deadline                   --help\n"
-      ++ "\tqvf-cli unset-deadline                 --help\n"
       ++ "\tqvf-cli generate distribution-redeemer --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
@@ -433,22 +383,14 @@ main =
           putStrLn contributeHelp
         "set-deadline"      ->
           putStrLn setDeadlineHelp
-        "unset-deadline"    ->
-          putStrLn unsetDeadlineHelp
         "distribute"        ->
           putStrLn distributeHelp
-        "datum-has-project" ->
-          putStrLn datumHasProjHelp
-        "datum-has-later-deadline" ->
-          putStrLn datumDeadlineHelp
         "pretty-datum"      ->
           putStrLn prettyDatumHelp
         "data-to-cbor"      ->
           putStrLn dataToCBORHelp
         "string-to-hex"     ->
           putStrLn toHexHelp
-        "merge-datums"      ->
-          putStrLn mergeDatumsHelp
         _                   ->
           printHelp
       -- }}}
@@ -514,26 +456,23 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : tn : amtStr : mOF : vOF : fstDatOF : initRedOF : distDatOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : tn : deadlineStr : mOF : vOF : dOF : _ -> do
       -- {{{
-      case (readTxOutRef txRefStr, readMaybe amtStr) of
-        (Nothing, _)           ->
+      case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
+        (Nothing   , _      ) ->
           -- {{{
           putStrLn "FAILED to parse the given UTxO."
           -- }}}
-        (_, Nothing)           ->
+        (_         , Nothing) ->
           -- {{{
-          putStrLn "FAILED to parse the token amount."
+          putStrLn "FAILED to parse the deadline."
           -- }}}
-        (Just txRef, Just amt) -> do
+        (Just txRef, Just dl) ->
           -- {{{
-          let policyParams =
-                Token.PolicyParams
-                  { Token.ppORef   = txRef
-                  , Token.ppToken  = fromString tn
-                  , Token.ppAmount = amt
-                  }
-          mintRes <- writeMintingPolicy mOF $ Token.qvfPolicy policyParams
+          let
+            tokenName = fromString tn
+          in do
+          mintRes <- writeMintingPolicy mOF $ Token.qvfPolicy txRef tokenName
           case mintRes of
             Left _  ->
               -- {{{
@@ -541,13 +480,12 @@ main =
               -- }}}
             Right _ -> do
               -- {{{
-              let tokenSymbol = Token.qvfSymbol policyParams
+              let tokenSymbol = Token.qvfSymbol txRef tokenName
                   qvfParams   =
                     OC.QVFParams
                       { OC.qvfKeyHolder  = fromString pkhStr
                       , OC.qvfSymbol     = tokenSymbol
-                      , OC.qvfTokenName  = fromString tn
-                      , OC.qvfTokenCount = amt
+                      , OC.qvfTokenName  = tokenName
                       }
               valRes <- writeValidator vOF $ OC.qvfValidator qvfParams
               case valRes of
@@ -559,13 +497,7 @@ main =
                   -- {{{
                   andPrintSuccess mOF $ return ()
                   andPrintSuccess vOF $ return ()
-                  andPrintSuccess fstDatOF
-                    $ writeJSON fstDatOF OC.NotStarted
-                  andPrintSuccess initRedOF
-                    $ writeJSON initRedOF OC.InitiateFund
-                  andPrintSuccess distDatOF
-                    $ writeJSON distDatOF
-                    $ OC.InProgress PlutusMonoid.mempty
+                  andPrintSuccess dOF $ writeJSON dOF (OC.initialDatum dl)
                   -- }}}
               -- }}}
           -- }}}
@@ -573,68 +505,6 @@ main =
     "generate" : "distribution-redeemer" : outFile : _                  ->
       -- {{{
       andPrintSuccess outFile $ writeJSON outFile OC.Distribute
-      -- }}}
-    "datum-has-project" : datumJSONStr : pPKH : _                       ->
-      -- {{{
-      fromDatumValue (fromString datumJSONStr) $ \givenDatum ->
-        let
-          pkh              :: Ledger.PubKeyHash
-          pkh              = fromString pPKH
-          fromQVFInfo info =
-            -- {{{
-            let
-              mProject =
-                -- {{{
-                List.find
-                  ((== pkh) . OC.pPubKeyHash)
-                  (OC.qvfProjects info)
-                -- }}}
-            in
-            case mProject of
-              Nothing ->
-                putStrLn "False"
-              Just _  ->
-                putStrLn "True"
-            -- }}}
-        in
-        case givenDatum of
-          OC.NotStarted      -> putStrLn "False"
-          OC.Closed     info -> fromQVFInfo info
-          OC.InProgress info -> fromQVFInfo info
-      -- }}}
-    "datum-has-later-deadline" : datumJSONStr : deadlineStr : _         ->
-      -- {{{
-      fromDatumValue (fromString datumJSONStr) $ \givenDatum ->
-        case Ledger.POSIXTime <$> readMaybe deadlineStr of
-          Nothing ->
-            -- {{{
-            putStrLn "FAILED to parse deadline."
-            -- }}}
-          Just newDeadline ->
-            -- {{{
-            case givenDatum of
-              OC.InProgress info ->
-                -- {{{
-                case OC.qvfDeadline info of
-                  Just currDeadline ->
-                    -- {{{
-                    print $ currDeadline > newDeadline
-                    -- }}}
-                  Nothing           ->
-                    -- {{{
-                    -- Since this endpoint is meant to be used for when the
-                    -- key holder intends to bring the deadline closer, a
-                    -- @Nothing@ deadline means that this UTxO doesn't need
-                    -- to be updated (checkout `QVFDatum`'s @Semigroup@ 
-                    -- instance).
-                    putStrLn "False"
-                    -- }}}
-                -- }}}
-              _                  ->
-                -- {{{
-                putStrLn "False"
-                -- }}}
-            -- }}}
       -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
@@ -653,30 +523,6 @@ main =
           . encode
         )
         -- }}}
-    "merge-datums" : datumJSONStrs                                      ->
-      -- {{{
-      let
-        foldFn :: Either String OC.QVFDatum
-               -> String
-               -> IO (Either String OC.QVFDatum)
-        foldFn eith datumJSONStr =
-          -- {{{
-          case eith of
-            Left err ->
-              return $ Left err
-            Right soFar ->
-              fromDatumValueHelper
-                (fromString datumJSONStr)
-                (return . Left)
-                (return $ Left "Bad datum encountered.")
-                (\qvfDatum -> return $ Right $ qvfDatum PlutusSemigroup.<> soFar)
-          -- }}}
-      in do
-      eithMerged <- foldM foldFn (Right PlutusMonoid.mempty) datumJSONStrs
-      case eithMerged of
-        Left err     -> putStrLn $ "FAILED: " ++ err
-        Right merged -> print merged
-      -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{
       andPrintSuccess outFile
@@ -774,17 +620,8 @@ main =
             -- }}}
           Just deadline ->
             -- {{{
-            fromAction (OC.SetDeadline $ Just deadline) currDatum (Just dOF) rOF
+            fromAction (OC.SetDeadline deadline) currDatum (Just dOF) rOF
             -- }}}
-      -- }}}
-    "unset-deadline" : datumJSON : dOF : rOF : _                        ->
-      -- {{{
-      actOnData datumJSON $ \currDatum ->
-        fromAction
-          (OC.SetDeadline Nothing)
-          currDatum
-          (Just dOF)
-          rOF
       -- }}}
     _                                                                   ->
       printHelp

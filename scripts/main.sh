@@ -56,7 +56,7 @@ get_current_state() {
 }
 
 
-# Takes 2 arguments:
+# Takes 2 (up to 4) arguments:
 #   1. Payer's wallet number/name.
 #   2. Payer's UTxO to be spent.
 #   3. (Optional) Custom change address.
@@ -114,7 +114,7 @@ update_contract() {
 }
 
 
-# Takes 1 argument:
+# Takes 1 (up to 3) argument(s):
 #   1. New POSIX time in milliseconds.
 #   2. (Optional) Number/name of an alternate wallet for covering the fee.
 #   3. (Optional) Starting index for script UTxOs.
@@ -166,14 +166,18 @@ set_earlier_deadline() {
 
 
 
-# Takes 4 arguments:
-#   1. Donor's number,
+# Takes 3 (or 4) arguments:
+#   1. Donor's wallet number/name,
 #   2. Target project's public key hash,
-#   3. Donation amount.
-#   4. Flag to indicate whether to use a remote node or not.
+#   3. Donation amount,
+#   4. (Optional) Custom change address.
 donate_from_to_with() {
   donorsPKH=$(cat $preDir/$1.pkh)
   donorsAddr=$(cat $preDir/$1.addr)
+  changeAddr=$donorsAddr
+  if [ ! -z "$4" ]; then
+    changeAddr=$4
+  fi
   obj=$(find_utxo_with_project $scriptAddr "$policyId$tokenName" $2)
   len=$(echo $obj | jq length)
   if [ $len -eq 0 ]; then
@@ -191,7 +195,7 @@ donate_from_to_with() {
 	       $updatedDatum \
          $action
     txIn=$(get_first_utxo_of $donorsAddr)
-    update_contract $1 $txIn
+    update_contract $1 $txIn $changeAddr
     # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
     # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
     # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
@@ -199,11 +203,16 @@ donate_from_to_with() {
 }
 
 
-# Takes 2 arguments:
-#   1. Donor's number,
-#   2. Donation amount.
+# Takes 2 (or 3) arguments:
+#   1. Donor's wallet number/name,
+#   2. Donation amount,
+#   3. (Optional) Custom change address.
 contribute_from_with() {
   donorsAddr=$(cat $preDir/$1.addr)
+  changeAddr=$donorsAddr
+  if [ ! -z "$3" ]; then
+    changeAddr=$3
+  fi
   txIn=$(get_first_utxo_of $donorsAddr)
   obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
   obj=$(add_datum_value_to_utxo $obj)
@@ -225,17 +234,22 @@ contribute_from_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn
+  update_contract $1 $txIn $changeAddr
 }
 
 
-# Takes 3 arguments:
+# Takes 3 (or 4) arguments:
 #   1. Project's wallet number/name,
 #   2. Project's label,
-#   3. Requested fund.
+#   3. Requested fund,
+#   4. (Optional) Custom change address.
 register_project() {
   projectsPKH=$(cat $preDir/$1.pkh)
   projectsAddr=$(cat $preDir/$1.addr)
+  changeAddr=$projectsAddr
+  if [ ! -z "$4" ]; then
+    changeAddr=$4
+  fi
   txIn=$(get_first_utxo_of $projectsAddr)
   obj=$(get_random_utxo_hash_lovelaces $scriptAddr "$policyId$tokenName" 0 9 | jq -c .)
   obj=$(add_datum_value_to_utxo $obj)
@@ -247,5 +261,5 @@ register_project() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn
+  update_contract $1 $txIn $changeAddr
 }

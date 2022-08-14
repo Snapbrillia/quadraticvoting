@@ -24,57 +24,48 @@ import qualified Ledger.Typed.Scripts        as Scripts
 import           Ledger.Value                as Value
 
 
--- POLICY PARAMETERS
--- {{{
-data PolicyParams = PolicyParams
-  { ppORef   :: !TxOutRef
-  , ppToken  :: !TokenName
-  , ppAmount :: !Integer
-  }
-
-PlutusTx.makeLift ''PolicyParams
--- }}}
-
-
 {-# INLINABLE mkQVFPolicy #-}
-mkQVFPolicy :: PolicyParams -> () -> ScriptContext -> Bool
-mkQVFPolicy PolicyParams {..} () ctx =
+mkQVFPolicy :: TxOutRef -> TokenName -> () -> ScriptContext -> Bool
+mkQVFPolicy oref tn () ctx =
   -- {{{
   let
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
     hasUTxO :: Bool
-    hasUTxO = any (\i -> txInInfoOutRef i == ppORef) $ txInfoInputs info
+    hasUTxO = any (\i -> txInInfoOutRef i == oref) $ txInfoInputs info
 
-    checkMintedAmount :: Bool
-    checkMintedAmount =
+    checkToken :: Bool
+    checkToken =
       -- {{{
       case flattenValue (txInfoMint info) of
-        [(_, tn, amt)] ->
+        [(_, tn', amt)] ->
           -- {{{
-          tn  == ppToken && amt == ppAmount
+             traceIfFalse "Minted token has invalid name." (tn' == tn)
+          && traceIfFalse "Exaclty 1 token must be minted." (amt == 1)
           -- }}}
-        _              ->
+        _               ->
           -- {{{
-          False
+          traceError "Exactly 1 asset must be minted."
           -- }}}
       -- }}}
   in
      traceIfFalse "UTxO not consumed." hasUTxO
-  && traceIfFalse "Amount of minted token is not valid." checkMintedAmount
+  && checkToken
   -- }}}
 
 
-qvfPolicy :: PolicyParams -> Scripts.MintingPolicy
-qvfPolicy pParams =
+qvfPolicy :: TxOutRef -> TokenName -> Scripts.MintingPolicy
+qvfPolicy oref tn =
   -- {{{
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkQVFPolicy ||])
+    $$(PlutusTx.compile [|| \oref' tn' -> Scripts.wrapMintingPolicy $ mkQVFPolicy oref' tn' ||])
     `PlutusTx.applyCode`
-    PlutusTx.liftCode pParams
+    PlutusTx.liftCode oref
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode tn
   -- }}}
 
 
-qvfSymbol :: PolicyParams -> CurrencySymbol
-qvfSymbol = scriptCurrencySymbol . qvfPolicy
+qvfSymbol :: TxOutRef -> TokenName -> CurrencySymbol
+qvfSymbol oref tn = scriptCurrencySymbol $ qvfPolicy oref tn
