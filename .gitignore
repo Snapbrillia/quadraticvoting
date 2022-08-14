@@ -4,6 +4,7 @@ dist-*
 tx.raw
 tx.sign
 scripts/testnet
+testnet/keyHolder.skey
 cabal-dev
 protocol.json
 initial.json

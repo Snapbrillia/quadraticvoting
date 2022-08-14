@@ -166,6 +166,8 @@ get_all_input_utxos_at() {
 show_utxo_tables () {
     for i in $@
     do
+        echo
+        echo $i
         cardano-cli query utxo               \
             --address $(cat $preDir/$i.addr) \
             $MAGIC
@@ -244,7 +246,7 @@ distribute_from_to_wallets() {
 
     # Transaction
     $cli transaction build             \
-        --alonzo-era                   \
+        --babbage-era                  \
         $MAGIC                         \
         $tx_in_str                     \
         --change-address $spendingAddr \
@@ -295,11 +297,11 @@ drain_from_wallets_to() {
     done
 
     # Transaction
-    $cli transaction build                 \
-        --alonzo-era                       \
-        $MAGIC                             \
-        $tx_in_str                         \
-        --change-address $(cat $preDir/$3) \
+    $cli transaction build                      \
+        --babbage-era                           \
+        $MAGIC                                  \
+        $tx_in_str                              \
+        --change-address $(cat $preDir/$3.addr) \
         --out-file $txBody
 
     $cli transaction sign      \

@@ -68,16 +68,6 @@ bf_get_utxos_hashes_lovelaces() {
 }
 
 
-# Takes 2 arguments:
-#   1. Script address,
-#   2. Authentication asset (policy ID plus the token name,
-#      without a `.` in between).
-get_first_utxo_hash_lovelaces() {
-  echo $(bf_get_utxos_hashes_lovelaces $1 $2) \
-    | jq .[0]
-}
-
-
 # Takes 4 arguments:
 #   1. Script address,
 #   2. Authentication asset (policy ID plus the token name,

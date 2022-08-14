@@ -241,7 +241,7 @@ main =
         , "<output-minting.plutus>"
         , "<output-validation.plutus>"
         , "<unit.redeemer>"
-        , "<output-mempty.datum>"
+        , "<output-initial.datum>"
         ]
       -- }}}
     distributeHelp    :: String

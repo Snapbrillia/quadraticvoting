@@ -103,7 +103,7 @@ update_contract() {
 # Takes 1 (or 2) argument(s):
 #   1. New POSIX time in milliseconds.
 #   2. (Optional) Number/name of an alternate wallet for covering the fee.
-set_earlier_deadline() {
+set_deadline() {
   payer=$keyHolder
   if [ ! -z "$2" ]; then
     payer=$2
@@ -115,9 +115,9 @@ set_earlier_deadline() {
   txIn=$(get_first_utxo_of $payer)
   echo "Generating datum and redeemer files..."
   $qvf set-deadline  \
-	     $1            \
+       $1            \
        $currDatum    \
-	     $updatedDatum \
+       $updatedDatum \
        $action
   echo "Datum and redeemer files generated."
   update_contract $payer $txIn $(cat $preDir/$payer.addr) $keyHolder
@@ -146,7 +146,7 @@ donate_from_to_with() {
        $2            \
        $3            \
        $currDatum    \
-	     $updatedDatum \
+       $updatedDatum \
        $action
   txIn=$(get_first_utxo_of $donorsAddr)
   update_contract $1 $txIn $changeAddr
