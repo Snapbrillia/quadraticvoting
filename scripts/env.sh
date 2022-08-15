@@ -230,8 +230,8 @@ distribute_from_to_wallets() {
     for i in $(seq $2 $3)
     do
         addr=$(cat $preDir/$i.addr)
-        # tx_out_str=$tx_out_str' --tx-out '$cat'+'$lovelace_amt
-        tx_out_str="$tx_out_str --tx-out \"$addr + $lovelace_amt\""
+        tx_out_str=$tx_out_str' --tx-out '$addr'+'$lovelace_amt
+        # tx_out_str="$tx_out_str --tx-out \"$addr + $lovelace_amt\""
     done
   
     # Helper logs:
@@ -253,10 +253,10 @@ distribute_from_to_wallets() {
         $tx_out_str                    \
         --out-file $txBody
 
-    $cli transaction sign                         \
-        --tx-body-file $txBody                    \
-        --signing-key-file $(cat $preDir/$1.skey) \
-        $MAGIC                                    \
+    $cli transaction sign                  \
+        --tx-body-file $txBody             \
+        --signing-key-file $preDir/$1.skey \
+        $MAGIC                             \
         --out-file $txSigned
 
     $cli transaction submit \
@@ -310,9 +310,7 @@ drain_from_wallets_to() {
         $MAGIC                 \
         --out-file $txSigned
 
-    $cli transaction submit \
-        $MAGIC              \
-        --tx-file $txSigned
+    submit_tx
 }
 
 

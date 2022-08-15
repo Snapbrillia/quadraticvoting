@@ -234,7 +234,7 @@ main =
         )
         "generate"
         "scripts"
-        [ "<key-holder.pkh>"
+        [ "<key-holder-pub-key-hash>"
         , "<txID>#<output-index>"
         , "<auth-token-name>"
         , "<deadline-posix-milliseconds>"

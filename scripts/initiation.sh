@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. env.sh
+. scripts/env.sh
 
 startingWallet=1
 endingWallet=20
@@ -14,6 +14,7 @@ $qvf string-to-hex $tokenName $tokenNameHexFile
 
 tokenNameHex=$(cat $tokenNameHexFile)
 
+unitRedeemer="$preDir/unit.redeemer"
 initialDatum="$preDir/initial.datum"
 
 
@@ -42,11 +43,13 @@ get_policy_id() {
 }
 
 store_policy_id() {
-  $policyId=$($cli transaction policyid --script-file $policyScriptFile)
+  policyId=$($cli transaction policyid --script-file $policyScriptFile)
+  echo $policyId > $policyIdFile
 }
 
 get_auth_asset() {
-  echo $(get_policy_id).$tokenNameHex
+  store_policy_id
+  echo $policyId.$tokenNameHex
 }
 
 get_script_data_hash() {
@@ -57,28 +60,20 @@ initiate_fund() {
   # Since the key holder wallet is going to hold a single UTxO after the
   # distribution, we can get the first UTxO of the wallet address and use
   # it as the genesis UTxO:
-  $genesisUTxO=$(get_first_utxo_of $keyHolder)
+  genesisUTxO=$(get_first_utxo_of $keyHolder)
 
   # Storing the UTxO:
   echo $genesisUTxO > $authAssetUTxOFile
 
   # Generating the validation script, minting script, and some other files:
   $qvf generate scripts   \
-    # key holder's pub key hash:
     $keyHoldersPubKeyHash \
-    # auth token identifier utxo:
     $genesisUTxO          \
-    # auth token name:
     $tokenName            \
-    # deadline:
     $deadline             \
-    # output minitng script file:
     $policyScriptFile     \
-    # output validation script file:
     $scriptPlutusFile     \
-    # output file for unit data:
     $unitRedeemer         \
-    # output file for initial datum:
     $initialDatum
   
   scriptAddr=$(get_script_address)
@@ -92,27 +87,18 @@ initiate_fund() {
 
   generate_protocol_params
 
-  $cli transaction build                       \
-    --babbage-era                              \
-    $MAGIC                                     \
-    # consuming the utxo from key holder's wallet:
-    --tx-in $genesisUTxO                       \
-    # using that same utxo as collateral:
-    --tx-in-collateral $genesisUTxO            \
-    # sending the tokens to the script address:
-    --tx-out "$firstUTxO"                      \
-    # attaching the hash of the initial datum to the utxo being produced:
-    --tx-out-datum-hash $initialDatumHash      \
-    # minting an authentication token:
-    --mint "1 $authAsset"                      \
-    # providing the serialized minting script:
-    --mint-script-file $policyScriptFile       \
-    # providing the required redeemer (the value is not important):
-    --mint-redeemer-file $unitRedeemer \
-    # returning the excess ADA back to the key holder:
-    --change-address $keyHolderAddress         \
-    # this file can be generated using the `cardano-cli` application:
-    --protocol-params-file $protocolsFile      \
+  $cli transaction build                    \
+    --babbage-era                           \
+    $MAGIC                                  \
+    --tx-in $genesisUTxO                    \
+    --tx-in-collateral $genesisUTxO         \
+    --tx-out "$firstUTxO"                   \
+    --tx-out-datum-embed-file $initialDatum \
+    --mint "1 $authAsset"                   \
+    --mint-script-file $policyScriptFile    \
+    --mint-redeemer-file $unitRedeemer      \
+    --change-address $keyHoldersAddress     \
+    --protocol-params-file $protocolsFile   \
     --out-file $txBody     
   
   # Signing of the transaction:
