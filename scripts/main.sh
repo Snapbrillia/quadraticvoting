@@ -152,15 +152,20 @@ donate_from_to_with() {
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
   obj=$(bf_add_datum_value_to_utxo $obj)
  
+  first_arg=$1
+  shift 1
   str_pair=''
-  acc=0
-  for i in $(seq 2 2 $#)
+  acc=0  
+  
+  for i in $@
   do
-    if [ -z "$(expr $i + 1)" ]; then
-      changeAddr=${$i}
-    else
-      str_pair="$str_pair ${$i} ${$(expr $i + 1)}"
-      acc=$(expr $acc + ${$(expr $i + 1)})
+    if [ $# -eq 1 ]; then
+      changeAddr=$1
+      shift 1
+    elif [ $# -ge 2 ]; then
+      str_pair="$str_pair $1 $2"
+      acc=$(expr $acc + $2)
+      shift 2
     fi
   done
   
@@ -174,8 +179,8 @@ donate_from_to_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  txIn=$(get_first_utxo_of $1)
-  update_contract $1 $txIn $changeAddr
+  txIn=$(get_first_utxo_of $first_arg)
+  update_contract $first_arg $txIn $changeAddr
   # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
   # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
   # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
