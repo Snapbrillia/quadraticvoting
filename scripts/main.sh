@@ -149,18 +149,30 @@ donate_from_to_with() {
   donorsPKH=$(cat $preDir/$1.pkh)
   donorsAddr=$(cat $preDir/$1.addr)
   changeAddr=$donorsAddr
-  if [ ! -z "$4" ]; then
-    changeAddr=$4
-  fi
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
   obj=$(bf_add_datum_value_to_utxo $obj)
-  setCommonVariables $(echo $obj | jq -c .) $3
+ 
+  str_pair=''
+  acc=0
+  shift 1
+  
+  for i in $(seq 1 2 $#)
+  do
+    if [ -z "$(expr $i + 1)" ]; then
+      changeAddr=${$i}
+    else
+      str_pair="$str_pair ${$i} ${$(expr $i + 1)}"
+      acc=$(expr $acc + ${$(expr $i + 1)})
+    fi
+  done
+  
+  setCommonVariables $(echo $obj | jq -c .) $acc
+  
   echo $lovelace
   echo $newLovelace
   $qvf donate        \
        $donorsPKH    \
-       $2            \
-       $3            \
+       $str_pair     \
        $currDatum    \
        $updatedDatum \
        $action
