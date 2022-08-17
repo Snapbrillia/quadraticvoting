@@ -154,9 +154,7 @@ donate_from_to_with() {
  
   str_pair=''
   acc=0
-  shift 1
-  
-  for i in $(seq 1 2 $#)
+  for i in $(seq 2 2 $#)
   do
     if [ -z "$(expr $i + 1)" ]; then
       changeAddr=${$i}
