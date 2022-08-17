@@ -16,11 +16,13 @@ import qualified Data.ByteString.Lazy   as LBS
 import qualified Data.ByteString.Short  as SBS
 import qualified Data.Char              as Char
 import qualified Data.List              as List
+import qualified Data.Map               as Map
 import           Data.Maybe             (fromJust)
 import qualified Data.String            as String
 import           Data.String            (fromString)
 import qualified Data.Text              as T
 import           Data.Text              (Text)
+import           Data.Time.Clock.POSIX  (getPOSIXTime)
 import           Plutus.V1.Ledger.Api   (fromBuiltin)
 import           Plutus.V1.Ledger.Value (TokenName (..))
 import           PlutusTx               (Data (..))
@@ -191,15 +193,15 @@ main =
 
     -- SUB-HELP TEXTS: 
     -- {{{
-    helpCurrDatum     :: String
-    helpCurrDatum     = "<current.datum>"
-    helpUpdatedDatum  :: String
-    helpUpdatedDatum  = "<updated.datum>"
-    helpRedeemer      :: String
-    helpRedeemer      = "<action.redeemer>"
-    commonLastThree   = [helpCurrDatum, helpUpdatedDatum, helpRedeemer]
-    toHexHelp         :: String
-    toHexHelp         =
+    helpCurrDatum      :: String
+    helpCurrDatum      = "<current.datum>"
+    helpUpdatedDatum   :: String
+    helpUpdatedDatum   = "<updated.datum>"
+    helpRedeemer       :: String
+    helpRedeemer       = "<action.redeemer>"
+    commonLastThree    = [helpCurrDatum, helpUpdatedDatum, helpRedeemer]
+    toHexHelp          :: String
+    toHexHelp          =
       -- {{{
       makeHelpText
         "Export the hex serialization of a token name:"
@@ -207,8 +209,8 @@ main =
         "<token-name>"
         ["<output.hex>"]
       -- }}}
-    prettyDatumHelp   :: String
-    prettyDatumHelp   =
+    prettyDatumHelp    :: String
+    prettyDatumHelp    =
       -- {{{
       makeHelpText
         "Print an easy-to-read parsing of a given datum JSON:"
@@ -216,8 +218,8 @@ main =
         "{current-datum-json-value}"
         []
       -- }}}
-    dataToCBORHelp    :: String
-    dataToCBORHelp    =
+    dataToCBORHelp     :: String
+    dataToCBORHelp     =
       -- {{{
       makeHelpText
         "Return the CBOR encoding of a given JSON formatted `Data` value:"
@@ -225,8 +227,8 @@ main =
         "{arbitrary-data-json-value}"
         []
       -- }}}
-    scriptHelp        :: String
-    scriptHelp        =
+    scriptHelp         :: String
+    scriptHelp         =
       -- {{{
       makeHelpText
         (    "Generate the compiled Plutus validation and minting script\n"
@@ -244,17 +246,8 @@ main =
         , "<output-initial.datum>"
         ]
       -- }}}
-    distributeHelp    :: String
-    distributeHelp    =
-      -- {{{
-      makeHelpText
-        "Generate the redeemer for trigerring the distribution of funds:"
-        "generate"
-        "distribution-redeemer"
-        [helpRedeemer]
-      -- }}}
-    addProjectHelp    :: String
-    addProjectHelp    =
+    addProjectHelp     :: String
+    addProjectHelp     =
       -- {{{
       makeHelpText
        "Update a given datum by adding a project:"
@@ -264,8 +257,8 @@ main =
        , "<requested-fund>"
        ] ++ commonLastThree
       -- }}}
-    donateHelp        :: String
-    donateHelp        =
+    donateHelp         :: String
+    donateHelp         =
       -- {{{
       makeHelpText
         "Update a given datum by donating to a list of projects:"
@@ -280,8 +273,8 @@ main =
         , "<...etc...>"
         ] ++ commonLastThree
       -- }}}
-    contributeHelp    :: String
-    contributeHelp    =
+    contributeHelp     :: String
+    contributeHelp     =
       -- {{{
       makeHelpText
         "Update a given datum by contributing to the pool:"
@@ -289,14 +282,41 @@ main =
         "<contribution-amount>"
         commonLastThree
       -- }}}
-    setDeadlineHelp   :: String
-    setDeadlineHelp   =
+    setDeadlineHelp    :: String
+    setDeadlineHelp    =
       -- {{{
       makeHelpText
         "Update a given datum by setting a new deadline:"
         "set-deadline"
         "<new-deadline>"
         commonLastThree
+      -- }}}
+    distributeHelp     :: String
+    distributeHelp     =
+      -- {{{
+      makeHelpText
+        (    "Generate `--tx-out` arguments to pass to the `cardano-cli`\n"
+          ++ "application, plus the updated datum and redeemer files:"
+        )
+        "distribute"
+        "<key-holder-address>" $
+        [ "<projects-pubkeyhash-0>"
+        , "<projects-address----0>"
+        , "<projects-pubkeyhash-1>"
+        , "<projects-address----1>"
+        , "<projects-pubkeyhash-2>"
+        , "<projects-address----2>"
+        , "<...etc...>"
+        ] ++ commonLastThree
+      -- }}}
+    deadlineToSlotHelp :: String
+    deadlineToSlotHelp =
+      -- {{{
+      makeHelpText
+        "Convert the deadline in a given datum to the slot number:"
+        "get-deadline-slot"
+        "<current-slot-number>"
+        [helpCurrDatum]
       -- }}}
     -- }}}
 
@@ -317,14 +337,15 @@ main =
       ++ "\tqvf-cli contribute  --help\n\n"
 
       ++ "Utility:\n"
-      ++ "\tqvf-cli generate scripts --help\n"
-      ++ "\tqvf-cli pretty-datum     --help\n"
-      ++ "\tqvf-cli data-to-cbor     --help\n"
-      ++ "\tqvf-cli string-to-hex    --help\n\n"
+      ++ "\tqvf-cli generate scripts  --help\n"
+      ++ "\tqvf-cli pretty-datum      --help\n"
+      ++ "\tqvf-cli data-to-cbor      --help\n"
+      ++ "\tqvf-cli string-to-hex     --help\n"
+      ++ "\tqvf-cli get-deadline-slot --help\n\n"
 
       ++ "Limited to key holder:\n"
-      ++ "\tqvf-cli set-deadline                   --help\n"
-      ++ "\tqvf-cli generate distribution-redeemer --help\n\n"
+      ++ "\tqvf-cli set-deadline --help\n"
+      ++ "\tqvf-cli distribute   --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
@@ -339,7 +360,7 @@ main =
       putStrLn $ outFile ++ " generated SUCCESSFULLY."
       -- }}}
 
-    fromAction action currDatum mDOF rOF =
+    fromAction verbose action currDatum mDOF rOF =
       -- {{{
       case OC.updateDatum action currDatum of
         Left err       ->
@@ -349,11 +370,16 @@ main =
         Right newDatum ->
           -- {{{
           let
-            writeRedeemer = andPrintSuccess rOF $ writeJSON rOF action
+            writerHelper outFile dataToWrite =
+              if verbose then
+                andPrintSuccess outFile $ writeJSON outFile dataToWrite
+              else
+                writeJSON outFile dataToWrite
+            writeRedeemer = writerHelper rOF action
           in
           case mDOF of
             Just dOF -> do
-              andPrintSuccess dOF $ writeJSON dOF newDatum
+              writerHelper dOF newDatum
               writeRedeemer
             Nothing  ->
               writeRedeemer
@@ -366,8 +392,6 @@ main =
       case genStr of
         "scripts"               ->
           putStrLn scriptHelp
-        "distribution-redeemer" ->
-          putStrLn distributeHelp
         _                       ->
           printHelp
       -- }}}
@@ -392,6 +416,10 @@ main =
           putStrLn dataToCBORHelp
         "string-to-hex"     ->
           putStrLn toHexHelp
+        "distribute"        ->
+          putStrLn distributeHelp
+        "get-deadline-slot" ->
+          putStrLn deadlineToSlotHelp
         _                   ->
           printHelp
       -- }}}
@@ -444,10 +472,32 @@ main =
       datumVal <- LBS.readFile datumJSON
       fromDatumValue datumVal datumToIO
       -- }}}
+
+    infArgHelper :: (    String
+                      -> String
+                      -> a
+                      -> Either String (a, (String, String, String))
+                    )
+                 -> Either String (a, (String, String, String))
+                 -> [String]
+                 -> Either String (a, (String, String, String))
+    infArgHelper doubleArgFn initEith infArgs =
+      -- {{{
+      case (initEith, infArgs) of
+        (Right (x, _), [curr, upd, rdmr] ) ->
+          Right (x, (curr, upd, rdmr))
+        (l@(Left _)  , _                 ) ->
+          l
+        (Right (x, _), el0 : el1 : rest  ) ->
+          infArgHelper doubleArgFn (doubleArgFn el0 el1 x) rest
+        (_           , _                 ) ->
+          Left "Bad args."
+      -- }}}
     -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
+    []                                 -> printHelp
     "generate" : genStr : "-h"     : _ -> printGenerateHelp genStr
     "generate" : genStr : "--help" : _ -> printGenerateHelp genStr
     "generate" : genStr : "man"    : _ -> printGenerateHelp genStr
@@ -504,10 +554,6 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "generate" : "distribution-redeemer" : outFile : _                  ->
-      -- {{{
-      andPrintSuccess outFile $ writeJSON outFile OC.Distribute
-      -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
@@ -550,53 +596,48 @@ main =
                 , OC.appRequested  = pReq
                 }
             in
-            fromAction action currDatum (Just dOF) rOF
+            fromAction True action currDatum (Just dOF) rOF
             -- }}}
       -- }}}
     "donate" : dDonor : restOfArgs                                      ->
       -- {{{
       let
         theDonor = fromString dDonor
-        go (Right (dPs, _))   c3@[_, _, _]           = Right (dPs, c3)
-        go (Left err)         _                      = Left err
-        go (Right (soFar, _)) (dProj : dAmnt : rest) =
-          -- {{{
-          case readMaybe dAmnt of
-            Nothing   ->
-              -- {{{
-              Left $ "Bad donation amount: " ++ dAmnt
-              -- }}}
-            Just amnt ->
-              -- {{{
-              go
-                ( Right
-                    ( OC.DonateParams
-                        { OC.dpDonor   = theDonor
-                        , OC.dpProject = fromString dProj
-                        , OC.dpAmount  = amnt
-                        }
-                        : soFar
-                    , []
-                    )
-                )
-                rest
-              -- }}}
-          -- }}}
-        go _                  _                      = Left "Bad args."
+        eith     =
+          infArgHelper 
+            ( \dProj dAmnt soFar ->
+                -- {{{
+                case readMaybe dAmnt of
+                  Nothing   ->
+                    -- {{{
+                    Left $ "Bad donation amount: " ++ dAmnt
+                    -- }}}
+                  Just amnt ->
+                    -- {{{
+                    Right
+                      ( OC.DonateParams
+                          { OC.dpDonor   = theDonor
+                          , OC.dpProject = fromString dProj
+                          , OC.dpAmount  = amnt
+                          }
+                          : soFar
+                      , ("", "", "")
+                      )
+                    -- }}}
+                -- }}}
+            )
+            (Right ([], ("", "", "")))
+            restOfArgs
       in
-      case go (Right ([], [])) restOfArgs of
-        Right (dPs, [datumJSON, dOF, rOF]) ->
+      case eith of
+        Right (dPs, (datumJSON, dOF, rOF)) ->
           -- {{{
           actOnData datumJSON $ \currDatum ->
-            fromAction (OC.Donate dPs) currDatum (Just dOF) rOF
+            fromAction True (OC.Donate dPs) currDatum (Just dOF) rOF
           -- }}}
         Left err                           ->
           -- {{{
           putStrLn $ "FAILED: " ++ err
-          -- }}}
-        _                                  ->
-          -- {{{
-          putStrLn "FAILED: The impossible happened."
           -- }}}
       -- }}}
     "contribute" : amountStr : datumJSON : dOF : rOF : _                ->
@@ -609,7 +650,7 @@ main =
             -- }}}
           Just amount ->
             -- {{{
-            fromAction (OC.Contribute amount) currDatum (Just dOF) rOF
+            fromAction True (OC.Contribute amount) currDatum (Just dOF) rOF
             -- }}}
       -- }}}
     "set-deadline" : deadlineStr : datumJSON : dOF : rOF : _            ->
@@ -622,9 +663,89 @@ main =
             -- }}}
           Just deadline ->
             -- {{{
-            fromAction (OC.SetDeadline deadline) currDatum (Just dOF) rOF
+            fromAction True (OC.SetDeadline deadline) currDatum (Just dOF) rOF
             -- }}}
       -- }}}
+    "distribute" : keyHolderAddr : restOfArgs                           ->
+      -- {{{
+      let
+        eith =
+          -- {{{
+          infArgHelper 
+            ( \projPKH projAddr soFar ->
+                -- {{{
+                Right
+                  ( Map.insert (fromString projPKH) projAddr soFar
+                  , ("", "", "")
+                  )
+                -- }}}
+            )
+            (Right (Map.empty, ("", "", "")))
+            restOfArgs
+          -- }}}
+        makeTxOutArg addr amt =
+          "--tx-out \"" ++ addr ++ " + " ++ show amt ++ " lovelace\""
+      in
+      case eith of
+        Right (kvs, (datumJSON, dOF, rOF)) ->
+          -- {{{
+          actOnData datumJSON $ \currDatum ->
+            let
+              projs        = OC.qvfProjects currDatum
+              projectCount = fromIntegral $ length projs
+              initialPool  = OC.qvfPool currDatum - OC.minLovelace * projectCount
+              prizeMappings :: [(Ledger.PubKeyHash, Integer)]
+              (extraFromRounding, prizeMappings) =
+                OC.foldProjects initialPool projs
+              foldFn (projPKH, prize) mAcc = do
+                -- {{{
+                let (finalPrize, forKH) = OC.getFinalPrizeAndKeyHoldersFee prize
+                (keyHolderFees, cliArgs) <- mAcc
+                projAddr                 <- Map.lookup projPKH kvs
+                return
+                  ( forKH + keyHolderFees
+                  , makeTxOutArg projAddr finalPrize ++ " " ++ cliArgs
+                  )
+                -- }}}
+              mFeeAndArgs  =
+                foldr foldFn (Just (extraFromRounding, "")) prizeMappings
+            in
+            case mFeeAndArgs of
+              Nothing          ->
+                -- {{{
+                putStrLn "FAILED: Bad map from public key hashes to addresses."
+                -- }}}
+              Just (forKH, args) ->
+                -- {{{
+                let
+                  finalArgs = makeTxOutArg keyHolderAddr forKH ++ " " ++ args
+                in do
+                fromAction False OC.Distribute currDatum (Just dOF) rOF
+                putStrLn finalArgs
+                -- }}}
+          -- }}}
+        Left err                           ->
+          -- {{{
+          putStrLn $ "FAILED: " ++ err
+          -- }}}
+      -- }}}
+    "get-deadline-slot" : currSlotStr : datumJSON : _                   -> do
+      -- {{{
+      case readMaybe currSlotStr of
+        Just currSlot -> do
+          -- {{{
+          actOnData datumJSON $ \currDatum -> do
+            let slotLength                = 1000
+                Ledger.POSIXTime deadline = OC.qvfDeadline currDatum
+            currPOSIX <- round . (* 1000) <$> getPOSIXTime
+            let diff = deadline - currPOSIX
+            print $ diff * slotLength + currSlot
+          -- }}}
+        _ ->
+          -- {{{
+          putStrLn "FAILED: Couldn't parse current slot number.."
+          -- }}}
+      -- }}}
     _                                                                   ->
-      printHelp
+      putStrLn "FAILED: Invalid arguments for QVF-CLI."
 -- }}}

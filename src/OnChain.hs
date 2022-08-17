@@ -319,14 +319,6 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
       && traceIfFalse "E4" (outputHasOneToken $ ownOutput ())
       -- }}}
 
-    -- | Checks whether transaction's valid time range overlaps with the
-    --   <given deadline to infinity> interval.
-    deadlineTouched :: POSIXTime -> Bool
-    deadlineTouched =
-      -- {{{
-      Interval.overlaps (txInfoValidRange info) . Interval.from
-      -- }}}
-
     -- | Checks whether transaction's valid time range is contained within the
     --   <given deadline to infinity> interval.
     deadlinePassed :: POSIXTime -> Bool
@@ -352,7 +344,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right newDatum ->
                traceIfFalse "E23" (enoughAddedInOutput minLovelace)
             && traceIfFalse "E24" (isOutputDatumValid newDatum)
-            && traceIfTrue  "E5"  (deadlineTouched qvfDeadline)
+            && traceIfTrue  "E5"  (deadlinePassed qvfDeadline)
             && oneTokenInOneTokenOut ()
         -- }}}
       Donate dPs                   ->
@@ -363,7 +355,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right (totalDonations, newDatum) ->
                traceIfFalse "E25" (enoughAddedInOutput totalDonations)
             && traceIfFalse "E26" (isOutputDatumValid newDatum)
-            && traceIfTrue  "E5"  (deadlineTouched qvfDeadline)
+            && traceIfTrue  "E5"  (deadlinePassed qvfDeadline)
             && oneTokenInOneTokenOut ()
         -- }}}
       Contribute contribution      ->
@@ -374,7 +366,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right newDatum ->
                traceIfFalse "E27" (enoughAddedInOutput contribution)
             && traceIfFalse "E28" (isOutputDatumValid newDatum)
-            && traceIfTrue  "E5"  (deadlineTouched qvfDeadline)
+            && traceIfTrue  "E5"  (deadlinePassed qvfDeadline)
             && oneTokenInOneTokenOut ()
         -- }}}
       SetDeadline newDl            ->
@@ -384,7 +376,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
             traceError err
           Right newDatum ->
                signedByKeyHolder ()
-            && traceIfTrue  "E29" (deadlineTouched newDl)
+            && traceIfTrue  "E29" (deadlinePassed newDl)
             && traceIfFalse "E28" (isOutputDatumValid newDatum)
             && oneTokenInOneTokenOut ()
         -- }}}
@@ -394,7 +386,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           newDatum            = currDatum {qvfInProgress = False}
           outputUTxOs         = txInfoOutputs info
           projectCount        = length qvfProjects
-          validOutputCount    = length outputUTxOs >= projectCount + 2
+          validOutputCount    = length outputUTxOs == projectCount + 2
           closedOutput        = ownOutput ()
           -- For each project, the initial registration costs are meant to be
           -- refunded.                    v------------------------v
@@ -405,9 +397,9 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           foldFn (projPKH, prize) keyHolderFees =
             -- {{{
             let
-              forKH = max 0 $ 5 * (prize - minLovelace) `divide` 100
+              (finalPrize, forKH) = getFinalPrizeAndKeyHoldersFee prize
             in
-            if (prize - forKH) == lovelaceFromValue (valuePaidTo info projPKH) then
+            if finalPrize == lovelaceFromValue (valuePaidTo info projPKH) then
               forKH + keyHolderFees
             else
               traceError "E17"
@@ -416,7 +408,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           --   won prize.
           forKeyHolder        = foldr foldFn extraFromRounding prizeMappings
           keyHolderImbursed   =
-            lovelaceFromValue (valuePaidTo info keyHolder) == forKeyHolder
+            lovelaceFromValue (valuePaidTo info keyHolder) >= forKeyHolder
         in
            signedByKeyHolder ()
         && traceIfFalse "E18" (deadlinePassed qvfDeadline)
@@ -609,6 +601,17 @@ foldProjects initialPool ps =
   -- }}}
 
 
+{-# INLINABLE getFinalPrizeAndKeyHoldersFee #-}
+getFinalPrizeAndKeyHoldersFee :: Integer -> (Integer, Integer)
+getFinalPrizeAndKeyHoldersFee initPrize =
+  -- {{{
+  let
+    forKH = max 0 $ 5 * (initPrize - minLovelace) `divide` 100
+  in
+  (initPrize - forKH, forKH)
+  -- }}}
+
+
 {-# INLINABLE addProjectToDatum #-}
 addProjectToDatum :: AddProjectParams
                   -> QVFDatum
@@ -720,9 +723,10 @@ updateDatum action currDatum@QVFDatum {..} =
       -- is an unconditional acceptance of the new deadline.
       setDeadlineOfDatum newDeadline currDatum
       -- }}}
-    (True,  _                          ) ->
+    (True,  Distribute                 ) ->
       -- {{{
-      Left "E37"
+      -- Simply closes the fund.
+      Right $ currDatum {qvfInProgress = False}
       -- }}}
   -- }}}
 -- }}}
