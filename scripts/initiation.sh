@@ -7,7 +7,7 @@ endingWallet=20
 totalLovelaceToDistribute=4000000000
 
 tokenName="QVF"
-deadline=1660608000000
+deadline=1660867200000
 
 # Storing the hex format of the token name:
 $qvf string-to-hex $tokenName $tokenNameHexFile

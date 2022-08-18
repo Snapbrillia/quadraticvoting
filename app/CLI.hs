@@ -296,7 +296,7 @@ main =
       -- {{{
       makeHelpText
         (    "Generate `--tx-out` arguments to pass to the `cardano-cli`\n"
-          ++ "application, plus the updated datum and redeemer files:"
+          ++ "\tapplication, plus the updated datum and redeemer files:"
         )
         "distribute"
         "<key-holder-address>" $
@@ -684,7 +684,7 @@ main =
             restOfArgs
           -- }}}
         makeTxOutArg addr amt =
-          "--tx-out \"" ++ addr ++ " + " ++ show amt ++ " lovelace\""
+          "--tx-out " ++ addr ++ "+" ++ show amt
       in
       case eith of
         Right (kvs, (datumJSON, dOF, rOF)) ->
@@ -737,9 +737,9 @@ main =
           actOnData datumJSON $ \currDatum -> do
             let slotLength                = 1000
                 Ledger.POSIXTime deadline = OC.qvfDeadline currDatum
-            currPOSIX <- round . (* 1000) <$> getPOSIXTime
+            currPOSIX <- round . (* 1000) <$> getPOSIXTime -- milliseconds
             let diff = deadline - currPOSIX
-            print $ diff * slotLength + currSlot
+            print $ diff `div` slotLength + currSlot
           -- }}}
         _ ->
           -- {{{

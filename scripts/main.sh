@@ -8,6 +8,10 @@ tokenName=$(cat $tokenNameHexFile)
 authAsset="$policyId.$tokenName"
 
 
+invalidBefore="--invalid-before"
+invalidAfter="--invalid-hereafter"
+
+
 # CAUTIOUSLY DEFINING GLOBAL VARIABLES:
 currDatum="$preDir/curr.datum"
 updatedDatum="$preDir/updated.datum"
@@ -19,15 +23,20 @@ datumValue=""
 lovelace=""
 newLovelace=""
 
-# Takes 2 arguments:
+# Takes 2 (or 3) arguments:
 #   1. The JSON object,
-#   2. Lovelace to add to script's UTxO.
+#   2. Lovelace to add to script's UTxO,
+#   3. (Optional) Explicit value for $newLovelace.
 setCommonVariables() {
   utxo=$(echo $1 | jq .utxo)
   datumHash=$(echo $1 | jq .datumHash)
   datumValue=$(echo $1 | jq -c .datumValue)
-  lovelace=$(echo $1 | jq .lovelace | jq tonumber)
-  newLovelace=$(expr $lovelace + $2)
+  if [ ! -z "$3" ]; then
+    newLovelace="$3"
+  else
+    lovelace=$(echo $1 | jq .lovelace | jq tonumber)
+    newLovelace=$(expr $lovelace + $2)
+  fi
   if [ -f $currDatum ]; then
     echo $datumValue > $currDatum
   else
@@ -46,34 +55,47 @@ get_current_state() {
   $qvf pretty-datum $datumValue
 }
 
+# Takes 1 argument:
+#   1. Datum file.
+get_deadline_slot() {
+  $qvf get-deadline-slot $(get_newest_slot) $1
+}
+
 
 # Takes 2 (up to 4) arguments:
 #   1. Payer's wallet number/name.
 #   2. Payer's UTxO to be spent.
-#   3. (Optional) Custom change address.
-#   4. (Optional) Required signer's wallet number/name.
+#   3. (Optional) Argument for deadline (--invalid-before|--invalid-hereafter)
+#   4. (Optional) Custom change address.
+#   5. (Optional) Required signer's wallet number/name.
+#   6. (Optional) Extra outputs.
 update_contract() {
-  scriptFile="$preDir/qvf.plutus"
   donorAddrFile="$preDir/$1.addr"
   donorSKeyFile="$preDir/$1.skey"
   utxoFromDonor="$2"
   utxoAtScript=$(remove_quotes $utxo)
   changeAddress=$(cat $donorAddrFile)
+  deadlineArg=""
   if [ ! -z "$3" ]; then
-    changeAddress=$3
+    deadlineArg="$3 $(get_deadline_slot $updatedDatum)"
+  fi
+  if [ ! -z "$4" ]; then
+    changeAddress=$4
   fi
   additionalSigner=""
   requiredSigner=""
-  if [ ! -z "$4" ]; then
-    additionalSigner="$preDir/$4.skey"
+  if [ ! -z "$5" ]; then
+    additionalSigner="$preDir/$5.skey"
     requiredSigner="--required-signer $additionalSigner"
   fi
 
-  echo $scriptFile
+  echo $scriptPlutusFile
   echo $donorAddrFile
   echo $donorSKeyFile
   echo $utxoFromDonor
   echo $utxoAtScript
+  echo $requiredSigner
+  echo $6
 
   # Generate the protocol parameters:
   generate_protocol_params
@@ -84,11 +106,11 @@ update_contract() {
     --tx-in-collateral $utxoFromDonor                             \
     --tx-in $utxoAtScript                                         \
     --tx-in-datum-file $currDatum                                 \
-    --tx-in-script-file $scriptFile                               \
+    --tx-in-script-file $scriptPlutusFile                         \
     --tx-in-redeemer-file $action                                 \
     --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
-    --tx-out-datum-embed-file $updatedDatum                       \
-    --change-address $changeAddress                               \
+    --tx-out-datum-embed-file $updatedDatum                    $6 \
+    --change-address $changeAddress                  $deadlineArg \
     --protocol-params-file $protocolsFile                         \
     --cddl-format   $requiredSigner                               \
     --out-file $txBody
@@ -135,7 +157,12 @@ set_deadline() {
        $updatedDatum \
        $action
   echo "Datum and redeemer files generated."
-  update_contract $payer $txIn $(cat $preDir/$payer.addr) $keyHolder
+  update_contract              \
+    $payer                     \
+    $txIn                      \
+    $invalidAfter              \
+    $(cat $preDir/$payer.addr) \
+    $keyHolder
 }
 
 
@@ -165,7 +192,7 @@ donate_from_to_with() {
        $updatedDatum \
        $action
   txIn=$(get_first_utxo_of $1)
-  update_contract $1 $txIn $changeAddr
+  update_contract $1 $txIn $invalidAfter $changeAddr
   # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
   # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
   # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
@@ -203,7 +230,7 @@ contribute_from_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn $changeAddr
+  update_contract $1 $txIn $invalidAfter $changeAddr
 }
 
 
@@ -239,5 +266,29 @@ register_project() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn $changeAddr
+  update_contract $1 $txIn $invalidAfter $changeAddr
+}
+
+
+# Takes 2 arguments:
+#   1. Starting wallet number of projects,
+#   2. Ending wallet number of projects.
+distribute() {
+  txIn=$(get_first_utxo_of $keyHolder)
+  obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
+  obj=$(bf_add_datum_value_to_utxo $obj)
+  setCommonVariables $(echo $obj | jq -c .) 0 2000000
+  utxoAtScript=$(remove_quotes $utxo)
+  pkhAddrs=""
+  for i in $(seq $1 $2); do
+    pkhAddrs="$pkhAddrs $(cat $preDir/$i.pkh) $(cat $preDir/$i.addr)"
+  done
+  txOuts=$($qvf distribute $keyHoldersAddress $pkhAddrs $currDatum $updatedDatum $action)
+  update_contract      \
+    $keyHolder         \
+    $txIn              \
+    $invalidBefore     \
+    $keyHoldersAddress \
+    $keyHolder         \
+    "$txOuts"
 }

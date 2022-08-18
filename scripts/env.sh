@@ -1,16 +1,17 @@
 #!/bin/bash
 
-export MAGIC='--testnet-magic 1097911063'
+# export MAGIC='--testnet-magic 1097911063'
+export MAGIC='--testnet-magic 2'
 
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
-export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
+export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
 export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet"
 export cli="cardano-cli"
 export qvf="qvf-cli"
 # export qvf="cabal run qvf-cli --"
 # ========================================== #
 
-export keyHolder="keyHolder"
+export keyHolder="kh"
 export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
 export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
 export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
@@ -186,14 +187,12 @@ show_utxo_tables_from_to () {
 
     for i in $(seq $1 $2)
     do
-        echo "$preDir/$i.addr utxos: "
         show_utxo_tables $i
     done
 
     shift 2
     if [ -n $1 ]
     then
-        echo "$preDir/$i.addr utxos: "
         show_utxo_tables $@
     fi
 }
@@ -251,6 +250,7 @@ distribute_from_to_wallets() {
         $tx_in_str                     \
         --change-address $spendingAddr \
         $tx_out_str                    \
+        --cddl-format                  \
         --out-file $txBody
 
     $cli transaction sign                  \
@@ -386,6 +386,23 @@ interact_with_smart_contract() {
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
     $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+}
+
+
+# Keeps querying the node until it first reaches a `syncProgress` of 100%.
+# Continues polling until sees a "fresh" slot number to return.
+get_newest_slot() {
+  sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  while [ $sync -lt 100 ]; do
+    sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  done
+  obj=$($cli query tip $MAGIC | jq -c .)
+  initialSlot=$($cli query tip $MAGIC | jq .slot)
+  newSlot=$initialSlot
+  while [ $newSlot = $initialSlot ]; do
+    newSlot=$($cli query tip $MAGIC | jq .slot)
+  done
+  echo $newSlot
 }
 
 
