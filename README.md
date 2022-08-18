@@ -115,21 +115,19 @@ $ direnv allow .
 N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'nix-shell'. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
 
 ## Editor Support
-The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means Vscode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
+The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means VSCode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
 
-# Vscode
-If you want to use vscode:
-1. Install it from [here](https://code.visualstudio.com/download)
-2. Start vscode and add the following extensions:
+# VSCode
+The project provides default support for VSCode via 'vscode/settings.json'. This uses the Nix Environment Selector plugin. Follow instuctions below to make VSCode haskell-aware.
+
+1. Install VSCode from [here](https://code.visualstudio.com/download)
+2. Start VSCode and add the following extensions:
 - Haskell (id: haskell.haskell)
 - Haskell Syntax Highlighting (id: justusadam.language-haskell)
 - Nix Environment Selector (id: arrterian.nix-env-selector)
 - direnv (id: mkhl.direnv) -- optional (see 2. below)
-3. Exit vscode.
+3. Exit VSCode.
 
+When VSCode opens the project folder it will use the 'Nix Environment Selector' to set up the nix environment automatically. It may take a few seconds to settle down (it's running 'nix-shell'). When you open a haskell file you should see activity in the status bar (e.g. 'processing 2/5'). 
 
-Start vscode from your projects root dir. Wait for things to settle down :-). Then use the 'Nix Environment Selector'
-extension to make the correct versions of the tools are used (in particular the haskell-language-server) and that they run in the right environment. Follow the instructions in 'Nix Environment Selector' documentation. You will be presented with a list of nix files to select from. Choose 'life'. Err, actually choose 'shell.nix'. Then exit and restart. Give it a few seconds to warm up, then open e.g. OnChain.hs. You should see activity in the status bar - hls getting to work. 
-
-And you're all set....
 
