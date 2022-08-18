@@ -30,3 +30,5 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 result
+qvf-cli-dynamic
+qvf-cli-static
