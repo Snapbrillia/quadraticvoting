@@ -176,23 +176,38 @@ donate_from_to_with() {
   donorsPKH=$(cat $preDir/$1.pkh)
   donorsAddr=$(cat $preDir/$1.addr)
   changeAddr=$donorsAddr
-  if [ ! -z "$4" ]; then
-    changeAddr=$4
-  fi
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
   obj=$(bf_add_datum_value_to_utxo $obj)
-  setCommonVariables $(echo $obj | jq -c .) $3
+ 
+  first_arg=$1
+  shift 1
+  str_pair=''
+  acc=0  
+  
+  for i in $@
+  do
+    if [ $# -eq 1 ]; then
+      changeAddr=$1
+      shift 1
+    elif [ $# -ge 2 ]; then
+      str_pair="$str_pair $1 $2"
+      acc=$(expr $acc + $2)
+      shift 2
+    fi
+  done
+  
+  setCommonVariables $(echo $obj | jq -c .) $acc
+  
   echo $lovelace
   echo $newLovelace
   $qvf donate        \
        $donorsPKH    \
-       $2            \
-       $3            \
+       $str_pair     \
        $currDatum    \
        $updatedDatum \
        $action
-  txIn=$(get_first_utxo_of $1)
-  update_contract $1 $txIn $invalidAfter $changeAddr
+  txIn=$(get_first_utxo_of $first_arg)
+  update_contract $first_arg $txIn $invalidAfter $changeAddr
   # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
   # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
   # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
