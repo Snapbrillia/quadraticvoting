@@ -5,7 +5,7 @@ This branch introduces a Nix build system for the project. 'So what?' I hear you
 This means: 
 - No more faffing around with cloning plutus-apps and/or setting up links to its dist-newstyle directory etc.
 - No need to explicitly clone the plutonomy repo and set it up
-- Support for Vscode (i.e. code completion and all that stuff). (This does *NOT* use the devcontainer. I haven't got that working yet. Not sure it's a priority given we can use Vscode without it).
+- Support for VSCode (i.e. code completion and all that stuff). (This does *NOT* use the devcontainer. I haven't got that working yet. Not sure it's a priority given we can use Vscode without it).
 - *Most importantly* it provides a 'reproduceable' build. i.e. the build should be the 'same' on everyone's machine.
 - It provides the basis for setting up pipeline builds on github
 
