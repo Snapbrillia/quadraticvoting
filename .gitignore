@@ -1,5 +1,6 @@
 dist
 dist-*
+.vscode
 tx.raw
 tx.sign
 scripts/testnet
@@ -28,3 +29,4 @@ cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
+result
