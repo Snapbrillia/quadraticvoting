@@ -28,7 +28,10 @@ $ git checkout feature/chained-stateful-scripts-nix
 
 # Building
 When this build system hits 'main' the repo will become a flake. It supports multiple ways of building the code and setting up a development environment. E.G.
-1. *nix build .*
+1. __nix build .__
+
+The default flake build:
+
 ```bash
 $ cd ~/tmp/repos/quadraticvoting
 $ nix build . -o qvf-cli-dynamic
@@ -58,7 +61,8 @@ $ ldd qvf-cli-dynamic/bin/qvf-cli
 	libnuma.so.1 => /nix/store/8pc3bcwhgz4aldkmpysqjblkcl4arq0w-numactl-2.0.14/lib/libnuma.so.1 (0x00007f049f651000)
 	/nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/ld-linux-x86-64.so.2 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib64/ld-linux-x86-64.so.2 (0x00007f049fb17000)
 ```
-2. *nix-build*
+2. __nix-build__
+
 ```bash
 $ cd ~/tmp/repos/quadraticvoting
 $ nix-build
@@ -67,7 +71,8 @@ $ nix-build
 ```
 This is equivalent to the previous command, except it creates the default symlink 'result' to the store.
 
-3. *cabal build all*
+3. __cabal build all__
+
 If you have already established the Nix environment for the project then 'qvf-cli' can be built using 'raw' cabal. This will be quickest.
 
 ```bash
@@ -94,10 +99,12 @@ Building executable 'qvf-cli' for qvf-cli-0.1.0.0..
 [1 of 1] Compiling Main             ( app/CLI.hs, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/qvf-cli-0.1.0.0/x/qvf-cli/build/qvf-cli/qvf-cli-tmp/Main.o )
 Linking /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/qvf-cli-0.1.0.0/x/qvf-cli/build/qvf-cli/qvf-cli ...
 ```
-4. *nix develop .*
+4. __nix develop .__
+
 The build system supports 'nix develop'. This can be used instead of 'nix-shell' in the example above. Currently it provides no additional functionality. But in future we may want to extend its functionality to provide support for testing.
 
-5. *Building a static executable.*
+5. __Building a static executable.__
+
 We can produce a fully static executable as follows:
 ```bash
 $ cd ~/src/quadraticvoting
