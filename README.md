@@ -9,9 +9,9 @@ This means:
 - *Most importantly* it provides a 'reproduceable' build. i.e. the build should be the 'same' on everyone's machine.
 - It provides the basis for setting up pipeline builds on github
 
-## Setting up
+# Setting up
 
-# Clone this repo and/or checkout this branch.
+## Clone this repo and/or checkout this branch.
 You may prefer to play with the support this branch provides with out interfering (too much) with your current development environment. If so clone [quadraticvoting](https://github.com/Snapbrillia/quadraticvoting) into a new location (recommended). 
 ```bash
 $ mkdir -p ~/tmp/repos
@@ -26,7 +26,7 @@ $ git pull
 $ git checkout feature/chained-stateful-scripts-nix
 ```
 
-# Building
+## Building
 When this build system hits 'main' the repo will become a flake. It supports multiple ways of building the code and setting up a development environment. E.G.
 1. __nix build .__
 
@@ -121,10 +121,10 @@ $ direnv allow .
 ```
 N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'nix-shell'. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
 
-## Editor Support
+# Editor Support
 The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means VSCode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
 
-# VSCode
+## VSCode
 The project provides default support for VSCode via 'vscode/settings.json'. This uses the Nix Environment Selector plugin. Follow instuctions below to make VSCode haskell-aware.
 
 1. Install VSCode from [here](https://code.visualstudio.com/download)
