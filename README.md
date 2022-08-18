@@ -11,8 +11,114 @@ This means:
 
 ## Setting up
 
+# Clone this repo and/or checkout this branch.
+You may prefer to play with the support this branch provides with out interfering (too much) with your current development environment. If so clone [quadraticvoting](https://github.com/Snapbrillia/quadraticvoting) into a new location (recommended). 
+```bash
+$ mkdir -p ~/tmp/repos
+$ cd ~/tmp/repos
+$ git clone https://github.com/Snapbrillia/quadraticvoting.git
+$ cd quadraticvoting
+$ git checkout feature/chained-stateful-scripts-nix
+```
+Or you could just checkout this branch in your current quadraticvoting directory.
+```bash
+$ git pull
+$ git checkout feature/chained-stateful-scripts-nix
+```
+
+# Building
+When this build system hits 'main' the repo will become a flake. It supports multiple ways of building the code and setting up a development environment. E.G.
+1. nix build .
+```bash
+$ cd ~/tmp/repos/quadraticvoting
+$ nix build . -o qvf-cli-dynamic
+```
+This is the default 'flake' build. It builds 'qvf-cli' as a dynamic executable. It creates a symlink 'qvf-cli-dynamic' to the nix store directory that contains the executable. i.e.
+```bash
+$ ls -l
+...
+lrwxrwxrwx 1 andy andy    71 Aug 18 22:20 qvf-cli-dynamic -> /nix/store/w84h3k9iiq461bw35j2hfg1r9vvs1r9m-qvf-cli-exe-qvf-cli-0.1.0.0
+...
+```
+We can see the executable is dynamic
+```bash
+$ ldd qvf-cli-dynamic/bin/qvf-cli 
+	linux-vdso.so.1 (0x00007ffc96cee000)
+	liblzma.so.5 => /nix/store/p6vws9zzv997asjmrnyc33v9xiw5pjyr-xz-5.2.5/lib/liblzma.so.5 (0x00007f049faeb000)
+	libpthread.so.0 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/libpthread.so.0 (0x00007f049fae6000)
+	libz.so.1 => /nix/store/hcdak2r7n3g850iw1hmhiasi0nzchdw8-zlib-1.2.12/lib/libz.so.1 (0x00007f049fac8000)
+	libncursesw.so.6 => /nix/store/p9nmjgz8kzx87qjxka7g29j6qya752np-ncurses-6.3-p20220507/lib/libncursesw.so.6 (0x00007f049fa51000)
+	libsodium.so.23 => /usr/local/lib/libsodium.so.23 (0x00007f049f9f1000)
+	libgmp.so.10 => /nix/store/z2kzn2kj4wkz3rl1207r4rqyi4ar936j-gmp-with-cxx-6.2.1/lib/libgmp.so.10 (0x00007f049f950000)
+	libc.so.6 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/libc.so.6 (0x00007f049f752000)
+	libm.so.6 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/libm.so.6 (0x00007f049f679000)
+	librt.so.1 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/librt.so.1 (0x00007f049f674000)
+	libdl.so.2 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/libdl.so.2 (0x00007f049f66d000)
+	libffi.so.8 => /nix/store/a6n90jvgz1sbr6982f6pzqs7y95x32b2-libffi-3.4.2/lib/libffi.so.8 (0x00007f049f660000)
+	libnuma.so.1 => /nix/store/8pc3bcwhgz4aldkmpysqjblkcl4arq0w-numactl-2.0.14/lib/libnuma.so.1 (0x00007f049f651000)
+	/nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib/ld-linux-x86-64.so.2 => /nix/store/k56d9sk88pvrqhvwpa6msdf8gpwnimf6-glibc-2.34-210/lib64/ld-linux-x86-64.so.2 (0x00007f049fb17000)
+```
+2. nix-build
+```bash
+$ cd ~/tmp/repos/quadraticvoting
+$ nix-build
+...
+/nix/store/w84h3k9iiq461bw35j2hfg1r9vvs1r9m-qvf-cli-exe-qvf-cli-0.1.0.0
+```
+This is equivalent to the previous command, except it creates the default symlink 'result' to the store.
+
+3. cabal build all
+If you have already established the Nix environment for the project then 'qvf-cli' can be built using 'raw' cabal. This will be quickest.
+
+```bash
+$ cd ~/src/quadraticvoting
+$ nix-shell
+$ cabal build all
+nix/store/ql8kpz74mxgcml09qpyaa607y5phwnvx-cabal-install-exe-cabal-3.6.2.0/bin/cabal --project-file=/home/andy/src/quadraticvoting/.nix-shell-cabal.project build all
+Warning: No remote package servers have been specified. Usually you would have
+one specified in the config file.
+Resolving dependencies...
+Build profile: -w ghc-8.10.7 -O1
+In order, the following will be built (use -v for more details):
+ - quadraticVoting-0.1.0.0 (lib) (configuration changed)
+ - qvf-cli-0.1.0.0 (exe:qvf-cli) (configuration changed)
+Configuring library for quadraticVoting-0.1.0.0..
+Preprocessing library for quadraticVoting-0.1.0.0..
+Building library for quadraticVoting-0.1.0.0..
+[1 of 3] Compiling Token            ( src/Token.hs, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/quadraticVoting-0.1.0.0/build/Token.o, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/quadraticVoting-0.1.0.0/build/Token.dyn_o )
+[2 of 3] Compiling Utils            ( src/Utils.hs, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/quadraticVoting-0.1.0.0/build/Utils.o, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/quadraticVoting-0.1.0.0/build/Utils.dyn_o )
+[3 of 3] Compiling OnChain          ( src/OnChain.hs, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/quadraticVoting-0.1.0.0/build/OnChain.o, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/quadraticVoting-0.1.0.0/build/OnChain.dyn_o )
+Configuring executable 'qvf-cli' for qvf-cli-0.1.0.0..
+Preprocessing executable 'qvf-cli' for qvf-cli-0.1.0.0..
+Building executable 'qvf-cli' for qvf-cli-0.1.0.0..
+[1 of 1] Compiling Main             ( app/CLI.hs, /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/qvf-cli-0.1.0.0/x/qvf-cli/build/qvf-cli/qvf-cli-tmp/Main.o )
+Linking /home/andy/src/quadraticvoting/dist-newstyle/build/x86_64-linux/ghc-8.10.7/qvf-cli-0.1.0.0/x/qvf-cli/build/qvf-cli/qvf-cli ...
+```
+4. nix develop .
+The build system supports 'nix develop'. This can be used instead of 'nix-shell' in the example above. Currently it provides no additional functionality. But in future we may want to extend its functionality to provide support for testing.
+
+5. Building a static executable.
+We can produce a fully static executable as follows:
+```bash
+$ cd ~/src/quadraticvoting
+$ nix build .#qvf-cli-static.x86_64-linux -o qvf-cli-static
+$ ldd qvf-cli-static/bin/qvf-cli 
+$	not a dynamic executable
+```
+# Direnv
+'[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
+
+The project has a default .envrc file and therefore supports [direnv](https://direnv.net) for those who want to use it. If you have [direnv](https://direnv.net) installed then you should be prompted to *allow* [direnv](https://direnv.net) for the project's root directory when you checkout this branch . If that doesn't happen (for some reason) then after the checkout completes you can execute the following in the quadraticvoting's 'root' directory
+```bash
+$ direnv allow .
+```
+N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'nix-shell'. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
+
+## Editor Support
+The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means Vscode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
+
 # Vscode
-   If you want to use vscode:
+If you want to use vscode:
 1. Install it from [here](https://code.visualstudio.com/download)
 2. Start vscode and add the following extensions:
 - Haskell (id: haskell.haskell)
@@ -21,51 +127,9 @@ This means:
 - direnv (id: mkhl.direnv) -- optional (see 2. below)
 3. Exit vscode.
 
-# Direnv
-   '[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
 
-   The project supports [direnv](https://direnv.net) for those who want to use it. If you have [direnv](https://direnv.net) installed then you should be prompted to allow [direnv](https://direnv.net) for the project's root directory when you checkout this branch . If that doesn't happen (for some reason) then after the checkout completes you can execute the following in the quadraticvoting's 'root' directory
-   ```bash
-   $ direnv allow .
-   ```
-   N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'shell.nix'. This will cause the same activity as if you had typed 'nix-shell' in the root directory. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
-
-# Clone this repo and/or checkout this branch.
-   You may prefer to play with the support this branch provides with out interfering (too much) with your current development environment. If so clone [quadraticvoting](https://github.com/Snapbrillia/quadraticvoting) into a new location (recommended). 
-   ```bash
-   $ mkdir -p ~/tmp/repos
-   $ cd ~/tmp/repos
-   $ git clone https://github.com/Snapbrillia/quadraticvoting.git
-   $ cd quadraticvoting
-   $ git checkout feature/vscode-nix-plutonomy
-   ```
-   Or you could just checkout this branch in your quadraticvoting directory.
-   ```bash
-   $ git checkout feature/vscode-nix-plutonomy
-   ```
-   If you've installed [direnv](https://direnv.net) you should get prompted at this point (see 2 above). If you decide to allow 'direnv' on prompting or explicitly, go and get a coffee at this point. The project's 'shell.nix' will get invoked to setup your nix (build) environment.
-
-# Build
-   If you're not using [direnv](https://direnv.net) invoke 'nix-shell' in the project's root directory.
-   ```bash
-   $ cd ~/tmp/repos
-   $ nix-shell
-   ```
-   On first invocation this will take some time as it populates your nix cache. On my machine, in Vietnam, it took 10 minutes. So, more coffee...
-   
-   And then
-   ```bash
-   $ cabal build
-   ```
-
-   Or
-   ```bash
-   $ cabal repl
-   ```
-
-# Vscode - one more tweak
-   Start vscode from your projects root dir. Wait for things to settle down :-). Then use the 'Nix Environment Selector'
-   extension to make the correct versions of the tools are used (in particular the haskell-language-server) and that they run in the right environment. Follow the instructions in 'Nix Environment Selector' documentation. You will be presented with a list of nix files to select from. Choose 'life'. Err, actually choose 'shell.nix'. Then exit and restart. Give it a few seconds to warm up, then open e.g. OnChain.hs. You should see activity in the status bar - hls getting to work. 
+Start vscode from your projects root dir. Wait for things to settle down :-). Then use the 'Nix Environment Selector'
+extension to make the correct versions of the tools are used (in particular the haskell-language-server) and that they run in the right environment. Follow the instructions in 'Nix Environment Selector' documentation. You will be presented with a list of nix files to select from. Choose 'life'. Err, actually choose 'shell.nix'. Then exit and restart. Give it a few seconds to warm up, then open e.g. OnChain.hs. You should see activity in the status bar - hls getting to work. 
 
 And you're all set....
 
