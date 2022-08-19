@@ -168,20 +168,22 @@ set_deadline() {
 
 
 
-# Takes 3 (or 4) arguments:
-#   1. Donor's wallet number/name,
-#   2. Target project's public key hash,
-#   3. Donation amount,
-#   4. (Optional) Custom change address.
+# Takes 4 (or infinitly many) arguments:
+#   1. Payer's wallet number/name,
+#   2. Donor's public key hash,
+#   3. Target project's public key hash,
+#   4. Donation amount,
+#   *. (Optional) Infinite number of public key hash and donation amounts,
+#   n. (Optional last argument) Custom change address.
 donate_from_to_with() {
-  donorsPKH=$(cat $preDir/$1.pkh)
-  donorsAddr=$(cat $preDir/$1.addr)
-  changeAddr=$donorsAddr
+  payer=$1
+  donorsPKH=$2
+  changeAddr=$(cat $preDir/$1.addr)
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
   obj=$(bf_add_datum_value_to_utxo $obj)
- 
-  first_arg=$1
-  shift 1
+  txIn=$(get_first_utxo_of $payer)
+
+  shift 2
   str_pair=''
   acc=0  
   
@@ -207,8 +209,7 @@ donate_from_to_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  txIn=$(get_first_utxo_of $first_arg)
-  update_contract $first_arg $txIn $changeAddr
+  update_contract $payer $txIn $changeAddr
   # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
   # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
   # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
