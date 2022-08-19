@@ -7,7 +7,7 @@ endingWallet=20
 totalLovelaceToDistribute=4000000000
 
 tokenName="QVF"
-deadline=1660867200000
+deadline=1660914000000
 
 # Storing the hex format of the token name:
 $qvf string-to-hex $tokenName $tokenNameHexFile
@@ -80,9 +80,9 @@ initiate_fund() {
   authAsset=$(get_auth_asset)
 
   # COMMENTED OUT FOR TESTING - TODO: UNCOMMENT
-  # deadlineSlot=$(get_deadline_slot $initialDatum)
-  # echo $deadlineSlot > $deadlineSlotFile
-  deadlineSlot=$(cat $deadlineSlotFile) 
+  deadlineSlot=$(get_deadline_slot $initialDatum)
+  echo $deadlineSlot > $deadlineSlotFile
+  # deadlineSlot=$(cat $deadlineSlotFile) 
   # Structure of the first UTxO to be sent to the script address. The 2 ADA
   # here is to compensate both the required minimum of ~1.2 ADA, and the limit
   # imposed by the distribution endpoint of the validator.

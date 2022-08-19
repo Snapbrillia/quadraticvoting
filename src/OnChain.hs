@@ -293,7 +293,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
     utxoHasLovelaces :: TxOut -> Integer -> Bool
     utxoHasLovelaces txOut lovelaces =
       -- {{{
-      txOutValue txOut == Ada.lovelaceValueOf lovelaces
+      lovelaceFromValue (txOutValue txOut) == lovelaces
       -- }}}
 
     -- | Helper function to see if Lovelace count of @ownOutput@ has
@@ -316,23 +316,15 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
       && traceIfFalse "E4" (outputHasOneToken ownOutput)
       -- }}}
 
-    -- | Checks whether transaction's valid time range is contained within the
-    --   <given deadline to infinity> interval.
-    deadlinePassed :: POSIXTime -> Bool
-    deadlinePassed dl =
-      -- {{{
-      Interval.contains (Interval.from dl) $ txInfoValidRange info
-      -- }}}
+    -- | Checks whether the deadline hasn't been reached yet.
+    canInteract :: Bool
+    canInteract =
+      Interval.to qvfDeadline `Interval.contains` txInfoValidRange info
 
-    deadlineShouldBePassed :: POSIXTime -> Bool -> Bool
-    deadlineShouldBePassed dl itShould =
-      -- {{{
-      case (deadlinePassed dl, itShould) of
-        (True , True ) -> True
-        (False, True ) -> traceError "E18"
-        (True , False) -> traceError "E5"
-        (False, False) -> True
-      -- }}}
+    -- | Checks whether the deadline has been reached.
+    canDistribute :: Bool
+    canDistribute =
+      Interval.from qvfDeadline `Interval.contains` txInfoValidRange info
 
     -- | Turned into a function to impose laziness.
     signedByKeyHolder :: () -> Bool
@@ -351,7 +343,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right newDatum ->
                traceIfFalse "E23" (enoughAddedInOutput minLovelace)
             && traceIfFalse "E24" (isOutputDatumValid newDatum)
-            && deadlineShouldBePassed qvfDeadline False
+            && traceIfFalse "E5"  canInteract
             && oneTokenInOneTokenOut
         -- }}}
       Donate dPs                   ->
@@ -362,7 +354,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right (totalDonations, newDatum) ->
                traceIfFalse "E25" (enoughAddedInOutput totalDonations)
             && traceIfFalse "E26" (isOutputDatumValid newDatum)
-            && deadlineShouldBePassed qvfDeadline False
+            && traceIfFalse "E5"  canInteract
             && oneTokenInOneTokenOut
         -- }}}
       Contribute contribution      ->
@@ -373,7 +365,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right newDatum ->
                traceIfFalse "E27" (enoughAddedInOutput contribution)
             && traceIfFalse "E28" (isOutputDatumValid newDatum)
-            && deadlineShouldBePassed qvfDeadline False
+            && traceIfFalse "E5"  canInteract
             && oneTokenInOneTokenOut
         -- }}}
       SetDeadline newDl            ->
@@ -383,7 +375,6 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
             traceError err
           Right newDatum ->
                traceIfFalse "E28" (isOutputDatumValid newDatum)
-            && deadlineShouldBePassed newDl False
             && oneTokenInOneTokenOut
             && signedByKeyHolder ()
         -- }}}
@@ -393,7 +384,6 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           newDatum            = currDatum {qvfInProgress = False}
           outputUTxOs         = txInfoOutputs info
           projectCount        = length qvfProjects
-          validOutputCount    = length outputUTxOs == projectCount + 2
           -- For each project, the initial registration costs are meant to be
           -- refunded.                    v------------------------v
           initialPool         = qvfPool - minLovelace * projectCount
@@ -416,11 +406,10 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           keyHolderImbursed   =
             lovelaceFromValue (valuePaidTo info keyHolder) >= forKeyHolder
         in
-           deadlineShouldBePassed qvfDeadline True
+           traceIfFalse "E18" canDistribute
         && traceIfFalse "E38" (utxoHasLovelaces ownOutput minAuthLovelace)
         && traceIfFalse "E20" keyHolderImbursed
         && traceIfFalse "E21" (isOutputDatumValid newDatum)
-        && traceIfFalse "E22" validOutputCount
         && oneTokenInOneTokenOut
         && signedByKeyHolder ()
         -- }}}

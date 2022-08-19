@@ -56,41 +56,43 @@ get_current_state() {
 }
 
 
-# Takes 2 (up to 6) arguments:
+# Takes 2 (up to 7) arguments:
 #   1. Payer's wallet number/name.
 #   2. Payer's UTxO to be spent.
-#   3. (Optional) Argument for deadline (--invalid-before|--invalid-hereafter)
-#   4. (Optional) Custom change address.
-#   5. (Optional) Required signer's wallet number/name.
-#   6. (Optional) Extra outputs.
+#   3. (Optional) Custom change address.
+#   4. (Optional) Required signer's wallet number/name.
+#   5. (Optional) Extra outputs.
+#   6. (Optional) Custom time interval argument.
 update_contract() {
   donorAddrFile="$preDir/$1.addr"
   donorSKeyFile="$preDir/$1.skey"
   utxoFromDonor="$2"
   utxoAtScript=$(remove_quotes $utxo)
   changeAddress=$(cat $donorAddrFile)
-  deadlineArg=""
+  deadlineArg="$invalidAfter $(cat $deadlineSlotFile)"
   if [ ! -z "$3" ]; then
-    deadlineArg="$3 $(cat $deadlineSlotFile)"
-  fi
-  if [ ! -z "$4" ]; then
-    changeAddress=$4
+    changeAddress=$3
   fi
   additionalSigner=""
   requiredSigner=""
-  if [ ! -z "$5" ]; then
-    additionalSigner="$preDir/$5.skey"
+  if [ ! -z "$4" ]; then
+    additionalSigner="$preDir/$4.skey"
     requiredSigner="--required-signer $additionalSigner"
   fi
-  deadlineArg="$deadlineArg --invalid-hereafter $(expr $(cat $deadlineSlotFile) + 10000)"
-  echo $scriptPlutusFile
-  echo $donorAddrFile
-  echo $donorSKeyFile
-  echo $utxoFromDonor
-  echo $utxoAtScript
-  echo $requiredSigner
-  echo $deadlineArg
-  echo $6
+  if [ ! -z "$6" ]; then
+    deadlineArg=$6
+  fi
+
+  args='--tx-in '$utxoFromDonor' --tx-in-collateral '$utxoFromDonor' --tx-in '$utxoAtScript' --tx-in-datum-file '$currDatum' --tx-in-script-file '$scriptPlutusFile' --tx-in-redeemer-file '$action' --tx-out "'$scriptAddr' + '$newLovelace' lovelace + 1 '$authAsset'" --tx-out-datum-embed-file '$updatedDatum' '$5' --change-address '$changeAddress' '$deadlineArg' --protocol-params-file '$protocolsFile' --cddl-format '$requiredSigner' --out-file '$txBody
+
+  echo $args
+  # echo $donorAddrFile
+  # echo $donorSKeyFile
+  # echo $utxoFromDonor
+  # echo $utxoAtScript
+  # echo $requiredSigner
+  # echo $deadlineArg
+  # echo $5
   # Generate the protocol parameters:
   generate_protocol_params
 
@@ -103,7 +105,7 @@ update_contract() {
     --tx-in-script-file $scriptPlutusFile                         \
     --tx-in-redeemer-file $action                                 \
     --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
-    --tx-out-datum-embed-file $updatedDatum                    $6 \
+    --tx-out-datum-embed-file $updatedDatum                    $5 \
     --change-address $changeAddress                  $deadlineArg \
     --protocol-params-file $protocolsFile                         \
     --cddl-format   $requiredSigner                               \
@@ -160,7 +162,6 @@ set_deadline() {
   update_contract              \
     $payer                     \
     $txIn                      \
-    $invalidAfter              \
     $(cat $preDir/$payer.addr) \
     $keyHolder
 }
@@ -207,7 +208,7 @@ donate_from_to_with() {
        $updatedDatum \
        $action
   txIn=$(get_first_utxo_of $first_arg)
-  update_contract $first_arg $txIn $invalidAfter $changeAddr
+  update_contract $first_arg $txIn $changeAddr
   # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
   # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
   # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
@@ -245,7 +246,7 @@ contribute_from_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn $invalidAfter $changeAddr
+  update_contract $1 $txIn $changeAddr
 }
 
 
@@ -281,7 +282,7 @@ register_project() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn $invalidAfter $changeAddr
+  update_contract $1 $txIn $changeAddr
 }
 
 
@@ -302,8 +303,8 @@ distribute() {
   update_contract      \
     $keyHolder         \
     $txIn              \
-    $invalidBefore     \
     $keyHoldersAddress \
     $keyHolder         \
-    "$txOuts"
+    "$txOuts"          \
+    "$invalidBefore $($cli query tip $MAGIC | jq '.slot|tonumber')"
 }
