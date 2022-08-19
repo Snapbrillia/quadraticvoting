@@ -188,12 +188,16 @@ curl -fLo ~/.vim/autoload/plug.vim --create-dirs     https://raw.githubuserconte
 ```
 3. __Add coc.nvim plugin to .vimrc__
 
-> call plug#begin()
-> 
-> " Use release branch (recommend)
-> Plug 'neoclide/coc.nvim', {'branch': 'release'}
->
-> call plug#end()
+Add the following to ~/.vimrc
+
+```
+call plug#begin()
+
+" Use release branch (recommend)
+Plug 'neoclide/coc.nvim', {'branch': 'release'}
+
+call plug#end()
+```
 
 4. __Install coc.nvim plugin__
 
