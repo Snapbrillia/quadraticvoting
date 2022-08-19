@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# export MAGIC='--testnet-magic 1097911063'
-export MAGIC='--testnet-magic 2'
+export MAGIC='--testnet-magic 1097911063'
+# export MAGIC='--testnet-magic 2'
 
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
-export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
-export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet"
+export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
+export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet2"
 export cli="cardano-cli"
 export qvf="qvf-cli"
 # export qvf="cabal run qvf-cli --"
 # ========================================== #
 
-export keyHolder="kh"
+export keyHolder="keyHolder"
 export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
 export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
 export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
@@ -23,9 +23,34 @@ export policyId=$(cat $policyIdFile)
 export tokenNameHexFile="$preDir/token.hex"
 export policyScriptFile="$preDir/minting.plutus"
 export authAssetUTxOFile="$preDir/authAsset.utxo"
+export deadlineSlotFile="$preDir/deadline.slot"
+export latestInteractionSlotFile="$preDir/latestInteraction.slot"
 export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
+
+
+# Takes 1 argument:
+#   1. Datum file.
+get_deadline_slot() {
+  $qvf get-deadline-slot $(get_newest_slot) $1
+}
+
+
+store_current_slot() {
+  slot=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  echo $slot > $latestInteractionSlotFile
+}
+
+wait_for_new_slot() {
+  latest=$(cat $latestInteractionSlotFile)
+  current=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  while [ $current -eq $latest ]; do
+    current=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  done
+  echo $current
+}
+
 
 # Removes the double quotes.
 #
@@ -396,7 +421,6 @@ get_newest_slot() {
   while [ $sync -lt 100 ]; do
     sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
   done
-  obj=$($cli query tip $MAGIC | jq -c .)
   initialSlot=$($cli query tip $MAGIC | jq .slot)
   newSlot=$initialSlot
   while [ $newSlot = $initialSlot ]; do

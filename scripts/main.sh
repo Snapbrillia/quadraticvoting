@@ -55,14 +55,8 @@ get_current_state() {
   $qvf pretty-datum $datumValue
 }
 
-# Takes 1 argument:
-#   1. Datum file.
-get_deadline_slot() {
-  $qvf get-deadline-slot $(get_newest_slot) $1
-}
 
-
-# Takes 2 (up to 4) arguments:
+# Takes 2 (up to 6) arguments:
 #   1. Payer's wallet number/name.
 #   2. Payer's UTxO to be spent.
 #   3. (Optional) Argument for deadline (--invalid-before|--invalid-hereafter)
@@ -77,7 +71,7 @@ update_contract() {
   changeAddress=$(cat $donorAddrFile)
   deadlineArg=""
   if [ ! -z "$3" ]; then
-    deadlineArg="$3 $(get_deadline_slot $updatedDatum)"
+    deadlineArg="$3 $(cat $deadlineSlotFile)"
   fi
   if [ ! -z "$4" ]; then
     changeAddress=$4
@@ -88,15 +82,15 @@ update_contract() {
     additionalSigner="$preDir/$5.skey"
     requiredSigner="--required-signer $additionalSigner"
   fi
-
+  deadlineArg="$deadlineArg --invalid-hereafter $(expr $(cat $deadlineSlotFile) + 10000)"
   echo $scriptPlutusFile
   echo $donorAddrFile
   echo $donorSKeyFile
   echo $utxoFromDonor
   echo $utxoAtScript
   echo $requiredSigner
+  echo $deadlineArg
   echo $6
-
   # Generate the protocol parameters:
   generate_protocol_params
 
@@ -120,6 +114,9 @@ update_contract() {
   
   # Submit the transaction:
   submit_tx
+
+  # Store current slot number for future interactions:
+  store_current_slot
 
   echo
   $qvf pretty-datum $(cat $updatedDatum)
@@ -157,6 +154,9 @@ set_deadline() {
        $updatedDatum \
        $action
   echo "Datum and redeemer files generated."
+  deadlineSlot=$(get_deadline_slot $updatedDatum)
+  echo $deadlineSlot > $deadlineSlotFile
+  wait_for_new_slot
   update_contract              \
     $payer                     \
     $txIn                      \
