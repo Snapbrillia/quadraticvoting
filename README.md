@@ -9,9 +9,39 @@ This means:
 - *Most importantly* it provides a 'reproduceable' build. i.e. the build should be the 'same' on everyone's machine.
 - It provides the basis for setting up pipeline builds on github
 
+The build system implements a [Nix flake](https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake.html).
+```
+Flakes are the unit for packaging Nix code in a reproducible and discoverable way. They can have dependencies on other flakes, making it possible to have multi-repository Nix projects.
+```
+
 # Setting up
 
+## Nix
+
+The multi-user Nix installation is recommended. This can be performed as follows:
+```
+$ sh <(curl -L https://nixos.org/nix/install) --daemon
+```
+This will install the Nix cache under /nix. You will need approximately 100Gb free storage on the partition on which /nix is mounted.
+
+After installation copy the following to /etc/nix/nix.conf
+
+```
+build-users-group   = nixbld
+max-jobs            = auto # maybe only for personal machines
+substituters        = https://hydra.iohk.io https://iohk.cachix.org https://cache.nixos.org/
+trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+experimental-features = nix-command flakes
+allow-import-from-derivation = true
+```
+Then restart the nix daemon:
+
+```
+sudo systemctl restart nix-daemon
+```
+
 ## Clone this repo and/or checkout this branch.
+
 You may prefer to play with the support this branch provides with out interfering (too much) with your current development environment. If so clone [quadraticvoting](https://github.com/Snapbrillia/quadraticvoting) into a new location (recommended). 
 ```bash
 $ mkdir -p ~/tmp/repos
@@ -27,6 +57,7 @@ $ git checkout feature/chained-stateful-scripts-nix
 ```
 
 ## Building
+
 When this build system hits 'main' the repo will become a flake. It supports multiple ways of building the code and setting up a development environment. E.G.
 1. __nix build .__
 
@@ -113,6 +144,7 @@ $ ldd qvf-cli-static/bin/qvf-cli
 $	not a dynamic executable
 ```
 # Direnv
+
 '[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
 
 The project has a default .envrc file and therefore supports [direnv](https://direnv.net) for those who want to use it. If you have [direnv](https://direnv.net) installed then you should be prompted to *allow* [direnv](https://direnv.net) for the project's root directory when you checkout this branch . If that doesn't happen (for some reason) then after the checkout completes you can execute the following in the quadraticvoting's 'root' directory
@@ -122,9 +154,11 @@ $ direnv allow .
 N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'nix-shell'. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
 
 # Editor Support
+
 The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means VSCode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
 
 ## VSCode
+
 The project provides default support for VSCode via 'vscode/settings.json'. This uses the Nix Environment Selector plugin. Follow instuctions below to make VSCode haskell-aware.
 
 1. Install VSCode from [here](https://code.visualstudio.com/download)
