@@ -157,7 +157,7 @@ N.B. If you do this, every time you (or your shell) cd's into the root directory
 
 # Editor Support
 
-The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means VSCode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
+Editor and IDE support for Haskell is provided by the [haskell-language-server](https://haskell-language-server.readthedocs.io/en/latest/index.html) project. The build system ensures that the Nix environment contains an appropriately compiled version of 'haskell-language-server' and a version of 'haskell-language-server-wrapper'. This means VSCode, Emacs, Vim etc. can be made Haskell-aware and thus increase productivity.
 
 ## VSCode
 
@@ -172,5 +172,53 @@ The project provides default support for VSCode via 'vscode/settings.json'. This
 3. Exit VSCode.
 
 When VSCode opens the project folder it will use the 'Nix Environment Selector' to set up the nix environment automatically. It may take a few seconds to settle down (it's running 'nix-shell'). When you open a haskell file you should see activity in the status bar (e.g. 'processing 2/5'). 
+
+## Vim
+
+Configuration instructions for vim are [here](https://haskell-language-server.readthedocs.io/en/latest/configuration.html#vim-or-neovim). The following worked for me :-) :
+
+1. __Install nodejs__
+```bash
+$ curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+$ sudo apt-get install -y nodejs
+```
+2. __Install vim-plug__
+```bash
+curl -fLo ~/.vim/autoload/plug.vim --create-dirs     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+```
+3. __Add coc.nvim plugin to .vimrc__
+
+> call plug#begin()
+> 
+> " Use release branch (recommend)
+> Plug 'neoclide/coc.nvim', {'branch': 'release'}
+>
+> call plug#end()
+
+4. __Install coc.nvim plugin__
+
+i.   invoke vim
+ii.  type ':PlugInstall'
+iii. type ':q'
+
+5. __Add support for Haskell__
+
+Add the following to ~/.vim/coc-settings.json
+
+> {
+>   "languageserver": {
+>     "haskell": {
+>       "command": "haskell-language-server-wrapper",
+>       "args": ["--lsp"],
+>       "rootPatterns": ["*.cabal", "stack.yaml", "cabal.project", "package.yaml", "hie.yaml"],
+>       "filetypes": ["haskell", "lhaskell"]
+>     }
+>   }
+> }
+
+Now when you edit a haskell file using vim inside the project's nix environment (set up via 'nix-shell', 'nix develop .' or direnv) you should see vim interacting with the 'haskell-language-server'. You will see a notification indicating that the 'haskell-language-server' is processing the project's Haskell files. 
+
+However, I didn't see any context sensitive info. OTOH I am not a vim user, so it's possible there's something else required. Please update the README if you discover what it is :-)
+
 
 
