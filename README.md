@@ -10,9 +10,10 @@ This means:
 - It provides the basis for setting up pipeline builds on github
 
 The build system implements a [Nix flake](https://nixos.org/manual/nix/unstable/command-ref/new-cli/nix3-flake.html).
-```
-Flakes are the unit for packaging Nix code in a reproducible and discoverable way. They can have dependencies on other flakes, making it possible to have multi-repository Nix projects.
-```
+
+> Flakes are the unit for packaging Nix code in a reproducible and discoverable way. They can
+> have dependencies on other flakes, making it possible to have multi-repository Nix projects.
+
 
 # Setting up
 
