@@ -197,24 +197,27 @@ curl -fLo ~/.vim/autoload/plug.vim --create-dirs     https://raw.githubuserconte
 
 4. __Install coc.nvim plugin__
 
-i.   invoke vim
-ii.  type ':PlugInstall'
-iii. type ':q'
+- invoke vim
+- type ':PlugInstall' and wait for it to complete.
+- type ':q'
 
 5. __Add support for Haskell__
 
 Add the following to ~/.vim/coc-settings.json
 
-> {
->   "languageserver": {
->     "haskell": {
->       "command": "haskell-language-server-wrapper",
->       "args": ["--lsp"],
->       "rootPatterns": ["*.cabal", "stack.yaml", "cabal.project", "package.yaml", "hie.yaml"],
->       "filetypes": ["haskell", "lhaskell"]
->     }
->   }
-> }
+```json
+{
+  "languageserver": {
+    "haskell": {
+      "command": "haskell-language-server-wrapper",
+      "args": ["--lsp"],
+      "rootPatterns": ["*.cabal", "stack.yaml", "cabal.project", "package.yaml", "hie.yaml"],
+      "filetypes": ["haskell", "lhaskell"]
+    }
+  }
+}
+```
+
 
 Now when you edit a haskell file using vim inside the project's nix environment (set up via 'nix-shell', 'nix develop .' or direnv) you should see vim interacting with the 'haskell-language-server'. You will see a notification indicating that the 'haskell-language-server' is processing the project's Haskell files. 
 
