@@ -146,7 +146,8 @@ $	not a dynamic executable
 ```
 # Direnv
 
-'[direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that can load and unload environment variables depending on the current directory.'
+> [direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that 
+> can load and unload environment variables depending on the current directory.
 
 The project has a default .envrc file and therefore supports [direnv](https://direnv.net) for those who want to use it. If you have [direnv](https://direnv.net) installed then you should be prompted to *allow* [direnv](https://direnv.net) for the project's root directory when you checkout this branch . If that doesn't happen (for some reason) then after the checkout completes you can execute the following in the quadraticvoting's 'root' directory
 ```bash
