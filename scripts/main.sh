@@ -251,15 +251,15 @@ contribute_from_with() {
 }
 
 
-# Takes 3 (or 4) arguments:
-#   1. Project's wallet number/name,
-#   2. Project's label,
-#   3. Requested fund,
-#   4. (Optional) Custom change address.
+# Takes 4 (or 5) arguments:
+#   1. Payer's wallet number/name,
+#   2. Project's public key hash,
+#   3. Project's label,
+#   4. Requested fund,
+#   5. (Optional) Custom change address.
 register_project() {
-  projectsPKH=$(cat $preDir/$1.pkh)
-  projectsAddr=$(cat $preDir/$1.addr)
-  changeAddr=$projectsAddr
+  payersAddr=$(cat $preDir/$1.addr)
+  changeAddr=$payersAddr
   if [ ! -z "$4" ]; then
     changeAddr=$4
   fi
@@ -269,17 +269,17 @@ register_project() {
   echo $obj
   setCommonVariables $(echo $obj | jq -c .) 2000000
   echo
-  echo $projectsPKH
   echo $2
   echo $3
+  echo $4
   echo $currDatum
   echo $updatedDatum
   echo $action
   echo
   $qvf add-project   \
-       $projectsPKH  \
        $2            \
        $3            \
+       $4            \
        $currDatum    \
        $updatedDatum \
        $action
