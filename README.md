@@ -168,7 +168,7 @@ The project provides default support for VSCode via 'vscode/settings.json'. This
 - Haskell (id: haskell.haskell)
 - Haskell Syntax Highlighting (id: justusadam.language-haskell)
 - Nix Environment Selector (id: arrterian.nix-env-selector)
-- direnv (id: mkhl.direnv) -- optional (see 2. below)
+- direnv (id: mkhl.direnv) -- optional
 3. Exit VSCode.
 
 When VSCode opens the project folder it will use the 'Nix Environment Selector' to set up the nix environment automatically. It may take a few seconds to settle down (it's running 'nix-shell'). When you open a haskell file you should see activity in the status bar (e.g. 'processing 2/5'). 
