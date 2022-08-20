@@ -1,5 +1,5 @@
-. scripts/env.sh
-. scripts/blockfrost.sh
+. $HOME/code/snapbrillia/quadraticvoting/scripts/env.sh
+. $HOME/code/snapbrillia/quadraticvoting/scripts/blockfrost.sh
 
 # scriptAddr="addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx"
 scriptAddr=$(cat $scriptAddressFile)
