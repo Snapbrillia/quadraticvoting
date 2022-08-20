@@ -69,7 +69,11 @@ update_contract() {
   utxoFromDonor="$2"
   utxoAtScript=$(remove_quotes $utxo)
   changeAddress=$(cat $donorAddrFile)
-  deadlineArg="$invalidAfter $(cat $deadlineSlotFile)"
+  deadlineSlot=$(cat $deadlineSlotFile)
+  currentSlot=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
+  correctSlot=$(( $deadlineSlot < $currentSlotPlusFiveHundred ? $deadlineSlot : $currentSlotPlusFiveHundred)
+  deadlineArg="$invalidAfter $correctSlot"
   if [ ! -z "$3" ]; then
     changeAddress=$3
   fi
@@ -260,8 +264,8 @@ contribute_from_with() {
 register_project() {
   payersAddr=$(cat $preDir/$1.addr)
   changeAddr=$payersAddr
-  if [ ! -z "$4" ]; then
-    changeAddr=$4
+  if [ ! -z "$5" ]; then
+    changeAddr=$5
   fi
   txIn=$(get_first_utxo_of $1)
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
