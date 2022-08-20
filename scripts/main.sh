@@ -72,7 +72,7 @@ update_contract() {
   deadlineSlot=$(cat $deadlineSlotFile)
   currentSlot=$($cli query tip $MAGIC | jq '.slot|tonumber')
   currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
-  correctSlot=$(( $deadlineSlot < $currentSlotPlusFiveHundred ? $deadlineSlot : $currentSlotPlusFiveHundred)
+  correctSlot=$(( $deadlineSlot < $currentSlotPlusFiveHundred ? $deadlineSlot : $currentSlotPlusFiveHundred ))
   deadlineArg="$invalidAfter $correctSlot"
   if [ ! -z "$3" ]; then
     changeAddress=$3
