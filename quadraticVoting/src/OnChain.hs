@@ -382,7 +382,6 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
         -- {{{
         let
           newDatum            = currDatum {qvfInProgress = False}
-          outputUTxOs         = txInfoOutputs info
           projectCount        = length qvfProjects
           -- For each project, the initial registration costs are meant to be
           -- refunded.                    v------------------------v
