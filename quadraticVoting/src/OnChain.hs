@@ -241,13 +241,6 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
     tokenAsset = qvfAsset qvfParams
     info       = scriptContextTxInfo ctx
 
-    -- | Checks if UTxO is carrying an authenticity tokens.
-    outputHasOneToken :: TxOut -> Bool
-    outputHasOneToken utxo =
-      -- {{{
-      assetClassValueOf (txOutValue utxo) tokenAsset == 1
-      -- }}}
-
     -- | UTxO sitting at this script address being spent.
     ownInput :: TxOut
     ownInput =
@@ -259,10 +252,9 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           txInInfoResolved i
       -- }}}
 
-    -- | UTxO being sent to this script address. Defined as a function to
-    --   impose laziness. Shouldn't fail for some of the endpoints.
-    ownOutput :: () -> TxOut
-    ownOutput _ =
+    -- | UTxO being sent to this script address.
+    ownOutput :: TxOut
+    ownOutput =
       -- {{{
       case getContinuingOutputs ctx of
         [o] ->
@@ -271,19 +263,25 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           traceError "E2"
       -- }}}
 
-    -- | Possible attached datum to the output UTxO. Defined as a function to
-    --   impose laziness.
-    mOutputDatum :: () -> Maybe QVFDatum
-    mOutputDatum _ =
+    -- | Checks if UTxO is carrying an authenticity tokens.
+    outputHasOneToken :: TxOut -> Bool
+    outputHasOneToken utxo =
       -- {{{
-      getDatumFromUTxO (ownOutput ()) (`findDatum` info)
+      assetClassValueOf (txOutValue utxo) tokenAsset == 1
+      -- }}}
+
+    -- | Possible attached datum to the output UTxO.
+    mOutputDatum :: Maybe QVFDatum
+    mOutputDatum =
+      -- {{{
+      getDatumFromUTxO ownOutput (`findDatum` info)
       -- }}}
 
     -- | Checks if the attached output datum is properly updated.
     isOutputDatumValid :: QVFDatum -> Bool
     isOutputDatumValid newDatum =
       -- {{{
-      case mOutputDatum () of
+      case mOutputDatum of
         Nothing ->
           False
         Just outputDatum ->
@@ -295,7 +293,7 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
     utxoHasLovelaces :: TxOut -> Integer -> Bool
     utxoHasLovelaces txOut lovelaces =
       -- {{{
-      txOutValue txOut == Ada.lovelaceValueOf lovelaces
+      lovelaceFromValue (txOutValue txOut) == lovelaces
       -- }}}
 
     -- | Helper function to see if Lovelace count of @ownOutput@ has
@@ -305,27 +303,28 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
       -- {{{
       let
         inVal  = txOutValue ownInput
-        outVal = txOutValue $ ownOutput ()
+        outVal = txOutValue ownOutput
       in
       outVal == (inVal <> Ada.lovelaceValueOf addedAmount)
       -- }}}
 
-    -- | Checks authenticity of the input/output UTxO's.  Turned into a
-    --   function to impose laziness.
-    oneTokenInOneTokenOut :: () -> Bool
-    oneTokenInOneTokenOut _ =
+    -- | Checks authenticity of the input/output UTxO's.
+    oneTokenInOneTokenOut :: Bool
+    oneTokenInOneTokenOut =
       -- {{{
          traceIfFalse "E3" (outputHasOneToken ownInput)
-      && traceIfFalse "E4" (outputHasOneToken $ ownOutput ())
+      && traceIfFalse "E4" (outputHasOneToken ownOutput)
       -- }}}
 
-    -- | Checks whether transaction's valid time range is contained within the
-    --   <given deadline to infinity> interval.
-    deadlinePassed :: POSIXTime -> Bool
-    deadlinePassed dl =
-      -- {{{
-      Interval.from dl `Interval.contains` txInfoValidRange info
-      -- }}}
+    -- | Checks whether the deadline hasn't been reached yet.
+    canInteract :: Bool
+    canInteract =
+      Interval.to qvfDeadline `Interval.contains` txInfoValidRange info
+
+    -- | Checks whether the deadline has been reached.
+    canDistribute :: Bool
+    canDistribute =
+      Interval.from qvfDeadline `Interval.contains` txInfoValidRange info
 
     -- | Turned into a function to impose laziness.
     signedByKeyHolder :: () -> Bool
@@ -344,8 +343,8 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right newDatum ->
                traceIfFalse "E23" (enoughAddedInOutput minLovelace)
             && traceIfFalse "E24" (isOutputDatumValid newDatum)
-            && traceIfTrue  "E5"  (deadlinePassed qvfDeadline)
-            && oneTokenInOneTokenOut ()
+            && traceIfFalse "E5"  canInteract
+            && oneTokenInOneTokenOut
         -- }}}
       Donate dPs                   ->
         -- {{{
@@ -355,8 +354,8 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right (totalDonations, newDatum) ->
                traceIfFalse "E25" (enoughAddedInOutput totalDonations)
             && traceIfFalse "E26" (isOutputDatumValid newDatum)
-            && traceIfTrue  "E5"  (deadlinePassed qvfDeadline)
-            && oneTokenInOneTokenOut ()
+            && traceIfFalse "E5"  canInteract
+            && oneTokenInOneTokenOut
         -- }}}
       Contribute contribution      ->
         -- {{{
@@ -366,8 +365,8 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Right newDatum ->
                traceIfFalse "E27" (enoughAddedInOutput contribution)
             && traceIfFalse "E28" (isOutputDatumValid newDatum)
-            && traceIfTrue  "E5"  (deadlinePassed qvfDeadline)
-            && oneTokenInOneTokenOut ()
+            && traceIfFalse "E5"  canInteract
+            && oneTokenInOneTokenOut
         -- }}}
       SetDeadline newDl            ->
         -- {{{
@@ -375,10 +374,9 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           Left err       ->
             traceError err
           Right newDatum ->
-               signedByKeyHolder ()
-            && traceIfTrue  "E29" (deadlinePassed newDl)
-            && traceIfFalse "E28" (isOutputDatumValid newDatum)
-            && oneTokenInOneTokenOut ()
+               traceIfFalse "E28" (isOutputDatumValid newDatum)
+            && oneTokenInOneTokenOut
+            && signedByKeyHolder ()
         -- }}}
       Distribute                   ->
         -- {{{
@@ -386,8 +384,6 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           newDatum            = currDatum {qvfInProgress = False}
           outputUTxOs         = txInfoOutputs info
           projectCount        = length qvfProjects
-          validOutputCount    = length outputUTxOs == projectCount + 2
-          closedOutput        = ownOutput ()
           -- For each project, the initial registration costs are meant to be
           -- refunded.                    v------------------------v
           initialPool         = qvfPool - minLovelace * projectCount
@@ -410,13 +406,12 @@ mkQVFValidator qvfParams currDatum@QVFDatum {..} action ctx =
           keyHolderImbursed   =
             lovelaceFromValue (valuePaidTo info keyHolder) >= forKeyHolder
         in
-           signedByKeyHolder ()
-        && traceIfFalse "E18" (deadlinePassed qvfDeadline)
-        && traceIfFalse "E38" (utxoHasLovelaces closedOutput minAuthLovelace)
+           traceIfFalse "E18" canDistribute
+        && traceIfFalse "E38" (utxoHasLovelaces ownOutput minAuthLovelace)
         && traceIfFalse "E20" keyHolderImbursed
         && traceIfFalse "E21" (isOutputDatumValid newDatum)
-        && traceIfFalse "E22" validOutputCount
-        && oneTokenInOneTokenOut ()
+        && oneTokenInOneTokenOut
+        && signedByKeyHolder ()
         -- }}}
   else
     -- {{{

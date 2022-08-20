@@ -1,5 +1,5 @@
-. scripts/env.sh
-. scripts/blockfrost.sh
+. $HOME/code/snapbrillia/quadraticvoting/scripts/env.sh
+. $HOME/code/snapbrillia/quadraticvoting/scripts/blockfrost.sh
 
 # scriptAddr="addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx"
 scriptAddr=$(cat $scriptAddressFile)
@@ -55,48 +55,44 @@ get_current_state() {
   $qvf pretty-datum $datumValue
 }
 
-# Takes 1 argument:
-#   1. Datum file.
-get_deadline_slot() {
-  $qvf get-deadline-slot $(get_newest_slot) $1
-}
 
-
-# Takes 2 (up to 4) arguments:
+# Takes 2 (up to 7) arguments:
 #   1. Payer's wallet number/name.
 #   2. Payer's UTxO to be spent.
-#   3. (Optional) Argument for deadline (--invalid-before|--invalid-hereafter)
-#   4. (Optional) Custom change address.
-#   5. (Optional) Required signer's wallet number/name.
-#   6. (Optional) Extra outputs.
+#   3. (Optional) Custom change address.
+#   4. (Optional) Required signer's wallet number/name.
+#   5. (Optional) Extra outputs.
+#   6. (Optional) Custom time interval argument.
 update_contract() {
   donorAddrFile="$preDir/$1.addr"
   donorSKeyFile="$preDir/$1.skey"
   utxoFromDonor="$2"
   utxoAtScript=$(remove_quotes $utxo)
   changeAddress=$(cat $donorAddrFile)
-  deadlineArg=""
+  deadlineArg="$invalidAfter $(cat $deadlineSlotFile)"
   if [ ! -z "$3" ]; then
-    deadlineArg="$3 $(get_deadline_slot $updatedDatum)"
-  fi
-  if [ ! -z "$4" ]; then
-    changeAddress=$4
+    changeAddress=$3
   fi
   additionalSigner=""
   requiredSigner=""
-  if [ ! -z "$5" ]; then
-    additionalSigner="$preDir/$5.skey"
+  if [ ! -z "$4" ]; then
+    additionalSigner="$preDir/$4.skey"
     requiredSigner="--required-signer $additionalSigner"
   fi
+  if [ ! -z "$6" ]; then
+    deadlineArg=$6
+  fi
 
-  echo $scriptPlutusFile
-  echo $donorAddrFile
-  echo $donorSKeyFile
-  echo $utxoFromDonor
-  echo $utxoAtScript
-  echo $requiredSigner
-  echo $6
+  args='--tx-in '$utxoFromDonor' --tx-in-collateral '$utxoFromDonor' --tx-in '$utxoAtScript' --tx-in-datum-file '$currDatum' --tx-in-script-file '$scriptPlutusFile' --tx-in-redeemer-file '$action' --tx-out "'$scriptAddr' + '$newLovelace' lovelace + 1 '$authAsset'" --tx-out-datum-embed-file '$updatedDatum' '$5' --change-address '$changeAddress' '$deadlineArg' --protocol-params-file '$protocolsFile' --cddl-format '$requiredSigner' --out-file '$txBody
 
+  echo $args
+  # echo $donorAddrFile
+  # echo $donorSKeyFile
+  # echo $utxoFromDonor
+  # echo $utxoAtScript
+  # echo $requiredSigner
+  # echo $deadlineArg
+  # echo $5
   # Generate the protocol parameters:
   generate_protocol_params
 
@@ -109,7 +105,7 @@ update_contract() {
     --tx-in-script-file $scriptPlutusFile                         \
     --tx-in-redeemer-file $action                                 \
     --tx-out "$scriptAddr + $newLovelace lovelace + 1 $authAsset" \
-    --tx-out-datum-embed-file $updatedDatum                    $6 \
+    --tx-out-datum-embed-file $updatedDatum                    $5 \
     --change-address $changeAddress                  $deadlineArg \
     --protocol-params-file $protocolsFile                         \
     --cddl-format   $requiredSigner                               \
@@ -120,6 +116,9 @@ update_contract() {
   
   # Submit the transaction:
   submit_tx
+
+  # Store current slot number for future interactions:
+  store_current_slot
 
   echo
   $qvf pretty-datum $(cat $updatedDatum)
@@ -157,30 +156,34 @@ set_deadline() {
        $updatedDatum \
        $action
   echo "Datum and redeemer files generated."
+  deadlineSlot=$(get_deadline_slot $updatedDatum)
+  echo $deadlineSlot > $deadlineSlotFile
+  wait_for_new_slot
   update_contract              \
     $payer                     \
     $txIn                      \
-    $invalidAfter              \
     $(cat $preDir/$payer.addr) \
     $keyHolder
 }
 
 
 
-# Takes 3 (or 4) arguments:
-#   1. Donor's wallet number/name,
-#   2. Target project's public key hash,
-#   3. Donation amount,
-#   4. (Optional) Custom change address.
+# Takes 4 (or infinitly many) arguments:
+#   1. Payer's wallet number/name,
+#   2. Donor's public key hash,
+#   3. Target project's public key hash,
+#   4. Donation amount,
+#   *. (Optional) Infinite number of public key hash and donation amounts,
+#   n. (Optional last argument) Custom change address.
 donate_from_to_with() {
-  donorsPKH=$(cat $preDir/$1.pkh)
-  donorsAddr=$(cat $preDir/$1.addr)
-  changeAddr=$donorsAddr
+  payer=$1
+  donorsPKH=$2
+  changeAddr=$(cat $preDir/$1.addr)
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
   obj=$(bf_add_datum_value_to_utxo $obj)
- 
-  first_arg=$1
-  shift 1
+  txIn=$(get_first_utxo_of $payer)
+
+  shift 2
   str_pair=''
   acc=0  
   
@@ -206,8 +209,7 @@ donate_from_to_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  txIn=$(get_first_utxo_of $first_arg)
-  update_contract $first_arg $txIn $invalidAfter $changeAddr
+  update_contract $payer $txIn $changeAddr
   # scp $remoteAddr:$remoteDir/tx.signed $preDir/tx.signed
   # xxd -r -p <<< $(jq .cborHex tx.signed) > $preDir/tx.submit-api.raw
   # curl "$URL/tx/submit" -X POST -H "Content-Type: application/cbor" -H "project_id: $AUTH_ID" --data-binary @./$preDir/tx.submit-api.raw
@@ -245,19 +247,19 @@ contribute_from_with() {
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn $invalidAfter $changeAddr
+  update_contract $1 $txIn $changeAddr
 }
 
 
-# Takes 3 (or 4) arguments:
-#   1. Project's wallet number/name,
-#   2. Project's label,
-#   3. Requested fund,
-#   4. (Optional) Custom change address.
+# Takes 4 (or 5) arguments:
+#   1. Payer's wallet number/name,
+#   2. Project's public key hash,
+#   3. Project's label,
+#   4. Requested fund,
+#   5. (Optional) Custom change address.
 register_project() {
-  projectsPKH=$(cat $preDir/$1.pkh)
-  projectsAddr=$(cat $preDir/$1.addr)
-  changeAddr=$projectsAddr
+  payersAddr=$(cat $preDir/$1.addr)
+  changeAddr=$payersAddr
   if [ ! -z "$4" ]; then
     changeAddr=$4
   fi
@@ -267,21 +269,21 @@ register_project() {
   echo $obj
   setCommonVariables $(echo $obj | jq -c .) 2000000
   echo
-  echo $projectsPKH
   echo $2
   echo $3
+  echo $4
   echo $currDatum
   echo $updatedDatum
   echo $action
   echo
   $qvf add-project   \
-       $projectsPKH  \
        $2            \
        $3            \
+       $4            \
        $currDatum    \
        $updatedDatum \
        $action
-  update_contract $1 $txIn $invalidAfter $changeAddr
+  update_contract $1 $txIn $changeAddr
 }
 
 
@@ -302,8 +304,8 @@ distribute() {
   update_contract      \
     $keyHolder         \
     $txIn              \
-    $invalidBefore     \
     $keyHoldersAddress \
     $keyHolder         \
-    "$txOuts"
+    "$txOuts"          \
+    "$invalidBefore $($cli query tip $MAGIC | jq '.slot|tonumber')"
 }

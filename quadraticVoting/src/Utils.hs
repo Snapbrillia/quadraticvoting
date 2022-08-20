@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 -- }}}
@@ -43,10 +43,10 @@ pluck _ [] = Nothing
 pluck p xs =
   -- {{{
   let
-    go []       a           = a
-    go (y : ys) (_, !soFar)
-      | p y                 = (Just y, ys ++ soFar)
-      | otherwise           = go ys (Nothing, y : soFar)
+    go []       a = a
+    go (y : ys) (_, soFar)
+      | p y       = (Just y, ys ++ soFar)
+      | otherwise = go ys (Nothing, y : soFar)
   in
   case go xs (Nothing, []) of
     (Nothing, _)      -> Nothing
