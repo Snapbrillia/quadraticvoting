@@ -130,7 +130,7 @@ update_contract() {
 }
 
 
-# Takes 1 (or 2) argument(s):
+# Takes 1 (up to 3) argument(s):
 #   1. New POSIX time in milliseconds.
 #   2. (Optional) Number/name of an alternate wallet for covering the fee.
 #   3. (Optional) Flag to indicate whether to read the current datum from
@@ -162,7 +162,6 @@ set_deadline() {
   echo "Datum and redeemer files generated."
   deadlineSlot=$(get_deadline_slot $updatedDatum)
   echo $deadlineSlot > $deadlineSlotFile
-  wait_for_new_slot
   update_contract              \
     $payer                     \
     $txIn                      \
@@ -305,11 +304,12 @@ distribute() {
     pkhAddrs="$pkhAddrs $(cat $preDir/$i.pkh) $(cat $preDir/$i.addr)"
   done
   txOuts=$($qvf distribute $keyHoldersAddress $pkhAddrs $currDatum $updatedDatum $action)
+  currSlot=$($cli query tip $MAGIC | jq '.slot|tonumber')
   update_contract      \
     $keyHolder         \
     $txIn              \
     $keyHoldersAddress \
     $keyHolder         \
     "$txOuts"          \
-    "$invalidBefore $($cli query tip $MAGIC | jq '.slot|tonumber')"
+    "$invalidBefore $(expr $currSlot - 500)"
 }
