@@ -5,6 +5,7 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 720
     steps:
     - uses: actions/checkout@v2.4.0
     - uses: cachix/install-nix-action@v17
