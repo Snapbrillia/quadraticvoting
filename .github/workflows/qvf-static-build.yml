@@ -1,0 +1,37 @@
+name: "QVF Static Build"
+on:
+  pull_request:
+  push:
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    concurrency: qvf-static-build
+    steps:
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v17
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - run: nix develop --unpack .#qvf-cli-static.x86_64-linux
+  configure:
+    runs-on: ubuntu-latest
+    concurrency: qvf-static-build
+    needs: unpack
+    steps:
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v17
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - run: nix develop --configure .#qvf-cli-static.x86_64-linux
+  build:
+    runs-on: ubuntu-latest
+    concurrency: qvf-static-build
+    needs: [unpack, configure]
+    steps:
+    - uses: actions/checkout@v2.4.0
+    - uses: cachix/install-nix-action@v17
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - run: nix develop --build .#qvf-cli-static.x86_64-linux
