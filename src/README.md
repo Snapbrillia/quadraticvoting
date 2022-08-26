@@ -63,7 +63,7 @@ The idea is to have a "governing" script (`G`), a project registration minting
 script (`P`), and a vote token minting script (`V`).
 
 
-## Initiation
+### Initiation
 
 Let's consider the flow:
 
@@ -100,7 +100,7 @@ be parametrized by `P`. And finally, `G` will be parametrized by both `S` and
 `P` (should it also be parametrized by `V`?).
 
 
-## Project Registration
+### Project Registration
 
 `P` will be responsible of generating UTxOs at `G` that each carry an asset
 minted by it. The token names of these assets are going to be the public key
@@ -132,7 +132,7 @@ And these outputs:
   - A change UTxO sent back to project owner's wallet.
 
 
-## Donation to a Project
+### Donation to a Project
 
 `V` on the other hand, will require the presence of a token minted by `P`
 (which identifies the target project) and only then allows minting of vote
