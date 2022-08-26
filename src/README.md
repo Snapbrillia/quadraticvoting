@@ -43,7 +43,7 @@ possible, this solution aims to dedicate singular UTxOs for each donation or
 project. This way, the *outputs* of transactions are going to be almost
 identical (only differing because of the interactions themselves).
 
-To keep the contract involved as much as is necessary (but not any less), and
+To keep the contract involved as much as is necessary (but not any more), and
 also having the *inputs* of transactions as similar as possible, this solution
 defines a datum structure that is meant to keep track of "total counts" of
 various values (e.g. only keeping track of the _number_ of registered projects
