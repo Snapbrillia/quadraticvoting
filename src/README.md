@@ -1,5 +1,64 @@
 # A Tokenized Approach to Limit the Growth of Datum Values
 
+We faced two primary issues with the first version of our Quadratic Voting and
+Funding (QVF) contract.
+
+First, the transaction fees kept rising after each interaction with the
+contract. The reason for this was the fact that we stored every data inside the
+datum (i.e. state) of the contract's singular UTxO (authenticated by an NFT).
+
+The second (not so unrelated) problem was the limited number of
+projects/donations the contract could store. Since the datum needed to be
+provided in each transaction, this meant that at some point, this growing datum
+would reach the size limit of a transaction, and would not be able to accept
+any further registrations/donations.
+
+The purpose of this document is to first present a design framework for
+addressing possible solutions for the afformentioned problems. And after
+proposing a solution, some of the technical details are covered.
+
+
+## Design Framework
+
+This contract has a "growing state" in its nature. Therefore, to allow a large
+number of interactions, this state should somehow be sharded. However, "naive"
+sharding (i.e. simply multiplying the number of states accounted for by the
+contract) doesn't address the issue of rising transaction fees. Because each
+shard still keeps growing.
+
+In order to keep the transaction fees as constant as possible, the transactions
+need to be as identical as possible—meaning a prior interaction should not
+have a significant impact on its succeeding transaction.
+
+One other constraint to have in mind for presenting solutions to the problems
+is that a smart contract needs to be "kept in the loop." The main reason for
+that is the fact that a contract has no control over _incoming_ UTxOs.
+Therefore the contract should remain conscious of the overal state.
+
+
+## The Solution
+
+To address the sharding, and also keeping the transactions as identical as
+possible, this solution aims to dedicate singular UTxOs for each donation or
+project. This way, the *outputs* of transactions are going to be almost
+identical (only differing because of the interactions themselves).
+
+To keep the contract involved as much as is necessary (but not any less), and
+also having the *inputs* of transactions as similar as possible, this solution
+defines a datum structure that is meant to keep track of "total counts" of
+various values (e.g. only keeping track of the _number_ of registered projects
+rather than a datatype that stores all the information).  This results in a
+state that doesn't change much between two interactions (increase/decrease of 
+an integer value).
+
+This can be possible by "delegating" the task of storing parts of the
+information inside native tokens (their token names, to be precise). These
+tokens are also going to act as "secondary authentication tokens" that allow
+the contract to distinguish between authentic and rogue UTxOs.
+
+
+## Technical Details
+
 The idea is to have a "governing" script (`G`), a project registration minting
 script (`P`), and a vote token minting script (`V`).
 
@@ -11,16 +70,16 @@ Let's consider the flow:
 - The key holder will use an NFT minting script to mint an authentication
   token (`S`).
 
-  This NFT minting script can be done two different ways:
+  This NFT minting can be done in two different ways:
 
-    - Using a known script, and storing the spent UTxO in the token name: This
-      approach has the benefit of more trust by the users. The
-      "recognizability" of the policy ID means that users can rest assured that
-      this token is truly an NFT. The downside of this approach is that it
-      leads to larger scripts. With Vasil, this may not be a credible downside.
+  - Using a known script, and storing the spent UTxO in the token name: This
+  approach has the benefit of more trust by the users. The "recognizability" of
+  the policy ID means that users can rest assured that this token is truly an
+  NFT. The downside of this approach is that it leads to larger scripts. With
+  Vasil, this may not be a credible downside.
 
-    - Using a custom script, and specifying a minimal token name for the NFT:
-      This leads to smaller script sizes, but may lead to less trust.
+  - Using a custom script, and specifying a minimal token name for the NFT:
+  This leads to smaller script sizes, but may lead to less trust.
 
 - At this point, the key holder has an NFT with a known currency symbol (`S`). 
   By parametrizing `P` with this authentication asset, project registration
