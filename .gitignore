@@ -1,6 +1,15 @@
 dist
 dist-*
+.vscode
+tx.raw
+tx.sign
+scripts/testnet
+testnet/keyHolder.skey
+preview-testnet
+testnet2
 cabal-dev
+protocol.json
+initial.json
 *.o
 *.hi
 *.hie
@@ -11,6 +20,7 @@ cabal-dev
 .hpc
 .hsenv
 .cabal-sandbox/
+.nix-shell-cabal.project
 cabal.sandbox.config
 *.prof
 *.aux
@@ -21,3 +31,6 @@ cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
+result
+qvf-cli-dynamic
+qvf-cli-static

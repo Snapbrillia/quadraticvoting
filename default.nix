@@ -1,35 +1,14 @@
-{ source-repo-override ? { } }:
-########################################################################
-# default.nix -- The top-level nix build file for plutus-starter.
-#
-# This file defines various attributes that are used for building and
-# developing plutus-starter.
-#
-########################################################################
-
-let
-  # Here a some of the various attributes for the variable 'packages':
-  #
-  # { pkgs
-  #   plutus-starter: {
-  #     haskell: {
-  #       project # The Haskell project created by haskell-nix.project
-  #       packages # All the packages defined by our project, including dependencies
-  #       projectPackages # Just the packages in the project
-  #     }
-  #     hlint
-  #     cabal-install
-  #     stylish-haskell
-  #     haskell-language-server
-  #   }
-  # }
-  packages = import ./nix { inherit source-repo-override; };
-
-  inherit (packages) pkgs plutus-starter;
-  project = plutus-starter.haskell.project;
+let defaultCustomConfig = import ./nix/custom-config.nix defaultCustomConfig;
+  # This file is used by nix-shell.
+  # It just takes the shell attribute from default.nix.
 in
 {
-  inherit pkgs plutus-starter;
-
-  inherit project;
+  # override scripts with custom configuration
+  withHoogle ? defaultCustomConfig.withHoogle
+, profileName ? defaultCustomConfig.localCluster.profileName
+, customConfig ? { inherit withHoogle; }
+}:
+with (import ./nix/flake-compat.nix customConfig);
+defaultNix // defaultNix.packages.${builtins.currentSystem} // {
+  private.project = defaultNix.legacyPackages.${builtins.currentSystem};
 }
