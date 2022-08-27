@@ -1,5 +1,3 @@
-:#!/bin/bash
-
 export MAGIC='--testnet-magic 1097911063'
 # export MAGIC='--testnet-magic 2'
 

@@ -69,7 +69,11 @@ update_contract() {
   utxoFromDonor="$2"
   utxoAtScript=$(remove_quotes $utxo)
   changeAddress=$(cat $donorAddrFile)
-  deadlineArg="$invalidAfter $(cat $deadlineSlotFile)"
+  deadlineSlot=$(cat $deadlineSlotFile)
+  currentSlot=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
+  correctSlot=$(( $deadlineSlot < $currentSlotPlusFiveHundred ? $deadlineSlot : $currentSlotPlusFiveHundred ))
+  deadlineArg="$invalidAfter $correctSlot"
   if [ ! -z "$3" ]; then
     changeAddress=$3
   fi
@@ -126,7 +130,7 @@ update_contract() {
 }
 
 
-# Takes 1 (or 2) argument(s):
+# Takes 1 (up to 3) argument(s):
 #   1. New POSIX time in milliseconds.
 #   2. (Optional) Number/name of an alternate wallet for covering the fee.
 #   3. (Optional) Flag to indicate whether to read the current datum from
@@ -158,7 +162,6 @@ set_deadline() {
   echo "Datum and redeemer files generated."
   deadlineSlot=$(get_deadline_slot $updatedDatum)
   echo $deadlineSlot > $deadlineSlotFile
-  wait_for_new_slot
   update_contract              \
     $payer                     \
     $txIn                      \
@@ -260,8 +263,8 @@ contribute_from_with() {
 register_project() {
   payersAddr=$(cat $preDir/$1.addr)
   changeAddr=$payersAddr
-  if [ ! -z "$4" ]; then
-    changeAddr=$4
+  if [ ! -z "$5" ]; then
+    changeAddr=$5
   fi
   txIn=$(get_first_utxo_of $1)
   obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
@@ -301,11 +304,12 @@ distribute() {
     pkhAddrs="$pkhAddrs $(cat $preDir/$i.pkh) $(cat $preDir/$i.addr)"
   done
   txOuts=$($qvf distribute $keyHoldersAddress $pkhAddrs $currDatum $updatedDatum $action)
+  currSlot=$($cli query tip $MAGIC | jq '.slot|tonumber')
   update_contract      \
     $keyHolder         \
     $txIn              \
     $keyHoldersAddress \
     $keyHolder         \
     "$txOuts"          \
-    "$invalidBefore $($cli query tip $MAGIC | jq '.slot|tonumber')"
+    "$invalidBefore $(expr $currSlot - 500)"
 }
