@@ -59,18 +59,18 @@ the contract to distinguish between authentic and rogue UTxOs.
 
 ## Technical Details
 
-The idea is to have a "governing" script (`G`), a project registration minting
-script (`P`), and a vote token minting script (`V`).
+We'll call the QVF "governing" script $ G $. This script is going to be
+parametrized by an NFT, which we'll call $ S $. To distinguish UTxOs, we will 
+also need two other minting scripts: one for registering projects, which we'll
+use $ P $ to address its currency symbol; and one for donating to projects (with
+a currency symbol of $ V $).
 
 
 ### Initiation
 
 Let's consider the flow:
 
-- The key holder will use an NFT minting script to mint an authentication
-  token (`S`).
-
-  This NFT minting can be done in two different ways:
+- The key holder mints $ S $, which can be done in two different ways:
 
   - Using a known script, and storing the spent UTxO in the token name: This
   approach has the benefit of more trust by the users. The "recognizability" of
@@ -81,88 +81,128 @@ Let's consider the flow:
   - Using a custom script, and specifying a minimal token name for the NFT:
   This leads to smaller script sizes, but may lead to less trust.
 
-- At this point, the key holder has an NFT with a known currency symbol (`S`). 
-  By parametrizing `P` with this authentication asset, project registration
-  minter will be "aware" of `S`, and therefore capable of validating its
-  presence in a registration transaction.
+- At this point, the key holder can generate $ P $, which leads to project
+  registration minter's "awareness" of $ S $, and therefore capable of validating
+  its presence in a registration transaction.
 
-  On the other hand, parametrizing `V` by `P` will make the donation minter
-  capable of validating authenticity of a project UTxO, and may lead to
-  alleviating the datum from carrying all the information.
+- With $ P $'s currency symbol found, $ V $ can now be generated. Since donation
+  transactions don't require the presence of $ S $, it suffices to make $ V $ aware
+  of $ P $ tokens.
 
-  Subsequently, parametrizing `G` by both `S` and `P`, will make it capable of
+- Subsequently, parametrizing $ G $ by both $ S $ and $ P $, will make it capable of
   validating UTxO authenticity, and check that a transaction that's attempting
   to spend its singular UTxO for the purpose of registering a new project is
-  in fact minting an asset with a symbol of `P`.
+  in fact minting an asset with a symbol of $ P $.
 
-In short, key holder will mint `S`. `P` will be parametrized by `S`. `V` will
-be parametrized by `P`. And finally, `G` will be parametrized by both `S` and 
-`P` (should it also be parametrized by `V`?).
+In short, key holder will mint $ S $. $ P $ will be parametrized by $ S $. $ V $ will
+be parametrized by $ P $. And finally, $ G $ will be parametrized by both $ S $ and 
+$ P $ (should it also be parametrized by $ V $?).
 
 
 ### Project Registration
 
-`P` will be responsible of generating UTxOs at `G` that each carry an asset
-minted by it. The token names of these assets are going to be the public key
-hashes of the wallets that each particular project will have its prize sent to
-(i.e. the project owner's public key hash).  Each UTxO is also going to carry a
-datum that stores additional information about its corresponding project:
-label, requested funds, etc. The datum is also going to keep track of the total
-amount of Lovelaces received by that project. This will be the only field
-that'll be subject to updates.
+Project registration transactions ($ Tx_P $ for short) will be responsible of
+generating UTxOs at $ G $, each carrying a $ P $ asset.
 
-A project registration transaction therefore, will consist of these inputs:
+To ensure uniqueness of a project UTxO, the token names of their $ P $ assetes
+are going to be one of the UTxOs that the project owner will be consuming
+during the registration. This allows the off-chain platform to robustly
+distinguish between available projects for donors, and relieves the $ G $ UTxO
+from keeping a record of registered projects.
+
+The datum attached to these UTxOs will store additional information
+about its corresponding project (public key hash for receiveing the prize,
+label, etc.), along with a record of amount of Lovelaces received by that
+project. This will be the only field in the datum that will be subject to
+updates.
+
+Therefore, a $ Tx_P $ will consist of these inputs:
 
   - As many UTxOs necessary to cover the registration fee by the project owner,
 
   - The singular UTxO from the governing script carrying its authenticity asset
-  (`S`). Note that `P` can not be aware of `G` and can only check the
-  _presence_ of `S`. This UTxO should also have a datum attached that tracks
+  ($ S $). Note that $ P $ can not be aware of $ G $ and can only check the
+  _presence_ of $ S $. This UTxO should also have a datum attached that tracks
   the number of projects registered so far (does that suffice?).
 
 And these outputs:
 
-  - The "governing" UTxO sent back to `G` with an updated datum (i.e.
+  - The "governing" UTxO sent back to $ G $ with an updated datum (i.e.
   incremented by 1),
 
-  - A UTxO sent to the same address, carrying a project asset (currency symbol
-  of `P` and token name of project owner's public key hash), and a datum with
-  additional information about the project,
+  - A fresh UTxO sent to $ G $, carrying a project asset ($ P $ with an
+  identification token name, i.e. one of the UTxOs being spent in this
+  transaction), and a datum with additional information about the project,
 
   - A change UTxO sent back to project owner's wallet.
 
 
 ### Donation to a Project
 
-`V` on the other hand, will require the presence of a token minted by `P`
-(which identifies the target project) and only then allows minting of vote
-assets. The token names of these assets will be the public key hashes of the
-donors.
+A donation transaction ($ Tx_V $) on the other hand, will require the presence
+of a token minted by $ P $ (which identifies the target project) and only then
+its $ V $ allows minting of vote assets. The token names of these assets will be
+the public key hashes of the donors.
 
-To prevent noticeable growth of the datum attached to a project UTxO, `V` will
+To prevent noticeable growth of the datum attached to a project UTxO, $ Tx_V $ will
 require the production of a new UTxO along with reproducing the project's
 authenticity UTxO. But it will also require the datum of that UTxO to be
 updated such that it'll only increase the total received funds (rather than
 appending donors' information).
 
-So a donation transaction will comprise of these inputs:
+So a $ Tx_V $ will comprise of these inputs:
 
   - As many UTxOs necessary to cover the donation by the donor,
 
   - The singular UTxO of the project that carries its authenticity asset
-  (minted by `P`), and a datum carrying other project info, and total
+  (minted by $ P $), and a datum carrying other project info, and total
   Lovelace received so far.
 
 And these outputs:
 
   - The project UTxO with an updated datum. The only field that should be
-  updated is the total Lovelaces received. This leads to a negligable growth.
+  updated is the total Lovelaces received. This leads to a negligable growth
+  for subsequent transactions,
 
-  - A UTxO carrying the donated Lovelaces, an equal amount of `V` (where its
+  - A UTxO carrying the donated Lovelaces, an equal amount of $ V $ (where its
   token name is used to store the donor's public key hash), and a datum that
-  holds the target project's information,
+  holds the target project's information (probably only its identification
+  UTxO),
 
   - A change output going back to the donor's wallet.
 
+
+### Contribution to the Match Pool
+
+Since this endpoint is not meant to store any information about the donor,
+there is also no need to mint any intermediate tokens. The contributor can
+simply consume the singular UTxO at $ G $ and increase its Lovelaces.
+
+Transaction inputs:
+
+  - As many UTxOs necessary to cover the donation by the donor,
+
+  - The singular UTxO from the governing script ($ S $).
+
+Transaction outputs:
+
+  - The governing UTxO sent back to $ G $ with an unchanged datum.
+
+  - A change output going back to the donor's wallet.
+
+
+### Prize Distribution
+
+At the end of a funding round, this architecture results in a potentially large
+number of scattered UTxOs (all marked with either $ S $, $ P $, or $ V $). Since a
+single transaction is likely unable to handle them all, there should be steps
+to help reduce the UTxO count.
+
+As each project UTxO accounts for their total received Lovelaces, these UTxOs
+can start burning the vote tokens accumulated within multiple UTxOs.
+
+Disregarding the size limitation of transactions, this would mean there should
+be a transaction for each project, where the donation UTxOs are "folded" into a
+singular UTxO, carrying the project's portion of the total funding pool.
 
 
