@@ -4,3 +4,7 @@ cradle:
       component: "quadraticvoting:lib:quadraticVoting"
     - path: "./qvf-cli/app/CLI.hs"
       component: "quadraticvoting:exe:qvf-cli"
+    - path: "./qvf-genesis/src"
+      component: "quadraticvoting:lib:qvf-genesis"
+    - path: "./qvf-genesis/app/Main.hs"
+      component: "quadraticvoting:exe:qvf-genesis"
