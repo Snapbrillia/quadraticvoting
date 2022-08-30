@@ -94,7 +94,7 @@
           projectExes = flatten (haskellLib.collectComponents' "exes" projectPackages);
         };
 
-      mkQvfCliPackages = project: (mkPackages project).projectExes // {
+      mkQvfPackages = project: (mkPackages project).projectExes // {
         inherit (project.pkgs) cardanoLib;
       };
 
@@ -142,13 +142,13 @@
           legacyPackages = pkgs;
 
           # Built by `nix build .`
-          defaultPackage = packages.qvf-cli.components.exes.qvf-cli;
+          defaultPackage = packages.qvf-genesis.components.exes.qvf-genesis;
 
-          # Built by `nix build .#qvf-cli-static.x86_64-linux`
-          qvf-cli-static = jobs.x86_64-linux.linux.musl.qvf-cli;
+          # Built by `nix build .#qvf-genesis-static.x86_64-linux`
+          qvf-genesis-static = jobs.x86_64-linux.linux.musl.qvf-genesis;
 
           # Run by `nix run .`
-          defaultApp = apps.qvf-cli;
+          defaultApp = apps.qvf-genesis;
 
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
@@ -176,16 +176,16 @@
         }
       );
       jobs = flake.jobs;
-      qvf-cli-static = flake.qvf-cli-static;
+      qvf-genesis-static = flake.qvf-genesis-static;
     in
     flake // {
 
-      inherit jobs qvf-cli-static;
+      inherit jobs qvf-genesis-static;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};
-        quadraticvoting-packages = mkQvfCliPackages final.quadraticvoting-project;
-        inherit (final.quadraticvoting-packages) qvf-cli quadraticVoting;
+        quadraticvoting-packages = mkQvfPackages final.quadraticvoting-project;
+        inherit (final.quadraticvoting-packages) qvf-cli qvf-genesis quadraticVoting;
       };
     };
 }

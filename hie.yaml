@@ -1,6 +1,6 @@
 cradle:
   cabal:
     - path: "./quadraticVoting/src"
-      component: "lib:quadraticVoting"
+      component: "quadraticvoting:lib:quadraticVoting"
     - path: "./qvf-cli/app/CLI.hs"
-      component: "exe:qvf-cli"
+      component: "quadraticvoting:exe:qvf-cli"
