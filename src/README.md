@@ -101,7 +101,7 @@ be parametrized by `P`. And finally, `G` will be parametrized by both `S` and
 
 ### Project Registration
 
-Project registration transactions (`Tx(P)` for short) will be responsible of
+Project registration transactions (`Tx_p` for short) will be responsible of
 generating UTxOs at `G`, each carrying a `P` asset.
 
 To ensure uniqueness of a project UTxO, the token names of their `P` assetes
@@ -116,7 +116,7 @@ label, etc.), along with a record of amount of Lovelaces received by that
 project. This will be the only field in the datum that will be subject to
 updates.
 
-Therefore, a `Tx(P)` will consist of these inputs:
+Therefore, a `Tx_p` will consist of these inputs:
 
   - As many UTxOs necessary to cover the registration fee by the project owner,
 
@@ -139,18 +139,18 @@ And these outputs:
 
 ### Donation to a Project
 
-A donation transaction (`Tx(V)`) on the other hand, will require the presence
+A donation transaction (`Tx_v`) on the other hand, will require the presence
 of a token minted by `P` (which identifies the target project) and only then
 its `V` allows minting of vote assets. The token names of these assets will be
-the public key hashes of the donors.
+the target project's identifier.
 
-To prevent noticeable growth of the datum attached to a project UTxO, `Tx(V)` will
-require the production of a new UTxO along with reproducing the project's
-authenticity UTxO. But it will also require the datum of that UTxO to be
-updated such that it'll only increase the total received funds (rather than
-appending donors' information).
+To prevent noticeable growth of the datum attached to a project
+UTxO, `Tx_v` will require the production of a new UTxO along with reproducing
+the project's authenticity UTxO. But it will also require the datum of that
+UTxO to be updated such that it'll only increase the total received funds
+(rather than appending donors' information).
 
-So a `Tx(V)` will comprise of these inputs:
+So a `Tx_v` will comprise of these inputs:
 
   - As many UTxOs necessary to cover the donation by the donor,
 
@@ -164,10 +164,9 @@ And these outputs:
   updated is the total Lovelaces received. This leads to a negligable growth
   for subsequent transactions,
 
-  - A UTxO carrying the donated Lovelaces, an equal amount of `V` (where its
-  token name is used to store the donor's public key hash), and a datum that
-  holds the target project's information (probably only its identification
-  UTxO),
+  - A UTxO carrying the donated Lovelaces, a single `V` asset (where its token
+  name is the target project's identifier), and a minimal datum that holds the
+  donor's public key hash.
 
   - A change output going back to the donor's wallet.
 
@@ -194,15 +193,114 @@ Transaction outputs:
 ### Prize Distribution
 
 At the end of a funding round, this architecture results in a potentially large
-number of scattered UTxOs (all marked with either `S`, `P`, or `V`). Since a
-single transaction is likely unable to handle them all, there should be steps
-to help reduce the UTxO count.
+number of scattered UTxOs (all marked with either `S`, `P`, or `V`).
 
-As each project UTxO accounts for their total received Lovelaces, these UTxOs
-can start burning the vote tokens accumulated within multiple UTxOs.
+This would mean there should be a transaction for each project, where the
+donation UTxOs are folded into a singular UTxO, carrying the project's portion
+of the total funding pool (`w_p`).
 
-Disregarding the size limitation of transactions, this would mean there should
-be a transaction for each project, where the donation UTxOs are "folded" into a
-singular UTxO, carrying the project's portion of the total funding pool.
+Due to the size limit of transactions however, a single transaction may not be
+able to handle all the vote UTxOs associated to a project.
 
+
+#### Mathematical Detour to Find the Practical Limits
+
+By observing the CBOR of a signed transaction, we can arrive at these values:
+
+| Element                                        | Size      |
+|------------------------------------------------|-----------|
+| Each input                                     | 36 bytes  |
+| Each wallet output                             | 67 bytes  |
+| Each key value pair (public key hash, amount)  | 35 bytes  |
+| One signature                                  | 102 bytes |
+| One redeemer without data                      | 15 bytes  |
+
+We'll go over why these particular elements are of interest.
+
+Another important number we can find is a transaction with:
+- An empty array for inputs,
+- A single wallet output,
+- A single script output with:
+    - A script hash,
+    - Some Lovelaces,
+    - An asset with a relatively large amount,
+    - And an array containing a single empty object as the inline datums,
+- An empty array for collaterals,
+- Fee,
+- Both sides of the TTL interval set,
+- Integrity hash,
+- One signature,
+- A redeemer with an empty object as its data,
+- An empty array for datum values,
+- And an empty array for scripts.
+
+Such a transaction has a size of 368 bytes. Although, some of those elements
+have integer fields, and this number has been achieved with some _typical_
+values. Therefore, to simplify our calculations, we'll round it up to
+_**384 bytes**_, which leads to _**16000 bytes**_ left for us to populate.
+
+To find the final size of a folding transaction, there are a number of variable
+elements needed to add:
+- Inputs (count of `x`),
+- Script reference inputs (count of `x`),
+- Collaterals (count of `c`),
+- Script output (i.e. list of public key hashes and amounts, size of `y`),
+- And a redeemer data (`r`).
+
+We can arrive at an equation for finding the number of inputs and outputs with
+given `c`, `r`, and `s` (described below):
+```
+s           # number of bytes to slice off of public key hashes
+t = 36      # byte size increase per input
+u = 35 - s  # byte size increase per additional public key hash
+H = 16000   # available byte count
+
+H = ct + r + 2tx + uy
+
+2tx + uy = H - r - ct = C(c, r)
+
+By setting: C(c,r) = H - r - ct, we'll get:
+    
+                         ┌──────────────┐ 
+                         │ 2tx + uy = C │
+                         └──────────────┘
+    
+Which is always true.
+
+-------------------------------------------------------------------------------
+
+For the final folding transaction, we can be conservative and set y = 1, which
+gives us the number of inputs that transaction can accept (x_f):
+
+                         ┌───────────────┐ 
+                         │        C - u  │
+2tx_f + u = C     =>     │ x_f = ─────── │
+                         │         2t    │
+                         └───────────────┘
+
+-------------------------------------------------------------------------------
+
+Another boundry condition, is the first reduction, in which the number of
+inputs and outputs are equal, i.e. x = y:
+
+                      ┌──────────────────────┐ 
+                      │                C     │
+2tx_0 + ux_0 = C  =>  │ x_0 = y_0 = ──────── │
+                      │              2t + u  │
+                      └──────────────────────┘
+
+-------------------------------------------------------------------------------
+
+Assuming the whole reduction of the donations into the weight portion (w_p)
+occurs in two phases, we can find the upper limit of donation UTxOs by
+multiplying x_0 and x_f:
+
+                  ┌───────────────────────────────┐ 
+                  │               C        C - u  │
+                  │ T(c,r,s) = ──────── * ─────── │
+                  │             2t + u      2t    │
+                  └───────────────────────────────┘
+
+To find a ballpark value, we can set C = 12000 and u = 35 to find: T = 18637
+```
 
