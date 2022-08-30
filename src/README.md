@@ -223,7 +223,7 @@ Another important number we can find is a transaction with:
 - A single script output with:
     - A script hash,
     - Some Lovelaces,
-    - An asset with a relatively large amount,
+    - An asset with a 32-byte long token name and a relatively large amount,
     - And an array containing a single empty object as the inline datums,
 - An empty array for collaterals,
 - Fee,
