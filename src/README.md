@@ -29,6 +29,9 @@ proposing a solution, some of the technical details are covered.
   - [Prize Distribution](#prize-distribution)
     - [Mathematical Detour to Find the Practical Limits](#mathematical-detour-to-find-the-practical-limits)
     - [Folding the Project UTxOs](#folding-the-project-utxos)
+- [Logical Layout for Minting Scripts](#logical-layout-for-minting-scripts)
+  - [Project Registration Minter](#project-registration-minter)
+    - [`RegisterProject`](#projectregistration)
 
 
 ## Design Framework
@@ -83,16 +86,7 @@ a currency symbol of `V`).
 
 Let's consider the flow:
 
-- The key holder mints `S`, which can be done in two different ways:
-
-  - Using a known script, and storing the spent UTxO in the token name: This
-  approach has the benefit of more trust by the users. The "recognizability" of
-  the policy ID means that users can rest assured that this token is truly an
-  NFT. The downside of this approach is that it leads to larger scripts. With
-  Vasil, this may not be a credible downside.
-
-  - Using a custom script, and specifying a minimal token name for the NFT:
-  This leads to smaller script sizes, but may lead to less trust.
+- The key holder mints `S`, an NFT.
 
 - At this point, the key holder can generate `P`, which leads to project
   registration minter's "awareness" of `S`, and therefore capable of validating
@@ -346,3 +340,70 @@ prize each project receives is essentially `w_p / W` times the prize pool.
 Therefore, after `G` finds `W`, it can start distributing the prizes by
 consuming each project's UTxO.
 
+
+## Logical Layout for Minting Scripts
+
+In this section we're going to dive a bit deeper and provide a description of
+scripts' behaviors.
+
+
+### NFT Minter
+
+There are two ways to mint an NFT:
+
+- Using a known script, and storing the spent UTxO in the token name: This
+  approach has the benefit of more trust by the users. The "recognizability" of
+  the policy ID means that users can rest assured that this token is truly an
+  NFT. The downside of this approach is that it leads to larger scripts. With
+  Vasil, this may not be a credible downside.
+
+  Since the concatenation of transaction ID and its output index exceed 32
+  bytes, the token name can not store the UTxO in raw form. Hashing the 
+  concatenation is one option to get a properly sized unique byte string.
+
+- Using a custom script, and specifying a minimal token name for the NFT:
+  This leads to smaller script sizes, but may lead to less trust.
+
+
+### Project Registration Minter
+
+First and foremost, this script should be parametrized by the NFT minted
+earlier. This leads to script's capability to verify the presence of this NFT
+and ensure it's being used in the intended context.
+
+A possible redeemer datatype can be as follows:
+```hs
+data RegistrationRedeemer
+  = RegisterProject ProjectInfo
+  | DistributePrize
+
+data ProjectInfo = ProjectInfo
+  { piTxOutRef   :: TxOutRef
+  , piPubKeyHash :: BuiltinByteString
+  , piLabel      :: BuiltinByteString
+  , piRequested  :: Integer
+  }
+```
+
+The second constructor of the redeemer is meant for burning the tokens (is it
+necessary?).
+
+
+#### `RegisterProject`
+
+These are the conditions under which this minter should allow project
+registration (i.e. minting an authentication asset for the project):
+
+- There is exactly 1 `S` present in inputs, and 1 in outputs (should it also
+validate the two share the same address?),
+
+- Exactly 1 token is being minted, such that its token name is the hash of the
+specified UTxO (in `ProjectInfo`),
+
+- One other output goes to the same address as the one `S` is coming from, with
+a proper inline datum attached to it (we'll go over the structure of this datum
+later),
+
+- Registration fees are paid,
+
+- Datum attached to the output UTxO carrying `S` is proper,
