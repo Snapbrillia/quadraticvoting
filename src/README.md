@@ -33,6 +33,11 @@ proposing a solution, some of the technical details are covered.
   - [NFT Minter](#nft-minter)
   - [Project Registration Minter](#project-registration-minter)
     - [`RegisterProject`](#projectregistration)
+    - [`DistributePrize`](#distributeprize)
+  - [Donation Minter](#donation-minter)
+    - [`DonateToProject`](#donatetoproject)
+    - [`AccumulateDonations`](#accumulatedonations)
+    - [`FoldDonations`](#folddonations)
 
 
 ## Design Framework
@@ -369,20 +374,21 @@ There are two ways to mint an NFT:
 ### Project Registration Minter
 
 First and foremost, this script should be parametrized by the NFT minted
-earlier. This leads to script's capability to verify the presence of this NFT
-and ensure it's being used in the intended context.
+earlier. This leads to script's capability of verifying the presence of this
+NFT and ensure it's being used in the intended context.
 
 A possible redeemer datatype can be as follows:
+
 ```hs
 data RegistrationRedeemer
-  = RegisterProject ProjectInfo
+  = RegisterProject RegistrationInfo
   | DistributePrize
 
-data ProjectInfo = ProjectInfo
-  { piTxOutRef   :: TxOutRef
-  , piPubKeyHash :: BuiltinByteString
-  , piLabel      :: BuiltinByteString
-  , piRequested  :: Integer
+data RegistrationInfo = RegistrationInfo
+  { riTxOutRef   :: TxOutRef
+  , riPubKeyHash :: BuiltinByteString
+  , riLabel      :: BuiltinByteString
+  , riRequested  :: Integer
   }
 ```
 
@@ -395,16 +401,76 @@ necessary?).
 These are the conditions under which this minter should allow project
 registration (i.e. minting an authentication asset for the project):
 
-- There is exactly 1 `S` present in inputs, and 1 in outputs (should it also
-validate the two share the same address?),
-
-- Exactly 1 token is being minted, such that its token name is the hash of the
-specified UTxO (in `ProjectInfo`),
-
-- One other output goes to the same address as the one `S` is coming from, with
-a proper inline datum attached to it (we'll go over the structure of this datum
-later),
+- Deadline has not passed,
 
 - Registration fees are paid,
 
+- There is exactly 1 `S` present in inputs, and 1 in outputs (should it also
+validate the two share the same address?). From this point forward, we'll call
+this "`S` is present,"
+
 - Datum attached to the output UTxO carrying `S` is proper,
+
+- Exactly 1 token is being minted, such that its token name is the hash of the
+specified UTxO (in `RegistrationInfo`),
+
+- One other output goes to the same address as the one `S` is coming from, with
+a proper inline datum attached to it (we'll go over the structure of this datum
+later).
+
+
+#### `DistributePrize`
+
+This endpoint is meant to be invoked for burning the project assets. Still
+unsure whether this is truly needed, but let's consider the conditions under
+which this minter allows burning:
+
+- Deadline has passed,
+
+- `S` is present,
+
+- `P` is present,
+
+- Project UTxO input has a datum that signals its conclusion of `w_p`,
+
+- Exactly 1 token is being burnt, such that its token name matches the
+identifier specified in the datum,
+
+- An ouput exists which goes to the project's public key hash.
+
+
+### Donation Minter
+
+Similar to the project minter, this script should be parametrized by
+the `P` currency symbol.
+
+A possible redeemer datatype can be as follows:
+
+```hs
+data DonationRedeemer
+  = DonateToProject DonationInfo
+  | AccumulateDonations
+  | FoldDonations
+
+data DonationInfo = DonationInfo
+  { diProjectId :: BuiltinByteString
+  , diDonor     :: BuiltinByteString
+  , diAmount    :: Integer
+  }
+```
+
+Let's consider the conditions for each endpoint.
+
+
+#### `DonateToProject`
+
+TODO.
+
+#### `AccumulateDonations`
+
+TODO.
+
+#### `FoldDonations`
+
+TODO.
+
