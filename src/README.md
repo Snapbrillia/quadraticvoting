@@ -224,7 +224,7 @@ Another important number we can find is a transaction with:
     - A script hash,
     - Some Lovelaces,
     - An asset with a 32-byte long token name and a relatively large amount,
-    - And an array containing a single empty object as the inline datums,
+    - And an array containing a single empty object as the inline datum,
 - An empty array for collaterals,
 - Fee,
 - Both sides of the TTL interval set,
@@ -303,4 +303,33 @@ multiplying x_0 and x_f:
 
 To find a ballpark value, we can set C = 12000 and u = 35 to find: T = 18637
 ```
+
+The last transaction should either burn the vote assets, or simply leave them
+at the script address. However, to ensure that they are not carried along with
+the project UTxOs (and consequently inflate the upcoming transaction fees), it
+might be preferred to enforce their burning.
+
+
+#### Folding the Project UTxOs
+
+After the final phase of folding donations into `w_p` values, we are left with
+all the project UTxOs flagged as "consolidated."
+
+The governing script (`G`) should consume all these UTxOs, grabbing all their
+Lovelaces, but still reproducing them such that they carry their `w_p`, along
+with their registration fee, and adding their `w_p` to an accumulator carried
+inside its datum.
+
+If we were to keep a record of `w_p` values, for example, within the datum of
+the governing UTxO (which carries `S`), the contract would support a limited
+number of projects. This way, however, it'll only be limited by the total 
+transaction fees required for distribution.
+
+Going over all the project UTxOs, `G` will arrive at the total sum
+of `w_p` values. We'll call this `W`.
+
+Disregarding the key holder fees and refund of project registration fees, the
+prize each project receives is essentially `w_p / W` times the prize pool.
+Therefore, after `G` finds `W`, it can start distributing the prizes by
+consuming each project's UTxO.
 
