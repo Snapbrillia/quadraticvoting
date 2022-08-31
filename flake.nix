@@ -144,11 +144,22 @@
           # Built by `nix build .`
           defaultPackage = packages.qvf-genesis.components.exes.qvf-genesis;
 
-          # Built by `nix build .#qvf-genesis-static.x86_64-linux`
-          qvf-genesis-static = jobs.x86_64-linux.linux.musl.qvf-genesis;
-
           # Run by `nix run .`
           defaultApp = apps.qvf-genesis;
+
+          # Built by `nix build .#qvf-genesis-static.x86_64-linux`
+          # Bundle example:
+          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-genesis-static.x86_64-linux
+          # docker load < qvf-genesis-exe-qvf-genesis-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
+          # docker run qvf-genesis-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
+          qvf-genesis-static = jobs.x86_64-linux.linux.musl.qvf-genesis;
+
+          # Built by `nix build .#qvf-genesis.x86_64-linux`
+          # Bundle example:
+          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-genesis.x86_64-linux
+          # docker load < qvf-genesis-exe-qvf-genesis-0.1.0.0.tar.gz
+          # docker run qvf-genesis-0.1.0.0:latest xxx          
+          qvf-genesis = packages.qvf-genesis.components.exes.qvf-genesis;
 
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
@@ -177,15 +188,16 @@
       );
       jobs = flake.jobs;
       qvf-genesis-static = flake.qvf-genesis-static;
+      qvf-genesis = flake.qvf-genesis;
     in
     flake // {
 
-      inherit jobs qvf-genesis-static;
+      inherit jobs qvf-genesis-static qvf-genesis ;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};
         quadraticvoting-packages = mkQvfPackages final.quadraticvoting-project;
-        inherit (final.quadraticvoting-packages) qvf-cli qvf-genesis quadraticVoting;
+        inherit (final.quadraticvoting-packages) qvf-cli quadraticVoting;
       };
     };
 }
