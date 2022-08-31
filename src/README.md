@@ -30,6 +30,7 @@ proposing a solution, some of the technical details are covered.
     - [Mathematical Detour to Find the Practical Limits](#mathematical-detour-to-find-the-practical-limits)
     - [Folding the Project UTxOs](#folding-the-project-utxos)
 - [Logical Layout for Minting Scripts](#logical-layout-for-minting-scripts)
+  - [NFT Minter](#nft-minter)
   - [Project Registration Minter](#project-registration-minter)
     - [`RegisterProject`](#projectregistration)
 
