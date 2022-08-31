@@ -36,7 +36,6 @@ proposing a solution, some of the technical details are covered.
     - [`DistributePrize`](#distributeprize)
   - [Donation Minter](#donation-minter)
     - [`DonateToProject`](#donatetoproject)
-    - [`AccumulateDonations`](#accumulatedonations)
     - [`FoldDonations`](#folddonations)
 
 
@@ -405,6 +404,8 @@ registration (i.e. minting an authentication asset for the project):
 
 - Registration fees are paid,
 
+- Signed by the public key hash stated in `RegistrationInfo`,
+
 - There is exactly 1 `S` present in inputs, and 1 in outputs (should it also
 validate the two share the same address?). From this point forward, we'll call
 this "`S` is present,"
@@ -412,7 +413,7 @@ this "`S` is present,"
 - Datum attached to the output UTxO carrying `S` is proper,
 
 - Exactly 1 token is being minted, such that its token name is the hash of the
-specified UTxO (in `RegistrationInfo`),
+specified UTxO (`riTxOutRef` in `RegistrationInfo`),
 
 - One other output goes to the same address as the one `S` is coming from, with
 a proper inline datum attached to it (we'll go over the structure of this datum
@@ -449,7 +450,6 @@ A possible redeemer datatype can be as follows:
 ```hs
 data DonationRedeemer
   = DonateToProject DonationInfo
-  | AccumulateDonations
   | FoldDonations
 
 data DonationInfo = DonationInfo
@@ -464,11 +464,25 @@ Let's consider the conditions for each endpoint.
 
 #### `DonateToProject`
 
-TODO.
+- Deadline has not passed,
 
-#### `AccumulateDonations`
+- Donation is not less than minimum (2 ADA),
 
-TODO.
+- Signed by the donor's public key hash (`diDonor` in `DonationInfo`),
+
+- `P` is present,
+
+- Datum attached to above is properly updated (i.e. donation count is
+incremented by 1),
+
+- Exactly 1 token is being minted, such that its token name is the target
+project's identifier (`diProjectId` in `DonationInfo`).
+
+- One other output goes to the same address as the one `P` is coming from, with
+donor's public key hash as its datum,
+
+- The above has enough Lovelaces.
+
 
 #### `FoldDonations`
 
