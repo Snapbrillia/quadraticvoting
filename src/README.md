@@ -18,6 +18,19 @@ addressing possible solutions for the afformentioned problems. And after
 proposing a solution, some of the technical details are covered.
 
 
+## Table of Contents
+- [Design Framework](#design-framework)
+- [The Solution](#the-solution)
+- [Technical Details](#technical-details)
+  - [Initiation](#initiation)
+  - [Project Registration](#project-registration)
+  - [Donation to a Project](#donation-to-a-project)
+  - [Contribution to the Match Pool](#contribution-to-the-match-pool)
+  - [Prize Distribution](#prize-distribution)
+    - [Mathematical Detour to Find the Practical Limits](#mathematical-detour-to-find-the-practical-limits)
+    - [Folding the Project UTxOs](#folding-the-project-utxos)
+
+
 ## Design Framework
 
 This contract has a "growing state" in its nature. Therefore, to allow a large
@@ -318,7 +331,7 @@ all the project UTxOs flagged as "consolidated."
 The governing script (`G`) should consume all these UTxOs, grabbing all their
 Lovelaces, but still reproducing them such that they carry their `w_p`, along
 with their registration fee, and adding their `w_p` to an accumulator carried
-inside its datum.
+inside its own datum.
 
 If we were to keep a record of `w_p` values, for example, within the datum of
 the governing UTxO (which carries `S`), the contract would support a limited
