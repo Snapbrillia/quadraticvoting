@@ -428,9 +428,9 @@ which this minter allows burning:
 
 - Deadline has passed,
 
-- `S` is present,
+- Signed by key holder,
 
-- `P` is present,
+- `S` is present,
 
 - Project UTxO input has a datum that signals its conclusion of `w_p`,
 
@@ -486,5 +486,25 @@ donor's public key hash as its datum,
 
 #### `FoldDonations`
 
-TODO.
+As mentioned earlier, this endpoint is meant for burning the tokens, which
+means that it should happen after accumulating the donations into multiple
+"grouped" UTxOs. If the burning is deemed unnecessary, this layout becomes
+moot.
+
+Required conditions are:
+
+- Deadline has passed,
+
+- Signed by key holder,
+
+- `P` is present,
+
+- Exactly the same number of tokens are being burnt as the number of donations
+received by the project (stated in the datum attached to `P`'s UTxO). All these
+tokens should be identical, with a currency symbol of `V` and a token name the
+same as the identifier specified in the datum,
+
+- Output containing `P` has a properly structured datum (i.e. correct data
+constructor). To save on transaction fees, it's probably OK not to check the
+correctness of the carried `w_p`.
 
