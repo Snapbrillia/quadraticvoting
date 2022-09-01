@@ -13,7 +13,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 
-module Genesis where
+module Minter.NFT where
 
 
 import qualified Plutonomy
@@ -26,26 +26,9 @@ import           Ledger.Value         as Value
 import Utils
 
 
--- QVF FUNDING ROUND DATUM
--- {{{
-data FundingRoundState
-  = NotStarted
-  | InProgress
-  | Concluded
-
-instance Eq FundingRoundState where
-  {-# INLINABLE (==) #-}
-  NotStarted == NotStarted = True
-  InProgress == InProgress = True
-  Concluded  == Concluded  = True
-  _          == _          = False
-
-PlutusTx.makeIsDataIndexed ''FundingRoundState
-  [ ('NotStarted, 0)
-  , ('InProgress, 1)
-  , ('Concluded , 2)
-  ]
--- }}}
+{-# INLINABLE qvfTokenName #-}
+qvfTokenName :: TokenName
+qvfTokenName = TokenName "QVF"
 
 
 {-# INLINABLE mkQVFPolicy #-}
@@ -65,7 +48,10 @@ mkQVFPolicy oref tn () ctx =
       case flattenValue (txInfoMint info) of
         [(_, tn', amt)] ->
           -- {{{
-          tn' == tn && amt == 1
+          if tn' == tn then
+            amt == 1
+          else
+            traceError "Bad token name."
           -- }}}
         _              ->
           -- {{{
@@ -86,7 +72,7 @@ qvfPolicy oref =
     `PlutusTx.applyCode`
     PlutusTx.liftCode oref
     `PlutusTx.applyCode`
-    PlutusTx.liftCode emptyTokenName
+    PlutusTx.liftCode qvfTokenName
   -- }}}
 
 
