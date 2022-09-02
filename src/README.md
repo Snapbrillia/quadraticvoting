@@ -223,14 +223,14 @@ By observing the CBOR of a signed transaction, we can arrive at these values:
 |------------------------------------------------|-----------|
 | Each input                                     | 36 bytes  |
 | Each wallet output                             | 67 bytes  |
-| Each key value pair (public key hash, amount)  | 35 bytes  |
+| Each key value pair (public key hash, amount)  | 39 bytes  |
 | One signature                                  | 102 bytes |
-| One redeemer without data                      | 15 bytes  |
+| Each redeemer without data                     | 14 bytes  |
 
 We'll go over why these particular elements are of interest.
 
 Another important number we can find is a transaction with:
-- An empty array for inputs,
+- A single input,
 - A single wallet output,
 - A single script output with:
     - A script hash,
@@ -242,14 +242,49 @@ Another important number we can find is a transaction with:
 - Both sides of the TTL interval set,
 - Integrity hash,
 - One signature,
-- A redeemer with an empty object as its data,
-- An empty array for datum values,
-- And an empty array for scripts.
+- An empty array for redeemers,
+- No datum and script in witness set (not even empty arrays).
 
-Such a transaction has a size of 368 bytes. Although, some of those elements
-have integer fields, and this number has been achieved with some _typical_
-values. Therefore, to simplify our calculations, we'll round it up to
-_**384 bytes**_, which leads to _**16000 bytes**_ left for us to populate.
+The decoded CBOR of such a transaction looks like this:
+```
+[ { 0:  [ [h'30AB6FF0B6137E32836B6F51C5B1411C65030BF2E64F605B8409D51E552FF802', 1]
+        ]
+  , 1:  [ { 0: h'003A56F24E6E474ECC440555F0F4948101148694C4727AD8AC05AFF0B9F809DFED2456621369A039E767A9438D8FD8BAD8AE32FD0F7041B1C0'
+          , 1: 7311569000000
+          }
+        , { 0: h'70311E7CBDA49831695C2D51DB0F2E92816BD4AF8CBFA453DC5AF77277'
+          , 1: [ 7600000000000
+               , { h'499D7F6DCDE3B31912A742497A3A294488D416E59216A9AA47776238':
+                     { h'5FAE3E5B2722EEF3A82A85775052EFB4F76901312AC200F4E28059DF51F7306C': 18000000000
+                     }
+                 }
+               ]
+          , 2: [122([])]
+          }
+        ]
+  , 2:  71879200000
+  , 3:  67439744000
+  , 4:  67441447000
+  , 11: h'5F0690B995666E8DE6B7BBA8A68341F268C6578E2EBD5A310C915DE0F94B425E'
+  , 13: []
+  , 18: [ [h'5FAE3E5B2722EEF3A82A85775052EFF4E28059DF51F7306CB4F76901312AC200', 2]
+        ]
+  }
+, { 0:  [ [ h'B7A9392B498B97FF41D01EAC21A22634AF9E841593549B6F2AF9E1DC67DFF78B'
+          , h'148C6E21009F92FE9D364385E4208DFBE61F16AA73438D90C87564F944EAD7FAD3BF996788725215E652DEF2AFFB1978F19A7C602D000B775969E05804704208'
+          ]
+        ]
+  , 5:  []
+  }
+, true
+, null
+]
+```
+
+Such a transaction has a size of _**450**_ bytes. Since, where applicable, the
+integer values used are bigger than necessary, we can consider this the upper
+bound of the overhead in each transaction. Therefore, we can round a bit more
+conservatively, and end up with _**15900 bytes**_ free space to populate.
 
 To find the final size of a folding transaction, there are a number of variable
 elements needed to add:
@@ -264,42 +299,43 @@ given `c`, `r`, and `s` (described below):
 ```
 s           # number of bytes to slice off of public key hashes
 t = 36      # byte size increase per input
-u = 35 - s  # byte size increase per additional public key hash
-H = 16000   # available byte count
+u = 39 - s  # byte size increase per additional public key hash
+R = 14 + r  # 
+H = 15900   # available byte count
 
-H = ct + r + 2tx + uy
+H = ct + Rx + tx + uy
 
-2tx + uy = H - r - ct = C(c, r)
+Rx + tx + uy = H - ct = C(c)
 
-By setting: C(c,r) = H - r - ct, we'll get:
-    
-                         ┌──────────────┐ 
-                         │ 2tx + uy = C │
-                         └──────────────┘
-    
+By setting: C(c) = H - ct, we'll get:
+
+                              ┌───────────────────┐
+                              │ (R + t)x + uy = C │
+                              └───────────────────┘
+
 Which is always true.
 
 -------------------------------------------------------------------------------
 
-For the final folding transaction, we can be conservative and set y = 1, which
-gives us the number of inputs that transaction can accept (x_f):
+For the final folding transaction, we can set y = 1, which gives us the number
+of inputs that transaction can accept (x_f):
 
-                         ┌───────────────┐ 
-                         │        C - u  │
-2tx_f + u = C     =>     │ x_f = ─────── │
-                         │         2t    │
-                         └───────────────┘
+                               ┌───────────────┐
+                               │        C - u  │
+(R + t)x_f + u = C     =>      │ x_f = ─────── │
+                               │        R + t  │
+                               └───────────────┘
 
 -------------------------------------------------------------------------------
 
 Another boundry condition, is the first reduction, in which the number of
 inputs and outputs are equal, i.e. x = y:
 
-                      ┌──────────────────────┐ 
-                      │                C     │
-2tx_0 + ux_0 = C  =>  │ x_0 = y_0 = ──────── │
-                      │              2t + u  │
-                      └──────────────────────┘
+                           ┌─────────────────────────┐
+                           │                  C      │
+(R + t)x_0 + ux_0 = C  =>  │ x_0 = y_0 = ─────────── │
+                           │              R + t + u  │
+                           └─────────────────────────┘
 
 -------------------------------------------------------------------------------
 
@@ -307,13 +343,18 @@ Assuming the whole reduction of the donations into the weight portion (w_p)
 occurs in two phases, we can find the upper limit of donation UTxOs by
 multiplying x_0 and x_f:
 
-                  ┌───────────────────────────────┐ 
-                  │               C        C - u  │
-                  │ T(c,r,s) = ──────── * ─────── │
-                  │             2t + u      2t    │
-                  └───────────────────────────────┘
+                      ┌──────────────────────────────────┐
+                      │                 C         C - u  │
+                      │ T(c,r,s) = ─────────── * ─────── │
+                      │             R + t + u     R + t  │
+                      └──────────────────────────────────┘
 
-To find a ballpark value, we can set C = 12000 and u = 35 to find: T = 18637
+To find a ballpark value, we can set:
+  c = 5 => C = 15720
+  r = 6 => R = 20
+  s = 0 => u = 39
+
+  therefore: T = 46200
 ```
 
 The last transaction should either burn the vote assets, or simply leave them
@@ -400,8 +441,6 @@ necessary?).
 These are the conditions under which this minter should allow project
 registration (i.e. minting an authentication asset for the project):
 
-- Deadline has not passed,
-
 - Registration fees are paid,
 
 - Signed by the public key hash stated in `RegistrationInfo`,
@@ -425,10 +464,6 @@ later).
 This endpoint is meant to be invoked for burning the project assets. Still
 unsure whether this is truly needed, but let's consider the conditions under
 which this minter allows burning:
-
-- Deadline has passed,
-
-- Signed by key holder,
 
 - `S` is present,
 
@@ -464,8 +499,6 @@ Let's consider the conditions for each endpoint.
 
 #### `DonateToProject`
 
-- Deadline has not passed,
-
 - Donation is not less than minimum (2 ADA),
 
 - Signed by the donor's public key hash (`diDonor` in `DonationInfo`),
@@ -492,10 +525,6 @@ means that it should happen after accumulating the donations into multiple
 moot.
 
 Required conditions are:
-
-- Deadline has passed,
-
-- Signed by key holder,
 
 - `P` is present,
 
