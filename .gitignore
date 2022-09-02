@@ -36,3 +36,6 @@ result
 *-dynamic
 *-static
 *.tar.gz
+.aws-sam/build.toml
+.aws-sam/build/template.yaml
+.aws-sam/build/QvfGenerateScriptsFunction/qvf-generate-scripts
