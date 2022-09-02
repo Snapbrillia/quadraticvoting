@@ -23,6 +23,7 @@ library
                      , Utils
 
   build-depends:       base >= 4.9 && < 5
+                     , aeson
                      , bytestring
                      , cardano-api
                      , data-default

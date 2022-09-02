@@ -28,6 +28,7 @@ module OnChain where
 
 -- IMPORTS
 -- {{{
+import           GHC.Generics
 import           Ledger
 import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
@@ -45,6 +46,7 @@ import qualified PlutusTx.Builtins           as Builtins
 import           PlutusTx.Prelude            hiding (unless)
 import           PlutusTx.Prelude            (BuiltinByteString, (<>))
 import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
+import           Data.Aeson
 import           Prelude                     (Show, show, String)
 import qualified Prelude                     as P
 import           Utils
@@ -81,6 +83,7 @@ data Project = Project
   , pRequested  :: !Integer
   , pDonations  :: !(Map PubKeyHash Integer)
   }
+  deriving (Generic, FromJSON, ToJSON)
 
 showDonations :: Map PubKeyHash Integer -> String
 showDonations ds =
@@ -122,6 +125,7 @@ data QVFDatum = QVFDatum
   , qvfDeadline   :: !POSIXTime
   , qvfInProgress :: !Bool
   }
+  deriving (Generic, FromJSON, ToJSON)
 
 instance Show QVFDatum where
   show QVFDatum {..} =

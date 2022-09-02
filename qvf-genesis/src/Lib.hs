@@ -3,19 +3,44 @@
 
 module Lib where
 
-import GHC.Generics
-import Data.Aeson
-import Aws.Lambda
+import           GHC.Generics
+import           Data.Aeson
+import           Aws.Lambda
+import           Plutus.Contract
+import           Ledger                      hiding (mint, singleton, Context)
+import qualified Ledger.Typed.Scripts        as Scripts
+import           Ledger.Value                as Value
 
-data Person = Person
-  { personName :: String
-  , personAge :: Int
-  } -- We kindly ask the compiler to autogenerate JSON instances for us
+import qualified OnChain                as OC
+import qualified Token
+
+data GenerateScriptsParams = GenerateScriptsParams
+  { keyHolderPubKeyHash :: PubKeyHash
+  , txRef               :: TxOutRef
+  , authTokenName       :: TokenName
+  , deadline            :: POSIXTime
+  } 
   deriving (Generic, FromJSON, ToJSON)
 
-handler :: Person -> Context () -> IO (Either String Person)
-handler person context =
-  if personAge person > 0 then
-    return (Right person)
-  else
-    return (Left "A person's age must be positive")
+data GenerateScriptsResult = GenerateScriptsResult
+  { validator     :: Scripts.Validator
+  , mintingPolicy :: Scripts.MintingPolicy
+  , redeemer      :: ()
+  , initialDatum  :: OC.QVFDatum
+  } 
+  deriving (Generic, FromJSON, ToJSON)
+
+handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScriptsResult)
+handler gsp@GenerateScriptsParams {..} context = 
+  return $ Right $ GenerateScriptsResult validator mintingPolicy () initialDatum
+  where 
+    tokenSymbol = Token.qvfSymbol txRef authTokenName
+    qvfParams   =
+      OC.QVFParams
+        { OC.qvfKeyHolder  = keyHolderPubKeyHash
+        , OC.qvfSymbol     = tokenSymbol
+        , OC.qvfTokenName  = authTokenName
+        }
+    validator = OC.qvfValidator qvfParams
+    mintingPolicy = Token.qvfPolicy txRef authTokenName
+    initialDatum = OC.initialDatum deadline
