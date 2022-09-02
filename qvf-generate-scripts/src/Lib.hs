@@ -25,7 +25,7 @@ data GenerateScriptsParams = GenerateScriptsParams
 data GenerateScriptsResult = GenerateScriptsResult
   { validator     :: Scripts.Validator
   , mintingPolicy :: Scripts.MintingPolicy
-  , redeemer      :: ()
+  , unitRedeemer  :: ()
   , initialDatum  :: OC.QVFDatum
   } 
   deriving (Generic, FromJSON, ToJSON)
@@ -34,13 +34,12 @@ handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScri
 handler gsp@GenerateScriptsParams {..} context = 
   return $ Right $ GenerateScriptsResult validator mintingPolicy () initialDatum
   where 
-    tokenSymbol = Token.qvfSymbol txRef authTokenName
-    qvfParams   =
-      OC.QVFParams
-        { OC.qvfKeyHolder  = keyHolderPubKeyHash
-        , OC.qvfSymbol     = tokenSymbol
-        , OC.qvfTokenName  = authTokenName
-        }
+    tokenSymbol  = Token.qvfSymbol txRef authTokenName
+    qvfParams    = OC.QVFParams
+                    { OC.qvfKeyHolder  = keyHolderPubKeyHash
+                    , OC.qvfSymbol     = tokenSymbol
+                    , OC.qvfTokenName  = authTokenName
+                    }
     validator = OC.qvfValidator qvfParams
     mintingPolicy = Token.qvfPolicy txRef authTokenName
-    initialDatum = OC.initialDatum deadline
+    initialDatum  = OC.initialDatum deadline
