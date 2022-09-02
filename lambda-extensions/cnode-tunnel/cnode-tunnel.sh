@@ -17,7 +17,6 @@ _term() {
   echo "[${LAMBDA_EXTENSION_NAME}] Received SIGTERM"
   # forward SIGTERM to child procs and exit
   kill -TERM "${EVENT_PID}" 2>/dev/null
-  kill -TERM "${TUNNEL_PID}" 2>/dev/null
   echo "[${LAMBDA_EXTENSION_NAME}] Exiting"
   exit 0
 }
@@ -54,16 +53,16 @@ echo "[${LAMBDA_EXTENSION_NAME}] Initialization"
 
 KEY_FILE="$(get_key_file)"
 
+# Avoid need for interaction if/when cnode host changes
 STRICTHOSTKEYCHECKING="StrictHostKeyChecking accept-new"
 
 ssh -i ${KEY_FILE} -o ${STRICTHOSTKEYCHECKING} -l ${CNODE_USER} -nNT -L ${LOCAL_CNODE_SOCKET_PATH}:${REMOTE_CNODE_SOCKET_PATH} ${CNODE_HOST} &
-TUNNEL_PID=$!
 
 # Registration
 # The extension registration also signals to Lambda to start initializing the runtime. 
 HEADERS="$(mktemp)"
 echo "[${LAMBDA_EXTENSION_NAME}] Registering at http://${AWS_LAMBDA_RUNTIME_API}/2020-01-01/extension/register"
-  curl -sS -LD "${HEADERS}" -XPOST "http://${AWS_LAMBDA_RUNTIME_API}/2020-01-01/extension/register" --header "Lambda-Extension-Name: ${LAMBDA_EXTENSION_NAME}" -d "{ \"events\": [\"INVOKE\", \"SHUTDOWN\"]}" > ${TMPFILE}
+curl -sS -LD "${HEADERS}" -XPOST "http://${AWS_LAMBDA_RUNTIME_API}/2020-01-01/extension/register" --header "Lambda-Extension-Name: ${LAMBDA_EXTENSION_NAME}" -d "{ \"events\": [\"INVOKE\", \"SHUTDOWN\"]}" > ${TMPFILE}
 
 RESPONSE=$(<${TMPFILE})
 HEADINFO=$(<${HEADERS})
