@@ -238,12 +238,13 @@ Another important number we can find is a transaction with:
     - An asset with a 32-byte long token name and a relatively large amount,
     - And an array containing a single empty object as the inline datum,
 - An empty array for collaterals,
+- A single script reference UTxO,
 - Fee,
 - Both sides of the TTL interval set,
 - Integrity hash,
 - One signature,
 - An empty array for redeemers,
-- No datum and script in witness set (not even empty arrays).
+- No datums and scripts in witness set (not even empty arrays).
 
 The decoded CBOR of such a transaction looks like this:
 ```
@@ -281,7 +282,7 @@ The decoded CBOR of such a transaction looks like this:
 ]
 ```
 
-Such a transaction has a size of _**450**_ bytes. Since, where applicable, the
+Such a transaction has a size of _**450 bytes**_. Since, where applicable, the
 integer values used are bigger than necessary, we can consider this the upper
 bound of the overhead in each transaction. Therefore, we can round a bit more
 conservatively, and end up with _**15900 bytes**_ free space to populate.
@@ -289,10 +290,9 @@ conservatively, and end up with _**15900 bytes**_ free space to populate.
 To find the final size of a folding transaction, there are a number of variable
 elements needed to add:
 - Inputs (count of `x`),
-- Script reference inputs (count of `x`),
+- A redeemer for each input (count of `x`, data size of `r`),
 - Collaterals (count of `c`),
-- Script output (i.e. list of public key hashes and amounts, size of `y`),
-- And a redeemer data (`r`).
+- Output datum (i.e. map from public key hashes to amounts, size of `y`).
 
 We can arrive at an equation for finding the number of inputs and outputs with
 given `c`, `r`, and `s` (described below):
@@ -300,7 +300,7 @@ given `c`, `r`, and `s` (described below):
 s           # number of bytes to slice off of public key hashes
 t = 36      # byte size increase per input
 u = 39 - s  # byte size increase per additional public key hash
-R = 14 + r  # 
+R = 14 + r  # byte size increase per redeemer
 H = 15900   # available byte count
 
 H = ct + Rx + tx + uy
