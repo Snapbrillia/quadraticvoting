@@ -148,14 +148,14 @@
           defaultApp = apps.qvf-genesis;
 
           # Built by `nix build .#qvf-genesis-static.x86_64-linux`
-          # Bundle example:
+          # Bundle  to a docker image:
           # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-genesis-static.x86_64-linux
           # docker load < qvf-genesis-exe-qvf-genesis-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
           # docker run qvf-genesis-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
           qvf-genesis-static = jobs.x86_64-linux.linux.musl.qvf-genesis;
 
           # Built by `nix build .#qvf-genesis.x86_64-linux`
-          # Bundle example:
+          # Bundle to a docker image:
           # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-genesis.x86_64-linux
           # docker load < qvf-genesis-exe-qvf-genesis-0.1.0.0.tar.gz
           # docker run qvf-genesis-0.1.0.0:latest xxx          
