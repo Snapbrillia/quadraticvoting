@@ -5,7 +5,7 @@ index-state: 2022-04-28T09:22:25Z
 packages:
     quadraticVoting
     qvf-cli
-    qvf-genesis
+    qvf-generate-scripts
 
 -- flags for the plutonomy optimizer
 flags:      +plutus-4710dff2e

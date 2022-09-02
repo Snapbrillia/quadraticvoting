@@ -3,4 +3,4 @@
 # > nix eval .#pkgs.genProjectPackages 
 # Run the script regenerate.sh in this directory to update this file.
 # This should be done if new packages are added to the project.
-{ quadraticVoting = [ ]; qvf-cli = [ "qvf-cli" ]; qvf-genesis = [ "qvf-genesis" ]; }
+{ quadraticVoting = [ ]; qvf-cli = [ "qvf-cli" ]; qvf-generate-scripts = [ "qvf-generate-scripts" ]; }

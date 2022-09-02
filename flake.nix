@@ -142,24 +142,24 @@
           legacyPackages = pkgs;
 
           # Built by `nix build .`
-          defaultPackage = packages.qvf-genesis.components.exes.qvf-genesis;
+          defaultPackage = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
 
           # Run by `nix run .`
-          defaultApp = apps.qvf-genesis;
+          defaultApp = apps.qvf-generate-scripts;
 
-          # Built by `nix build .#qvf-genesis-static.x86_64-linux`
+          # Built by `nix build .#qvf-generate-scripts-static.x86_64-linux`
           # Bundle  to a docker image:
-          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-genesis-static.x86_64-linux
-          # docker load < qvf-genesis-exe-qvf-genesis-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
-          # docker run qvf-genesis-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
-          qvf-genesis-static = jobs.x86_64-linux.linux.musl.qvf-genesis;
+          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts-static.x86_64-linux
+          # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
+          # docker run qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
+          qvf-generate-scripts-static = jobs.x86_64-linux.linux.musl.qvf-generate-scripts;
 
-          # Built by `nix build .#qvf-genesis.x86_64-linux`
+          # Built by `nix build .#qvf-generate-scripts.x86_64-linux`
           # Bundle to a docker image:
-          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-genesis.x86_64-linux
-          # docker load < qvf-genesis-exe-qvf-genesis-0.1.0.0.tar.gz
-          # docker run qvf-genesis-0.1.0.0:latest xxx          
-          qvf-genesis = packages.qvf-genesis.components.exes.qvf-genesis;
+          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts.x86_64-linux
+          # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-0.1.0.0.tar.gz
+          # docker run qvf-generate-scripts-0.1.0.0:latest xxx          
+          qvf-generate-scripts = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
 
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
@@ -187,12 +187,12 @@
         }
       );
       jobs = flake.jobs;
-      qvf-genesis-static = flake.qvf-genesis-static;
-      qvf-genesis = flake.qvf-genesis;
+      qvf-generate-scripts-static = flake.qvf-generate-scripts-static;
+      qvf-generate-scripts = flake.qvf-generate-scripts;
     in
     flake // {
 
-      inherit jobs qvf-genesis-static qvf-genesis ;
+      inherit jobs qvf-generate-scripts-static qvf-generate-scripts ;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};
