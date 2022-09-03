@@ -22,7 +22,7 @@ data GenerateScriptsParams = GenerateScriptsParams
   } 
   deriving (Generic, FromJSON, ToJSON)
 
-data GenerateScriptsResult = GenerateScriptsResult
+data GenerateScriptsResponse = GenerateScriptsResponse
   { validator     :: Scripts.Validator
   , mintingPolicy :: Scripts.MintingPolicy
   , unitRedeemer  :: ()
@@ -30,9 +30,9 @@ data GenerateScriptsResult = GenerateScriptsResult
   } 
   deriving (Generic, FromJSON, ToJSON)
 
-handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScriptsResult)
+handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScriptsResponse)
 handler gsp@GenerateScriptsParams {..} context = 
-  return $ Right $ GenerateScriptsResult validator mintingPolicy () initialDatum
+  return $ Right $ GenerateScriptsResponse validator mintingPolicy () initialDatum
   where 
     tokenSymbol  = Token.qvfSymbol txRef authTokenName
     qvfParams    = OC.QVFParams
