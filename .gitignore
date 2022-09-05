@@ -38,3 +38,5 @@ result
 *.tar.gz
 .aws-sam/
 QvfGenerateScriptsFunction/
+tmp/
+
