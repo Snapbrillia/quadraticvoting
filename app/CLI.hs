@@ -6,34 +6,28 @@ module Main (main) where
 
 
 import           Cardano.Api
-import           Cardano.Api.Shelley    (PlutusScript (..))
-import           Codec.Serialise        (Serialise, serialise)
-import           Control.Monad          (foldM)
-import qualified Data.Aeson             as A
-import           Data.Aeson             (encode)
-import qualified Data.ByteString.Char8  as BS8
-import qualified Data.ByteString.Lazy   as LBS
-import qualified Data.ByteString.Short  as SBS
-import qualified Data.Char              as Char
-import qualified Data.List              as List
-import qualified Data.Map               as Map
-import           Data.Maybe             (fromJust)
-import qualified Data.String            as String
-import           Data.String            (fromString)
-import qualified Data.Text              as T
-import           Data.Text              (Text)
-import           Data.Time.Clock.POSIX  (getPOSIXTime)
-import           Plutus.V1.Ledger.Api   (fromBuiltin)
-import           Plutus.V1.Ledger.Value (TokenName (..))
-import           PlutusTx               (Data (..))
+import           Cardano.Api.Shelley        (PlutusScript (..))
+import           Codec.Serialise            (Serialise, serialise)
+import qualified Data.Aeson                 as A
+import           Data.Aeson                 (encode)
+import qualified Data.ByteString.Char8      as BS8
+import qualified Data.ByteString.Lazy       as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBS8
+import qualified Data.ByteString.Short      as SBS
+import qualified Data.List                  as List
+import qualified Data.Map                   as Map
+import           Data.Maybe                 (fromJust)
+import           Data.String                (fromString)
+import           Data.Time.Clock.POSIX      (getPOSIXTime)
+import           Plutus.V1.Ledger.Api       (fromBuiltin, BuiltinByteString)
+import           Plutus.V1.Ledger.Value     (TokenName (..))
+import           PlutusTx                   (Data (..))
 import qualified PlutusTx
-import qualified PlutusTx.Monoid        as PlutusMonoid
-import qualified PlutusTx.Semigroup     as PlutusSemigroup
 import qualified Ledger
-import           System.Environment     (getArgs)
-import           Text.Read              (readMaybe)
+import           System.Environment         (getArgs)
+import           Text.Read                  (readMaybe)
 
-import qualified OnChain                as OC
+import qualified OnChain                    as OC
 import qualified Token
 
 -- UTILS
@@ -90,12 +84,13 @@ parseJSONValue bs =
   -- }}}
 
 
-parseJSON :: FilePath -> IO (Either String Data)
-parseJSON file = do
-  -- {{{
-  fileContent <- LBS.readFile file
-  parseJSONValue fileContent
-  -- }}}
+-- TODO !@! - remove? Not used.
+-- parseJSON :: FilePath -> IO (Either String Data)
+-- parseJSON file = do
+--   -- {{{
+--   fileContent <- LBS.readFile file
+--   parseJSONValue fileContent
+--   -- }}}
 
 
 writeScript :: Serialise a => FilePath -> a -> IO (Either (FileError ()) ())
@@ -144,17 +139,19 @@ readTxOutRef s =
       -- }}}
   -- }}}
 
-
--- | From PPP's 6th lecture.
-unsafeTokenNameToHex :: TokenName -> String
-unsafeTokenNameToHex =
-  -- {{{
+builtinByteStringToString :: BuiltinByteString -> String
+builtinByteStringToString =
     BS8.unpack
   . serialiseToRawBytesHex
   . fromJust
   . deserialiseFromRawBytes AsAssetName
   . fromBuiltin
-  . unTokenName
+
+-- | From PPP's 6th lecture.
+unsafeTokenNameToHex :: TokenName -> String
+unsafeTokenNameToHex =
+  -- {{{
+  builtinByteStringToString . unTokenName
   -- }}}
 -- }}}
 
@@ -309,6 +306,17 @@ main =
         , "<...etc...>"
         ] ++ commonLastThree
       -- }}}
+    emulateDistHelp    :: String
+    emulateDistHelp    =
+      -- {{{
+      makeHelpText
+        (    "Print a JSON of the prizes each project would've received\n"
+          ++ "\tif the distribution occured now:"
+        )
+        "emulate-distribution"
+        helpCurrDatum
+        []
+      -- }}}
     deadlineToSlotHelp :: String
     deadlineToSlotHelp =
       -- {{{
@@ -344,8 +352,9 @@ main =
       ++ "\tqvf-cli get-deadline-slot --help\n\n"
 
       ++ "Limited to key holder:\n"
-      ++ "\tqvf-cli set-deadline --help\n"
-      ++ "\tqvf-cli distribute   --help\n\n"
+      ++ "\tqvf-cli set-deadline         --help\n"
+      ++ "\tqvf-cli distribute           --help\n\n"
+      ++ "\tqvf-cli emulate-distribution --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
@@ -400,27 +409,29 @@ main =
     printActionHelp action =
       -- {{{
       case action of
-        "add-project"       ->
+        "add-project"          ->
           putStrLn addProjectHelp
-        "donate"            ->
+        "donate"               ->
           putStrLn donateHelp
-        "contribute"        ->
+        "contribute"           ->
           putStrLn contributeHelp
-        "set-deadline"      ->
+        "set-deadline"         ->
           putStrLn setDeadlineHelp
-        "distribute"        ->
+        "distribute"           ->
           putStrLn distributeHelp
-        "pretty-datum"      ->
+        "pretty-datum"         ->
           putStrLn prettyDatumHelp
-        "data-to-cbor"      ->
+        "data-to-cbor"         ->
           putStrLn dataToCBORHelp
-        "string-to-hex"     ->
+        "string-to-hex"        ->
           putStrLn toHexHelp
-        "distribute"        ->
+        "distribute"           ->
           putStrLn distributeHelp
-        "get-deadline-slot" ->
+        "emulate-distribution" ->
+          putStrLn emulateDistHelp
+        "get-deadline-slot"    ->
           putStrLn deadlineToSlotHelp
-        _                   ->
+        _                      ->
           printHelp
       -- }}}
 
@@ -492,6 +503,33 @@ main =
           infArgHelper doubleArgFn (doubleArgFn el0 el1 x) rest
         (_           , _                 ) ->
           Left "Bad args."
+      -- }}}
+
+    distributionHelper :: OC.QVFDatum
+                       -> a
+                       -> (Ledger.PubKeyHash -> Integer -> a -> Maybe a)
+                       -> (Maybe (Integer, a) -> IO ())
+                       -> IO ()
+    distributionHelper currDatum initialAcc handler finalAction =
+      -- {{{
+      let
+        projs        = OC.qvfProjects currDatum
+        projectCount = fromIntegral $ length projs
+        initialPool  = OC.qvfPool currDatum - OC.minLovelace * projectCount
+        prizeMappings :: [(Ledger.PubKeyHash, Integer)]
+        (extraFromRounding, prizeMappings) =
+          OC.foldProjects initialPool projs
+        foldFn (projPKH, prize) mAcc = do
+          -- {{{
+          let (finalPrize, forKH) = OC.getFinalPrizeAndKeyHoldersFee prize
+          (keyHolderFees, x) <- mAcc
+          y                  <- handler projPKH finalPrize x
+          return (forKH + keyHolderFees, y)
+          -- }}}
+        mFeeAndAcc =
+          foldr foldFn (Just (extraFromRounding, initialAcc)) prizeMappings
+      in
+      finalAction mFeeAndAcc
       -- }}}
     -- }}}
   in do
@@ -690,44 +728,47 @@ main =
         Right (kvs, (datumJSON, dOF, rOF)) ->
           -- {{{
           actOnData datumJSON $ \currDatum ->
-            let
-              projs        = OC.qvfProjects currDatum
-              projectCount = fromIntegral $ length projs
-              initialPool  = OC.qvfPool currDatum - OC.minLovelace * projectCount
-              prizeMappings :: [(Ledger.PubKeyHash, Integer)]
-              (extraFromRounding, prizeMappings) =
-                OC.foldProjects initialPool projs
-              foldFn (projPKH, prize) mAcc = do
-                -- {{{
-                let (finalPrize, forKH) = OC.getFinalPrizeAndKeyHoldersFee prize
-                (keyHolderFees, cliArgs) <- mAcc
-                projAddr                 <- Map.lookup projPKH kvs
-                return
-                  ( forKH + keyHolderFees
-                  , makeTxOutArg projAddr finalPrize ++ " " ++ cliArgs
-                  )
-                -- }}}
-              mFeeAndArgs  =
-                foldr foldFn (Just (extraFromRounding, "")) prizeMappings
-            in
-            case mFeeAndArgs of
-              Nothing          ->
-                -- {{{
-                putStrLn "FAILED: Bad map from public key hashes to addresses."
-                -- }}}
-              Just (forKH, args) ->
-                -- {{{
-                let
-                  finalArgs = makeTxOutArg keyHolderAddr forKH ++ " " ++ args
-                in do
-                fromAction False OC.Distribute currDatum (Just dOF) rOF
-                putStrLn finalArgs
-                -- }}}
+            distributionHelper
+              currDatum
+              ""
+              ( \projPKH finalPrize cliArgs -> do
+                  projAddr <- Map.lookup projPKH kvs
+                  return $ makeTxOutArg projAddr finalPrize ++ " " ++ cliArgs
+              )
+              ( \mFeeAndArgs ->
+                  case mFeeAndArgs of
+                    Nothing          ->
+                      putStrLn "FAILED: Bad map from public key hashes to addresses."
+                    Just (forKH, args) ->
+                      let
+                        finalArgs = makeTxOutArg keyHolderAddr forKH ++ " " ++ args
+                      in do
+                      fromAction False OC.Distribute currDatum (Just dOF) rOF
+                      putStrLn finalArgs
+              )
           -- }}}
         Left err                           ->
           -- {{{
           putStrLn $ "FAILED: " ++ err
           -- }}}
+      -- }}}
+    "emulate-distribution" : datumJSON : _                              ->
+      -- {{{
+      actOnData datumJSON $ \currDatum -> do
+        distributionHelper
+          currDatum
+          Map.empty
+          (\projPKH finalPrize -> return . Map.insert projPKH finalPrize)
+          ( \mFeeAndMap ->
+              case mFeeAndMap of
+                Nothing                     ->
+                  putStrLn "FAILED: The impossible happened!"
+                Just (forKH, finalPrizeMap) ->
+                  LBS8.putStrLn
+                    $ encode
+                    $ Map.insert "keyHolder" forKH
+                    $ Map.mapKeys (builtinByteStringToString . Ledger.getPubKeyHash) finalPrizeMap
+          )
       -- }}}
     "get-deadline-slot" : currSlotStr : datumJSON : _                   -> do
       -- {{{

@@ -18,9 +18,11 @@ library
   exposed-modules:     OnChain
                      , Token
                      , Utils
-  build-depends:       base >= 4.9 && < 5
+  build-depends:       aeson
+                     , base >= 4.9 && < 5
                      , bytestring
                      , cardano-api
+                     , containers
                      , data-default
                      , playground-common
                      , plutonomy
