@@ -4,33 +4,41 @@
   inputs = {
     # IMPORTANT: report any change to nixpkgs channel in nix/default.nix:
     nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+
     hostNixpkgs.follows = "nixpkgs";
+
     hackageNix = {
       url = "github:input-output-hk/hackage.nix";
       flake = false;
     };
+
     nixTools = {
         url = "github:input-output-hk/nix-tools";
         flake = false;
       };
+
     haskellNix = {
       url = "github:input-output-hk/haskell.nix";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.hackage.follows = "hackageNix";
     };
+
     utils.url = "github:numtide/flake-utils";
     iohkNix = {
       url = "github:input-output-hk/iohk-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
     flake-compat = {
       url = "github:input-output-hk/flake-compat/fixes";
       flake = false;
     };
-    plutus-apps = {
-      url = "github:input-output-hk/plutus-apps";
-      flake = false;
-    };
+
+    # plutus-apps = {
+    #   url = "github:input-output-hk/plutus-apps";
+    #   flake = false;
+    # };
+
     customConfig.url = "github:input-output-hk/empty-flake";
 
     cardano-mainnet-mirror.url = "github:input-output-hk/cardano-mainnet-mirror/nix";
@@ -44,7 +52,7 @@
     , utils
     , haskellNix
     , iohkNix
-    , plutus-apps
+    # , plutus-apps
     , cardano-mainnet-mirror
     , ...
     }@input:
