@@ -313,3 +313,39 @@ distribute() {
     "$txOuts"          \
     "$invalidBefore $(expr $currSlot - 500)"
 }
+
+
+# Takes no arguments.
+emulate_distribution() {
+  obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
+  obj=$(bf_add_datum_value_to_utxo $obj)
+  datumValue=$(echo $obj | jq -c .datumValue)
+  $qvf emulate-distribution $datumValue
+}
+
+
+# Takes 3 (or infinitly many) arguments:
+#   1. Donor's public key hash,
+#   2. Target project's public key hash,
+#   3. Donation amount,
+#   *. (Optional) Infinite number of public key hash and donation amounts,
+donation_impact_from_to_with() {
+  donorsPKH=$1
+  obj=$(bf_get_first_utxo_hash_lovelaces $scriptAddr $policyId$tokenName | jq -c .)
+  obj=$(bf_add_datum_value_to_utxo $obj)
+  datumValue=$(echo $obj | jq -c .datumValue)
+  shift 1
+  str_pair=''
+  acc=0  
+  for i in $@
+  do
+    if [ $# -eq 1 ]; then
+      break
+    elif [ $# -ge 2 ]; then
+      str_pair="$str_pair $1 $2"
+      acc=$(expr $acc + $2)
+      shift 2
+    fi
+  done
+  $qvf donation-impact $donorsPKH $str_pair $datumValue
+}

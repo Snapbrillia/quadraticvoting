@@ -314,7 +314,7 @@ main =
           ++ "\tthis point:"
         )
         "emulate-distribution"
-        helpCurrDatum
+        "{target-datum-json-value}"
         []
       -- }}}
     donationImpactHelp :: String
@@ -333,7 +333,7 @@ main =
         , "<projects-pubkeyhash-2>"
         , "<donation-amount-----2>"
         , "<...etc...>"
-        , helpCurrDatum
+        , "{target-datum-json-value}"
         ]
       -- }}}
     deadlineToSlotHelp :: String
@@ -800,9 +800,11 @@ main =
           putStrLn $ "FAILED: " ++ err
           -- }}}
       -- }}}
-    "emulate-distribution" : datumJSON : _                              ->
+    "emulate-distribution" : datumJSONStr : _                           ->
       -- {{{
-      actOnData datumJSON $ LBS8.putStrLn . encode . getDistributionMap
+      fromDatumValue
+        (fromString datumJSONStr)
+        (LBS8.putStrLn . encode . getDistributionMap)
       -- }}}
     "donation-impact" : dDonor : initRestOfArgs                         ->
       -- {{{
@@ -815,9 +817,9 @@ main =
         restOfArgs = initRestOfArgs ++ ["ignore", "ignore"]
       in
       case donationHelper dDonor restOfArgs of
-        Right (dPs, (datumJSON, _, _)) ->
+        Right (dPs, (datumJSONStr, _, _)) ->
           -- {{{
-          actOnData datumJSON $ \currDatum ->
+          fromDatumValue (fromString datumJSONStr) $ \currDatum ->
             case OC.updateDatum (OC.Donate dPs) currDatum of
               Left err       ->
                 -- {{{
