@@ -317,6 +317,25 @@ main =
         helpCurrDatum
         []
       -- }}}
+    donationImpactHelp :: String
+    donationImpactHelp =
+      -- {{{
+      makeHelpText
+        (    "Print a JSON of the changes in received prize amounts after\n"
+          ++ "\ta donation:"
+        )
+        "donation-impact"
+        "<donors-public-key-hash>"
+        [ "<projects-pubkeyhash-0>"
+        , "<donation-amount-----0>"
+        , "<projects-pubkeyhash-1>"
+        , "<donation-amount-----1>"
+        , "<projects-pubkeyhash-2>"
+        , "<donation-amount-----2>"
+        , "<...etc...>"
+        , helpCurrDatum
+        ]
+      -- }}}
     deadlineToSlotHelp :: String
     deadlineToSlotHelp =
       -- {{{
@@ -345,16 +364,17 @@ main =
       ++ "\tqvf-cli contribute  --help\n\n"
 
       ++ "Utility:\n"
-      ++ "\tqvf-cli generate scripts  --help\n"
-      ++ "\tqvf-cli pretty-datum      --help\n"
-      ++ "\tqvf-cli data-to-cbor      --help\n"
-      ++ "\tqvf-cli string-to-hex     --help\n"
-      ++ "\tqvf-cli get-deadline-slot --help\n\n"
+      ++ "\tqvf-cli generate scripts     --help\n"
+      ++ "\tqvf-cli pretty-datum         --help\n"
+      ++ "\tqvf-cli data-to-cbor         --help\n"
+      ++ "\tqvf-cli string-to-hex        --help\n"
+      ++ "\tqvf-cli get-deadline-slot    --help\n"
+      ++ "\tqvf-cli emulate-distribution --help\n"
+      ++ "\tqvf-cli donation-impact      --help\n\n"
 
       ++ "Limited to key holder:\n"
-      ++ "\tqvf-cli set-deadline         --help\n"
-      ++ "\tqvf-cli distribute           --help\n"
-      ++ "\tqvf-cli emulate-distribution --help\n\n"
+      ++ "\tqvf-cli set-deadline --help\n"
+      ++ "\tqvf-cli distribute   --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
@@ -369,6 +389,12 @@ main =
       putStrLn $ outFile ++ " generated SUCCESSFULLY."
       -- }}}
 
+    fromAction :: Bool
+               -> OC.QVFAction
+               -> OC.QVFDatum
+               -> Maybe String
+               -> String
+               -> IO ()
     fromAction verbose action currDatum mDOF rOF =
       -- {{{
       case OC.updateDatum action currDatum of
@@ -429,6 +455,8 @@ main =
           putStrLn distributeHelp
         "emulate-distribution" ->
           putStrLn emulateDistHelp
+        "donation-impact"      ->
+          putStrLn donationImpactHelp
         "get-deadline-slot"    ->
           putStrLn deadlineToSlotHelp
         _                      ->
@@ -505,12 +533,11 @@ main =
           Left "Bad args."
       -- }}}
 
-    distributionHelper :: OC.QVFDatum
-                       -> a
-                       -> (Ledger.PubKeyHash -> Integer -> a -> Maybe a)
-                       -> (Maybe (Integer, a) -> IO ())
-                       -> IO ()
-    distributionHelper currDatum initialAcc handler finalAction =
+    mapKeyForKeyHolder :: String
+    mapKeyForKeyHolder = "keyHolder"
+
+    getDistributionMap :: OC.QVFDatum -> Map.Map String Integer
+    getDistributionMap currDatum =
       -- {{{
       let
         projs        = OC.qvfProjects currDatum
@@ -519,17 +546,52 @@ main =
         prizeMappings :: [(Ledger.PubKeyHash, Integer)]
         (extraFromRounding, prizeMappings) =
           OC.foldProjects initialPool projs
-        foldFn (projPKH, prize) mAcc = do
+        foldFn (projPKH, prize) (keyHolderFees, soFar) =
           -- {{{
-          let (finalPrize, forKH) = OC.getFinalPrizeAndKeyHoldersFee prize
-          (keyHolderFees, x) <- mAcc
-          y                  <- handler projPKH finalPrize x
-          return (forKH + keyHolderFees, y)
+          let
+            (finalPrize, forKH') = OC.getFinalPrizeAndKeyHoldersFee prize
+            distMap = Map.insert projPKH finalPrize soFar
+          in
+          (forKH' + keyHolderFees, distMap)
           -- }}}
-        mFeeAndAcc =
-          foldr foldFn (Just (extraFromRounding, initialAcc)) prizeMappings
+        (forKH, finalPrizeMap) =
+          foldr foldFn (extraFromRounding, Map.empty) prizeMappings
       in
-      finalAction mFeeAndAcc
+        Map.insert mapKeyForKeyHolder forKH
+      $ Map.mapKeys
+          (builtinByteStringToString . Ledger.getPubKeyHash)
+          finalPrizeMap
+      -- }}}
+
+    donationHelper :: String
+                   -> [String]
+                   -> Either String ([OC.DonateParams], (String, String, String))
+    donationHelper dDonor restOfArgs =
+      -- {{{
+      infArgHelper 
+        ( \dProj dAmnt soFar ->
+            -- {{{
+            case readMaybe dAmnt of
+              Nothing   ->
+                -- {{{
+                Left $ "Bad donation amount: " ++ dAmnt
+                -- }}}
+              Just amnt ->
+                -- {{{
+                Right
+                  ( OC.DonateParams
+                      { OC.dpDonor   = fromString dDonor
+                      , OC.dpProject = fromString dProj
+                      , OC.dpAmount  = amnt
+                      }
+                      : soFar
+                  , ("", "", "")
+                  )
+                -- }}}
+            -- }}}
+        )
+        (Right ([], ("", "", "")))
+        restOfArgs
       -- }}}
     -- }}}
   in do
@@ -639,35 +701,7 @@ main =
       -- }}}
     "donate" : dDonor : restOfArgs                                      ->
       -- {{{
-      let
-        theDonor = fromString dDonor
-        eith     =
-          infArgHelper 
-            ( \dProj dAmnt soFar ->
-                -- {{{
-                case readMaybe dAmnt of
-                  Nothing   ->
-                    -- {{{
-                    Left $ "Bad donation amount: " ++ dAmnt
-                    -- }}}
-                  Just amnt ->
-                    -- {{{
-                    Right
-                      ( OC.DonateParams
-                          { OC.dpDonor   = theDonor
-                          , OC.dpProject = fromString dProj
-                          , OC.dpAmount  = amnt
-                          }
-                          : soFar
-                      , ("", "", "")
-                      )
-                    -- }}}
-                -- }}}
-            )
-            (Right ([], ("", "", "")))
-            restOfArgs
-      in
-      case eith of
+      case donationHelper dDonor restOfArgs of
         Right (dPs, (datumJSON, dOF, rOF)) ->
           -- {{{
           actOnData datumJSON $ \currDatum ->
@@ -721,28 +755,45 @@ main =
             (Right (Map.empty, ("", "", "")))
             restOfArgs
           -- }}}
-        makeTxOutArg addr amt =
-          "--tx-out " ++ addr ++ "+" ++ show amt
       in
       case eith of
         Right (kvs, (datumJSON, dOF, rOF)) ->
           -- {{{
           actOnData datumJSON $ \currDatum ->
-            distributionHelper
-              currDatum
-              ""
-              ( \projPKH finalPrize cliArgs -> do
-                  projAddr <- Map.lookup projPKH kvs
-                  return $ makeTxOutArg projAddr finalPrize ++ " " ++ cliArgs
-              )
-              ( \case
-                  Nothing            ->
-                    putStrLn
-                      "FAILED: Bad map from public key hashes to addresses."
-                  Just (forKH, args) -> do
-                    fromAction False OC.Distribute currDatum (Just dOF) rOF
-                    putStrLn $ makeTxOutArg keyHolderAddr forKH ++ " " ++ args
-              )
+            let
+              makeTxOutArg addr amt =
+                -- {{{
+                "--tx-out " ++ addr ++ "+" ++ show amt
+                -- }}}
+              foldFn :: String -> Integer -> Maybe String -> Maybe String
+              foldFn recepientStr prize mCliArgs = do
+                -- {{{
+                cliArgs  <- mCliArgs
+                projAddr <- if recepientStr == mapKeyForKeyHolder then
+                              return keyHolderAddr
+                            else
+                              Map.lookup (fromString recepientStr) kvs
+                return $ makeTxOutArg projAddr prize ++ " " ++ cliArgs
+                -- }}}
+              mArgs                 =
+                -- {{{
+                Map.foldrWithKey
+                  foldFn
+                  (Just "")
+                  (getDistributionMap currDatum)
+                -- }}}
+            in
+            case mArgs of
+              Nothing   ->
+                -- {{{
+                putStrLn
+                  "FAILED: Bad map from public key hashes to addresses."
+                -- }}}
+              Just args -> do
+                -- {{{
+                fromAction False OC.Distribute currDatum (Just dOF) rOF
+                putStrLn args
+                -- }}}
           -- }}}
         Left err                           ->
           -- {{{
@@ -751,22 +802,42 @@ main =
       -- }}}
     "emulate-distribution" : datumJSON : _                              ->
       -- {{{
-      actOnData datumJSON $ \currDatum -> do
-        distributionHelper
-          currDatum
-          Map.empty
-          (\projPKH finalPrize -> return . Map.insert projPKH finalPrize)
-          ( \case
-              Nothing ->
-                putStrLn "FAILED: The impossible happened!"
-              Just (forKH, finalPrizeMap) ->
-                LBS8.putStrLn
-                  $ encode
-                  $ Map.insert "keyHolder" forKH
-                  $ Map.mapKeys
-                      (builtinByteStringToString . Ledger.getPubKeyHash)
-                      finalPrizeMap
-          )
+      actOnData datumJSON $ LBS8.putStrLn . encode . getDistributionMap
+      -- }}}
+    "donation-impact" : dDonor : initRestOfArgs                         ->
+      -- {{{
+      let
+        -- Expected arguments are pairs of targetPubKeyHashes and amounts,
+        -- plus the current datum's JSON file at the very end. Since the
+        -- `infArgHelper` abstraction expects exactly 3 files at the end of
+        -- the list of arguments, these two "ignore" strings are injected at
+        -- the end to prevent further complication of the abstraction.
+        restOfArgs = initRestOfArgs ++ ["ignore", "ignore"]
+      in
+      case donationHelper dDonor restOfArgs of
+        Right (dPs, (datumJSON, _, _)) ->
+          -- {{{
+          actOnData datumJSON $ \currDatum ->
+            case OC.updateDatum (OC.Donate dPs) currDatum of
+              Left err       ->
+                -- {{{
+                putStrLn $
+                  "FAILED: Couldn't perform donation. Cause: " ++ show err
+                -- }}}
+              Right newDatum ->
+                -- {{{
+                let
+                  currDist = getDistributionMap currDatum
+                  newDist  = getDistributionMap newDatum
+                  diffDist = Map.unionWith (-) newDist currDist
+                in
+                LBS8.putStrLn $ encode diffDist
+                -- }}}
+          -- }}}
+        Left err                       ->
+          -- {{{
+          putStrLn $ "FAILED: " ++ err
+          -- }}}
       -- }}}
     "get-deadline-slot" : currSlotStr : datumJSON : _                   -> do
       -- {{{
