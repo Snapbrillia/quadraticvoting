@@ -4,7 +4,7 @@ Description: >-
   SAM Template for qvf-generate-scripts
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 30
 Resources:
   QvfGenerateScriptsFunction:
     Type: AWS::Serverless::Function
