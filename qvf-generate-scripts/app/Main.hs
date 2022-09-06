@@ -1,6 +1,6 @@
 module Main where
 
-import Aws.Lambda
+import           Aws.Lambda
 import qualified Lib
 
 main :: IO ()

@@ -3,15 +3,15 @@
 
 module Lib where
 
-import           GHC.Generics
-import           Data.Aeson
-import           Aws.Lambda
-import           Plutus.Contract
-import           Ledger                      hiding (mint, singleton, Context)
-import qualified Ledger.Typed.Scripts        as Scripts
-import           Ledger.Value                as Value
-
-import qualified OnChain                as OC
+import           GHC.Generics         ( Generic )
+import           Data.Aeson           ( FromJSON, ToJSON )
+import           Aws.Lambda           ( Context )
+import           Ledger               ( PubKeyHash
+                                      , POSIXTime
+                                      , TxOutRef
+                                      , TokenName )
+import qualified Ledger.Typed.Scripts as Scripts
+import qualified OnChain              as OC
 import qualified Token
 
 data GenerateScriptsParams = GenerateScriptsParams
@@ -31,7 +31,7 @@ data GenerateScriptsResponse = GenerateScriptsResponse
   deriving (Generic, FromJSON, ToJSON)
 
 handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScriptsResponse)
-handler gsp@GenerateScriptsParams {..} context = 
+handler GenerateScriptsParams {..} _ = 
   return $ Right $ GenerateScriptsResponse validator mintingPolicy () initialDatum
   where 
     tokenSymbol  = Token.qvfSymbol txRef authTokenName
