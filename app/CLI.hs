@@ -310,8 +310,8 @@ main =
     emulateDistHelp    =
       -- {{{
       makeHelpText
-        (    "Print a JSON of the prizes each project would've received\n"
-          ++ "\tif the distribution occured now:"
+        (    "Print a JSON of the prizes each project receives up to\n"
+          ++ "\tthis point:"
         )
         "emulate-distribution"
         helpCurrDatum
@@ -353,7 +353,7 @@ main =
 
       ++ "Limited to key holder:\n"
       ++ "\tqvf-cli set-deadline         --help\n"
-      ++ "\tqvf-cli distribute           --help\n\n"
+      ++ "\tqvf-cli distribute           --help\n"
       ++ "\tqvf-cli emulate-distribution --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
@@ -735,16 +735,13 @@ main =
                   projAddr <- Map.lookup projPKH kvs
                   return $ makeTxOutArg projAddr finalPrize ++ " " ++ cliArgs
               )
-              ( \mFeeAndArgs ->
-                  case mFeeAndArgs of
-                    Nothing          ->
-                      putStrLn "FAILED: Bad map from public key hashes to addresses."
-                    Just (forKH, args) ->
-                      let
-                        finalArgs = makeTxOutArg keyHolderAddr forKH ++ " " ++ args
-                      in do
-                      fromAction False OC.Distribute currDatum (Just dOF) rOF
-                      putStrLn finalArgs
+              ( \case
+                  Nothing            ->
+                    putStrLn
+                      "FAILED: Bad map from public key hashes to addresses."
+                  Just (forKH, args) -> do
+                    fromAction False OC.Distribute currDatum (Just dOF) rOF
+                    putStrLn $ makeTxOutArg keyHolderAddr forKH ++ " " ++ args
               )
           -- }}}
         Left err                           ->
@@ -759,15 +756,16 @@ main =
           currDatum
           Map.empty
           (\projPKH finalPrize -> return . Map.insert projPKH finalPrize)
-          ( \mFeeAndMap ->
-              case mFeeAndMap of
-                Nothing                     ->
-                  putStrLn "FAILED: The impossible happened!"
-                Just (forKH, finalPrizeMap) ->
-                  LBS8.putStrLn
-                    $ encode
-                    $ Map.insert "keyHolder" forKH
-                    $ Map.mapKeys (builtinByteStringToString . Ledger.getPubKeyHash) finalPrizeMap
+          ( \case
+              Nothing ->
+                putStrLn "FAILED: The impossible happened!"
+              Just (forKH, finalPrizeMap) ->
+                LBS8.putStrLn
+                  $ encode
+                  $ Map.insert "keyHolder" forKH
+                  $ Map.mapKeys
+                      (builtinByteStringToString . Ledger.getPubKeyHash)
+                      finalPrizeMap
           )
       -- }}}
     "get-deadline-slot" : currSlotStr : datumJSON : _                   -> do
