@@ -4,33 +4,41 @@
   inputs = {
     # IMPORTANT: report any change to nixpkgs channel in nix/default.nix:
     nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+
     hostNixpkgs.follows = "nixpkgs";
+
     hackageNix = {
       url = "github:input-output-hk/hackage.nix";
       flake = false;
     };
+
     nixTools = {
         url = "github:input-output-hk/nix-tools";
         flake = false;
       };
+
     haskellNix = {
       url = "github:input-output-hk/haskell.nix";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.hackage.follows = "hackageNix";
     };
+
     utils.url = "github:numtide/flake-utils";
     iohkNix = {
       url = "github:input-output-hk/iohk-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
     flake-compat = {
       url = "github:input-output-hk/flake-compat/fixes";
       flake = false;
     };
-    plutus-apps = {
-      url = "github:input-output-hk/plutus-apps";
-      flake = false;
-    };
+
+    # plutus-apps = {
+    #   url = "github:input-output-hk/plutus-apps";
+    #   flake = false;
+    # };
+
     customConfig.url = "github:input-output-hk/empty-flake";
 
     cardano-mainnet-mirror.url = "github:input-output-hk/cardano-mainnet-mirror/nix";
@@ -44,7 +52,7 @@
     , utils
     , haskellNix
     , iohkNix
-    , plutus-apps
+    # , plutus-apps
     , cardano-mainnet-mirror
     , ...
     }@input:
@@ -94,7 +102,7 @@
           projectExes = flatten (haskellLib.collectComponents' "exes" projectPackages);
         };
 
-      mkQvfCliPackages = project: (mkPackages project).projectExes // {
+      mkQvfPackages = project: (mkPackages project).projectExes // {
         inherit (project.pkgs) cardanoLib;
       };
 
@@ -142,13 +150,24 @@
           legacyPackages = pkgs;
 
           # Built by `nix build .`
-          defaultPackage = packages.qvf-cli.components.exes.qvf-cli;
-
-          # Built by `nix build .#qvf-cli-static.x86_64-linux`
-          qvf-cli-static = jobs.x86_64-linux.linux.musl.qvf-cli;
+          defaultPackage = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
 
           # Run by `nix run .`
-          defaultApp = apps.qvf-cli;
+          defaultApp = apps.qvf-generate-scripts;
+
+          # Built by `nix build .#qvf-generate-scripts-static.x86_64-linux`
+          # Bundle  to a docker image:
+          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts-static.x86_64-linux
+          # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
+          # docker run qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
+          qvf-generate-scripts-static = jobs.x86_64-linux.linux.musl.qvf-generate-scripts;
+
+          # Built by `nix build .#qvf-generate-scripts.x86_64-linux`
+          # Bundle to a docker image:
+          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts.x86_64-linux
+          # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-0.1.0.0.tar.gz
+          # docker run qvf-generate-scripts-0.1.0.0:latest xxx          
+          qvf-generate-scripts = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
 
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
@@ -176,15 +195,16 @@
         }
       );
       jobs = flake.jobs;
-      qvf-cli-static = flake.qvf-cli-static;
+      qvf-generate-scripts-static = flake.qvf-generate-scripts-static;
+      qvf-generate-scripts = flake.qvf-generate-scripts;
     in
     flake // {
 
-      inherit jobs qvf-cli-static;
+      inherit jobs qvf-generate-scripts-static qvf-generate-scripts ;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};
-        quadraticvoting-packages = mkQvfCliPackages final.quadraticvoting-project;
+        quadraticvoting-packages = mkQvfPackages final.quadraticvoting-project;
         inherit (final.quadraticvoting-packages) qvf-cli quadraticVoting;
       };
     };

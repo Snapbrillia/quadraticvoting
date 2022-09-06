@@ -491,22 +491,6 @@
         "type": "github"
       }
     },
-    "plutus-apps": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1660675590,
-        "narHash": "sha256-Rqnkv+QgcW33b61CY0XEqdLnuRERmrZ2fFQRTnsaQHY=",
-        "owner": "input-output-hk",
-        "repo": "plutus-apps",
-        "rev": "eb69d69cb5f4fda6b4994ad737a0e4da98c19d20",
-        "type": "github"
-      },
-      "original": {
-        "owner": "input-output-hk",
-        "repo": "plutus-apps",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "cardano-mainnet-mirror": "cardano-mainnet-mirror",
@@ -523,7 +507,6 @@
           "haskellNix",
           "nixpkgs-unstable"
         ],
-        "plutus-apps": "plutus-apps",
         "utils": "utils"
       }
     },

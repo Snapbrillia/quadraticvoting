@@ -18,10 +18,23 @@ module Token where
 
 import qualified Plutonomy
 import qualified PlutusTx
-import           PlutusTx.Prelude
-import           Ledger                      hiding (mint, singleton)
+import           PlutusTx.Prelude            ( Bool
+                                             , ($)
+                                             , (&&)
+                                             , any
+                                             , traceError
+                                             , traceIfFalse
+                                             , Eq((==)) )
+import           Ledger                      ( scriptCurrencySymbol
+                                             , mkMintingPolicyScript
+                                             , ScriptContext(scriptContextTxInfo)
+                                             , TxInInfo(txInInfoOutRef)
+                                             , TxInfo(txInfoInputs, txInfoMint)
+                                             , TxOutRef
+                                             , CurrencySymbol
+                                             , TokenName )
 import qualified Ledger.Typed.Scripts        as Scripts
-import           Ledger.Value                as Value
+import           Ledger.Value                as Value ( flattenValue )
 
 
 {-# INLINABLE mkQVFPolicy #-}

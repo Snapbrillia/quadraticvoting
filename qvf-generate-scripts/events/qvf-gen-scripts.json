@@ -1,0 +1,7 @@
+
+
+{ "keyHolderPubKeyHash": { "getPubKeyHash": "486f8ef1042c1462ea2365770de2a50565d87c72fa61e3d9077f4be5" }
+,  "txRef": { "txOutRefId":  { "getTxId": "493240a2ca2457ead8e288871553bfd0f8a6da1b65850142b948c51e366f4b11" }
+                 ,  "txOutRefIdx":  1 }
+,  "authTokenName": { "unTokenName": "515646"}
+,  "deadline": 1660608000000 }

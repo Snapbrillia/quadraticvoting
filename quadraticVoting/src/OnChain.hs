@@ -16,7 +16,6 @@
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- }}}
 
 
@@ -28,26 +27,71 @@ module OnChain where
 
 -- IMPORTS
 -- {{{
-import           Ledger
+import           GHC.Generics                ( Generic )
+import           Ledger                      ( scriptAddress
+                                             , findDatum
+                                             , findOwnInput
+                                             , getContinuingOutputs
+                                             , txSignedBy
+                                             , valuePaidTo
+                                             , Address
+                                             , ScriptContext(scriptContextTxInfo)
+                                             , TxInInfo(txInInfoResolved)
+                                             , TxInfo(txInfoValidRange)
+                                             , PubKeyHash
+                                             , Datum(Datum)
+                                             , DatumHash
+                                             , Validator
+                                             , ValidatorHash
+                                             , POSIXTime
+                                             , TxOut(..)
+                                             , AssetClass 
+                                             , CurrencySymbol
+                                             , TokenName )
 import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import qualified Plutonomy
-import           Plutus.Contract
-import           Plutus.V1.Ledger.Credential (Credential (..))
 import qualified Plutus.V1.Ledger.Interval   as Interval
-import           Plutus.V1.Ledger.Value
-import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
-import           PlutusTx                    (Data (..))
+import           Plutus.V1.Ledger.Value      ( AssetClass(AssetClass)
+                                             , assetClassValueOf )
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.AssocMap           (Map)
-import qualified PlutusTx.Builtins           as Builtins
-import           PlutusTx.Prelude            hiding (unless)
-import           PlutusTx.Prelude            (BuiltinByteString, (<>))
-import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
-import           Prelude                     (Show, show, String)
+import           PlutusTx.Prelude            ( Bool(..)
+                                             , Integer
+                                             , Maybe(..)
+                                             , Either(..)
+                                             , ($)
+                                             , (.)
+                                             , snd
+                                             , (&&)
+                                             , foldr
+                                             , foldrM
+                                             , length
+                                             , notElem
+                                             , (<$>)
+                                             , divide
+                                             , traceError
+                                             , traceIfFalse
+                                             , BuiltinByteString
+                                             , BuiltinString
+                                             , Eq(..)
+                                             , AdditiveGroup((-))
+                                             , AdditiveSemigroup((+))
+                                             , MultiplicativeSemigroup((*))
+                                             , Ord((<), (>=), (<=), max)
+                                             , Semigroup((<>)) )
+import           Data.Aeson                  ( FromJSON
+                                             , ToJSON )
+import           Prelude                     (Show
+                                             , show
+                                             , String)
 import qualified Prelude                     as P
-import           Utils
+import           Utils                       ( lovelaceToAda
+                                             , pluck
+                                             , takeSqrt
+                                             , lovelaceFromValue
+                                             , updateIfWith )
 -- }}}
 
 
@@ -81,6 +125,7 @@ data Project = Project
   , pRequested  :: !Integer
   , pDonations  :: !(Map PubKeyHash Integer)
   }
+  deriving (Generic, FromJSON, ToJSON)
 
 showDonations :: Map PubKeyHash Integer -> String
 showDonations ds =
@@ -122,6 +167,7 @@ data QVFDatum = QVFDatum
   , qvfDeadline   :: !POSIXTime
   , qvfInProgress :: !Bool
   }
+  deriving (Generic, FromJSON, ToJSON)
 
 instance Show QVFDatum where
   show QVFDatum {..} =
