@@ -23,8 +23,9 @@ benchmarks: true
 -- not on Hackage, and so need to be pulled in as `source-repository-package`s themselves. Make sure to
 -- re-update this section from the template when you do an upgrade.
 
--- We never, ever, want this.
-write-ghc-environment-files: never
+optimization: 2
+
+split-sections: true
 
 -- Always build tests and benchmarks.
 -- Well not yet, since we don't have any
