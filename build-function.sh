@@ -25,7 +25,7 @@ mkdir -p ${BIN_DIR}
 # build the lambda
 nix build ${NIX_ATT} -o ${RESULT} 2>&1 > /dev/null
 
-# copy the lambda to the packaging dir
+# copy the exe to the bin dir
 cp ${FUNCTION_EXE} ${BIN_DIR}
 
 LOADER=ld-linux-x86-64.so.2
@@ -54,20 +54,20 @@ if LDD_OUTPUT=$(ldd ${FUNCTION_EXE} 2> /dev/null) ; then
             # i.e. not a 'real' file 
             continue
         fi
-
-        # ASSUMPTION: DLIB is in the nix store in its own dir.
-        # We want everything that looks like a shared object with the same name
-        # (i.e. including symlinks) from that dir.
+        
         DLIB_DIR=$(dirname ${DLIB})
         DLIB_NAME=$(basename ${DLIB})
         DLIB_ROOT=${DLIB_NAME%%.*}
+        # We want everything that looks like a shared object with the same name
+        # (i.e. including symlinks) from that dir.
+        # TODO !@! we could be smater here i.e. we need the file and just those links
+        # referenced by the shared object
         for x in $(ls ${DLIB_DIR}/${DLIB_ROOT}* | grep -E '*\.so(\.[0-9]+)*$') ; do
             # check x is not already in ALL_LIBS 
             if echo ${ALL_DLIBS} | grep -vq ${x} ; then
                 # add x to ALL_LIBS
                 #echo "Adding ${x} to ALL_DLIBS"
                 ALL_DLIBS="${ALL_DLIBS} ${x}"
-
                 # deal with x's dependencies
                 if LDD_OUTPUT=$(ldd ${x} 2> /dev/null) ; then
                     for d in $(echo "${LDD_OUTPUT}" | awk '{print $(NF-1)}') ; do
@@ -85,14 +85,13 @@ if LDD_OUTPUT=$(ldd ${FUNCTION_EXE} 2> /dev/null) ; then
                         fi
                     done
                 fi
-            fi
-            
+            fi            
         done
         # echo "ALL_DLIBS=${ALL_DLIBS}"
     done
 
     # set up LIB_DIR
-    for x in ${ALL_DLIBS[@]} ; do
+    for x in ${ALL_DLIBS} ; do
         if [ -f ${LIB_DIR}/$(basename ${x}) ] ; then
             # This happens with e.g /nix/store/bym6162f9mf4qqsr7k9d73526ar176x4-gcc-11.3.0-lib/lib/libgcc_s.so
             # and the 64 bit version. There's nothing simple we can do about this. 
