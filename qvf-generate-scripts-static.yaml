@@ -9,6 +9,7 @@ Resources:
   QvfGenerateScriptsStaticFunction:
     Type: AWS::Serverless::Function
     Properties:
+      PackageType: Zip
       CodeUri: .
       Handler: qvf-generate-scripts
       Runtime: provided

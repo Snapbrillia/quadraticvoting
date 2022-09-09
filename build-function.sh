@@ -15,27 +15,27 @@ mkdir -p ${ARTIFACTS_DIR}
 RESULT=$(mktemp -u -p ${ARTIFACTS_DIR}/.. ${TARGET}.XXXXXXXX)
 FUNCTION_EXE=${RESULT}/bin/${TARGET}
 
-# Create a directory to collect the contents of the zip file (i.e. the lambda package)
-PKG_DIR=${ARTIFACTS_DIR}/pkg
-PKG_BIN_DIR=${PKG_DIR}/bin
+# The (generated) bootstrap file (see the versions of BOOTSTRAP_SCRIPT below)
+BOOTSTRAP=${ARTIFACTS_DIR}/bootstrap
 
-BOOTSTRAP=${PKG_DIR}/bootstrap
-
-mkdir -p ${PKG_BIN_DIR}
+# Where we put the exe
+BIN_DIR=${ARTIFACTS_DIR}/bin
+mkdir -p ${BIN_DIR}
 
 # build the lambda
 nix build ${NIX_ATT} -o ${RESULT} 2>&1 > /dev/null
 
 # copy the lambda to the packaging dir
-cp ${FUNCTION_EXE} ${PKG_BIN_DIR}
+cp ${FUNCTION_EXE} ${BIN_DIR}
 
 LOADER=ld-linux-x86-64.so.2
 
 # check for dynamic exe
 if LDD_OUTPUT=$(ldd ${FUNCTION_EXE} 2> /dev/null) ; then
-    # we need a lib dir
-    PKG_LIB_DIR=${PKG_DIR}/lib
-    mkdir -p ${PKG_LIB_DIR}
+    # We need to find the transitive closure of the exe's dependencies
+    # and place them in LIB_DIR
+    LIB_DIR=${ARTIFACTS_DIR}/lib
+    mkdir -p ${LIB_DIR}
 
     DLIBS=$(echo "${LDD_OUTPUT}" | awk '{print $(NF-1)}')
     DLIBS_QUEUE=(${DLIBS})
@@ -50,17 +50,19 @@ if LDD_OUTPUT=$(ldd ${FUNCTION_EXE} 2> /dev/null) ; then
         DLIBS_QUEUE=("${DLIBS_QUEUE[@]:1}")
 
         if [[ ! -f ${DLIB} ]]; then
-            # ignore linux-vdso.so.1 - which is a 'virtual' shared object 
+            # ignore linux-vdso.so.1 - which is a 'virtual' shared object
+            # i.e. not a 'real' file 
             continue
         fi
 
         # ASSUMPTION: DLIB is in the nix store in its own dir.
-        # We want everything that looks like a shared object (i.e. including symlinks) in that dir.
+        # We want everything that looks like a shared object with the same name
+        # (i.e. including symlinks) from that dir.
         DLIB_DIR=$(dirname ${DLIB})
         DLIB_NAME=$(basename ${DLIB})
         DLIB_ROOT=${DLIB_NAME%%.*}
         for x in $(ls ${DLIB_DIR}/${DLIB_ROOT}* | grep -E '*\.so(\.[0-9]+)*$') ; do
-            # check x is not in ALL_LIBS 
+            # check x is not already in ALL_LIBS 
             if echo ${ALL_DLIBS} | grep -vq ${x} ; then
                 # add x to ALL_LIBS
                 #echo "Adding ${x} to ALL_DLIBS"
@@ -89,26 +91,32 @@ if LDD_OUTPUT=$(ldd ${FUNCTION_EXE} 2> /dev/null) ; then
         # echo "ALL_DLIBS=${ALL_DLIBS}"
     done
 
-    # set up PKG_LIB_DIR
+    # set up LIB_DIR
     for x in ${ALL_DLIBS[@]} ; do
-        if [ -f ${PKG_LIB_DIR}/$(basename ${x}) ] ; then
-            # Assume they're hardlinked like e.g. libgcc_s.so.1
+        if [ -f ${LIB_DIR}/$(basename ${x}) ] ; then
+            # This happens with e.g /nix/store/bym6162f9mf4qqsr7k9d73526ar176x4-gcc-11.3.0-lib/lib/libgcc_s.so
+            # and the 64 bit version. There's nothing simple we can do about this. 
+            # i.e. maybe we could come up with a scheme using 'patchelf' - but so far that's not needed
+            echo "WARNING: $(basename ${x}) is already in LIB_DIR (${x})" 1>&2
             continue
         fi
         if [ -L ${x} ] ; then
+            # its a symbolic link
+            # TODO !@! really we should process the links after to ensure they have
+            # a target in ${LIB_DIR} and at least give a warning if they don't.
             TARGET_NAME=$(basename $(readlink -f ${x}))
             LINK_NAME=$(basename ${x})
-            pushd ${PKG_LIB_DIR} > /dev/null
+            pushd ${LIB_DIR} > /dev/null
             ln -s ./${TARGET_NAME} ${LINK_NAME}
             popd > /dev/null
         else
-            cp ${x} ${PKG_LIB_DIR}
+            cp ${x} ${LIB_DIR}
         fi
     done
 
     # Check we've got a loader
-    if [[ ! -f ${PKG_LIB_DIR}/${LOADER} ]] ; then
-        echo "ERROR: file '${PKG_LIB_DIR}/${LOADER}' not found" 1>&2
+    if [[ ! -f ${LIB_DIR}/${LOADER} ]] ; then
+        echo "ERROR: file '${LIB_DIR}/${LOADER}' not found" 1>&2
         exit 1
     fi
 
@@ -136,21 +144,8 @@ EOF
 fi
 
 echo -e "${BOOTSTRAP_SCRIPT}" > ${BOOTSTRAP}
-chmod + ${BOOTSTRAP}
+chmod +x ${BOOTSTRAP}
 
-# create the zip file
-pushd ${PKG_DIR} > /dev/null
-
-ZIP_FILE=${TARGET}.zip
-
-#zip --symlinks --recurse-paths ${ARTIFACTS_DIR}/${ZIP_FILE} -- *
-zip --symlinks --recurse-paths ${ZIP_FILE} * 2>&1 > /dev/null
-
-popd > /dev/null
-
-mv ${PKG_DIR}/${ZIP_FILE} ${ARTIFACTS_DIR}/${ZIP_FILE}
-
-rm -rf ${PKG_DIR}
 rm ${RESULT}
 
 

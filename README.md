@@ -143,17 +143,22 @@ $ cd ~/src/quadraticvoting
 $ nix build .#qvf-cli-static.x86_64-linux -o qvf-cli-static
 $ ldd qvf-cli-static/bin/qvf-cli 
 $	not a dynamic executable
-```
-# Direnv
 
-> [direnv](https://direnv.net) is an extension for your shell. It augments existing shells with a new feature that 
-> can load and unload environment variables depending on the current directory.
+6. __AWS SAM__
 
-The project has a default .envrc file and therefore supports [direnv](https://direnv.net) for those who want to use it. If you have [direnv](https://direnv.net) installed then you should be prompted to *allow* [direnv](https://direnv.net) for the project's root directory when you checkout this branch . If that doesn't happen (for some reason) then after the checkout completes you can execute the following in the quadraticvoting's 'root' directory
+We can use ['AWS SAM'](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) to build, run and deploy AWS Lambda Functions. There is an example lambda function under quadraticvoting/qvf-generate-scripts. There are 2 SAM templates ([qvf-generate-scripts-static.yaml](https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts-static.yaml) and [qvf-generate-scripts-dynamic.yaml])(https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts-dynamic.yaml) that provide a lambda function implemented by a 
+* fully statically linked executable
+* a dynamically linked executable and the closure of its dependencies (shared libraries)
+respectively.
+
+To build the (dynamic) example:
 ```bash
-$ direnv allow .
+$ sam build -t qvf-generate-scripts-dynamic.yaml
 ```
-N.B. If you do this, every time you (or your shell) cd's into the root directory it will run 'nix-shell'. Initially this will be relatively expensive and it can still be a pain once things have settled down (i.e. been cached). So you may prefer not to enable [direnv](https://direnv.net) but to invoke 'nix-shell' explicitly.
+To invoke the lambda locally:
+```bash
+$ sam local invoke QvfGenerateScriptsDynamicFunction  -e qvf-generate-scripts/events/qvf-gen-scripts.json [--debug]
+```
 
 # Editor Support
 
@@ -167,11 +172,13 @@ The project provides default support for VSCode via 'vscode/settings.json'. This
 2. Start VSCode and add the following extensions:
 - Haskell (id: haskell.haskell)
 - Haskell Syntax Highlighting (id: justusadam.language-haskell)
-- Nix Environment Selector (id: arrterian.nix-env-selector)
-- direnv (id: mkhl.direnv) -- optional
 3. Exit VSCode.
 
-When VSCode opens the project folder it will use the 'Nix Environment Selector' to set up the nix environment automatically. It may take a few seconds to settle down (it's running 'nix-shell'). When you open a haskell file you should see activity in the status bar (e.g. 'processing 2/5'). 
+To ensure that VSCode runs the correct version of haskell-language-server (which provides code awareness):
+
+1. cd .../quadraticvoting
+2. nix develop
+3. vscode . &
 
 ## Vim
 
@@ -223,7 +230,7 @@ Add the following to ~/.vim/coc-settings.json
 ```
 
 
-Now when you edit a haskell file using vim inside the project's nix environment (set up via 'nix-shell', 'nix develop .' or direnv) you should see vim interacting with the 'haskell-language-server'. You will see a notification indicating that the 'haskell-language-server' is processing the project's Haskell files. 
+Now when you edit a haskell file using vim inside the project's nix environment (set up via 'nix-shell' or 'nix develop') you should see vim interacting with the 'haskell-language-server'. You will see a notification indicating that the 'haskell-language-server' is processing the project's Haskell files. 
 
 However, I didn't see any context sensitive info. OTOH I am not a vim user, so it's possible there's something else required. Please update the README if you discover what it is :-)
 

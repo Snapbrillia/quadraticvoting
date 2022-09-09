@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >-
-  SAM Template for static build of qvf-generate-scripts
+  SAM Template for dynamic build of qvf-generate-scripts
 Globals:
   Function:
     Timeout: 30
@@ -9,6 +9,7 @@ Resources:
   QvfGenerateScriptsDynamicFunction:
     Type: AWS::Serverless::Function
     Properties:
+      PackageType: Zip
       CodeUri: .
       Handler: qvf-generate-scripts
       Runtime: provided
@@ -18,17 +19,6 @@ Resources:
           Properties:
             Path: /generate-scripts
             Method: get
-      Layers:
-        - !Ref QvfGenerateScriptsLayer
-    Metadata:
-      BuildMethod: makefile
-  QvfGenerateScriptsLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      LayerName: generate-scripts-libs
-      Description: Dependencies for generate-scripts.
-      ContentUri: .
-             
     Metadata:
       BuildMethod: makefile
 Outputs:
