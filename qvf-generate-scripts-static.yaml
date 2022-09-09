@@ -1,15 +1,16 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >-
-  SAM Template for qvf-generate-scripts
+  SAM Template for static build of qvf-generate-scripts
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 30
 Resources:
-  QvfGenerateScriptsFunction:
+  QvfGenerateScriptsStaticFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: ../qvf-generate-scripts
+      PackageType: Zip
+      CodeUri: .
       Handler: qvf-generate-scripts
       Runtime: provided
       Events:
@@ -21,14 +22,14 @@ Resources:
     Metadata:
       BuildMethod: makefile
 Outputs:
-  # QvfGenerateScriptsApi:
-  #   Description: API Gateway endpoint URL for Prod stage for QVF Generate Scripts function
-  #   Value:
-  #     Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
-  QvfGenerateScriptsFunction:
+  QvfGenerateScriptsStaticApi:
+    Description: API Gateway endpoint URL for Prod stage for QVF Generate Scripts function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/
+  QvfGenerateScriptsStaticFunction:
     Description: QVF Generate Scripts Lambda Function ARN
     Value:
-      Fn::GetAtt: [QvfGenerateScriptsFunction, Arn]
+      Fn::GetAtt: [QvfGenerateScriptsStaticFunction, Arn]
   QvfGenerateScriptsFunctionIamRole:
     Description: Implicit IAM Role created for QVF Generate Scripts function
     Value:
