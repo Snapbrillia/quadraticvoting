@@ -249,19 +249,58 @@ mkQVFValidator qvfParams datum action ctx =
     info = scriptContextTxInfo ctx
   in
   case (datum, action) of
-    (RegisteredProjectsCount       soFar          , RegisterProject regInfo) -> traceError "TODO."
-    (ReceivedDonationsCount        soFar          , DonateToProject donInfo) -> traceError "TODO."
-    (Donation                      donorsPKH      , FoldDonationsPhaseOne  ) -> traceError "TODO."
-    (ReceivedDonationsCount        soFar          , FoldDonationsPhaseOne  ) -> traceError "TODO."
-    (DonationFoldingProgress       tot soFar      , FoldDonationsPhaseOne  ) -> traceError "TODO."
-    (Donations                     pkhToAmountMap , FoldDonationsPhaseTwo  ) -> traceError "TODO."
-    (DonationFoldingConcluded      tot            , FoldDonationsPhaseTwo  ) -> traceError "TODO."
-    (DonationAccumulationProgress  tot ps ds w    , AccumulateDonations    ) -> traceError "TODO."
-    (PrizeWeight                   weight False   , AccumulateDonations    ) -> traceError "TODO."
-    (DonationAccumulationConcluded ps ds den False, PayKeyHolderFee        ) -> traceError "TODO."
-    (DonationAccumulationConcluded ps ds den True , DistributePrize        ) -> traceError "TODO."
-    (PrizeWeight                   weight True    , DistributePrize        ) -> traceError "TODO."
-    (Escrow                        weight True    , WithdrawBounty         ) -> traceError "TODO."
+    (RegisteredProjectsCount soFar                , RegisterProject regInfo) ->
+      -- Project Registration
+      traceError "TODO."
+
+    (ReceivedDonationsCount soFar                 , DonateToProject donInfo) ->
+      -- Project Donation
+      traceError "TODO."
+
+    (Donation donorsPKH                           , FoldDonationsPhaseOne  ) ->
+      -- First Phase of Folding Donations
+      traceError "TODO."
+
+    (ReceivedDonationsCount soFar                 , FoldDonationsPhaseOne  ) ->
+      -- First Phase of Folding Donations
+      traceError "TODO."
+
+    (DonationFoldingProgress tot soFar            , FoldDonationsPhaseOne  ) ->
+      -- First Phase of Folding Donations
+      traceError "TODO."
+
+    (Donations pkhToAmountMap                     , FoldDonationsPhaseTwo  ) ->
+      -- Second Phase of Folding Donations
+      traceError "TODO."
+
+    (DonationFoldingConcluded tot                 , FoldDonationsPhaseTwo  ) ->
+      -- Second Phase of Folding Donations
+      traceError "TODO."
+
+    (DonationAccumulationProgress tot ps ds w     , AccumulateDonations    ) ->
+      -- Accumulation of Donated Lovelaces
+      traceError "TODO."
+
+    (PrizeWeight weight False                     , AccumulateDonations    ) ->
+      -- Accumulation of Donated Lovelaces
+      traceError "TODO."
+
+    (DonationAccumulationConcluded ps ds den False, PayKeyHolderFee        ) ->
+      -- Key Holder Fee Collection
+      traceError "TODO."
+
+    (DonationAccumulationConcluded ps ds den True , DistributePrize        ) ->
+      -- Prize Distribution
+      traceError "TODO."
+
+    (PrizeWeight weight True                      , DistributePrize        ) ->
+      -- Prize Distribution
+      traceError "TODO."
+
+    (Escrow                                       , WithdrawBounty         ) ->
+      -- Bounty Collection from Escrow Account
+      traceError "TODO."
+
     (_                                            , _                      ) ->
       traceError "Invalid transaction."
   -- }}}

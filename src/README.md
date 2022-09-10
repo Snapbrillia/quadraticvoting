@@ -29,7 +29,7 @@ proposing a solution, some of the technical details are covered.
   - [Prize Distribution](#prize-distribution)
     - [Mathematical Detour to Find the Practical Limits](#mathematical-detour-to-find-the-practical-limits)
     - [Folding the Project UTxOs](#folding-the-project-utxos)
-- [Validation Layout for Various Transactions](#validation-layout-for-various-transactions)
+- [Validation Layout for Transactions](#validation-layout-for-transactions)
   - [NFT Minting Transaction](#nft-minting-transaction)
   - [Project Registration Transaction](#project-registration-transaction)
   - [Donation Transaction](#donation-transaction)
@@ -388,16 +388,16 @@ Therefore, after `G` finds `W`, it can start distributing the prizes by
 consuming each project's UTxO.
 
 
-## Validation Layout for Various Transactions
+## Validation Layout for Transactions
 
 This section is meant to be accompanied by
 [the flow diagram of the contract](https://figma.com/file/rbmPW7o6ol8aICbB4l318a/Quadratic-Voting-and-Funding).
-Each subsection below well elaborate on its corresponding dashed square in the
+Each subsection below will elaborate on its corresponding dashed square in the
 diagram.
 
 The color purple for a transaction indicates that there are no minting/burning
-meant to occur. While red or greed transactions refer to their corresponding
-minting policies (red for `P`, and greend for `V`).
+meant to occur. While red or green transactions refer to their corresponding
+minting policies (red for `P`, and green for `V`).
 
 ### NFT Minting Transaction
 
@@ -474,14 +474,13 @@ The required conditions are:
 project's identifier,
 
 - Datum attached to the UTxO carrying `P` is proper, and increments the number
-of donations by 1, and also increases the total donation received so far by the
-donation amount,
+of donations by 1,
 
 - Exactly 1 token is being minted (`V`), such that its token name is the
 project's identifier,
 
 - The output UTxO carrying this fresh `V` token, also carries the intended
-donation in Lovelaces.
+donation in Lovelaces, while its datum stores the donor's public key hash.
 
 
 ### First Phase of Folding Donations
@@ -508,7 +507,7 @@ carries all the input `V` tokens.
 
 ### Second Phase of Folding Donations
 
-To prevent the `P` UTxO to carry all its `V` tokens (which leads to higher
+To prevent the `P` UTxO from carrying all its `V` tokens (which leads to higher
 fees), this transaction will burn the donation tokens. Therefore the donation
 minter will also be executed here.
 
@@ -533,8 +532,9 @@ script address, such that all of them have their "prize weight" stored in their
 datum.
 
 Here, accumulation means that the main UTxO needs to traverse all of
-these `P` UTxOs, collect their Lovelaces, and fold their weight values in order
-to find the final denominator in the QVF equation. No tokens should be burnt.
+these `P` UTxOs, collect their Lovelaces, and accumulate their weight values in
+order to find the final denominator in the QVF equation. No tokens should be
+burnt.
 
 The required conditions are:
 
@@ -581,7 +581,7 @@ the weights).
 If a project has won more than they had requested, the excess should go into a
 new UTxO (still carrying the `P` token) with an "escrow" datum.
 
-On the other hand, if the won amound is equal or less than the requested
+On the other hand, if the won amount is equal or less than the requested
 amount, there is no reason to preserve the `P` token and the registration fee.
 Therefore we may (?) burn the token, and after deducing the transaction fee
 from the registration fee, the rest can be sent to the project owner.
