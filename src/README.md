@@ -29,14 +29,15 @@ proposing a solution, some of the technical details are covered.
   - [Prize Distribution](#prize-distribution)
     - [Mathematical Detour to Find the Practical Limits](#mathematical-detour-to-find-the-practical-limits)
     - [Folding the Project UTxOs](#folding-the-project-utxos)
-- [Logical Layout for Minting Scripts](#logical-layout-for-minting-scripts)
-  - [NFT Minter](#nft-minter)
-  - [Project Registration Minter](#project-registration-minter)
-    - [`RegisterProject`](#projectregistration)
-    - [`DistributePrize`](#distributeprize)
-  - [Donation Minter](#donation-minter)
-    - [`DonateToProject`](#donatetoproject)
-    - [`FoldDonations`](#folddonations)
+- [Validation Layout for Various Transactions](#validation-layout-for-various-transactions)
+  - [NFT Minting Transaction](#nft-minting-transaction)
+  - [Project Registration Transaction](#project-registration-transaction)
+  - [Donation Transaction](#donation-transaction)
+  - [First Phase of Folding Donations](#first-phase-of-folding-donations)
+  - [Second Phase of Folding Donations](#second-phase-of-folding-donations)
+  - [Accumulation of Donations](#accumulation-of-donations)
+  - [Key Holder Fee Collection](#key-holder-fee-collection)
+  - [Prize Distribution Transaction](#prize-distribution-transaction)
 
 
 ## Design Framework
@@ -387,13 +388,23 @@ Therefore, after `G` finds `W`, it can start distributing the prizes by
 consuming each project's UTxO.
 
 
-## Logical Layout for Minting Scripts
+## Validation Layout for Various Transactions
 
-In this section we're going to dive a bit deeper and provide a description of
-scripts' behaviors.
+This section is meant to be accompanied by
+[the flow diagram of the contract](https://figma.com/file/rbmPW7o6ol8aICbB4l318a/Quadratic-Voting-and-Funding).
+Each subsection below well elaborate on its corresponding dashed square in the
+diagram.
 
+The color purple for a transaction indicates that there are no minting/burning
+meant to occur. While red or greed transactions refer to their corresponding
+minting policies (red for `P`, and greend for `V`).
 
-### NFT Minter
+### NFT Minting Transaction
+
+At this point the funding round is not initiated yet. Which means the only
+script executed here would be the NFT minter (i.e. `S`). The color yellow is
+used to refer to this NFT, hence the color of the transaction, and the UTxO
+that carries `S` inside.
 
 There are two ways to mint an NFT:
 
@@ -411,129 +422,186 @@ There are two ways to mint an NFT:
   This leads to smaller script sizes, but may lead to less trust.
 
 
-### Project Registration Minter
+### Project Registration Transaction
 
-First and foremost, this script should be parametrized by the NFT minted
-earlier. This leads to script's capability of verifying the presence of this
-NFT and ensure it's being used in the intended context.
+Since this transaction is meant to update the main datum, it has to spend the
+singular authenticated UTxO of the contract (i.e. the yellow UTxO), which means
+the QVF validator has to be executed.
 
-A possible redeemer datatype can be as follows:
+This transaction also produces a new UTxO carrying a freshly minted `P` token.
+Therefore the project minter will also be executed.
 
-```hs
-data RegistrationRedeemer
-  = RegisterProject RegistrationInfo
-  | DistributePrize
+These are all the conditions required for this transaction to be valid:
 
-data RegistrationInfo = RegistrationInfo
-  { riTxOutRef   :: TxOutRef
-  , riPubKeyHash :: BuiltinByteString
-  , riLabel      :: BuiltinByteString
-  , riRequested  :: Integer
-  }
-```
+- The deadline has not passed,
 
-The second constructor of the redeemer is meant for burning the tokens (is it
-necessary?).
+- The transaction is signed by the public key hash of the project's wallet,
 
+- Exactly 1 `S` is being spent from the script, and 1 is being sent back to the
+the script address (from this point forward, we'll refer to this condition
+as "`X` is present"),
 
-#### `RegisterProject`
+- Datum attached to the UTxO carrying `S` is proper, and increments the number
+of registered projects by 1,
 
-These are the conditions under which this minter should allow project
-registration (i.e. minting an authentication asset for the project):
+- Exactly 1 token is being minted (`P`), such that its token name is the unique
+identifier of the project (i.e hash of the specified UTxO),
 
-- Registration fees are paid,
+- The output UTxO carrying this fresh `P` token, also carries the registration
+fee's Lovelaces.
 
-- Signed by the public key hash stated in `RegistrationInfo`,
-
-- There is exactly 1 `S` present in inputs, and 1 in outputs (should it also
-validate the two share the same address?). From this point forward, we'll call
-this "`S` is present,"
-
-- Datum attached to the output UTxO carrying `S` is proper,
-
-- Exactly 1 token is being minted, such that its token name is the hash of the
-specified UTxO (`riTxOutRef` in `RegistrationInfo`),
-
-- One other output goes to the same address as the one `S` is coming from, with
-a proper inline datum attached to it (we'll go over the structure of this datum
-later).
+To avoid redundancy, most of these checks can probably be done only by the
+validator. And to prevent arbitrary minting, presence of `S` might suffice to
+lock the two scripts together.
 
 
-#### `DistributePrize`
+### Donation Transaction
 
-This endpoint is meant to be invoked for burning the project assets. Still
-unsure whether this is truly needed, but let's consider the conditions under
-which this minter allows burning:
+As this task is delegated to the target project's UTxO (i.e. the red arrow in
+the diagram), this transaction does not require the involvement of the main
+UTxO.
+
+This transaction also executes two scripts: the validator, and the donation
+minter.
+
+The required conditions are:
+
+- The deadline has not passed,
+
+- The transaction is signed by the donor,
+
+- `P` is present. The token name of this asset needs to match that of target
+project's identifier,
+
+- Datum attached to the UTxO carrying `P` is proper, and increments the number
+of donations by 1, and also increases the total donation received so far by the
+donation amount,
+
+- Exactly 1 token is being minted (`V`), such that its token name is the
+project's identifier,
+
+- The output UTxO carrying this fresh `V` token, also carries the intended
+donation in Lovelaces.
+
+
+### First Phase of Folding Donations
+
+Since there is no minting or burning happening in this transaction, only the
+validator is executed.
+
+The required conditions are:
+
+- The deadline has passed,
+
+- The transaction is signed by the key holder,
+
+- `P` is present,
+
+- A set number of donation UTxOs are being spent. This number is the lesser
+value between a maximum (this maximum will be achieved at a later point in
+development, current estimate is ~100), and the total number of unfolded
+donations,
+
+- All the donations are stored in the datum of the singular output UTxO, which
+carries all the input `V` tokens.
+
+
+### Second Phase of Folding Donations
+
+To prevent the `P` UTxO to carry all its `V` tokens (which leads to higher
+fees), this transaction will burn the donation tokens. Therefore the donation
+minter will also be executed here.
+
+The required conditions are:
+
+- The deadline has passed,
+
+- The transaction is signed by the key holder,
+
+- `P` is present,
+
+- All the `V` tokens (i.e. the number of donations) are being burnt,
+
+- The output `P` UTxO carries all the donated Lovelaces, and its datum carries
+the computed "prize weight" for this project.
+
+
+### Accumulation of Donations
+
+At this point the contract expects only numerous `P` UTxOs available at the
+script address, such that all of them have their "prize weight" stored in their
+datum.
+
+Here, accumulation means that the main UTxO needs to traverse all of
+these `P` UTxOs, collect their Lovelaces, and fold their weight values in order
+to find the final denominator in the QVF equation. No tokens should be burnt.
+
+The required conditions are:
+
+- The deadline has passed,
+
+- The transaction is signed by the key holder,
+
+- The same number of spent `P` UTxOs are being produced, each having a properly
+updated datum, and having all their received donations depleted (except for the
+registration fees),
 
 - `S` is present,
 
-- Project UTxO input has a datum that signals its conclusion of `w_p`,
-
-- Exactly 1 token is being burnt, such that its token name matches the
-identifier specified in the datum,
-
-- An ouput exists which goes to the project's public key hash.
+- Output `S` carries all the consumed donations, and has a properly updated
+datum to keep track of the number of projects traversed so far.
 
 
-### Donation Minter
+### Key Holder Fee Collection
 
-Similar to the project minter, this script should be parametrized by
-the `P` currency symbol.
+After the final donation accumulation transaction, the contract is expected to
+have the project UTxOs (all of which are marked as "depleted"), and also
+the `S` UTxO (i.e. the yellow one in the diagram), such that its datum signals
+the conclusion of accumulation, and that the key holder fee is still
+not collected.
 
-A possible redeemer datatype can be as follows:
+This transaction should consume the main UTxO, collect the fee, and flag the
+datum accordingly.
 
-```hs
-data DonationRedeemer
-  = DonateToProject DonationInfo
-  | FoldDonations
+The required conditions are:
 
-data DonationInfo = DonationInfo
-  { diProjectId :: BuiltinByteString
-  , diDonor     :: BuiltinByteString
-  , diAmount    :: Integer
-  }
-```
+- The deadline has passed,
 
-Let's consider the conditions for each endpoint.
+- The transaction is signed by the key holder,
+
+- `S` is present, and properly updated.
 
 
-#### `DonateToProject`
+### Prize Distribution Transaction
 
-- Donation is not less than minimum (2 ADA),
+Now that the key holder fee is deduced from the pool, each project wallet
+should receive its portion (i.e. their "prize weight" divided by the sum of all
+the weights).
 
-- Signed by the donor's public key hash (`diDonor` in `DonationInfo`),
+If a project has won more than they had requested, the excess should go into a
+new UTxO (still carrying the `P` token) with an "escrow" datum.
 
-- `P` is present,
+On the other hand, if the won amound is equal or less than the requested
+amount, there is no reason to preserve the `P` token and the registration fee.
+Therefore we may (?) burn the token, and after deducing the transaction fee
+from the registration fee, the rest can be sent to the project owner.
 
-- Datum attached to above is properly updated (i.e. donation count is
-incremented by 1),
+The required conditions are:
 
-- Exactly 1 token is being minted, such that its token name is the target
-project's identifier (`diProjectId` in `DonationInfo`).
+- The deadline has passed,
 
-- One other output goes to the same address as the one `P` is coming from, with
-donor's public key hash as its datum,
-
-- The above has enough Lovelaces.
-
-
-#### `FoldDonations`
-
-As mentioned earlier, this endpoint is meant for burning the tokens, which
-means that it should happen after accumulating the donations into multiple
-"grouped" UTxOs. If the burning is deemed unnecessary, this layout becomes
-moot.
-
-Required conditions are:
+- `S` is present,
 
 - `P` is present,
 
-- Exactly the same number of tokens are being burnt as the number of donations
-received by the project (stated in the datum attached to `P`'s UTxO). All these
-tokens should be identical, with a currency symbol of `V` and a token name the
-same as the identifier specified in the datum,
+- A proper portion from the prize pool is sent to the associated project's
+wallet,
 
-- Output containing `P` has a properly structured datum (i.e. correct data
-constructor). To save on transaction fees, it's probably OK not to check the
-correctness of the carried `w_p`.
+- If there is excess money with respect to the requested amount, the `P` token
+should be preserved to hold the excess as an escrow account,
+
+- If the won prize is equal or less than the requested amount, the `P` token
+should be burnt, and the prize (along with the registration) fee should be sent
+to the project's owner.
+
 

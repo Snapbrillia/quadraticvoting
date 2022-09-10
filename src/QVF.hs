@@ -83,7 +83,10 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 
 
 data QVFDatum
-  = Project     !Integer !Integer
+  = InProgress  !Integer
+  -- ^ The "main" datum, keeping a record of the number of registered projects.
+
+  | Project     !Integer !Integer
   -- Donation count ---^ ^------- Total Lovelaces
   -- ^ Avoiding overhead of another constructor.
 
