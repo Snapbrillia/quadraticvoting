@@ -73,63 +73,165 @@ qvfAsset qvf = AssetClass (qvfSymbol qvf, NFT.qvfTokenName)
 
 -- QVF DATUM
 -- {{{
+-- PROJECT DETAILS
+-- {{{
 data ProjectDetails = ProjectDetails
   { pdId         :: !BuiltinByteString
   , pdPubKeyHash :: !PubKeyHash
   , pdName       :: !BuiltinByteString
   , pdRequested  :: !Integer
   }
+
 PlutusTx.unstableMakeIsData ''ProjectDetails
+-- }}}
 
 
+-- DATUM
+-- {{{
 data QVFDatum
-  = InProgress  !Integer
-  -- ^ The "main" datum, keeping a record of the number of registered projects.
+  -- {{{
+  = RegisteredProjectsCount 
+    -- ^ The "main" datum, keeping a record of the number of registered projects.
+      -- {{{
+      !Integer
+      -- }}}
 
-  | Project     !Integer !Integer
-  -- Donation count ---^ ^------- Total Lovelaces
-  -- ^ Avoiding overhead of another constructor.
+  | DonationAccumulationProgress
+    -- ^ For keeping track of the folded projects traversed.
+      -- {{{
+      !Integer -- ^ Total project count.
+      !Integer -- ^ Projects traversed so far.
+      !Integer -- ^ Total Lovelaces so far.
+      !Integer -- ^ Sum of prize weights so far.
+      -- }}}
 
-  | ProjectInfo ProjectDetails
-  -- ^ To store static info in a reference UTxO.
+  | DonationAccumulationConcluded
+    -- ^ Datum after collecting all donations.
+      -- {{{
+      !Integer -- ^ Total project count.
+      !Integer -- ^ Total Lovelaces.
+      !Integer -- ^ Sum of prize weights.
+      !Bool    -- ^ Key holder fee collected or not.
+      -- }}}
 
-  | PrizeWeight !Integer
-  -- ^ Result of folding all donations.
+  | ProjectInfo
+    -- ^ To store static info in a reference UTxO.
+      -- {{{
+      ProjectDetails
+      -- }}}
 
-  | Donation    !PubKeyHash
-  -- ^ For a single donation UTxO.
+  | ReceivedDonationsCount
+    -- ^ Datum for a project UTxO. Tracks number of donations, not amount.
+      -- {{{
+      !Integer
+      -- }}}
+  
+  | DonationFoldingProgress
+    -- ^ Project UTxO during the first phase of folding the donations.
+      -- {{{
+      !Integer -- ^ Total donation count.
+      !Integer -- ^ Folded so far.
+      -- }}}
+  
+  | DonationFoldingConcluded
+    -- ^ Project UTxO after the last folding transaction of phase one.
+      -- {{{
+      !Integer -- ^ Total donation count.
+      -- }}}
 
-  | Donations   !(Map PubKeyHash Integer)
-  -- ^ Intermediary constructor for the first phase of folding donations.
+  | PrizeWeight
+    -- ^ Result of folding all donations.
+      -- {{{
+      !Integer -- ^ Prize weight.
+      !Bool    -- ^ Whether depleted or not.
+      -- }}}
 
-  | Escrow      !(Map BuiltinByteString Integer)
-  -- ^ For UTxOs that store the excess reward won by projects.
+  | Donation
+    -- ^ For a single donation UTxO.
+      -- {{{
+      !PubKeyHash -- ^ Donor's public key hash.
+      -- }}}
+
+  | Donations
+    -- ^ For output donation UTxO of the first phase of folding donations.
+      -- {{{
+      !(Map PubKeyHash Integer)
+      -- }}}
+
+  | Escrow
+    -- ^ For UTxOs that store the excess reward won by projects.
+      -- {{{
+      !(Map BuiltinByteString Integer)
+      -- }}}
+  -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('Project    , 0)
-  , ('ProjectInfo, 1)
-  , ('PrizeWeight, 2)
-  , ('Donation   , 3)
-  , ('Donations  , 4)
-  , ('Escrow     , 5)
+  [ ('RegisteredProjectsCount      , 0)
+  , ('DonationAccumulationProgress , 1)
+  , ('DonationAccumulationConcluded, 2)
+  , ('ProjectInfo                  , 3)
+  , ('ReceivedDonationsCount       , 4)
+  , ('DonationFoldingProgress      , 5)
+  , ('DonationFoldingConcluded     , 6)
+  , ('PrizeWeight                  , 7)
+  , ('Donation                     , 8)
+  , ('Donations                    , 9)
+  , ('Escrow                       , 10)
   ]
+-- }}}
 -- }}}
 
 
 -- QVF ACTION
 -- {{{
+-- REGISTRATION INFO
+-- {{{
+data RegistrationInfo = RegistrationInfo
+  { riTxOutRef   :: !TxOutRef
+  , riPubKeyHash :: !BuiltinByteString
+  , riLabel      :: !BuiltinByteString
+  , riRequested  :: !Integer
+  }
+
+PlutusTx.unstableMakeIsData ''RegistrationInfo
+-- }}}
+
+
+-- DONATION INFO
+-- {{{
+data DonationInfo = DonationInfo
+  { diProjectId :: !BuiltinByteString
+  , diDonor     :: !BuiltinByteString
+  , diAmount    :: !Integer
+  }
+
+PlutusTx.unstableMakeIsData ''DonationInfo
+-- }}}
+
+
+-- REDEEMER
+-- {{{
 data QVFAction
-  = RegisterProject
-  | DonateToProject
-  | DepositReward
+  = RegisterProject       RegistrationInfo
+  | DonateToProject       DonationInfo
+  | FoldDonationsPhaseOne
+  | FoldDonationsPhaseTwo
+  | AccumulateDonations
+  | PayKeyHolderFee
+  | DistributePrize
   | WithdrawBounty
 
 PlutusTx.makeIsDataIndexed ''QVFAction
-  [ ('RegisterProject, 0)
-  , ('DonateToProject, 1)
-  , ('DepositReward  , 2)
-  , ('WithdrawBounty , 3)
+  [ ('RegisterProject      , 0)
+  , ('DonateToProject      , 1)
+  , ('FoldDonationsPhaseOne, 2)
+  , ('FoldDonationsPhaseTwo, 3)
+  , ('AccumulateDonations  , 4)
+  , ('PayKeyHolderFee      , 5)
+  , ('DistributePrize      , 6)
+  , ('WithdrawBounty       , 7)
   ]
+-- }}}
 -- }}}
 
 
@@ -143,7 +245,25 @@ mkQVFValidator :: QVFParams
                -> Bool
 mkQVFValidator qvfParams datum action ctx =
   -- {{{
-  False -- TODO.
+  let
+    info = scriptContextTxInfo ctx
+  in
+  case (datum, action) of
+    (RegisteredProjectsCount       soFar          , RegisterProject regInfo) -> traceError "TODO."
+    (ReceivedDonationsCount        soFar          , DonateToProject donInfo) -> traceError "TODO."
+    (Donation                      donorsPKH      , FoldDonationsPhaseOne  ) -> traceError "TODO."
+    (ReceivedDonationsCount        soFar          , FoldDonationsPhaseOne  ) -> traceError "TODO."
+    (DonationFoldingProgress       tot soFar      , FoldDonationsPhaseOne  ) -> traceError "TODO."
+    (Donations                     pkhToAmountMap , FoldDonationsPhaseTwo  ) -> traceError "TODO."
+    (DonationFoldingConcluded      tot            , FoldDonationsPhaseTwo  ) -> traceError "TODO."
+    (DonationAccumulationProgress  tot ps ds w    , AccumulateDonations    ) -> traceError "TODO."
+    (PrizeWeight                   weight False   , AccumulateDonations    ) -> traceError "TODO."
+    (DonationAccumulationConcluded ps ds den False, PayKeyHolderFee        ) -> traceError "TODO."
+    (DonationAccumulationConcluded ps ds den True , DistributePrize        ) -> traceError "TODO."
+    (PrizeWeight                   weight True    , DistributePrize        ) -> traceError "TODO."
+    (Escrow                        weight True    , WithdrawBounty         ) -> traceError "TODO."
+    (_                                            , _                      ) ->
+      traceError "Invalid transaction."
   -- }}}
 
 
