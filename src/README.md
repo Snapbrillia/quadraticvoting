@@ -117,7 +117,7 @@ be parametrized by `P`. And finally, `G` will be parametrized by both `S` and
 Project registration transactions (`Tx_p` for short) will be responsible of
 generating UTxOs at `G`, each carrying a `P` asset.
 
-To ensure uniqueness of a project UTxO, the token names of their `P` assetes
+To ensure uniqueness of a project UTxO, the token names of their `P` assets
 are going to be one of the UTxOs that the project owner will be consuming
 during the registration. This allows the off-chain platform to robustly
 distinguish between available projects for donors, and relieves the `G` UTxO
@@ -125,7 +125,7 @@ from keeping a record of registered projects.
 
 The datum attached to these UTxOs will store additional information
 about its corresponding project (public key hash for receiveing the prize,
-label, etc.), along with a record of amount of Lovelaces received by that
+label, etc.), along with a record of the number of donations received by that
 project. This will be the only field in the datum that will be subject to
 updates.
 
@@ -160,7 +160,7 @@ the target project's identifier.
 To prevent noticeable growth of the datum attached to a project
 UTxO, `Tx_v` will require the production of a new UTxO along with reproducing
 the project's authenticity UTxO. But it will also require the datum of that
-UTxO to be updated such that it'll only increase the total received funds
+UTxO to be updated such that it'll only increment the total received donations
 (rather than appending donors' information).
 
 So a `Tx_v` will comprise of these inputs:
@@ -168,14 +168,14 @@ So a `Tx_v` will comprise of these inputs:
   - As many UTxOs necessary to cover the donation by the donor,
 
   - The singular UTxO of the project that carries its authenticity asset
-  (minted by `P`), and a datum carrying other project info, and total
-  Lovelace received so far.
+  (minted by `P`), and a datum carrying other project info, and total count of
+  donations received so far.
 
 And these outputs:
 
   - The project UTxO with an updated datum. The only field that should be
-  updated is the total Lovelaces received. This leads to a negligable growth
-  for subsequent transactions,
+  updated is the total donation count received. This leads to a negligable
+  growth for subsequent transactions,
 
   - A UTxO carrying the donated Lovelaces, a single `V` asset (where its token
   name is the target project's identifier), and a minimal datum that holds the
@@ -222,7 +222,7 @@ By observing the CBOR of a signed transaction, we can arrive at these values:
 
 | Element                                        | Size      |
 |------------------------------------------------|-----------|
-| Each input                                     | 36 bytes  |
+| Each input                                     | 38 bytes  |
 | Each wallet output                             | 67 bytes  |
 | Each key value pair (public key hash, amount)  | 39 bytes  |
 | One signature                                  | 102 bytes |
@@ -249,7 +249,7 @@ Another important number we can find is a transaction with:
 
 The decoded CBOR of such a transaction looks like this:
 ```
-[ { 0:  [ [h'30AB6FF0B6137E32836B6F51C5B1411C65030BF2E64F605B8409D51E552FF802', 1]
+[ { 0:  [ [h'30AB6FF0B6137E32836B6F51C5B1411C65030BF2E64F605B8409D51E552FF802', 256]
         ]
   , 1:  [ { 0: h'003A56F24E6E474ECC440555F0F4948101148694C4727AD8AC05AFF0B9F809DFED2456621369A039E767A9438D8FD8BAD8AE32FD0F7041B1C0'
           , 1: 7311569000000
@@ -269,7 +269,7 @@ The decoded CBOR of such a transaction looks like this:
   , 4:  67441447000
   , 11: h'5F0690B995666E8DE6B7BBA8A68341F268C6578E2EBD5A310C915DE0F94B425E'
   , 13: []
-  , 18: [ [h'5FAE3E5B2722EEF3A82A85775052EFF4E28059DF51F7306CB4F76901312AC200', 2]
+  , 18: [ [h'5FAE3E5B2722EEF3A82A85775052EFF4E28059DF51F7306CB4F76901312AC200', 256]
         ]
   }
 , { 0:  [ [ h'B7A9392B498B97FF41D01EAC21A22634AF9E841593549B6F2AF9E1DC67DFF78B'
@@ -283,7 +283,7 @@ The decoded CBOR of such a transaction looks like this:
 ]
 ```
 
-Such a transaction has a size of _**450 bytes**_. Since, where applicable, the
+Such a transaction has a size of _**454 bytes**_. Since, where applicable, the
 integer values used are bigger than necessary, we can consider this the upper
 bound of the overhead in each transaction. Therefore, we can round a bit more
 conservatively, and end up with _**15900 bytes**_ free space to populate.
@@ -299,7 +299,7 @@ We can arrive at an equation for finding the number of inputs and outputs with
 given `c`, `r`, and `s` (described below):
 ```
 s           # number of bytes to slice off of public key hashes
-t = 36      # byte size increase per input
+t = 38      # byte size increase per input
 u = 39 - s  # byte size increase per additional public key hash
 R = 14 + r  # byte size increase per redeemer
 H = 15900   # available byte count
@@ -351,17 +351,17 @@ multiplying x_0 and x_f:
                       └──────────────────────────────────┘
 
 To find a ballpark value, we can set:
-  c = 5 => C = 15720
+  c = 5 => C = 15710
   r = 6 => R = 20
   s = 0 => u = 39
 
-  therefore: T = 46200
+  therefore: T = 161.96 * 270.21 = 43763.21
 ```
 
 The last transaction should either burn the vote assets, or simply leave them
 at the script address. However, to ensure that they are not carried along with
-the project UTxOs (and consequently inflate the upcoming transaction fees), it
-might be preferred to enforce their burning.
+the project UTxOs (and consequently inflating the upcoming transaction fees),
+it might be preferred to enforce their burning.
 
 
 #### Folding the Project UTxOs
