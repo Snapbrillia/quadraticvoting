@@ -224,7 +224,7 @@ By observing the CBOR of a signed transaction, we can arrive at these values:
 |------------------------------------------------|-----------|
 | Each input                                     | 38 bytes  |
 | Each wallet output                             | 67 bytes  |
-| Each key value pair (public key hash, amount)  | 39 bytes  |
+| Each key value pair (public key hash, amount)  | 68 bytes  |
 | One signature                                  | 102 bytes |
 | Each redeemer without data                     | 14 bytes  |
 
@@ -300,7 +300,7 @@ given `c`, `r`, and `s` (described below):
 ```
 s           # number of bytes to slice off of public key hashes
 t = 38      # byte size increase per input
-u = 39 - s  # byte size increase per additional public key hash
+u = 68 - s  # byte size increase per additional public key hash
 R = 14 + r  # byte size increase per redeemer
 H = 15900   # available byte count
 
@@ -319,7 +319,7 @@ Which is always true.
 -------------------------------------------------------------------------------
 
 For the final folding transaction, we can set y = 1, which gives us the number
-of inputs that transaction can accept (x_f):
+of inputs that this transaction can accept (x_f):
 
                                ┌───────────────┐
                                │        C - u  │
@@ -353,9 +353,10 @@ multiplying x_0 and x_f:
 To find a ballpark value, we can set:
   c = 5 => C = 15710
   r = 6 => R = 20
-  s = 0 => u = 39
+  s = 0 => u = 68
+  and      t = 38
 
-  therefore: T = 161.96 * 270.21 = 43763.21
+  therefore: T = 124.68 * 269.69 = 33624.95
 ```
 
 The last transaction should either burn the vote assets, or simply leave them
@@ -435,7 +436,7 @@ These are all the conditions required for this transaction to be valid:
 
 - The deadline has not passed,
 
-- The transaction is signed by the public key hash of the project's wallet,
+- The transaction is signed by the project's owner (i.e. prize recepient),
 
 - Exactly 1 `S` is being spent from the script, and 1 is being sent back to the
 the script address (from this point forward, we'll refer to this condition
