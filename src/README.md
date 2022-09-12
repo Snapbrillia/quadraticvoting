@@ -30,7 +30,7 @@ proposing a solution, some of the technical details are covered.
     - [Mathematical Detour to Find the Practical Limits](#mathematical-detour-to-find-the-practical-limits)
     - [Folding the Project UTxOs](#folding-the-project-utxos)
 - [Validation Layout for Transactions](#validation-layout-for-transactions)
-  - [NFT Minting Transaction](#nft-minting-transaction)
+  - [Initiation Transaction](#initiation-transaction)
   - [Project Registration Transaction](#project-registration-transaction)
   - [Donation Transaction](#donation-transaction)
   - [First Phase of Folding Donations](#first-phase-of-folding-donations)
@@ -136,7 +136,9 @@ Therefore, a `Tx_p` will consist of these inputs:
   - The singular UTxO from the governing script carrying its authenticity asset
   (`S`). Note that `P` can not be aware of `G` and can only check the
   _presence_ of `S`. This UTxO should also have a datum attached that tracks
-  the number of projects registered so far (does that suffice?).
+  the number of projects registered so far (does that suffice?),
+
+  - Reference to the deadline UTxO.
 
 And these outputs:
 
@@ -168,8 +170,10 @@ So a `Tx_v` will comprise of these inputs:
   - As many UTxOs necessary to cover the donation by the donor,
 
   - The singular UTxO of the project that carries its authenticity asset
-  (minted by `P`), and a datum carrying other project info, and total count of
-  donations received so far.
+  (minted by `P`), and a datum carrying the total count of donations received
+  so far,
+
+  - Reference UTxO carrying the rest of information about the project.
 
 And these outputs:
 
@@ -400,27 +404,23 @@ The color purple for a transaction indicates that there are no minting/burning
 meant to occur. While red or green transactions refer to their corresponding
 minting policies (red for `P`, and green for `V`).
 
-### NFT Minting Transaction
+### Initiation Transaction
 
 At this point the funding round is not initiated yet. Which means the only
-script executed here would be the NFT minter (i.e. `S`). The color yellow is
-used to refer to this NFT, hence the color of the transaction, and the UTxO
-that carries `S` inside.
+script executed here would be the authentication asset minter (i.e. `S`). The
+color yellow is used to refer to this asset, hence the color of the
+transaction, and the UTxOs that carry `S` inside.
 
-There are two ways to mint an NFT:
+As this minter is meant to be executed only once, it'll utilize a UTxO to
+ensure uniqueness. The intended UTxO can be used off-chain to generate all the
+scripts, and therefore construct the initiation transaction such that it
+produces two UTxOs at the script address: one carrying the primary datum which
+keeps track of the number of registered projects, and one that holds the
+deadline of the funding round.
 
-- Using a known script, and storing the spent UTxO in the token name: This
-  approach has the benefit of more trust by the users. The "recognizability" of
-  the policy ID means that users can rest assured that this token is truly an
-  NFT. The downside of this approach is that it leads to larger scripts. With
-  Vasil, this may not be a credible downside.
-
-  Since the concatenation of transaction ID and its output index exceed 32
-  bytes, the token name can not store the UTxO in raw form. Hashing the 
-  concatenation is one option to get a properly sized unique byte string.
-
-- Using a custom script, and specifying a minimal token name for the NFT:
-  This leads to smaller script sizes, but may lead to less trust.
+The latter is meant to be essentially "unspendable" (unless the key holder
+intends to update the deadline of the round), and only meant to be used as
+reference input.
 
 
 ### Project Registration Transaction
@@ -434,7 +434,7 @@ Therefore the project minter will also be executed.
 
 These are all the conditions required for this transaction to be valid:
 
-- The deadline has not passed,
+- The deadline reference UTxO is present, and the deadline has not passed,
 
 - The transaction is signed by the project's owner (i.e. prize recepient),
 
@@ -445,11 +445,14 @@ as "`X` is present"),
 - Datum attached to the UTxO carrying `S` is proper, and increments the number
 of registered projects by 1,
 
-- Exactly 1 token is being minted (`P`), such that its token name is the unique
-identifier of the project (i.e hash of the specified UTxO),
+- Exactly 2 tokens are being minted (`P`), such that their token names are the
+unique identifier of the project (i.e hash of the specified UTxO),
 
-- The output UTxO carrying this fresh `P` token, also carries the registration
-fee's Lovelaces.
+- One of the output UTxOs carrying this fresh `P` asset, also carries the
+registration fee's Lovelaces,
+
+- The other `P` asset is stored in a UTxO, where its datum hold the static info
+of the project (label, requested amount, etc.).
 
 To avoid redundancy, most of these checks can probably be done only by the
 validator. And to prevent arbitrary minting, presence of `S` might suffice to
@@ -467,7 +470,7 @@ minter.
 
 The required conditions are:
 
-- The deadline has not passed,
+- The deadline reference UTxO is present, and the deadline has not passed,
 
 - The transaction is signed by the donor,
 
@@ -491,7 +494,7 @@ validator is executed.
 
 The required conditions are:
 
-- The deadline has passed,
+- The deadline reference UTxO is present, and the deadline has passed,
 
 - The transaction is signed by the key holder,
 
@@ -514,7 +517,7 @@ minter will also be executed here.
 
 The required conditions are:
 
-- The deadline has passed,
+- The deadline reference UTxO is present, and the deadline has passed,
 
 - The transaction is signed by the key holder,
 
@@ -539,7 +542,7 @@ burnt.
 
 The required conditions are:
 
-- The deadline has passed,
+- The deadline reference UTxO is present, and the deadline has passed,
 
 - The transaction is signed by the key holder,
 
@@ -566,7 +569,7 @@ datum accordingly.
 
 The required conditions are:
 
-- The deadline has passed,
+- The deadline reference UTxO is present, and the deadline has passed,
 
 - The transaction is signed by the key holder,
 
@@ -589,11 +592,13 @@ from the registration fee, the rest can be sent to the project owner.
 
 The required conditions are:
 
-- The deadline has passed,
+- The deadline reference UTxO is present, and the deadline has passed,
 
 - `S` is present,
 
 - `P` is present,
+
+- Project information reference UTxO is present,
 
 - A proper portion from the prize pool is sent to the associated project's
 wallet,

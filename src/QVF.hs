@@ -76,8 +76,7 @@ qvfAsset qvf = AssetClass (qvfSymbol qvf, NFT.qvfTokenName)
 -- PROJECT DETAILS
 -- {{{
 data ProjectDetails = ProjectDetails
-  { pdId         :: !BuiltinByteString
-  , pdPubKeyHash :: !PubKeyHash
+  { pdPubKeyHash :: !PubKeyHash
   , pdName       :: !BuiltinByteString
   , pdRequested  :: !Integer
   }
@@ -90,7 +89,13 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 -- {{{
 data QVFDatum
   -- {{{
-  = RegisteredProjectsCount 
+  = DeadlineDatum
+    -- ^ The datum attached to a reference UTxO for reading the deadline of the fund.
+      -- {{{
+      !POSIXTime
+      -- }}}
+
+  | RegisteredProjectsCount 
     -- ^ The "main" datum, keeping a record of the number of registered projects.
       -- {{{
       !Integer
@@ -166,17 +171,18 @@ data QVFDatum
   -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('RegisteredProjectsCount      , 0)
-  , ('DonationAccumulationProgress , 1)
-  , ('DonationAccumulationConcluded, 2)
-  , ('ProjectInfo                  , 3)
-  , ('ReceivedDonationsCount       , 4)
-  , ('DonationFoldingProgress      , 5)
-  , ('DonationFoldingConcluded     , 6)
-  , ('PrizeWeight                  , 7)
-  , ('Donation                     , 8)
-  , ('Donations                    , 9)
-  , ('Escrow                       , 10)
+  [ ('DeadlineDatum                , 0)
+  , ('RegisteredProjectsCount      , 1)
+  , ('DonationAccumulationProgress , 2)
+  , ('DonationAccumulationConcluded, 3)
+  , ('ProjectInfo                  , 4)
+  , ('ReceivedDonationsCount       , 5)
+  , ('DonationFoldingProgress      , 6)
+  , ('DonationFoldingConcluded     , 7)
+  , ('PrizeWeight                  , 8)
+  , ('Donation                     , 9)
+  , ('Donations                    , 10)
+  , ('Escrow                       , 11)
   ]
 -- }}}
 -- }}}
