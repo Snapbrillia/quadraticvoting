@@ -147,7 +147,10 @@ And these outputs:
 
   - A fresh UTxO sent to `G`, carrying a project asset (`P` with an
   identification token name, i.e. one of the UTxOs being spent in this
-  transaction), and a datum with additional information about the project,
+  transaction), and a datum that keeps track of the number of donations,
+
+  - Another UTxO carrying `P`, where its datum carries additional information
+  about the project (meant for referencing),
 
   - A change UTxO sent back to project owner's wallet.
 
@@ -173,7 +176,7 @@ So a `Tx_v` will comprise of these inputs:
   (minted by `P`), and a datum carrying the total count of donations received
   so far,
 
-  - Reference UTxO carrying the rest of information about the project.
+  - Reference to the deadline UTxO.
 
 And these outputs:
 
