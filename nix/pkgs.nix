@@ -4,10 +4,10 @@ final: prev: with final; {
   inherit (quadraticvoting-project.args) compiler-nix-name;
 
   # The is used by nix/regenerate.sh to pre-compute package list to avoid double evaluation.
-  genProjectPackages = lib.genAttrs
-    (lib.attrNames (haskell-nix.haskellLib.selectProjectPackages
-      quadraticvoting-project.hsPkgs))
-    (name: lib.attrNames quadraticvoting-project.pkg-set.options.packages.value.${name}.components.exes);
+  # genProjectPackages = lib.genAttrs
+  #   (lib.attrNames (haskell-nix.haskellLib.selectProjectPackages
+  #     quadraticvoting-project.hsPkgs))
+  #   (name: lib.attrNames quadraticvoting-project.pkg-set.options.packages.value.${name}.components.exes);
 
   cabal = haskell-nix.tool compiler-nix-name "cabal" {
     version = "latest";
