@@ -1,10 +1,20 @@
 version = 0.1
+[qvf]
+[qvf.deploy]
+[qvf.deploy.parameters]
+stack_name = "QVF-GS-Dev"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1mgvxtwlz9hav"
+s3_prefix = "QVF-GS-Dev"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+image_repositories = []
+
 [default]
 [default.deploy]
 [default.deploy.parameters]
-stack_name = "QVF-Example-Lambda"
+stack_name = "QVF-GS-Dev"
 s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1mgvxtwlz9hav"
-s3_prefix = "QVF-Example-Lambda"
+s3_prefix = "QVF-GS-Dev"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 image_repositories = []
