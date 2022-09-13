@@ -11,7 +11,7 @@ in
 , pkgs ? import ./nix customConfig
 # to use profiled build of haskell dependencies:
 , profiled ? false
-, cardano-mainnet-mirror ? __getFlake "github:input-output-hk/cardano-mainnet-mirror/nix"
+#, cardano-mainnet-mirror ? __getFlake "github:input-output-hk/cardano-mainnet-mirror/nix"
 }:
 with pkgs;
 let

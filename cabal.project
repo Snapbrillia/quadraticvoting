@@ -2,7 +2,9 @@
 -- run `nix flake lock --update-input hackageNix` after updating index-state.
 index-state: 2022-04-28T09:22:25Z
 
-packages: ./.
+packages: 
+    quadraticVoting
+    qvf-cli
 
 -- flags for the plutonomy optimizer
 flags:      +plutus-4710dff2e

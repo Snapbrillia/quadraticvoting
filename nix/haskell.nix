@@ -80,9 +80,8 @@ haskell-nix.cabalProject' ({ pkgs
           components.library.pkgconfig = lib.mkForce [ [ pkgs.libsodium-vrf ] ];
         });
       })
-      ({ pkgs, options, ... }: {
-        # make sure that libsodium DLLs are available for windows binaries,
-        # stamp executables with the git revision, add shell completion, strip/rewrite:
+      ({ pkgs, ... }: {
+        # stamp executables with the git revision, strip/rewrite:
         packages = lib.mapAttrs
           (name: exes: {
             components.exes = lib.genAttrs exes (exe: {

@@ -41,7 +41,7 @@
 
     customConfig.url = "github:input-output-hk/empty-flake";
 
-    cardano-mainnet-mirror.url = "github:input-output-hk/cardano-mainnet-mirror/nix";
+    #cardano-mainnet-mirror.url = "github:input-output-hk/cardano-mainnet-mirror/nix";
 
   };
 
@@ -53,19 +53,18 @@
     , haskellNix
     , iohkNix
     # , plutus-apps
-    , cardano-mainnet-mirror
+    #, cardano-mainnet-mirror
     , ...
     }@input:
     let
       inherit (nixpkgs) lib;
-      inherit (lib) head systems mapAttrs recursiveUpdate mkDefault
-        getAttrs optionalAttrs nameValuePair attrNames;
-      inherit (utils.lib) eachSystem mkApp flattenTree;
+      inherit (lib) head systems mapAttrs recursiveUpdate optionalAttrs;
+      inherit (utils.lib) eachSystem;
       inherit (iohkNix.lib) prefixNamesWith;
       removeRecurse = lib.filterAttrsRecursive (n: _: n != "recurseForDerivations");
       flatten = attrs: lib.foldl' (acc: a: if (lib.isAttrs a) then acc // (removeAttrs a [ "recurseForDerivations" ]) else acc) { } (lib.attrValues attrs);
 
-      supportedSystems = import ./nix/supported-systems.nix;
+      supportedSystems = [ "x86_64-linux" ];
       defaultSystem = head supportedSystems;
       customConfig = recursiveUpdate
         (import ./nix/custom-config.nix customConfig)
@@ -89,7 +88,7 @@
         self.overlay
       ];
 
-      projectPackagesExes = import ./nix/project-packages-exes.nix;
+      projectPackagesExes = { quadraticVoting = [ ]; qvf-cli = [ "qvf-cli" ]; };
 
       mkPackages = project:
         let
@@ -123,7 +122,7 @@
 
           inherit (mkPackages project) projectPackages projectExes;
 
-          shell = import ./shell.nix { inherit pkgs customConfig cardano-mainnet-mirror; };
+          shell = import ./shell.nix { inherit pkgs customConfig ; };
           devShells = {
             devops = shell;
             workbench-shell = shell;
@@ -150,24 +149,15 @@
           legacyPackages = pkgs;
 
           # Built by `nix build .`
-          defaultPackage = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
+          defaultPackage = packages.qvf-cli.components.exes.qvf-cli;
 
           # Run by `nix run .`
-          defaultApp = apps.qvf-generate-scripts;
+          defaultApp = apps.qvf-cli;
 
-          # Built by `nix build .#qvf-generate-scripts-static.x86_64-linux`
-          # Bundle  to a docker image:
-          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts-static.x86_64-linux
-          # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
-          # docker run qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
-          qvf-generate-scripts-static = jobs.x86_64-linux.linux.musl.qvf-generate-scripts;
+          qvf-cli-static = jobs.x86_64-linux.linux.musl.qvf-cli;
 
-          # Built by `nix build .#qvf-generate-scripts.x86_64-linux`
-          # Bundle to a docker image:
-          # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts.x86_64-linux
-          # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-0.1.0.0.tar.gz
-          # docker run qvf-generate-scripts-0.1.0.0:latest xxx          
-          qvf-generate-scripts = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
+          # Built by `nix build .#qvf-cli.x86_64-linux`
+          qvf-cli = packages.qvf-cli.components.exes.qvf-cli;
 
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
@@ -195,12 +185,11 @@
         }
       );
       jobs = flake.jobs;
-      qvf-generate-scripts-static = flake.qvf-generate-scripts-static;
-      qvf-generate-scripts = flake.qvf-generate-scripts;
-    in
+      qvf-cli-static = flake.qvf-cli-static;
+      qvf-cli = flake.qvf-cli;    in
     flake // {
 
-      inherit jobs qvf-generate-scripts-static qvf-generate-scripts ;
+      inherit jobs qvf-cli-static qvf-cli ;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};
