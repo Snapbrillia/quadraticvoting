@@ -960,17 +960,19 @@ minAuthLovelace = 10_000_000
 -- }}}
 
 
--- TxInfo = TxInfo
---   { txInfoInputs      :: [TxInInfo]
---   , txInfoOutputs     :: [TxOut]
---   , txInfoFee         :: Value
---   , txInfoMint        :: Value
---   , txInfoDCert       :: [DCert]
---   , txInfoWdrl        :: [(StakingCredential, Integer)]
---   , txInfoValidRange  :: POSIXTimeRange
---   , txInfoSignatories :: [PubKeyHash]
---   , txInfoData        :: [(DatumHash, Datum)]
---   , txInfoId          :: TxId
+-- TxInfo	= TxInfo
+--   { txInfoInputs          :: [TxInInfo]
+--   , txInfoReferenceInputs :: [TxInInfo]
+--   , txInfoOutputs         :: [TxOut]
+--   , txInfoFee             :: Value
+--   , txInfoMint            :: Value
+--   , txInfoDCert           :: [DCert]
+--   , txInfoWdrl            :: Map StakingCredential Integer
+--   , txInfoValidRange      :: POSIXTimeRange
+--   , txInfoSignatories     :: [PubKeyHash]
+--   , txInfoRedeemers       :: Map ScriptPurpose Redeemer 
+--   , txInfoData            :: Map DatumHash Datum 
+--   , txInfoId              :: TxId
 --   }
 
 -- TxInInfo = TxInInfo
@@ -979,9 +981,15 @@ minAuthLovelace = 10_000_000
 --   }
 
 -- TxOut = TxOut
---   { txOutAddress      :: Address
---   , txOutValue        :: Value
---   , txOutDatumHash    :: Maybe DatumHash
+--   { txOutAddress         :: Address
+--   , txOutValue           :: Value
+--   , txOutDatum           :: OutputDatum
+--   , txOutReferenceScript :: Maybe ScriptHash
 --   }
+
+-- OutputDatum
+--   = NoOutputDatum	 
+--   | OutputDatumHash DatumHash	 
+--   | OutputDatum     Datum
 
 
