@@ -454,12 +454,13 @@ unique identifier of the project (i.e hash of the specified UTxO),
 - One of the output UTxOs carrying this fresh `P` asset, also carries the
 registration fee's Lovelaces,
 
-- The other `P` asset is stored in a UTxO, where its datum hold the static info
-of the project (label, requested amount, etc.).
+- The other `P` asset is stored in a UTxO, which its datum holds the static
+information of the project (label, requested amount, etc.).
 
-To avoid redundancy, most of these checks can probably be done only by the
-validator. And to prevent arbitrary minting, presence of `S` might suffice to
-lock the two scripts together.
+To avoid redundancy, some of these checks can should be done only by the
+validator, while others are delegated to the registration minter. It probably
+suffices to check the presence of `S` in order to lock the two scripts
+together.
 
 
 ### Donation Transaction

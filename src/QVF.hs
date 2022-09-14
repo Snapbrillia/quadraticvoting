@@ -219,7 +219,7 @@ PlutusTx.makeIsDataIndexed ''QVFDatum
 -- {{{
 data RegistrationInfo = RegistrationInfo
   { riTxOutRef   :: !TxOutRef
-  , riPubKeyHash :: !BuiltinByteString
+  , riPubKeyHash :: !PubKeyHash
   , riLabel      :: !BuiltinByteString
   , riRequested  :: !Integer
   }
@@ -299,6 +299,19 @@ mkQVFValidator QVFParams{..} datum action ctx =
       txOutAddress currUTxO
       -- }}}
 
+    -- | Extracts the inline datum from a given UTxO.
+    --
+    -- Raises exception upon failure.
+    getInlineDatum :: TxOut -> QVFDatum
+    getInlineDatum utxo =
+      -- {{{
+      case txOutDatum utxo of
+        OutputDatum (Datum d) ->
+          d
+        _                     ->
+          traceError "Bad inline datum."
+      -- }}}
+
     -- | Checks if a given UTxO is in fact from this contract.
     utxoSitsAtScript :: TxOut -> Bool
     utxoSitsAtScript =
@@ -313,16 +326,94 @@ mkQVFValidator QVFParams{..} datum action ctx =
       traceIfFalse "Unauthorized." $ txSignedBy info qvfKeyHolder
       -- }}}
 
-    -- | Checks if a given UTxO has exactly 1 of an asset.
-    utxoHasAssetX :: CurrencySymbol -> TokenName -> TxOut -> Bool
-    utxoHasAssetX sym tn utxo =
+    -- | Checks if a given UTxO has exactly 1 of asset X.
+    utxoHasX :: CurrencySymbol -> TokenName -> TxOut -> Bool
+    utxoHasX sym tn utxo =
       -- {{{
         txOutValue utxo
       & flattenValue
-      & find (\(sym', tn', amt) -> sym' == sym && tn' == tn && amt == 1)
+      & find (\(sym', tn', amt') -> sym' == sym && tn' == tn && amt' == 1)
       & isJust
       -- }}}
 
+    -- | Checks if the UTxO currently being validated carries a single X asset.
+    currUTxOHasX :: CurrencySymbol -> TokenName -> Bool
+    currUTxOHasX sym tn =
+      -- {{{
+      utxoHasX sym tn currUTxO
+      -- }}}
+
+    -- | Tries to find an input from the script that carries a single X asset.
+    --
+    --   Expects to find exactly 1. Raises exception otherwise.
+    getXInputUTxO :: CurrencySymbol -> TokenName -> TxOut
+    getXInputUTxO sym tn =
+      -- {{{
+      case filter (utxoHasX sym tn . txInInfoResolved) (txInfoInputs info) of
+        [txIn] ->
+          let
+            inUTxO = txInInfoResolved txIn
+          in
+          if utxoSitsAtScript inUTxO then
+            inUTxO
+          else
+            traceError "Input authentication asset must come from the script."
+        _      ->
+          traceError "There should be exactly 1 authentication asset in input."
+      -- }}}
+
+    -- | Looks inside the reference inputs and extracts the inline datum
+    --   attached to one of which carries the given asset.
+    --
+    --   Raises exception if the reference input, or the datum is not found.
+    getDatumFromRefX :: CurrencySymbol -> TokenName -> QVFDatum
+    getDatumFromRefX sym tn =
+      -- {{{
+      case find (utxoHasX sym tn . txInInfoResolved) (txInfoReferenceInputs info) of
+        Just txIn ->
+          -- {{{
+          getInlineDatum (txInInfoResolved txIn)
+          -- }}}
+        Nothing   ->
+          -- {{{
+          traceError "Missing reference input."
+          -- }}}
+      -- }}}
+
+    -- | Checks if a UTxO carries a specific inline datum.
+    --
+    -- Raises exception upon failure.
+    utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
+    utxosDatumMatchesWith newDatum =
+      -- {{{
+      (newDatum ==) . getInlineDatum
+      -- }}}
+
+    -- | Looks for the presence of a UTxO in the input list with 1 X asset, and
+    --   a datum that complies with the given predicate.
+    xInputWithSpecificDatumExists :: CurrencySymbol
+                                  -> TokenName
+                                  -> (QVFDatum -> Bool)
+                                  -> Bool
+    xInputWithSpecificDatumExists sym tn datumPred =
+      -- {{{
+      let
+        pred txIn =
+          -- {{{
+          let
+            txOut = txInInfoResolved txIn
+          in
+             utxoHasX sym tn txOut
+          && datumPred (getInlineDatum txOut)
+          -- }}}
+      in
+      isJust $ find pred $ txInfoInputs info
+      -- }}}
+  
+    -- | Checks 1 X comes from the script, and 1 X goes back to the script,
+    --   with enough added Lovelaces and properly updated datum.
+    --
+    --   Raises exception on @False@.
     xIsPresent :: CurrencySymbol -- ^ X's currency symbol
                -> TokenName      -- ^ X's token name
                -> Integer        -- ^ Increase in output's Lovelace count
@@ -330,83 +421,82 @@ mkQVFValidator QVFParams{..} datum action ctx =
                -> Bool
     xIsPresent sym tn increaseInLovelace newDatum =
       -- {{{
-      case filter (utxoHasAssetX sym tn . txInInfoResolved) (txInfoInputs info) of
-        [txIn] ->
+      let
+        inUTxO = getXInputUTxO sym tn
+      in
+      case filter (utxoHasX sym tn) (getContinuingOutputs ctx) of
+        [txOut] ->
           -- {{{
-          let
-            inUTxO = txInInfoResolved txIn
-          in
-          if utxoSitsAtScript inUTxO then
+          if utxoSitsAtScript txOut then
             -- {{{
-            case filter (utxoHasAssetX sym tn) (getContinuingOutputs ctx) of
-              [txOut] ->
-                -- {{{
-                if utxoSitsAtScript txOut then
-                  -- {{{
-                  case txOutDatum txOut of
-                    OutputDatum (Datum d) ->
-                      -- {{{
-                      case fromBuiltinData d of
-                        Just updatedDatum ->
-                          -- {{{
-                          let
-                            inVal         = txOutValue inUTxO
-                            outVal        = txOutValue txOut
-                            desiredOutVal =
-                              inVal <> Ada.lovelaceValueOf increaseInLovelace
-                          in
-                             traceIfFalse
-                               "Authenticated output doesn't have enough Lovelaces"
-                               (outVal == desiredOutVal)
-                          && traceIfFalse
-                               "Invalid datum attached to the authenticated output."
-                               (updatedDatum == newDatum)
-                          -- }}}
-                        Nothing           ->
-                          -- {{{
-                          traceError "Bad inline datum for the authenticated output."
-                          -- }}}
-                      -- }}}
-                    _                     ->
-                      -- {{{
-                      traceError "Authenticated output must have an inline datum."
-                      -- }}}
-                  -- }}}
-                else
-                  -- {{{
-                  traceError "Produced authentication asset must be sent back to the script."
-                  -- }}}
-                -- }}}
-              _       ->
-                -- {{{
-                traceError "There must be exactly 1 authentication asset produced."
-                -- }}}
+            let
+              inVal         = txOutValue inUTxO
+              outVal        = txOutValue txOut
+              desiredOutVal =
+                inVal <> Ada.lovelaceValueOf increaseInLovelace
+            in
+               traceIfFalse
+                 "Authenticated output doesn't have enough Lovelaces"
+                 (outVal == desiredOutVal)
+            && traceIfFalse
+                 "Invalid datum attached to the authenticated output."
+                 (utxosDatumMatchesWith newDatum txOut)
             -- }}}
           else
             -- {{{
-            traceError "Input authentication asset must come from the script."
+            traceError "Produced authentication asset must be sent back to the script."
             -- }}}
           -- }}}
-        _      ->
+        _       ->
           -- {{{
-          traceError "There should be exactly 1 authentication asset in input."
+          traceError "There must be exactly 1 authentication asset produced."
           -- }}}
       -- }}}
 
-    -- | Checks whether the given deadline has not been reached yet.
+    -- | Looks for the deadline reference UTxO, and checks if the funding round
+    --   is still in progress.
+    --
+    --   Raises exception on @False@.
+    canRegisterOrDonate :: () -> Bool
+    canRegisterOrDonate _ =
+      -- {{{
+      case getDatumFromRefX qvfSymbol qvfTokenName of
+        DeadlineDatum dl ->
+          traceIfFalse "This funding round is over." $ deadlineNotReached dl
+        _                ->
+          traceError "Invalid deadline datum."
+      -- }}}
+
+    -- | Checks whether project registrations and donations are still allowed.
     deadlineNotReached :: POSIXTime -> Bool
     deadlineNotReached dl =
       -- {{{
       Interval.to dl `Interval.contains` txInfoValidRange info
       -- }}}
 
-    -- | Checks whether the given deadline has been reached.
+    -- | Checks whether the distribution can be triggered.
     deadlineReached :: POSIXTime -> Bool
     deadlineReached dl =
       -- {{{
       Interval.from dl `Interval.contains` txInfoValidRange info
       -- }}}
 
+    -- | Validates the minting value.
+    mintIsPresent :: CurrencySymbol -> TokenName -> Integer -> Bool
+    mintIsPresent sym tn amt =
+      -- {{{
+      any
+        (\(sym', tn', amt') -> sym' == sym && tn' == tn && amt' == amt)
+        (flattenValue $ txInfoMint info)
+      -- }}}
+
+    -- | Helper function to see if the given UTxO carries the given amount of
+    --   Lovelaces.
+    utxoHasLovelaces :: Integer -> TxOut -> Bool
+    utxoHasLovelaces lovelaces txOut =
+      -- {{{
+      txOutValue txOut == Ada.lovelaceValueOf lovelaces
+      -- }}}
   in
   case (datum, action) of
     (DeadlineDatum currDl                         , UpdateDeadline newDl   ) ->
@@ -414,20 +504,147 @@ mkQVFValidator QVFParams{..} datum action ctx =
          traceIfFalse
            "New deadline has already passed."
            (deadlineReached newDl)
-      && xIsPresent qvfSymbol qvfTokenName 0 (DeadlineDatum newDl)
+      && traceIfFalse
+           "Missing authentication asset."
+           (currUTxOHasX qvfSymbol qvfTokenName)
+      && ( case getContinuingOutputs ctx of
+             [o] ->
+               -- {{{
+               traceIfFalse
+                 "Invalid output datum."
+                 (utxosDatumMatchesWith (DeadlineDatum newDl) o)
+               -- }}}
+             _   ->
+               -- {{{
+               traceError
+                 "There should be exactly 1 UTxO going back to the script."
+               -- }}}
+         )
       -- }}}
 
     (RegisteredProjectsCount soFar                , RegisterProject regInfo) ->
       -- Project Registration
-      traceError "TODO."
+      -- {{{
+      let
+        tn = orefToTokenName $ riTxOutRef regInfo
+
+        -- | Raises exception on @False@.
+        outputPsArePresent :: Bool
+        outputPsArePresent =
+          -- {{{
+          case filter (utxoHasX qvfProjectSymbol tn) getContinuingOutputs of
+            -- TODO: Is it OK to expect a certain order for these outputs?
+            --       This is desired to avoid higher transaction fees.
+            [o0, o1] ->
+              -- {{{
+                 traceIfFalse
+                   "First continuing output must carry project's static info."
+                   ( utxosDatumMatchesWith
+                       (ProjectInfo $ registrationInfoToProjectDetials regInfo)
+                       o0
+                   )
+              && traceIfFalse
+                   "Second continuing output must carry record of donations."
+                   ( utxosDatumMatchesWith
+                       (ReceivedDonationsCount 0)
+                       o1
+                   )
+              && traceIfFalse
+                   "Half of the registration fee should be stored in project's reference UTxO."
+                   (utxoHasLovelaces halfOfTheRegistrationFee o0)
+              && traceIfFalse
+                   "Half of the registration fee should be stored in project's main UTxO."
+                   (utxoHasLovelaces halfOfTheRegistrationFee o1)
+              -- }}}
+            _        ->
+              -- {{{
+              traceError "There should be exactly 2 project UTxOs produced."
+              -- }}}
+          -- }}}
+      in
+         traceIfFalse
+           "There should be exactly 2 project assets minted."
+           (mintIsPresent qvfProjectSymbol tn 2)
+      && xIsPresent
+           qvfSymbol
+           qvfTokenName
+           0
+           (RegisteredProjectsCount $ soFar + 1)
+      && canRegisterOrDonate ()
+      && outputPsArePresent
+      -- }}}
 
     (ReceivedDonationsCount soFar                 , DonateToProject donInfo) ->
       -- Project Donation
-      traceError "TODO."
+      -- {{{
+      let
+        tn = TokenName $ diProjectId donInfo
+
+        -- | Raises exception on @False@.
+        outputVIsPresent :: Bool
+        outputVIsPresent =
+          -- {{{
+          case filter (utxoHasX qvfDonationSymbol tn) getContinuingOutputs of
+            [o] ->
+              -- {{{
+                 traceIfFalse
+                   "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
+                   ( utxosDatumMatchesWith
+                       (Donation $ diDonor donInfo)
+                       o
+                   )
+              && traceIfFalse
+                   "Donation UTxO must carry exactly the same Lovelace count as specified."
+                   (utxoHasLovelaces (diAmount donInfo) o)
+              -- }}}
+            _        ->
+              -- {{{
+              traceError "There should be exactly 1 donation UTxO produced."
+              -- }}}
+          -- }}}
+      in
+         traceIfFalse
+           "There should be exactly 1 donation asset minted."
+           (mintIsPresent qvfDonationSymbol tn 1)
+      && xIsPresent qvfProjectSymbol tn 0 (ReceivedDonationsCount $ soFar + 1)
+      && canRegisterOrDonate ()
+      && outputVIsPresent
+      -- }}}
 
     (Donation donorsPKH                           , FoldDonationsPhaseOne  ) ->
       -- First Phase of Folding Donations
-      traceError "TODO."
+      -- To avoid excessive transaction fees, this endpoint delegates its
+      -- logic to the @P@ UTxO by checking that it is in fact being spent.
+      -- {{{ 
+      let
+        -- | Finds the token name of the current donation UTxO being spent.
+        --   Used to check the presence of relevant project UTxO.
+        --
+        --   Raises exception upon failure.
+        tn =
+          -- {{{
+          case flattenValue (txOutValue currUTxO) of
+            [_, (sym', tn', amt')] ->
+            -- TODO: We are assuming that Lovelaces appear first in this list.
+              -- {{{
+              if sym' == qvfDonationSymbol && amt' == 1 then
+                tn'
+              else
+                traceError "Unauthentic donation UTxO."
+              -- }}}
+            _                   ->
+              -- {{{
+              traceError "Donation UTxO has bad multiasset."
+              -- }}}
+          -- }}}
+      in
+        traceIfFalse "The project UTxO must also be getting consumed."
+      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
+      $ \case
+          ReceivedDonationsCount _    -> True
+          DonationFoldingProgress _ _ -> True
+          _                           -> False
+      -- }}} 
 
     (ReceivedDonationsCount soFar                 , FoldDonationsPhaseOne  ) ->
       -- First Phase of Folding Donations
@@ -512,6 +729,26 @@ qvfAddress = scriptAddress . qvfValidator
 -- }}}
 -- }}}
 
+
+-- UTILS
+-- {{{
+{-# INLINABLE registrationInfoToProjectDetials #-}
+registrationInfoToProjectDetials :: RegistrationInfo -> ProjectDetails
+registrationInfoToProjectDetials RegistrationInfo{..} =
+  -- {{{
+  ProjectDetails riPubKeyHash riLabel riRequested
+  -- }}}
+-- }}}
+
+
+-- CONSTANTS
+-- {{{
+registrationFee :: Integer
+registrationFee = 3_000_000
+
+halfOfTheRegistrationFee :: Integer
+halfOfTheRegistrationFee = 1_500_000
+-- }}}
 
 -- TxInfo	= TxInfo
 --   { txInfoInputs          :: [TxInInfo]
