@@ -5,7 +5,17 @@
 module Main (main) where
 
 
-import           Cardano.Api
+import           Cardano.Api            ( PlutusScript
+                                        , PlutusScriptV1
+                                        , ScriptData(..)
+                                        , SerialiseAsRawBytes(deserialiseFromRawBytes)
+                                        , AsType(AsAssetName)
+                                        , scriptDataFromJson
+                                        , scriptDataToJson
+                                        , ScriptDataJsonSchema(ScriptDataJsonDetailedSchema)
+                                        , writeFileTextEnvelope
+                                        , FileError
+                                        , serialiseToRawBytesHex )
 import           Cardano.Api.Shelley    (PlutusScript (..))
 import           Codec.Serialise        (Serialise, serialise)
 import qualified Data.Aeson             as A
