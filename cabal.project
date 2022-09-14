@@ -95,21 +95,9 @@ source-repository-package
   location: https://github.com/input-output-hk/plutus-apps
   -- the v2022-04-06 release
   tag: 14bed17e8608162ee81969e482c1815fb78bd7b0
-  subdir: 
-    freer-extras
-    playground-common
-    plutus-chain-index
-    plutus-chain-index-core
-    plutus-contract
-    plutus-contract-certification
+  subdir:
+    freer-extras 
     plutus-ledger
-    plutus-ledger-constraints
-    plutus-pab
-    plutus-pab-executables
-    plutus-playground-server
-    plutus-use-cases
-    quickcheck-dynamic
-    web-ghc
   --sha256: 1l24wcmd8g0854bbnxsi03gr9jv96r337hjailg5rgb7gmchrias
 
 -- Direct dependency.

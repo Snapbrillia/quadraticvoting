@@ -28,14 +28,10 @@ library
   build-depends:       base >= 4.9 && < 5
                      , aeson
                      , bytestring
-                     , cardano-api
                      , data-default
-                     , playground-common
                      , plutonomy
-                     , plutus-contract
                      , plutus-ledger
                      , plutus-ledger-api
-                     , plutus-ledger-constraints
                      , plutus-tx-plugin
                      , plutus-tx
 
