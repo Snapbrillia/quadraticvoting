@@ -336,11 +336,46 @@ mkQVFValidator QVFParams{..} datum action ctx =
       & isJust
       -- }}}
 
+    -- | Finds how much X asset is present in the given UTxO.
+    utxoXCount :: CurrencySymbol -> TokenName -> TxOut -> Integer
+    utxoXCount sym tn utxo =
+      -- {{{
+        txOutValue utxo
+      & flattenValue
+      & find (\(sym', tn', _) -> sym' == sym && tn' == tn)
+      & ( \case 
+            Just (_, _, amt) -> amt
+            Nothing          -> 0
+        )
+      -- }}}
+
     -- | Checks if the UTxO currently being validated carries a single X asset.
     currUTxOHasX :: CurrencySymbol -> TokenName -> Bool
     currUTxOHasX sym tn =
       -- {{{
       utxoHasX sym tn currUTxO
+      -- }}}
+
+    -- | Tries to find a singular asset with a given symbol inside the UTxO
+    --   that is currently being validated, and returns its token name.
+    --
+    --   Raises exception upon failure.
+    getCurrTokenName :: CurrencySymbol -> TokenName
+    getCurrTokenName sym =
+      -- {{{
+      case flattenValue (txOutValue currUTxO) of
+        [_, (sym', tn', amt')] ->
+        -- TODO: We are assuming that Lovelaces appear first in this list.
+          -- {{{
+          if sym' == sym && amt' == 1 then
+            tn'
+          else
+            traceError "Unauthentic UTxO is being spent."
+          -- }}}
+        _                   ->
+          -- {{{
+          traceError "The UTxO being spent has an invalid multiasset."
+          -- }}}
       -- }}}
 
     -- | Tries to find an input from the script that carries a single X asset.
@@ -382,7 +417,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     -- | Checks if a UTxO carries a specific inline datum.
     --
-    -- Raises exception upon failure.
+    --   Raises exception upon failure of getting the inline datum.
     utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
     utxosDatumMatchesWith newDatum =
       -- {{{
@@ -398,11 +433,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     xInputWithSpecificDatumExists sym tn datumPred =
       -- {{{
       let
-        pred txIn =
+        pred TxInInfo{txInInfoResolved = txOut} =
           -- {{{
-          let
-            txOut = txInInfoResolved txIn
-          in
              utxoHasX sym tn txOut
           && datumPred (getInlineDatum txOut)
           -- }}}
@@ -453,6 +485,140 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       -- }}}
 
+    foldDonationInputs :: TokenName -> (Integer, Integer, Map PubKeyHash Integer)
+    foldDonationInputs tn =
+      -- {{{
+      let
+        -- | Collects all the donation UTxOs into a @Map@ value: mapping their
+        --   public key hashes to their donated Lovelace count. It also counts
+        --   the number of donations.
+        --
+        --   Allows mixture of `Donation` and `Donations` datums (TODO?).
+        --
+        --   Ignores UTxOs that don't have the specified donation asset, but
+        --   raises exception if it finds the asset with a datum other than
+        --   `Donation`.
+        foldFn TxInInfo{txInInfoResolved = o} (count, total, dMap) =
+          -- {{{
+          let
+            xCount               = utxoXCount qvfDonationSymbol tn o
+            lovelaces            = lovelaceFromValue $ txOutValue o
+            helperFn mapForUnion =
+              -- {{{
+              ( count + xCount
+              , total + lovelaces
+              , Map.unionWith (+) mapForUnion dMap
+              )
+              -- }}}
+          in
+          if xCount > 0 then
+            -- {{{
+            case getInlineDatum o of
+              Donation donor  ->
+                -- {{{
+                -- TODO: Here we have an implicit assumption that since the
+                --       UTxO has a `Donation` datum, it must also carry
+                --       exactly 1 donation asset.
+                helperFn $ Map.singleton donor lovelaces
+                -- }}}
+              Donations soFar ->
+                -- {{{
+                helperFn soFar
+                -- }}}
+              _               ->
+                -- {{{
+                traceError "Unexpected UTxO encountered."
+                -- }}}
+            -- }}}
+          else
+            -- {{{
+            (count, total, dMap)
+            -- }}}
+          -- }}}
+      in
+      foldr foldFn (0, 0, Map.empty) $ txInfoInputs info
+      -- }}}
+
+    -- | Collection of validations for consuming a set number of donation
+    --   UTxOs, along with the project's UTxO. Outputs are expected to be
+    --   project's UTxO with an updated datum (given), ang also a single
+    --   `Donations` UTxO.
+    --
+    --   Raises exception on @False@.
+    foldingPhaseOneValidation :: Integer -> QVFDatum -> Bool
+    foldingPhaseOneValidation requiredDonationCount psUpdatedDatum =
+      -- {{{
+      let
+        tn                    = getCurrTokenName qvfProjectSymbol
+        (ds, total, finalMap) = foldDonationInputs tn
+        outputs               = getContinuingOutputs ctx
+        mOD                   = find (utxoHasX qvfDonationSymbol tn) outputs
+        mOP                   = find (utxoHasX qvfProjectSymbol tn) outputs
+      in
+      case (mOD, mOP) of
+        (Just od, Just op) ->
+          -- {{{
+             traceIfFalse
+               "Incorrect number of donations included for the first phase of folding."
+               (ds == requiredDonationCount)
+          && traceIfFalse
+               "Donations output must carry the folded donations."
+               (utxosDatumMatchesWith (Donations finalMap) od)
+          && traceIfFalse
+               "Project output must be properly updated."
+               (utxosDatumMatchesWith psUpdatedDatum op)
+          && traceIfFalse
+               "Donations output must carry all the donation Lovelaces."
+               (utxoHasLovelaces total od)
+          && traceIfFalse
+               "Project output must preserve its Lovelaces."
+               (utxoHasLovelaces halfOfTheRegistrationFee op)
+          && canFoldOrDistribute ()
+          && signedByKeyHolder ()
+          -- }}}
+        _                  ->
+          -- {{{
+          traceError "Missing proper outputs for the first phase of folding donations."
+          -- }}}
+      -- }}}
+
+    foldingPhaseTwoValidation :: Integer -> Bool
+    foldingPhaseTwoValidation requiredDonationCount =
+      -- {{{
+      let
+        tn                    = getCurrTokenName qvfProjectSymbol
+        (ds, total, finalMap) = foldDonationInputs tn
+      in
+      case getContinuingOutputs ctx of
+        [o] ->
+          -- {{{
+          let
+            w = foldDonationsMap finalMap
+          in
+             traceIfFalse
+               "All donations must be included in the final folding transaction."
+               (ds == requiredDonationCount)
+          && traceIfFalse
+               "Output UTxO doesn't carry project's authentication asset."
+               (utxoHasX qvfProjectSymbol tn)
+          && traceIfFalse
+               "Output datum must signal conclusion of folding donations."
+               (utxosDatumMatchesWith (PrizeWeight w False) o)
+          && traceIfFalse
+               "All donations must be included within the project UTxO."
+               (utxoHasLovelaces (total + halfOfTheRegistrationFee) o)
+          && traceIfFalse
+               "All donation assets must be burnt."
+               (mintIsPresent qvfDonationSymbol tn (-ds))
+          && canFoldOrDistribute ()
+          && signedByKeyHolder ()
+          -- }}}
+        _   ->
+          -- {{{
+          traceError "Missing output project UTxO with prize weight."
+          -- }}}
+      -- }}}
+
     -- | Looks for the deadline reference UTxO, and checks if the funding round
     --   is still in progress.
     --
@@ -463,6 +629,20 @@ mkQVFValidator QVFParams{..} datum action ctx =
       case getDatumFromRefX qvfSymbol qvfTokenName of
         DeadlineDatum dl ->
           traceIfFalse "This funding round is over." $ deadlineNotReached dl
+        _                ->
+          traceError "Invalid deadline datum."
+      -- }}}
+
+    -- | Looks for the deadline reference UTxO, and checks if the funding round
+    --   has ended.
+    --
+    --   Raises exception on @False@.
+    canFoldOrDistribute :: () -> Bool
+    canFoldOrDistribute _ =
+      -- {{{
+      case getDatumFromRefX qvfSymbol qvfTokenName of
+        DeadlineDatum dl ->
+          traceIfFalse "This funding round is still in progress." $ deadlineReached dl
         _                ->
           traceError "Invalid deadline datum."
       -- }}}
@@ -501,7 +681,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
   case (datum, action) of
     (DeadlineDatum currDl                         , UpdateDeadline newDl   ) ->
       -- {{{
-         traceIfFalse
+         signedByKeyHolder ()
+      && traceIfFalse
            "New deadline has already passed."
            (deadlineReached newDl)
       && traceIfFalse
@@ -604,6 +785,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       in
          traceIfFalse
+           "Donation is too small."
+           (diAmount donInfo >= minDonationAmount)
+      && traceIfFalse
+           "This project has reached the maximum number of donations."
+           (soFar < maxTotalDonationCount)
+      && traceIfFalse
            "There should be exactly 1 donation asset minted."
            (mintIsPresent qvfDonationSymbol tn 1)
       && xIsPresent qvfProjectSymbol tn 0 (ReceivedDonationsCount $ soFar + 1)
@@ -621,22 +808,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         --   Used to check the presence of relevant project UTxO.
         --
         --   Raises exception upon failure.
-        tn =
-          -- {{{
-          case flattenValue (txOutValue currUTxO) of
-            [_, (sym', tn', amt')] ->
-            -- TODO: We are assuming that Lovelaces appear first in this list.
-              -- {{{
-              if sym' == qvfDonationSymbol && amt' == 1 then
-                tn'
-              else
-                traceError "Unauthentic donation UTxO."
-              -- }}}
-            _                   ->
-              -- {{{
-              traceError "Donation UTxO has bad multiasset."
-              -- }}}
-          -- }}}
+        tn = getCurrTokenName qvfDonationSymbol
       in
         traceIfFalse "The project UTxO must also be getting consumed."
       $ xInputWithSpecificDatumExists qvfProjectSymbol tn
@@ -648,15 +820,49 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     (ReceivedDonationsCount soFar                 , FoldDonationsPhaseOne  ) ->
       -- First Phase of Folding Donations
-      traceError "TODO."
+      -- {{{
+      if soFar <= maxDonationInputsForPhaseTwo then
+        -- No need for the second phase.
+        foldingPhaseTwoValidation soFar
+      else
+        -- Folding should happen in two phases.
+        foldingPhaseOneValidation
+          maxDonationInputsForPhaseOne -- The number of donation assets expected in inputs.
+          ( DonationFoldingProgress
+              soFar                                  -- Total number of donations.
+              (soFar - maxDonationInputsForPhaseOne) -- Donations folded so far.
+          )
+      -- }}}
 
     (DonationFoldingProgress tot soFar            , FoldDonationsPhaseOne  ) ->
       -- First Phase of Folding Donations
-      traceError "TODO."
+      -- {{{
+      let
+        remaining = tot - soFar
+        expected  = min remaining maxDonationInputsForPhaseOne
+      in
+      if remaining == 0 then
+        foldingPhaseTwoValidation tot
+      else
+        foldingPhaseOneValidation
+          expected
+          (DonationFoldingProgress tot (soFar + expected))
+      -- }}}
 
     (Donations pkhToAmountMap                     , FoldDonationsPhaseTwo  ) ->
       -- Second Phase of Folding Donations
-      traceError "TODO."
+      -- Similar to `Donation`, this endpoint also delegates its logic. This
+      -- time, specifically to `DonationFoldingProgress`.
+      -- {{{ 
+      let
+        tn = getCurrTokenName qvfDonationSymbol
+      in
+        traceIfFalse "The project UTxO must also be getting consumed."
+      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
+      $ \case
+          DonationFoldingProgress _ _ -> True
+          _                           -> False
+      -- }}} 
 
     (DonationFoldingConcluded tot                 , FoldDonationsPhaseTwo  ) ->
       -- Second Phase of Folding Donations
@@ -738,6 +944,24 @@ registrationInfoToProjectDetials RegistrationInfo{..} =
   -- {{{
   ProjectDetails riPubKeyHash riLabel riRequested
   -- }}}
+
+
+{-# INLINABLE foldDonationsMap #-}
+-- | Notating Lovelace contributions to each project as \(v\), this is the
+--   quadratic formula to represent individual prize weights (\(w_p\)):
+--   \[
+--       w_p = (\sum{\sqrt{v}})^2
+--   \]
+foldDonationsMap :: Map PubKeyHash Integer -> Integer
+foldDonationsMap dsMap =
+  -- {{{
+  let
+    ds                      = Map.toList dsMap
+    foldFn (_, lovelaces) w = takeSqrt lovelaces + w
+    initW                   = foldr foldFn 0 ds
+  in
+  initW * initW
+  -- }}}
 -- }}}
 
 
@@ -748,7 +972,17 @@ registrationFee = 3_000_000
 
 halfOfTheRegistrationFee :: Integer
 halfOfTheRegistrationFee = 1_500_000
+
+maxDonationInputsForPhaseOne :: Integer
+maxDonationInputsForPhaseOne = 120
+
+maxDonationInputsForPhaseTwo :: Integer
+maxDonationInputsForPhaseTwo = 250
+
+maxTotalDonationCount :: Integer
+maxTotalDonationCount = 30_000
 -- }}}
+
 
 -- TxInfo	= TxInfo
 --   { txInfoInputs          :: [TxInInfo]
