@@ -144,12 +144,6 @@ data QVFDatum
       !Integer -- ^ Total donation count.
       !Integer -- ^ Folded so far.
       -- }}}
-  
-  | DonationFoldingConcluded
-    -- ^ Project UTxO after the last folding transaction of phase one.
-      -- {{{
-      !Integer -- ^ Total donation count.
-      -- }}}
 
   | PrizeWeight
     -- ^ Result of folding all donations.
@@ -187,7 +181,6 @@ instance Eq QVFDatum where
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
   ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
   DonationFoldingProgress t0 s0 == DonationFoldingProgress t1 s1 = t0 == t1 && s0 == s1
-  DonationFoldingConcluded t0 == DonationFoldingConcluded t1 = t0 == t1
   PrizeWeight w0 d0 == PrizeWeight w1 d1 = w0 == w1 && d0 == d1
   Donation p0 == Donation p1 = p0 == p1
   Donations m0 == Donations m1 = m0 == m1
@@ -203,11 +196,10 @@ PlutusTx.makeIsDataIndexed ''QVFDatum
   , ('ProjectInfo                  , 4)
   , ('ReceivedDonationsCount       , 5)
   , ('DonationFoldingProgress      , 6)
-  , ('DonationFoldingConcluded     , 7)
-  , ('PrizeWeight                  , 8)
-  , ('Donation                     , 9)
-  , ('Donations                    , 10)
-  , ('Escrow                       , 11)
+  , ('PrizeWeight                  , 7)
+  , ('Donation                     , 8)
+  , ('Donations                    , 9)
+  , ('Escrow                       , 10)
   ]
 -- }}}
 -- }}}
@@ -860,13 +852,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
         traceIfFalse "The project UTxO must also be getting consumed."
       $ xInputWithSpecificDatumExists qvfProjectSymbol tn
       $ \case
-          DonationFoldingProgress _ _ -> True
-          _                           -> False
+          DonationFoldingProgress tot soFar -> tot == soFar
+          _                                 -> False
       -- }}} 
-
-    (DonationFoldingConcluded tot                 , FoldDonationsPhaseTwo  ) ->
-      -- Second Phase of Folding Donations
-      traceError "TODO."
 
     (DonationAccumulationProgress tot ps ds w     , AccumulateDonations    ) ->
       -- Accumulation of Donated Lovelaces
