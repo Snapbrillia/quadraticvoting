@@ -135,21 +135,21 @@ mkRegistrationPolicy sym tn action ctx =
           hasUTxO
 
     DistributePrize  projectID  ->
-    let
-        checkTokenName :: TokenName ->  Bool
-        checkTokenName tn = unTokenName tn  == projectID
+      let
+          checkTokenName :: TokenName ->  Bool
+          checkTokenName tn = unTokenName tn  == projectID
 
-        tokenIsCorrect :: Bool
-        tokenIsCorrect = case flattenValue (txInfoMint info) of
-            [(sym', tn', amt)] -> ownSym == sym' && checkTokenName tn' && amt  == (-1) -- ownSym check may be redundant
-            _               -> False
-    in
-        traceIfFalse
-          "Not all tokens present"
-          (hasInUTxO && hasOutUTxO)         &&
-        traceIfFalse
-          "Missing fees or incorrect token"
-          tokenIsCorrect
+          tokenIsCorrect :: Bool
+          tokenIsCorrect = case flattenValue (txInfoMint info) of
+              [(sym', tn', amt)] -> ownSym == sym' && checkTokenName tn' && amt  == (-1) -- ownSym check may be redundant
+              _               -> False
+      in
+          traceIfFalse
+            "Not all tokens present"
+            (hasInUTxO && hasOutUTxO)         &&
+          traceIfFalse
+            "Missing fees or incorrect token"
+            tokenIsCorrect
 
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
