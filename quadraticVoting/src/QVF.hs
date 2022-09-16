@@ -15,6 +15,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- }}}
