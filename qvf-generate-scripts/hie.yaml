@@ -1,0 +1,11 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:qvf-generate-scripts"
+      
+    - path: "./app"
+      component: "exe:qvf-generate-scripts"
+      
+    - path: "./app/Paths_quadraticVoting.hs"
+      component: "exe:qvf-generate-scripts"
+    

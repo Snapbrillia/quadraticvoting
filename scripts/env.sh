@@ -1,65 +1,107 @@
-#!/bin/bash
-
 export MAGIC='--testnet-magic 1097911063'
+# export MAGIC='--testnet-magic 2'
 
-# ==== CHANGE THIS VARIABLE ACCORDINGLY ==== #
-#export CARDANO_NODE_SOCKET_PATH=~/Plutus/plutus/plutus-pioneer-program/code/week06/testnet/node.sock
-#export CARDANO_NODE_SOCKET_PATH=~/plutus-pioneer-program/code/week03/testnet/node.socket
-export CARDANO_NODE_SOCKET_PATH=/home/kair/code/snapbrillia/quadraticvoting/testnet/node.socket
-export preDir="testnet"
-cli="cardano-cli"
-qvf="qvf-cli"
-#qvf="cabal run qvf-cli --"
+# === CHANGE THESE VARIABLES ACCORDINGLY === #
+export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
+export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet2"
+export cli="cardano-cli"
+export qvf="qvf-cli"
+# export qvf="cabal run qvf-cli --"
 # ========================================== #
+
+export keyHolder="keyHolder"
+export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
+export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
+export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
+export scriptLabel="qvf"
+export scriptPlutusFile="$preDir/$scriptLabel.plutus"
+export scriptAddressFile="$preDir/$scriptLabel.addr"
+export policyIdFile="$preDir/$scriptLabel.symbol"
+export policyId=$(cat $policyIdFile)
+export tokenNameHexFile="$preDir/token.hex"
+export policyScriptFile="$preDir/minting.plutus"
+export authAssetUTxOFile="$preDir/authAsset.utxo"
+export deadlineSlotFile="$preDir/deadline.slot"
+export latestInteractionSlotFile="$preDir/latestInteraction.slot"
+export protocolsFile="$preDir/protocol.json"
+export txBody="$preDir/tx.unsigned"
+export txSigned="$preDir/tx.signed"
+
+
+# Takes 1 argument:
+#   1. Datum file.
+get_deadline_slot() {
+  $qvf get-deadline-slot $(get_newest_slot) $1
+}
+
+
+store_current_slot() {
+  slot=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  echo $slot > $latestInteractionSlotFile
+}
+
+wait_for_new_slot() {
+  latest=$(cat $latestInteractionSlotFile)
+  current=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  while [ $current -eq $latest ]; do
+    current=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  done
+  echo $current
+}
+
+
+# Removes the double quotes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_quotes() {
+  echo $1           \
+  | sed 's|[",]||g'
+}
 
 
 # Generates a key pair.
 #
-# Takes 2 arguments:
-#   1. Verification key output file,
-#   2. Signing key output file.
+# Takes 1 argument:
+#   1. Label for files.
 generate_skey_and_vkey() {
-    $cli address key-gen           \
-        --verification-key-file $1 \
-        --signing-key-file $2
+    $cli address key-gen                        \
+        --verification-key-file $preDir/$1.vkey \
+        --signing-key-file $preDir/$1.skey
 }
 
 
 # Creates an address file from a verification file.
 # 
-# Takes 2 arguments:
-#   1. Verification key file,
-#   2. Address output file.
+# Takes 1 argument:
+#   1. Label for files.
 vkey_to_address() {
-    $cli address build                     \
-        --payment-verification-key-file $1 \
-        $MAGIC                             \
-        --out-file $2
+    $cli address build                                  \
+        $MAGIC                                          \
+        --payment-verification-key-file $preDir/$1.vkey \
+        --out-file $preDir/$1.addr
 }
 
 
 # Creates a public key hash file from a verification file.
 # 
-# Takes 2 arguments:
-#   1. Verification key file,
-#   2. Public key hash output file.
+# Takes 1 argument:
+#   1. Label for files.
 vkey_to_public_key_hash() {
-    $cli address key-hash                  \
-        --payment-verification-key-file $1 \
-        --out-file $2
+    $cli address key-hash                               \
+        --payment-verification-key-file $preDir/$1.vkey \
+        --out-file $preDir/$1.pkh
 }
 
 
 # Creates the associated address from a Plutus script File.
 # 
-# Takes 2 arguments:
-#   1. Compiled Plutus script file,
-#   2. Address output file.
+# Doesn't take any arguments, uses global variables.
 plutus_script_to_address() {
-    $cli address build-script        \
-        --script-file $1             \
-        $MAGIC                       \
-        --out-file $2
+    $cli address build-script           \
+        $MAGIC                          \
+        --script-file $scriptPlutusFile \
+        --out-file $scriptAddressFile
 }
 
 
@@ -85,7 +127,7 @@ generate_wallets_from_to() {
     # Important part
     for i in $(seq $1 $2)
     do
-    if [ -f $i.vkey ] || [ -f $i.skey ] || [ -f $i.addr ] || [ -f $i.pkh ]
+    if [ -f $preDir/$i.vkey ] || [ -f $preDir/$i.skey ] || [ -f $preDir/$i.addr ] || [ -f $preDir/$i.pkh ]
     then
 
     echo "Error! $i.vkey, $i.skey, $i.addr, or $i.pkh already exist. Move/rename/remove them first and run again."
@@ -93,9 +135,9 @@ generate_wallets_from_to() {
 
     else
 
-    generate_skey_and_vkey $i.vkey $i.skey
-    vkey_to_address $i.vkey $i.addr
-    vkey_to_public_key_hash $i.vkey $i.pkh
+    generate_skey_and_vkey $i
+    vkey_to_address $i
+    vkey_to_public_key_hash $i
 
     fi
     done
@@ -104,16 +146,23 @@ generate_wallets_from_to() {
 
 
 # Returns the "first" UTxO from a wallet (the first in the table returned by
-# the `cardano-cli` application).
+# the `cardano-cli` application), formatted as `<txId>#<txIndex>`.
 #
 # Takes 1 argument:
-#   1. Wallet address file.
+#   1. Wallet number/name.
 get_first_utxo_of() {
-    echo `$cli query utxo                             \
-        --address $(cat $1)                           \
-        $MAGIC                                        \
-        | sed 1,2d                                    \
-        | awk 'FNR == 3 {print $1"#"$2}'`
+    echo `$cli query utxo                 \
+        --address $(cat $preDir/$1.addr)  \
+        $MAGIC                            \
+        | sed 1,2d                        \
+        | awk 'FNR == 1 {print $1"#"$2}'`
+}
+get_nth_utxo_of() {
+    echo `$cli query utxo                    \
+        --address $(cat $preDir/$1.addr)     \
+        $MAGIC                               \
+        | sed 1,2d                           \
+        | awk 'FNR == '$2' {print $1"#"$2}'`
 }
 
 
@@ -121,10 +170,10 @@ get_first_utxo_of() {
 # prefixed with "--tx-in" for convenient use while constructing a transaction.
 # 
 # Takes 1 argument:
-#   1. Wallet address file.
+#   1. Wallet number/name.
 get_all_input_utxos_at() {
     echo `$cli query utxo                             \
-        --address $(cat $1)                           \
+        --address $(cat $preDir/$1.addr)              \
         $MAGIC                                        \
         | sed 1,2d                                    \
         | awk '{print $1"#"$2}'                       \
@@ -136,13 +185,15 @@ get_all_input_utxos_at() {
 # Displays the utxo information table of one or multiple addresses.
 #
 # Takes at least 1 argument:
-#   1. Wallet address file.
-#   2 - infinity. Any additional wallet address files.
+#   1. Wallet number/name,
+#   *. Any additional wallet number/name.
 show_utxo_tables () {
     for i in $@
     do
-        cardano-cli query utxo  \
-            --address $(cat $i) \
+        echo
+        echo $i
+        cardano-cli query utxo               \
+            --address $(cat $preDir/$i.addr) \
             $MAGIC
     done
 }
@@ -152,21 +203,19 @@ show_utxo_tables () {
 # provided after the numeric range.
 # Takes at least 2 arguments:
 #
-#   1.            Starting number,
-#   2.            Ending number.
-#   3 - infinity. Any additional wallet address files.
+#   1. Starting number,
+#   2. Ending number,
+#   *. Any additional wallet address files.
 show_utxo_tables_from_to () {
 
     for i in $(seq $1 $2)
     do
-        echo "$i.addr utxos: "
-        show_utxo_tables $i.addr
+        show_utxo_tables $i
     done
 
     shift 2
     if [ -n $1 ]
     then
-        echo "$i.addr utxos: "
         show_utxo_tables $@
     fi
 }
@@ -181,14 +230,14 @@ show_utxo_tables_from_to () {
 #       not a harmful limitation, it just fails if the given wallet has tokens
 #       stored inside.
 #
-# Takes 5 arguments:
-#   1. The spending wallet address file,
+# Takes 4 arguments:
+#   1. The spending wallet number/name,
 #   2. Starting number of the receiving wallets,
 #   3. Ending number of the receiving wallets,
 #   4. Total amount of Lovelace to be distributed equally,
-#   5. Signing key file of the spending wallet. # TODO: Can this be removed?
 distribute_from_to_wallets() {
 
+    spendingAddr=$(cat $preDir/$1.addr)
     tx_in_str=$(get_all_input_utxos_at $1)
     tx_out_str=''
     num_of_wallets=`expr $3 - $2`
@@ -202,8 +251,9 @@ distribute_from_to_wallets() {
     # Build the string of --tx-out's
     for i in $(seq $2 $3)
     do
-        cat=$(cat $i.addr)
-        tx_out_str=$tx_out_str' --tx-out '$cat'+'$lovelace_amt
+        addr=$(cat $preDir/$i.addr)
+        tx_out_str=$tx_out_str' --tx-out '$addr'+'$lovelace_amt
+        # tx_out_str="$tx_out_str --tx-out \"$addr + $lovelace_amt\""
     done
   
     # Helper logs:
@@ -217,23 +267,24 @@ distribute_from_to_wallets() {
     echo $tx_out_str
 
     # Transaction
-    $cli transaction build          \
-        --alonzo-era                \
-        $MAGIC                      \
-        $tx_in_str                  \
-        --change-address $(cat $1)  \
-        $tx_out_str                 \
-        --out-file multiTx.body
+    $cli transaction build             \
+        --babbage-era                  \
+        $MAGIC                         \
+        $tx_in_str                     \
+        --change-address $spendingAddr \
+        $tx_out_str                    \
+        --cddl-format                  \
+        --out-file $txBody
 
-    $cli transaction sign           \
-        --tx-body-file multiTx.body \
-        --signing-key-file $5       \
-        $MAGIC                      \
-        --out-file multiTx.signed
+    $cli transaction sign                  \
+        --tx-body-file $txBody             \
+        --signing-key-file $preDir/$1.skey \
+        $MAGIC                             \
+        --out-file $txSigned
 
-    $cli transaction submit         \
-        $MAGIC                      \
-        --tx-file multiTx.signed
+    $cli transaction submit \
+        $MAGIC              \
+        --tx-file $txSigned
 }
 
 
@@ -248,7 +299,7 @@ distribute_from_to_wallets() {
 # Takes 3 arguments:
 #   1. Starting number of the spending wallets,
 #   2. Ending number of the spending wallets,
-#   3. Address file of the receiving wallet.
+#   3. Receiving wallet's number/name.
 drain_from_wallets_to() {
 
     tx_in_str=''
@@ -257,33 +308,32 @@ drain_from_wallets_to() {
     # Build the string of --tx-in's
     for i in $(seq $1 $2)
     do
-        tx_in_str=$tx_in_str$(get_all_input_utxos_at $i.addr)' '
+        # tx_in_str=$tx_in_str$(get_all_input_utxos_at $i)' '
+        tx_in_str="$tx_in_str $(get_all_input_utxos_at $i)"
     done
 
     # Build the string of signing key files
     for i in $(seq $1 $2)
     do
-        signing_keys_str=$signing_keys_str' --signing-key-file '$i'.skey'
+        # signing_keys_str=$signing_keys_str' --signing-key-file '$i'.skey'
+        signing_keys_str="$signing_keys_str --signing-key-file $preDir/$i.skey"
     done
 
     # Transaction
-    $cli transaction build           \
-        --alonzo-era                 \
-        $MAGIC                       \
-        $tx_in_str                   \
-        --change-address $(cat $3)   \
-        --tx-out $(cat $3)'+1000000' \
-        --out-file multiTx.body
+    $cli transaction build                      \
+        --babbage-era                           \
+        $MAGIC                                  \
+        $tx_in_str                              \
+        --change-address $(cat $preDir/$3.addr) \
+        --out-file $txBody
 
-    $cli transaction sign            \
-        --tx-body-file multiTx.body  \
-        $signing_keys_str            \
-        $MAGIC                       \
-        --out-file multiTx.signed
+    $cli transaction sign      \
+        --tx-body-file $txBody \
+        $signing_keys_str      \
+        $MAGIC                 \
+        --out-file $txSigned
 
-    $cli transaction submit          \
-        $MAGIC                       \
-        --tx-file multiTx.signed
+    submit_tx
 }
 
 
@@ -293,10 +343,10 @@ drain_from_wallets_to() {
 # Takes 1 argument:
 #   1. User's wallet address file.
 get_first_lovelace_count_of() {
-    echo `$cli query utxo                             \
-        --address $(cat $1)                           \
-        $MAGIC                                        \
-        | sed 1,2d                                    \
+    echo `$cli query utxo            \
+        --address $(cat $1)          \
+        $MAGIC                       \
+        | sed 1,2d                   \
         | awk 'FNR == 1 {print $3}'`
 }
 
@@ -316,15 +366,15 @@ interact_with_smart_contract() {
 
     # Build script address from a script, if script address does not exist. 
     # The address name is the same as the script, except its extension is changed to .addr
-    script_addr=$($3 | sed "s/\..*/.addr/") # Name is $3 with its ext changed to .addr
-
+    # script_addr=$($3 | sed "s/\..*/.addr/") # Name is $3 with its ext changed to .addr
     # Safety check to not overwrite any existing file, and to avoid rebuilding if already built.
     if [ -f $script_addr ]
     then
     echo "Using the script address $script_addr, which already exists. If this is incorrect, then move, rename, or change $script_addr and run again."
     else
-    plutus_script_to_address $3 $script_addr # Builds script file address
+    plutus_script_to_address # $3 $script_addr # Builds script file address
     fi
+    script_addr=$scriptAddressFile
 
     users_utxo=$(get_first_utxo_of $1)
     script_holding=$(get_first_lovelace_count_of $script_addr)
@@ -355,11 +405,50 @@ interact_with_smart_contract() {
         --tx-file tx.signed
 }
 
-# Updates protocol.json to be current
-update_protocol_json() {
-    $cli query protocol-parameters        \
-        $MAGIC                            \
-        --out-file protocol.json
+
+# Generate a fresh protocol parametsrs JSON file.
+generate_protocol_params() {
+    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+}
+
+
+# Keeps querying the node until it first reaches a `syncProgress` of 100%.
+# Continues polling until sees a "fresh" slot number to return.
+get_newest_slot() {
+  sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  while [ $sync -lt 100 ]; do
+    sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  done
+  initialSlot=$($cli query tip $MAGIC | jq .slot)
+  newSlot=$initialSlot
+  while [ $newSlot = $initialSlot ]; do
+    newSlot=$($cli query tip $MAGIC | jq .slot)
+  done
+  echo $newSlot
+}
+
+
+# Takes at least 1 argument:
+#   1. The signing key file.
+#   *. Any additional signing key files.
+sign_tx_by() {
+    signArg=""
+    for i in $@; do
+      signArg="$signArg --signing-key-file $i"
+    done
+    $cli transaction sign      \
+        --tx-body-file $txBody \
+        $signArg               \
+        $MAGIC                 \
+        --out-file $txSigned
+}
+
+
+# Submits $txSigned to the chain.
+submit_tx() {
+    $cli transaction submit \
+        $MAGIC              \
+        --tx-file $txSigned
 }
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell

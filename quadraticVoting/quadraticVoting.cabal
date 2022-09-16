@@ -15,13 +15,20 @@ License-files:       LICENSE
 
 library
   hs-source-dirs:      src
+
+  other-modules:
+                       Paths_quadraticVoting
+
+  default-language:    Haskell2010
+
   exposed-modules:     OnChain
-                     , Token
+                     , QVF
                      , Utils
+
   build-depends:       base >= 4.9 && < 5
+                     , aeson
                      , bytestring
                      , cardano-api
-                     , containers
                      , data-default
                      , playground-common
                      , plutonomy
@@ -31,22 +38,14 @@ library
                      , plutus-ledger-constraints
                      , plutus-tx-plugin
                      , plutus-tx
-  default-language:    Haskell2010
-  ghc-options:         -Wall -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas -fno-strictness -fno-spec-constr -fno-specialise
 
-executable qvf-cli
-  main-is:             CLI.hs
-  hs-source-dirs:      app
-  build-depends:       aeson
-                     , base >= 4.9 && < 5
-                     , bytestring
-                     , cardano-api
-                     , cardano-binary
-                     , plutus-ledger
-                     , plutus-ledger-api
-                     , plutus-tx
-                     , quadraticVoting
-                     , serialise
-                     , text
-  default-language:    Haskell2010
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Weverything -O2
+  ghc-options:         -Wall 
+                       -fobject-code
+                       -fno-ignore-interface-pragmas
+                       -fno-omit-interface-pragmas
+                       -fno-strictness
+                       -fno-spec-constr
+                       -fno-specialise
+                       -fplugin-opt PlutusTx.Plugin:defer-errors
+
+

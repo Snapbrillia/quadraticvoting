@@ -1,0 +1,66 @@
+Cabal-Version:      3.6
+
+Name:                qvf-generate-scripts
+Version:             0.1.0.0
+Author:              Andy Sizer
+                   , Tasos Valtinos
+                   , Keyan M.
+Maintainer:          andysizer@snapbrillia.com
+                   , tasosvaltinos@snapbrillia.com
+                   , keyanmaskoot@snapbrillia.com
+Build-Type:          Simple
+Copyright:           © 2022 Snapbrillia
+License:             Apache-2.0
+License-files:       LICENSE
+
+library
+  exposed-modules:
+      Lib
+
+  other-modules:
+      Paths_qvf_generate_scripts
+
+  hs-source-dirs:
+      src
+
+  default-extensions:
+      RecordWildCards
+      OverloadedLists
+      OverloadedStrings
+      DeriveGeneric
+
+  build-depends:
+      aeson
+    , aws-lambda-haskell-runtime
+    , base >= 4.9 && <5
+    , plutus-contract
+    , plutus-ledger
+    , plutus-tx-plugin
+    , quadraticVoting
+
+  default-language: Haskell2010
+
+executable qvf-generate-scripts
+  main-is: Main.hs
+
+  other-modules:
+      Paths_qvf_generate_scripts
+
+  hs-source-dirs:
+      app
+
+  default-extensions:
+      RecordWildCards
+      OverloadedLists
+      OverloadedStrings
+      DeriveGeneric
+
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -O2
+
+  build-depends:
+      aeson
+    , aws-lambda-haskell-runtime 
+    , base >= 4.9 && <5
+    , qvf-generate-scripts
+    
+  default-language: Haskell2010

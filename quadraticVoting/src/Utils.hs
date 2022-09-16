@@ -261,4 +261,3 @@ checkOutputToScriptAndGetDatum txInfo
         "There should be exactly one output to the project script address."
       -- }}}
   -- }}}
-
