@@ -15,20 +15,16 @@ License-files:       LICENSE
 
 library
   hs-source-dirs:      src
-  exposed-modules:     OnChain
-                     , Token
+  exposed-modules:     QVF
                      , Utils
   build-depends:       base >= 4.9 && < 5
                      , bytestring
                      , cardano-api
                      , containers
                      , data-default
-                     , playground-common
                      , plutonomy
-                     , plutus-contract
                      , plutus-ledger
                      , plutus-ledger-api
-                     , plutus-ledger-constraints
                      , plutus-tx-plugin
                      , plutus-tx
   default-language:    Haskell2010

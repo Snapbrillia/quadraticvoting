@@ -15,6 +15,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase            #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- }}}
@@ -28,11 +29,11 @@ module QVF where
 
 -- IMPORTS
 -- {{{
-import           Ledger
 import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import qualified Plutonomy
 import           Plutus.Contract
+import           Plutus.V2.Ledger.Tx         (OutputDatum (..)
 import           Plutus.V1.Ledger.Credential (Credential (..))
 import qualified Plutus.V1.Ledger.Interval   as Interval
 import           Plutus.V1.Ledger.Value
@@ -81,7 +82,7 @@ data ProjectDetails = ProjectDetails
   , pdName       :: !BuiltinByteString
   , pdRequested  :: !Integer
   }
-instance Eq QVFDatum where
+instance Eq ProjectDetails where
   {-# INLINABLE (==) #-}
   ProjectDetails p0 n0 r0 == ProjectDetails p1 n1 r1 =
     -- {{{
