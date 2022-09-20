@@ -29,16 +29,16 @@ module QVF where
 
 -- IMPORTS
 -- {{{
-import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
 import qualified Plutonomy
-import           Plutus.Contract
-import           Plutus.V2.Ledger.Tx         (OutputDatum (..))
-import           Plutus.V1.Ledger.Credential (Credential (..))
-import qualified Plutus.V1.Ledger.Interval   as Interval
-import           Plutus.V1.Ledger.Value
-import           Plutus.V1.Ledger.Scripts    (ValidatorHash (..))
-import           PlutusTx                    (Data (..))
+import           Ledger
+import qualified Ledger.Typed.Scripts                 as Scripts
+import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
+import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
+import           Plutus.V2.Ledger.Api                 (toData)
+import qualified Plutus.V2.Ledger.Api                 as PlutusV2
+import qualified Plutus.V2.Ledger.Contexts            as PlutusV2
+import           PlutusTx                             (CompiledCode)
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.AssocMap           (Map)

@@ -25,7 +25,21 @@ constraints:
      -- Test/Cardano/Chain/Delegation/Model.hs:91:41: error:
      --   • Could not deduce (TraversableB SignalSDELEG)
      -- TODO: Try to remove on next `cardano-node` version upgrade.
-  hedgehog >= 1.1
+    aeson >= 2
+  , hedgehog >= 1.1
+
+-- The plugin will typically fail when producing Haddock documentation. However,
+-- in this instance you can simply tell it to defer any errors to runtime (which
+-- will never happen since you're building documentation).
+--
+-- So, any package using 'PlutusTx.compile' in the code for which you need to
+-- generate haddock documentation should use the following 'haddock-options'.
+package plutus-ledger
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
+package plutus-script-utils
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
+package plutus-contract
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
 
 -- These packages appear in our dependency tree and are very slow to build.
 -- Empirically, turning off optimization shaves off ~50% build time.
@@ -59,8 +73,8 @@ package cardano-wallet-core-integration
 
 source-repository-package
   type: git
-  location: https://github.com/input-output-hk/plutus-apps
-  tag: a6d54d0fdc4e1117ae7edd840293c3a5771d0cc3
+  location: https://github.com/input-output-hk/plutus-apps.git
+  tag: 87b647b05902a7cef37340fda9acb175f962f354
   subdir:
     freer-extras
     plutus-ledger
@@ -74,6 +88,8 @@ source-repository-package
 -- As, for example, bumping the node first highly risks breaking API with the wallet.
 -- Unless early bug fixes are required, this is fine as the wallet tracks stable releases of the node.
 -- And it is indeed nice for plutus-apps to track stable releases of the node too.
+--
+-- The current version is dated 2022/08/10
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-wallet
@@ -90,11 +106,17 @@ source-repository-package
     lib/test-utils
     lib/text-class
 
+-- Direct dependency.
+source-repository-package
+    type: git
+    location: https://github.com/input-output-hk/quickcheck-dynamic
+    tag: c272906361471d684440f76c297e29ab760f6a1e
+
 -- Should follow cardano-wallet.
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-node
-  tag: 950c4e222086fed5ca53564e642434ce9307b0b9
+  tag: 1.35.3
   subdir:
     cardano-api
     cardano-cli
@@ -116,12 +138,6 @@ source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-config
   tag: 1646e9167fab36c0bff82317743b96efa2d3adaa
-
--- Direct dependency.
-source-repository-package
-    type: git
-    location: https://github.com/input-output-hk/quickcheck-dynamic
-    tag: c272906361471d684440f76c297e29ab760f6a1e
 
 -- Using a fork until our patches can be merged upstream
 source-repository-package
@@ -303,3 +319,11 @@ source-repository-package
   type: git
   location: https://github.com/input-output-hk/Win32-network
   tag: 3825d3abf75f83f406c1f7161883c438dac7277d
+
+-- Should follow plutus.
+-- https://github.com/Quid2/flat/pull/22 fixes a potential exception
+-- when decoding invalid (e.g. malicious) text literals.
+source-repository-package
+    type: git
+    location: https://github.com/Quid2/flat
+    tag: ee59880f47ab835dbd73bea0847dab7869fc20d8
