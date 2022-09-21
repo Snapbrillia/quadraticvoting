@@ -1,0 +1,96 @@
+name: QVF dynamic build
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason'
+        required: false
+        default: manual
+      tests:
+        description: 'Tests'
+        required: false
+        default: some
+  create:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc: ["8.10.7"]
+        os: [ubuntu-latest]
+
+    steps:
+
+    - uses: haskell/actions/setup@v1
+      id: setup-haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: 3.6.2.0
+
+    - name: Set cache version
+      run: echo "CACHE_VERSION=grFfw8r" >> $GITHUB_ENV
+
+    - uses: actions/checkout@v2
+
+    - name: Setup Github Scripts
+      run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
+
+    - name: Configure to use libsodium
+      run: |
+        cat >> cabal.project <<EOF
+        package cardano-crypto-praos
+          flags: -external-libsodium-vrf
+        EOF
+
+    - name: Haskell versions
+      run: |
+        ghc --version
+        cabal --version
+
+    - name: Install build environment
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install libsodium23 libsodium-dev
+        sudo apt-get -y install libsystemd0 libsystemd-dev
+        sudo apt-get -y remove --purge software-properties-common
+        sudo apt-get -y autoremove
+
+    - name: Cabal update
+      run: retry 2 cabal update
+
+    - name: Configure build
+      run: |
+        if [ "${{github.event.inputs.tests}}" == "all" ]; then
+          echo "Reconfigure cabal projects to run tests for all dependencies"
+          cat cabal.project | sed 's|tests: False|tests: True|g' > cabal.project.new
+          mv cabal.project.new cabal.project
+        fi
+
+    - name: Record dependencies
+      run: |
+        cabal build all --dry-run
+        cat ${{ env.PLAN_JSON }} | jq -r '."install-plan"[].id' | sort | uniq > dependencies.txt
+        date > date.txt
+
+    - uses: actions/cache@v2
+      name: Cache cabal store
+      with:
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
+        restore-keys: |
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
+
+    - name: Build
+      run: retry 2 cabal build all
