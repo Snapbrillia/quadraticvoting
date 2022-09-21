@@ -31,25 +31,30 @@ module QVF where
 -- {{{
 import qualified Ledger.Ada                  as Ada
 import qualified Plutonomy
-import           Ledger
+import           Ledger                               (
+                                                      )
 import qualified Ledger.Typed.Scripts                 as Scripts
 import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
-import           Plutus.V2.Ledger.Api                 (toData)
-import qualified Plutus.V2.Ledger.Api                 as PlutusV2
-import qualified Plutus.V2.Ledger.Contexts            as PlutusV2
+import           Plutus.V1.Ledger.Address             ( scriptHashAddress
+                                                      )
+import qualified Plutus.V1.Ledger.Interval            as Interval
+import           Plutus.V1.Ledger.Value               ( flattenValue
+                                                      , AssetClass(..)
+                                                      )
+import           Plutus.V2.Ledger.Api
+import           Plutus.V2.Ledger.Contexts
 import           PlutusTx                             (CompiledCode)
 import qualified PlutusTx
-import qualified PlutusTx.AssocMap           as Map
-import           PlutusTx.AssocMap           (Map)
-import qualified PlutusTx.Builtins           as Builtins
-import           PlutusTx.Prelude            hiding (unless)
-import           PlutusTx.Prelude            (BuiltinByteString, (<>))
-import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
-import           Prelude                     (Show, show)
-import qualified Prelude                     as P
+import qualified PlutusTx.AssocMap                    as Map
+import           PlutusTx.AssocMap                    (Map)
+import qualified PlutusTx.Builtins                    as Builtins
+import           PlutusTx.Prelude
+import           PlutusTx.Sqrt                        (Sqrt (..), isqrt)
+import           Prelude                              (Show, show)
+import qualified Prelude                              as P
 import           Utils
-import qualified Minter.NFT                  as NFT
+import qualified Minter.NFT                           as NFT
 -- }}}
 
 
@@ -168,7 +173,7 @@ data QVFDatum
   | Escrow
     -- ^ For UTxOs that store the excess reward won by projects.
       -- {{{
-      !(Map BuiltinByteString Integer)
+      !(Map PubKeyHash Integer)
       -- }}}
   -- }}}
 
@@ -225,7 +230,7 @@ PlutusTx.unstableMakeIsData ''RegistrationInfo
 -- {{{
 data DonationInfo = DonationInfo
   { diProjectId :: !BuiltinByteString
-  , diDonor     :: !BuiltinByteString
+  , diDonor     :: !PubKeyHash
   , diAmount    :: !Integer
   }
 
@@ -300,7 +305,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
       case txOutDatum utxo of
         OutputDatum (Datum d) ->
-          d
+          case fromBuiltinData d of
+            Just qvfDatum ->
+              qvfDatum
+            Nothing       ->
+              traceError "Provided datum didn't have a supported structure."
         _                     ->
           traceError "Bad inline datum."
       -- }}}
@@ -323,9 +332,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
     utxoHasX sym mTN utxo =
       -- {{{
-        txOutValue utxo
-      & flattenValue
-      & find
+        isJust
+      $ find
           ( \(sym', tn', amt') ->
                  sym' == sym
               && ( case mTN of
@@ -334,20 +342,21 @@ mkQVFValidator QVFParams{..} datum action ctx =
                  )
               && amt' == 1
           )
-      & isJust
+      $ flattenValue
+      $ txOutValue utxo
       -- }}}
 
     -- | Finds how much X asset is present in the given UTxO.
     utxoXCount :: CurrencySymbol -> TokenName -> TxOut -> Integer
-    utxoXCount sym tn utxo =
+    utxoXCount sym tn =
       -- {{{
-        txOutValue utxo
-      & flattenValue
-      & find (\(sym', tn', _) -> sym' == sym && tn' == tn)
-      & ( \case 
+        ( \case 
             Just (_, _, amt) -> amt
             Nothing          -> 0
         )
+      . find (\(sym', tn', _) -> sym' == sym && tn' == tn)
+      . flattenValue
+      . txOutValue
       -- }}}
 
     -- | Checks if the UTxO currently being validated carries a single X asset.
@@ -447,14 +456,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
     xInputWithSpecificDatumExists sym tn datumPred =
       -- {{{
       let
-        pred TxInInfo{txInInfoResolved = txOut} =
+        predicate TxInInfo{txInInfoResolved = txOut} =
           -- {{{
              utxoHasX sym (Just tn) txOut
           && utxoSitsAtScript txOut
           && datumPred (getInlineDatum txOut)
           -- }}}
       in
-      isJust $ find pred $ txInfoInputs info
+      isJust $ find predicate $ txInfoInputs info
       -- }}}
   
     -- | Checks 1 X comes from the script, and 1 X goes back to the script,
@@ -619,7 +628,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                (utxoHasLovelaces (total + halfOfTheRegistrationFee) o)
           && traceIfFalse
                "All donation assets must be burnt."
-               (mintIsPresent qvfDonationSymbol tn (-ds))
+               (mintIsPresent qvfDonationSymbol tn (negate ds))
           && canFoldOrDistribute ()
           && signedByKeyHolder ()
           -- }}}
@@ -632,6 +641,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     -- | Traverses transaction inputs and outputs to validate the proper
     --   correspondence between input `PrizeWeight` datums and their
     --   depleted couterparts.
+    --
+    --   Raises exception upon failure.
     traversePrizeWeights :: Integer -> Integer -> Integer -> Integer -> Bool
     traversePrizeWeights totPs psSoFar lovelacesSoFar wSoFar =
       -- {{{
@@ -644,11 +655,15 @@ mkQVFValidator QVFParams{..} datum action ctx =
             case getInlineDatum o of
               PrizeWeight w False ->
                 -- {{{
-                ( pCount + 1
-                , sumL + lovelaceFromValue (txOutValue o)
-                , sumW + w
-                , Map.insert tn w wMap
-                )
+                case getTokenNameOfUTxO qvfProjectSymbol o of
+                  Just tn ->
+                    ( pCount + 1
+                    , sumL + lovelaceFromValue (txOutValue o)
+                    , sumW + w
+                    , Map.insert tn w wMap
+                    )
+                  Nothing ->
+                    traceError "Project asset not found."
                 -- }}}
               _                   ->
                 -- {{{
@@ -673,7 +688,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                   let
                     isValid =
                          utxosDatumMatchesWith (PrizeWeight validW True) o
-                      && utxoHasLovelaces halfOfTheRegistrationFee
+                      && utxoHasLovelaces halfOfTheRegistrationFee o
                   in
                   if isValid then
                     acc + 1
@@ -724,7 +739,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                   -- }}}
                 isValid      =
                   -- {{{
-                     (utxoHasX qvfSymbol qvfTokenName o)
+                     utxoHasX qvfSymbol (Just qvfTokenName) o
                   && traceIfFalse
                        "Main UTxO should carry all the donations."
                        (utxoHasLovelaces lovelaces o)
@@ -815,6 +830,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                          -> Maybe (CurrencySymbol, TokenName)
                          -> Bool
     validateSingleOutput mExpectedLovelaces mExpectedDatum mExpectedAsset =
+      -- {{{
       case getContinuingOutputs ctx of
         [o] ->
           -- {{{
@@ -838,7 +854,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                "Unauthentic output UTxO."
                ( case mExpectedAsset of
                    Just (sym, tn) ->
-                     utxoHasX sym tn o
+                     utxoHasX sym (Just tn) o
                    Nothing        ->
                      True
                )
@@ -848,9 +864,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
           traceError
             "There should be exactly 1 UTxO going back to the script."
           -- }}}
+      -- }}}
   in
   case (datum, action) of
-    (DeadlineDatum currDl                         , UpdateDeadline newDl   ) ->
+    (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
       -- {{{
          signedByKeyHolder ()
       && traceIfFalse
@@ -861,7 +878,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (currUTxOHasX qvfSymbol qvfTokenName)
       && validateSingleOutput
            Nothing
-           (Just $ DeadlineDatum newDL)
+           (Just $ DeadlineDatum newDl)
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
@@ -875,7 +892,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         outputPsArePresent :: Bool
         outputPsArePresent =
           -- {{{
-          case filter (utxoHasX qvfProjectSymbol tn) (getContinuingOutputs ctx) of
+          case filter (utxoHasX qvfProjectSymbol $ Just tn) (getContinuingOutputs ctx) of
             -- TODO: Is it OK to expect a certain order for these outputs?
             --       This is desired to avoid higher transaction fees.
             [o0, o1] ->
@@ -927,7 +944,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         outputVIsPresent :: Bool
         outputVIsPresent =
           -- {{{
-          case filter (utxoHasX qvfDonationSymbol tn) (getContinuingOutputs ctx) of
+          case filter (utxoHasX qvfDonationSymbol $ Just tn) (getContinuingOutputs ctx) of
             [o] ->
               -- {{{
                  traceIfFalse
@@ -960,7 +977,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && outputVIsPresent
       -- }}}
 
-    (Donation donorsPKH                           , FoldDonations          ) ->
+    (Donation _                                   , FoldDonations          ) ->
       -- First Phase of Folding Donations
       -- To avoid excessive transaction fees, this endpoint delegates its
       -- logic to the @P@ UTxO by checking that it is in fact being spent.
@@ -1011,7 +1028,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           (DonationFoldingProgress tot (soFar + expected))
       -- }}}
 
-    (Donations pkhToAmountMap                     , FoldDonations          ) ->
+    (Donations _                                  , FoldDonations          ) ->
       -- Second Phase of Folding Donations
       -- Similar to `Donation`, this endpoint also delegates its logic. This
       -- time, specifically to `DonationFoldingProgress`.
@@ -1026,7 +1043,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                                 -> False
       -- }}} 
 
-    (PrizeWeight weight False                     , AccumulateDonations    ) ->
+    (PrizeWeight _ False                          , AccumulateDonations    ) ->
       -- Accumulation of Donated Lovelaces
       -- (Delegation of logic to the main UTxO.)
       -- {{{ 
@@ -1058,7 +1075,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         keyHolderImbursed     =
           lovelaceFromValue (valuePaidTo info qvfKeyHolder) == khFee
       in
-         xIsPresent qvfSymbol qvfTokenName (-khFee) updatedDatum
+         xIsPresent qvfSymbol qvfTokenName (negate khFee) updatedDatum
       && traceIfFalse
            "Key holder fees must be paid accurately."
            keyHolderImbursed
@@ -1074,7 +1091,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- {{{
           foldr
             ( \TxInInfo{txInInfoResolved = txOut} acc ->
-                case getTokenNameOfUTxO txOut of
+                case getTokenNameOfUTxO qvfProjectSymbol txOut of
                   Just tn ->
                     -- {{{
                     case getInlineDatum txOut of
@@ -1088,8 +1105,18 @@ mkQVFValidator QVFParams{..} datum action ctx =
                     acc
                     -- }}}
             )
+            Map.empty
             (txInfoReferenceInputs info)
           -- }}}
+
+        -- | Folding function to go over all the input UTxOs. For each project
+        --   `PrizeWeight` input it finds (such that its info is also present
+        --   in the reference inputs), checks to see if the project owner is
+        --   paid his/her rightful portion.
+        --
+        --   TODO: Should the static info UTxO of a project which hasn't
+        --         reached its requested fund be burnt, so that the locked
+        --         registration fee is refunded?
         foldFn TxInInfo{txInInfoResolved = txOut} acc =
           -- {{{
           case getTokenNameOfUTxO qvfProjectSymbol txOut of
@@ -1109,7 +1136,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                           -- }}}
                         prizeIsPaid =
                           -- {{{
-                          traceIfFalse "Prize not paid." (paid == portion)
+                          traceIfFalse "Prize not paid." (paidAmount == portion)
                           -- }}}
                       in
                       if portion > pdRequested then
@@ -1118,7 +1145,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                           mEscrowOutput =
                             -- {{{
                             find
-                              (utxoHasX qvfProjectSymbol (Just tn))
+                              (utxoHasX qvfProjectSymbol $ Just tn)
                               (getContinuingOutputs ctx)
                             -- }}}
                           escrowIsProduced =
@@ -1170,7 +1197,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       foldr foldFn True $ txInfoInputs info
       -- }}}
 
-    (PrizeWeight weight True                      , DistributePrizes       ) ->
+    (PrizeWeight _ True                           , DistributePrizes       ) ->
       -- Prize Distribution
       -- (Delegation of logic to the project's UTxO.)
       -- {{{ 
@@ -1259,17 +1286,19 @@ instance Scripts.ValidatorTypes QVF where
   type RedeemerType QVF = QVFAction
 
 
-typedQVFValidator :: QVFParams -> Scripts.TypedValidator QVF
-typedQVFValidator qvfParams =
+typedQVFValidator :: QVFParams -> PSU.V2.TypedValidator QVF
+typedQVFValidator =
   -- {{{
-  Scripts.mkTypedValidator @QVF
-    ( PlutusTx.applyCode
-        $$(PlutusTx.compile [|| mkQVFValidator ||])
-        (PlutusTx.liftCode qvfParams)
-    )
+  PSU.V2.mkTypedValidatorParam @QVF
+    $$(PlutusTx.compile [|| mkQVFValidator ||])
     $$(PlutusTx.compile [|| wrap ||])
+  -- mkValidatorScript
+  --   ( PlutusTx.applyCode
+  --       $$(PlutusTx.compile [|| wrap . mkQVFValidator ||])
+  --       (PlutusTx.liftCode qvfParams)
+  --   )
   where
-    wrap = Scripts.wrapValidator @QVFDatum @QVFAction
+    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFAction
   -- }}}
 
 
@@ -1285,7 +1314,8 @@ qvfValidatorHash = Scripts.validatorHash . typedQVFValidator
 
 
 qvfAddress :: QVFParams -> Address
-qvfAddress = scriptAddress . qvfValidator
+-- qvfAddress = scriptAddress . qvfValidator
+qvfAddress = scriptHashAddress . qvfValidatorHash
 -- }}}
 -- }}}
 

@@ -17,11 +17,19 @@ module Minter.NFT where
 
 
 import qualified Plutonomy
+import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
+import qualified Plutus.V2.Ledger.Api                 as PlutusV2
+import           Plutus.V2.Ledger.Api                 ( TxOutRef(..)
+                                                      , ScriptContext(..)
+                                                      , TxInfo(..)
+                                                      , TxInInfo(..)
+                                                      )
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Ledger
-import qualified Ledger.Typed.Scripts as Scripts
-import           Ledger.Value         as Value
+import           Ledger                               ( scriptCurrencySymbol
+                                                      )
+import qualified Ledger.Typed.Scripts                 as Scripts
+import           Ledger.Value                         as Value
 
 import Utils
 
@@ -67,8 +75,8 @@ mkQVFPolicy oref tn () ctx =
 qvfPolicy :: TxOutRef -> Scripts.MintingPolicy
 qvfPolicy oref =
   -- {{{
-  Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \oref' tn' -> Scripts.wrapMintingPolicy $ mkQVFPolicy oref' tn' ||])
+  Plutonomy.optimizeUPLC $ PlutusV2.mkMintingPolicyScript $
+    $$(PlutusTx.compile [|| \oref' tn' -> PSU.V2.mkUntypedMintingPolicy $ mkQVFPolicy oref' tn' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode oref
     `PlutusTx.applyCode`
