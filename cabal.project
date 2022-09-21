@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 -- Bump this if you need newer packages from Hackage and
 -- run `nix flake lock --update-input hackageNix` after updating index-state.
 index-state: 2022-05-18T00:00:00Z
