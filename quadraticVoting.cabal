@@ -1,7 +1,7 @@
 Cabal-Version:      3.6
 
 Name:                quadraticVoting
-Version:             0.1.0.0
+Version:             0.2.0.0
 Author:              Andy Sizer
                    , Tasos Valtinos
                    , Keyan M.
@@ -16,6 +16,7 @@ License-files:       LICENSE
 library
   hs-source-dirs:      src
   exposed-modules:     QVF
+                     , Datum
                      , Minter.NFT
                      , Utils
   build-depends:       base >= 4.9 && < 5
@@ -46,5 +47,6 @@ executable qvf-cli
                      , quadraticVoting
                      , serialise
                      , text
+                     , time
   default-language:    Haskell2010
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Weverything -O2
