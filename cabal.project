@@ -110,6 +110,7 @@ source-repository-package
   type: git
   location: https://github.com/input-output-hk/plutus-apps.git
   tag: 87b647b05902a7cef37340fda9acb175f962f354
+  sha256: 0hzcgp0b3wr629vl1fpygfpprfn562ns4anc4xviasgywcfpqb32
   subdir:
     freer-extras
     plutus-ledger
