@@ -23,6 +23,7 @@ import           Ledger
 import qualified Ledger.Typed.Scripts as Scripts
 import           Ledger.Value         as Value
 
+import           Datum
 import           Utils
 import qualified Minter.NFT           as NFT
 
