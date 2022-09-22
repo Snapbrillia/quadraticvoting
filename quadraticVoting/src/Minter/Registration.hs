@@ -108,15 +108,6 @@ mkRegistrationPolicy sym tn action ctx =
         hasUTxO :: Bool
         hasUTxO = any (\i -> txInInfoOutRef i == riTxOutRef ri) $ txInfoInputs info
 
-
-        {- ---------------------------------------- -}
-
-        -- Go through list of inputs and find "yellow" utxo;
-        -- The yellow one is S (in readme file)
-        -- find :: Foldable t => (a -> Bool) -> t a -> Maybe a
-        -- Plutus Tx version of find.
-        -- Predicate logic involves finding the "yellow"
-
       in
         traceIfFalse
           "Registrator's signature missing"
