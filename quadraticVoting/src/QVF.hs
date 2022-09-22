@@ -861,41 +861,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
       let
         tn = TokenName $ diProjectId donInfo
 
-        -- | Raises exception on @False@.
-        outputVIsPresent :: Bool
-        outputVIsPresent =
-          -- {{{
-          case filter (utxoHasX qvfDonationSymbol $ Just tn) (getContinuingOutputs ctx) of
-            [o] ->
-              -- {{{
-                 traceIfFalse
-                   "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
-                   ( utxosDatumMatchesWith
-                       (Donation $ diDonor donInfo)
-                       o
-                   )
-              && traceIfFalse
-                   "Donation UTxO must carry exactly the same Lovelace count as specified."
-                   (utxoHasLovelaces (diAmount donInfo) o)
-              -- }}}
-            _        ->
-              -- {{{
-              traceError "There should be exactly 1 donation UTxO produced."
-              -- }}}
-          -- }}}
       in
-         traceIfFalse
-           "Donation is too small."
-           (diAmount donInfo >= minDonationAmount)
-      && traceIfFalse
-           "This project has reached the maximum number of donations."
-           (soFar < maxTotalDonationCount)
       && traceIfFalse
            "There should be exactly 1 donation asset minted."
            (mintIsPresent qvfDonationSymbol tn 1)
-      && xIsPresent qvfProjectSymbol tn 0 (ReceivedDonationsCount $ soFar + 1)
       && canRegisterOrDonate ()
-      && outputVIsPresent
       -- }}}
 
     (Donation _                                   , FoldDonations          ) ->
@@ -1301,9 +1271,6 @@ findProjectsWonLovelaces pool sumW w =
 -- {{{
 registrationFee :: Integer
 registrationFee = 3_000_000
-
-minDonationAmount :: Integer
-minDonationAmount = 2_000_000
 
 halfOfTheRegistrationFee :: Integer
 halfOfTheRegistrationFee = 1_500_000
