@@ -1,9 +1,64 @@
-FROM agocorona/ubuntu-nix
+# FROM public.ecr.aws/lambda/provided:al2
+FROM amd64/fedora:latest
 
-RUN echo "substituters  = https://hydra.iohk.io https://iohk.cachix.org https://cache.nixos.org/" >> /etc/nix/nix.conf \
-    && echo "trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" >> /etc/nix/nix.conf \
-    && cd /home/user && git clone https://github.com/input-output-hk/plutus-apps \
-    && cd /home/user/plutus-apps                ##### for a particular branch: && git checkout 41149926c108c71831cfe8d244c83b0ee4bf5c8a \
-    && cd /home/user/plutus-apps && /nix/store/*nix-2.7.0/bin/nix-shell  
+SHELL ["/bin/bash", "--rcfile", "~/.profile", "-c"]
 
-CMD cd /home/user/plutus-apps && /nix/store/*nix-2.7.0/bin/nix-shell
+USER root
+
+RUN yum install -y xz
+
+# Create USER builder and config for Nix as root
+# N.B. we create /nix here to allow installation of Nix.
+# when we run the image in a container.
+RUN groupadd --system nixbld
+RUN useradd -ms /bin/bash builder
+RUN usermod -G nixbld -a builder
+RUN for i in $(seq 1 30); do useradd -ms /bin/bash nixbld${i} &&  usermod -G nixbld -a nixbld${i}; done \
+  && mkdir -m 0755 /nix && chown builder /nix \
+  && mkdir -p /etc/nix \
+  && echo 'sandbox = false' > /etc/nix/nix.conf \
+  && echo 'build-users-group = nixbld' >> /etc/nix/nix.conf \
+  && echo 'experimental-features = nix-command flakes' >> /etc/nix/nix.conf \
+  && echo 'allow-import-from-derivation = true' >> /etc/nix/nix.conf \
+  && echo 'substituters  = https://hydra.iohk.io https://iohk.cachix.org https://cache.nixos.org/'  >> /etc/nix/nix.conf \ 
+  && echo "trusted-public-keys = hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=" >> /etc/nix/nix.conf 
+
+# switch to USER = builder and make CWD /home/builder
+USER builder
+ENV USER=builder
+WORKDIR /home/builder
+
+# Install Nix and ghcup and then install the verions of ghc, cabal and stack that we want. 
+# The versions are made explicit
+# RUN touch .bash_profile \
+#   && curl https://releases.nixos.org/nix/nix-2.9.2/install | sh \
+#   && curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh \
+#   && ghcup install ghc 8.10.7 --force --set \
+#   && ghcup install cabal 3.6.2.0 --force \
+#   && ghcup set cabal 3.6.2.0 \
+#   && ghcup install stack 2.7.5 --force \
+#   && ghcup set stack 2.7.5
+
+RUN touch /home/builder/.bash_profile \
+  && curl https://releases.nixos.org/nix/nix-2.9.2/install | sh
+  
+RUN echo '. /home/builder/.nix-profile/etc/profile.d/nix.sh' >> /home/builder/.bashrc
+RUN mkdir -p /home/builder/.config/nixpkgs && echo '{ allowUnfree = true; }' >> /home/builder/.config/nixpkgs/config.nix
+RUN mkdir /home/builder/repo
+
+# Install cachix
+RUN . /home/builder/.nix-profile/etc/profile.d/nix.sh \
+  && nix-env -iA cachix -f https://cachix.org/api/v1/install \
+  && cachix use cachix 
+
+# Install git
+RUN . /home/builder/.nix-profile/etc/profile.d/nix.sh \
+  && nix-env -i git git-lfs
+
+# Warm up Nix cache (only needed if we use the container's cache)
+COPY . /home/builder/repo
+WORKDIR /home/builder/repo
+RUN . /home/builder/.nix-profile/etc/profile.d/nix.sh \
+    && nix develop 
+
+
