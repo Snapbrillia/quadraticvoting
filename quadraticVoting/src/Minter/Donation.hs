@@ -55,8 +55,7 @@ mkDonationPolicy sym action ctx =
   -- {{{
   case action of DonateToProject di ->
     let
-    tn :: TokenName
-    tn = tokenName $ diProjectId donInfo
+    tn = TokenName $ diProjectId donInfo
 
     info :: TxInfo
     info = scriptContextTxInfo ctx
