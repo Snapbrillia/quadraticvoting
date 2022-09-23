@@ -15,7 +15,7 @@
 
 module Minter.Donation where
 
-
+import Datum
 import qualified Plutonomy
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -58,6 +58,34 @@ mkDonationPolicy sym action ctx =
     tn :: TokenName
     tn = tokenName $ diProjectId donInfo
 
+    info :: TxInfo
+    info = scriptContextTxInfo ctx
+
+    -- | Extracts the inline datum from a given UTxO.
+    --   Raises exception upon failure.
+    getInlineDatum :: TxOut -> QVFDatum
+    getInlineDatum utxo =
+      -- {{{
+      case txOutDatum utxo of
+        OutputDatum (Datum d) ->
+          case fromBuiltinData d of
+            Just qvfDatum ->
+              qvfDatum
+            Nothing       ->
+              traceError "Provided datum didn't have a supported structure."
+        _                     ->
+          traceError "Bad inline datum."
+      -- }}}
+
+    currDonationAmount :: Integer
+    currDonationAmount =  ReceivedDonationsCount $ getInlineDatum $ txInfoOutputs info 
+
+    utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
+    utxosDatumMatchesWith newDatum =
+      -- {{{
+      (newDatum ==) . getInlineDatum
+      -- }}}
+  
     xIsPresent :: CurrencySymbol -- ^ X's currency symbol
                -> TokenName      -- ^ X's token name
                -> Integer        -- ^ Increase in output's Lovelace count
@@ -65,7 +93,7 @@ mkDonationPolicy sym action ctx =
                -> Bool
     xIsPresent sym tn increaseInLovelace newDatum =
       -- {{{
-      case filter (utxoHasX sym $ Just tn) (getContinuingOutputs ctx) of
+      case filter (utxoHasX sym $ Just tn) (txInfoOutputs info) of
         [txOut] ->
           -- {{{
           let
@@ -108,12 +136,15 @@ mkDonationPolicy sym action ctx =
     outputVIsPresent :: Bool
     outputVIsPresent =
       -- {{{
-      case filter (utxoHasX sym $ Just tn) (getContinuingOutputs ctx) of
+      case filter (utxoHasX sym $ Just tn) (txInfoOutputs info) of
         [o] ->
           -- {{{
               traceIfFalse
                 "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
-                (txSignedBy (scriptContextTxInfo ctx) $ riPubKeyHash ri)
+                  ( utxosDatumMatchesWith
+                      (Donation % diDonor donInfo)
+                      o
+                  )
           && traceIfFalse
                 "Donation UTxO must carry exactly the same Lovelace count as specified."
                 ((lovelaceValueOf (diAmount donInfo)) == (txOutValue o))
@@ -130,9 +161,9 @@ mkDonationPolicy sym action ctx =
          (diAmount di >= minDonationAmount)
     && traceIfFalse
          "This project has reached the maximum number of donations."
-         (soFar < maxTotalDonationCount)
+         (currDonationAmount < maxTotalDonationCount)
     && outputVIsPresent
-    && xIsPresent sym tn 0 (ReceivedDonationsCount $ soFar + 1)
+    && xIsPresent sym tn 0 (ReceivedDonationsCount $ currDonationAmount + 1)
 
   -- }}}
 
