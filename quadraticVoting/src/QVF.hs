@@ -1170,7 +1170,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
-{-
 -- {{{
 data QVF
 instance Scripts.ValidatorTypes QVF where
@@ -1178,20 +1177,11 @@ instance Scripts.ValidatorTypes QVF where
   type RedeemerType QVF = QVFAction
 
 
-typedQVFValidator :: QVFParams -> PSU.V2.TypedValidator QVF
-typedQVFValidator =
-  -- {{{
-  PSU.V2.mkTypedValidatorParam @QVF
-    $$(PlutusTx.compile [|| mkQVFValidator ||])
-    $$(PlutusTx.compile [|| wrap ||])
-  -- mkValidatorScript
-  --   ( PlutusTx.applyCode
-  --       $$(PlutusTx.compile [|| wrap . mkQVFValidator ||])
-  --       (PlutusTx.liftCode qvfParams)
-  --   )
-  where
-    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFAction
-  -- }}}
+typedQVFValidator :: QVFParams -> Validator
+typedQVFValidator params = mkValidatorScript
+   $$(PlutusTx.compile [|| PSU.V2.mkUntypedValidator . mkQVFValidator ||])
+   `PlutusTx.applyCode`
+   PlutusTx.liftCode qvfParams
 
 
 qvfValidator :: QVFParams -> Validator
@@ -1209,7 +1199,6 @@ qvfAddress :: QVFParams -> Address
 -- qvfAddress = scriptAddress . qvfValidator
 qvfAddress = scriptHashAddress . qvfValidatorHash
 -- }}}
--}
 -- }}}
 
 
