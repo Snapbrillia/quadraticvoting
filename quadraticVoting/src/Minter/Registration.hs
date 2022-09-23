@@ -16,6 +16,7 @@
 module Minter.Registration where
 
 
+import qualified Ledger.Ada                  as Ada
 import qualified Plutonomy
 import qualified PlutusTx
 import           PlutusTx.Prelude
@@ -31,11 +32,12 @@ import qualified Minter.NFT           as NFT
 -- REDEEMER
 -- {{{
 data RegistrationInfo = RegistrationInfo
-  { riTxOutRef   :: !TxOutRef
-  , riPubKeyHash :: !BuiltinByteString
-  , riLabel      :: !BuiltinByteString
-  , riRequested  :: !Integer
-  }
+  { riTxOutRef                :: !TxOutRef
+  , riPubKeyHash              :: !BuiltinByteString
+  , riLabel                   :: !BuiltinByteString
+  , riRequested               :: !Integer
+  , riRegisteredProjectsCount :: !Integer
+    }
 
 PlutusTx.unstableMakeIsData ''RegistrationInfo
 
@@ -53,6 +55,7 @@ PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
 
 -- POLICY SCRIPT
 -- {{{
+{-
 {-# INLINABLE mkRegistrationPolicy #-}
 mkRegistrationPolicy :: CurrencySymbol
                      -> TokenName
@@ -143,6 +146,150 @@ mkRegistrationPolicy sym tn action ctx =
             "Missing fees or incorrect token"
             tokenIsCorrect
 
+-}
+{-# INLINABLE mkRegistrationPolicy #-}
+mkRegistrationPolicy :: RegistrationRedeemer
+                     -> ScriptContext
+                     -> Bool
+mkRegistrationPolicy action ctx =
+    -- (RegisteredProjectsCount soFar                , RegisterProject regInfo) ->
+      -- Project Registration
+      -- {{{
+      RegisterProject regInfo ->
+
+      let
+
+        soFar = riRegisteredProjectsCount regInfo
+        tn    = orefToTokenName $ riTxOutRef regInfo
+
+        -- | Raises exception on @False@.
+        outputPsArePresent :: Bool
+        outputPsArePresent =
+          -- {{{
+          case filter (utxoHasX qvfProjectSymbol $ Just tn) (getContinuingOutputs ctx) of
+            -- TODO: Is it OK to expect a certain order for these outputs?
+            --       This is desired to avoid higher transaction fees.
+            [o0, o1] ->
+              -- {{{
+                 traceIfFalse
+                   "First continuing output must carry project's static info."
+                   ( utxosDatumMatchesWith
+                       (ProjectInfo $ registrationInfoToProjectDetials regInfo)
+                       o0
+                   )
+              && traceIfFalse
+                   "Second continuing output must carry record of donations."
+                   ( utxosDatumMatchesWith
+                       (ReceivedDonationsCount 0)
+                       o1
+                   )
+              && traceIfFalse
+                   "Half of the registration fee should be stored in project's reference UTxO."
+                   (utxoHasLovelaces halfOfTheRegistrationFee o0)
+              && traceIfFalse
+                   "Half of the registration fee should be stored in project's main UTxO."
+                   (utxoHasLovelaces halfOfTheRegistrationFee o1)
+              -- }}}
+            _        ->
+              -- {{{
+              traceError "There should be exactly 2 project UTxOs produced."
+              -- }}}
+          -- }}}
+
+
+          -- | Helper function to see if the given UTxO carries the given amount of
+          --   Lovelaces.
+          utxoHasLovelaces :: Integer -> TxOut -> Bool
+          utxoHasLovelaces lovelaces txOut =
+            -- {{{
+            txOutValue txOut == Ada.lovelaceValueOf lovelaces
+            -- }}}
+
+
+          -- | Checks if a UTxO carries a specific inline datum.
+          --
+          --   Raises exception upon failure of getting the inline datum.
+          utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
+          utxosDatumMatchesWith newDatum =
+            -- {{{
+            (newDatum ==) . getInlineDatum
+            -- }}}
+
+          --   Raises exception upon failure.
+          getInlineDatum :: TxOut -> QVFDatum
+          getInlineDatum utxo =
+            -- {{{
+            case txOutDatum utxo of
+              OutputDatum (Datum d) ->
+                d
+              _                     ->
+                traceError "Bad inline datum."
+            -- }}}
+
+
+
+          -- | Checks 1 X comes from the script, and 1 X goes back to the script,
+          --   with enough added Lovelaces and properly updated datum.
+          --
+          --   Raises exception on @False@.
+          xIsPresent :: CurrencySymbol -- ^ X's currency symbol
+                     -> TokenName      -- ^ X's token name
+                     -> Integer        -- ^ Increase in output's Lovelace count
+                     -> QVFDatum       -- ^ Updated datum
+                     -> Bool
+          xIsPresent sym tn increaseInLovelace newDatum =
+            -- {{{
+            case filter (utxoHasX sym $ Just tn) (getContinuingOutputs ctx) of
+              [txOut] ->
+                -- {{{
+                let
+                  inUTxO        = getXInputUTxO sym tn
+                  inVal         = txOutValue inUTxO
+                  outVal        = txOutValue txOut
+                  desiredOutVal =
+                    inVal <> Ada.lovelaceValueOf increaseInLovelace
+                in
+                   traceIfFalse
+                     "Authenticated output doesn't have enough Lovelaces"
+                     (outVal == desiredOutVal)
+                && traceIfFalse
+                     "Invalid datum attached to the authenticated output."
+                     (utxosDatumMatchesWith newDatum txOut)
+                -- }}}
+              _       ->
+                -- {{{
+                traceError "There must be exactly 1 authentication asset produced."
+                -- }}}
+            -- }}}
+
+
+          -- | Checks if a given UTxO has exactly 1 of asset X.
+          utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
+          utxoHasX sym mTN utxo =
+            -- {{{
+              txOutValue utxo
+            & flattenValue
+            & find
+                ( \(sym', tn', amt') ->
+                       sym' == sym
+                    && ( case mTN of
+                           Just tn -> tn' == tn
+                           Nothing -> True
+                       )
+                    && amt' == 1
+                )
+            & isJust
+            -- }}}
+
+
+      in
+         xIsPresent
+           qvfSymbol
+           qvfTokenName
+           0
+           (RegisteredProjectsCount $ soFar + 1)
+      && outputPsArePresent
+      -- }}}
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
