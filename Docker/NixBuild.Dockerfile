@@ -1,4 +1,3 @@
-# FROM public.ecr.aws/lambda/provided:al2
 FROM amd64/fedora:latest
 
 SHELL ["/bin/bash", "--rcfile", "~/.profile", "-c"]
@@ -27,17 +26,6 @@ RUN for i in $(seq 1 30); do useradd -ms /bin/bash nixbld${i} &&  usermod -G nix
 USER builder
 ENV USER=builder
 WORKDIR /home/builder
-
-# Install Nix and ghcup and then install the verions of ghc, cabal and stack that we want. 
-# The versions are made explicit
-# RUN touch .bash_profile \
-#   && curl https://releases.nixos.org/nix/nix-2.9.2/install | sh \
-#   && curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh \
-#   && ghcup install ghc 8.10.7 --force --set \
-#   && ghcup install cabal 3.6.2.0 --force \
-#   && ghcup set cabal 3.6.2.0 \
-#   && ghcup install stack 2.7.5 --force \
-#   && ghcup set stack 2.7.5
 
 RUN touch /home/builder/.bash_profile \
   && curl https://releases.nixos.org/nix/nix-2.9.2/install | sh
