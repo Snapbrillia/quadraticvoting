@@ -39,9 +39,11 @@ PlutusTx.unstableMakeIsData ''DonationInfo
 
 data DonationRedeemer
   = DonateToProject DonationInfo
+  | FoldDonations
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
-  [ ('DonateToProject, 0)
+  [ ('DonateToProject ,0)
+  , ('FoldDonations   ,1)
   ]
 -- }}}
 
