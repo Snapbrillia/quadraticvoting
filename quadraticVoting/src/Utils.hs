@@ -17,20 +17,29 @@ module Utils where
 
 -- IMPORTS
 -- {{{
-import           Ledger
-import qualified Ledger.Typed.Scripts        as Scripts
 import qualified Ledger.Ada                  as Ada
-import qualified Plutonomy
-import           Plutus.V2.Ledger.Api
-import           Plutus.V2.Ledger.Contexts
-import           PlutusTx                    (Data (..))
-import qualified PlutusTx
-import qualified PlutusTx.AssocMap           as Map
-import           PlutusTx.AssocMap           (Map)
-import qualified PlutusTx.Builtins           as Builtins
-import           PlutusTx.Prelude            hiding (unless)
-import           PlutusTx.Prelude            (BuiltinByteString, (<>))
-import           PlutusTx.Sqrt               (Sqrt (..), isqrt)
+import Plutus.V2.Ledger.Api                  ( Address(..)
+                                             , PubKeyHash(PubKeyHash)
+                                             , ValidatorHash(ValidatorHash)
+                                             , TxId(TxId)
+                                             , TxOutRef(..)
+                                             , TokenName(TokenName)
+                                             , Value
+                                             , Credential(ScriptCredential, PubKeyCredential) )
+import PlutusTx.Prelude                      ( otherwise
+                                             , Bool
+                                             , Integer
+                                             , Maybe(..)
+                                             , BuiltinByteString
+                                             , ($)
+                                             , (.)
+                                             , consByteString
+                                             , emptyByteString
+                                             , sha2_256
+                                             , (++)
+                                             , traceError )
+import           PlutusTx.Sqrt               ( Sqrt (..)
+                                             , isqrt)
 import qualified Prelude                     as P
 -- }}}
 

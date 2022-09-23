@@ -41,14 +41,65 @@ import qualified Plutus.V1.Ledger.Interval            as Interval
 import           Plutus.V1.Ledger.Value               ( flattenValue
                                                       , AssetClass(..)
                                                       )
-import           Plutus.V2.Ledger.Api
-import           Plutus.V2.Ledger.Contexts
+import Plutus.V2.Ledger.Api                           ( Address
+                                                      , PubKeyHash
+                                                      , Datum(Datum)
+                                                      , POSIXTime
+                                                      , TxOutRef
+                                                      , CurrencySymbol
+                                                      , TokenName(TokenName)
+                                                      , ScriptContext(scriptContextTxInfo)
+                                                      , TxInInfo( TxInInfo, txInInfoResolved)
+                                                      , TxInfo( txInfoValidRange
+                                                              , txInfoMint
+                                                              , txInfoReferenceInputs
+                                                              , txInfoInputs)
+                                                      , OutputDatum(OutputDatum)
+                                                      , TxOut( txOutDatum
+                                                             , txOutAddress
+                                                             , txOutValue)
+                                                      , Map
+                                                      , BuiltinByteString
+                                                      , FromData(fromBuiltinData) )
+import Plutus.V2.Ledger.Contexts                      ( TxOutRef
+                                                      , ScriptContext(scriptContextTxInfo)
+                                                      , TxInInfo(TxInInfo, txInInfoResolved)
+                                                      , TxInfo( txInfoValidRange
+                                                              , txInfoMint
+                                                              , txInfoReferenceInputs
+                                                              , txInfoInputs )
+                                                      , TxOut(txOutDatum, txOutAddress, txOutValue)
+                                                      , findOwnInput
+                                                      , getContinuingOutputs
+                                                      , txSignedBy
+                                                      , valuePaidTo )
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap                    as Map
 import           PlutusTx.AssocMap                    ( Map
                                                       )
 import qualified PlutusTx.Builtins                    as Builtins
-import           PlutusTx.Prelude
+import PlutusTx.Prelude                               ( Bool(..)
+                                                      , Integer
+                                                      , Maybe(..)
+                                                      , BuiltinByteString
+                                                      , Eq((==))
+                                                      , Semigroup((<>))
+                                                      , Ord(max, (>=), (<), min, (>), (<=))
+                                                      , AdditiveGroup((-))
+                                                      , AdditiveSemigroup((+))
+                                                      , MultiplicativeSemigroup((*))
+                                                      , ($)
+                                                      , (.)
+                                                      , (&&)
+                                                      , any
+                                                      , find
+                                                      , foldr
+                                                      , filter
+                                                      , isJust
+                                                      , negate
+                                                      , divide
+                                                      , traceError
+                                                      , traceIfFalse )
 import           PlutusTx.Sqrt                        ( Sqrt(..)
                                                       , isqrt
                                                       )
@@ -57,11 +108,14 @@ import           Prelude                              ( Show
                                                       )
 import qualified Prelude                              as P
 
-import           Datum
+import Datum                                          ( ProjectDetails(..)
+                                                      , QVFDatum(..) )
 import qualified Minter.NFT                           as NFT
 import           Minter.NFT                           ( qvfTokenName
                                                       )
-import           Utils
+import Utils                                          ( takeSqrt
+                                                      , lovelaceFromValue
+                                                      , orefToTokenName )
 -- }}}
 
 
@@ -948,7 +1002,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            keyHolderImbursed
       -- }}}
 
-    (DonationAccumulationConcluded ps ds den True , DistributePrizes       ) ->
+    (DonationAccumulationConcluded _ps ds den True , DistributePrizes       ) ->
       -- Prize Distribution
       -- {{{
       let

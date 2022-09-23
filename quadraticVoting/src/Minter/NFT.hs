@@ -24,9 +24,10 @@ module Minter.NFT where
 
 -- IMPORTS
 -- {{{
-import           Ledger                               ( scriptCurrencySymbol
-                                                      )
-import           Ledger.Value                         as Value
+import           Ledger                               ( scriptCurrencySymbol )
+import Ledger.Value as Value                          ( CurrencySymbol
+                                                      , TokenName(TokenName)
+                                                      , flattenValue )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import qualified Plutus.V2.Ledger.Api                 as PlutusV2
@@ -38,10 +39,14 @@ import           Plutus.V2.Ledger.Api                 ( MintingPolicy
                                                       , TxOutRef(..)
                                                       )
 import qualified PlutusTx
-import           PlutusTx.Prelude
+import PlutusTx.Prelude                               ( Bool(False)
+                                                      , Eq((==))
+                                                      , ($)
+                                                      , (&&)
+                                                      , any
+                                                      , traceError
+                                                      , traceIfFalse )
 
-import Datum
-import Utils
 -- }}}
 
 
@@ -52,7 +57,7 @@ qvfTokenName = TokenName "QVF"
 
 {-# INLINABLE mkQVFPolicy #-}
 mkQVFPolicy :: TxOutRef -> POSIXTime -> TokenName -> () -> ScriptContext -> Bool
-mkQVFPolicy oref deadline tn () ctx =
+mkQVFPolicy oref _deadline tn () ctx =
   -- {{{
   let
     info :: TxInfo

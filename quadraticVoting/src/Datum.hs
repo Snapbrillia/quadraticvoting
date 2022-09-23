@@ -29,15 +29,21 @@ module Datum where
 
 -- IMPORTS
 -- {{{
-import           Plutus.V2.Ledger.Api
+import Plutus.V2.Ledger.Api             ( PubKeyHash
+                                        , POSIXTime
+                                        , Map
+                                        , BuiltinByteString )
 import qualified PlutusTx.AssocMap      as Map
-import           PlutusTx.AssocMap      ( Map
-                                        )
+import           PlutusTx.AssocMap      ( Map )
 import           Prelude                ( Show
                                         , show
                                         )
 import qualified PlutusTx
-import           PlutusTx.Prelude
+import PlutusTx.Prelude                 ( Bool(False)
+                                        , Integer
+                                        , BuiltinByteString
+                                        , Eq(..)
+                                        , (&&) )
 -- }}}
 
 

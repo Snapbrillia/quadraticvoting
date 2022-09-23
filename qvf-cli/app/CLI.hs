@@ -13,7 +13,6 @@ import qualified Data.Aeson                 as A
 import           Data.Aeson                 (encode)
 import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Lazy.Char8 as LBS8
 import qualified Data.ByteString.Short      as SBS
 import qualified Data.List                  as List
 import           Data.Maybe                 (fromJust)
@@ -28,8 +27,8 @@ import           System.Environment         (getArgs)
 import           Text.Read                  (readMaybe)
 
 import           Datum
+
 -- import qualified QVF                        as OC
-import qualified Minter.NFT                 as Gov
 
 -- UTILS
 -- {{{
