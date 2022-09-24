@@ -6,34 +6,34 @@ USER root
 
 RUN yum update -y
 RUN yum install -y git \
-        git-lfs \
-        pkgconfig \
-        gcc \
-        gcc-c++ \
-        tmux \
-        gmp \
-        gmp-devel \
-        make \
-        tar \
-        xz \
-        wget \
-        libtool \
-        autoconf \
-        ncurses \
-        ncurses-compat-libs \
-        xz-devel \
-        perl \
-        zlib \
-        zlib-devel \
-        ncurses \
-        ncurses-devel \
-        libsodium \
-        libsodium-devel \
-        systemd-devel \
-        which \
-        jq \
-        openssl-devel \
-        lmdb-devel
+  git-lfs \
+  pkgconfig \
+  gcc \
+  gcc-c++ \
+  tmux \
+  gmp \
+  gmp-devel \
+  make \
+  tar \
+  xz \
+  wget \
+  libtool \
+  autoconf \
+  ncurses \
+  ncurses-compat-libs \
+  xz-devel \
+  perl \
+  zlib \
+  zlib-devel \
+  ncurses \
+  ncurses-devel \
+  libsodium \
+  libsodium-devel \
+  systemd-devel \
+  which \
+  jq \
+  openssl-devel \
+  lmdb-devel
 
 # We need a custom fork of libsodium which exposes some internal functions and adds some other new functions.
 # See https://github.com/input-output-hk/cardano-node/blob/master/doc/getting-started/install.md#installing-libsodium
@@ -72,6 +72,9 @@ ENV USER=builder
 
 WORKDIR /home/builder
 
+# This is where we will bind-mount the root dir of the repo we're building
+RUN mkdir /home/builder/repo
+
 # set up git LFS 
 RUN git lfs install
 
@@ -88,17 +91,12 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh \
 # Add /home/builder/.ghcup/bin to PATH so we don't have to remember to do it all the time
 ENV PATH="/home/builder/.ghcup/bin:${PATH}"
 
-RUN echo "PATH=${PATH}"
-
-WORKDIR /home/builder
-
-# This is where we will bind-mount the root dir of the repo we're building
-RUN mkdir /home/builder/repo
-
 # Test we can build
-RUN mkdir /home/builder/test
-COPY . /home/builder/test
-WORKDIR /home/builder/test
-RUN cabal build all
 USER root
-RUN cd /home/builder && rm -rf /home/builder/test
+RUN rm -rf /home/builder/test \
+  && mkdir -p /home/builder/test
+COPY --chown=builder:builder . /home/builder/test
+RUN echo "PATH=${PATH}"
+RUN  su -s /bin/bash -c 'cd /home/builder/test && CABAL_BUILDDIR=/home/builder/test/docker-dist-newstyle cabal build all' - builder \
+  && cd /home/builder \
+  && rm -rf /home/builder/test
