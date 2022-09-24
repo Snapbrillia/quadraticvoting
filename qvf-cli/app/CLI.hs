@@ -28,7 +28,8 @@ import           Text.Read                  (readMaybe)
 
 import           Datum
 
--- import qualified QVF                        as OC
+import qualified QVF                        as OC
+import qualified Minter.NFT                 as Gov
 
 -- UTILS
 -- {{{
@@ -96,7 +97,7 @@ parseJSONValue bs =
 writeScript :: Serialise a => FilePath -> a -> IO (Either (FileError ()) ())
 writeScript file =
   -- {{{
-    writeFileTextEnvelope @(PlutusScript PlutusScriptV1) file Nothing
+    writeFileTextEnvelope @(PlutusScript PlutusScriptV2) file Nothing
   . PlutusScriptSerialised
   . SBS.toShort
   . LBS.toStrict
@@ -239,7 +240,6 @@ main =
         "scripts"
         [ "<key-holder-pub-key-hash>"
         , "<txID>#<output-index>"
-        , "<auth-token-name>"
         , "<deadline-posix-milliseconds>"
         , "<output-minting.plutus>"
         , "<output-validation.plutus>"
@@ -400,8 +400,7 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-{-
-    "generate" : "scripts" : pkhStr : txRefStr : tn : deadlineStr : mOF : vOF : rOF : dOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : mOF : vOF : rOF : dOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
         (Nothing   , _      ) ->
@@ -412,11 +411,8 @@ main =
           -- {{{
           putStrLn "FAILED to parse the deadline."
           -- }}}
-        (Just txRef, Just dl) ->
+        (Just txRef, Just dl) -> do
           -- {{{
-          let
-            tokenName = fromString tn
-          in do
           mintRes <- writeMintingPolicy mOF $ Gov.qvfPolicy txRef dl
           case mintRes of
             Right _ -> do
@@ -449,7 +445,6 @@ main =
               -- }}}
           -- }}}
       -- }}}
--}
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print

@@ -33,7 +33,7 @@ import           Ledger.Ada                           ( lovelaceValueOf
                                                       )
 import qualified Ledger.Typed.Scripts                 as Scripts
 import qualified Plutonomy
-import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
+-- import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V1.Ledger.Address             ( scriptHashAddress
                                                       )
@@ -41,38 +41,8 @@ import qualified Plutus.V1.Ledger.Interval            as Interval
 import           Plutus.V1.Ledger.Value               ( flattenValue
                                                       , AssetClass(..)
                                                       )
-import Plutus.V2.Ledger.Api                           ( Address
-                                                      , PubKeyHash
-                                                      , Datum(Datum)
-                                                      , POSIXTime
-                                                      , TxOutRef
-                                                      , CurrencySymbol
-                                                      , TokenName(TokenName)
-                                                      , ScriptContext(scriptContextTxInfo)
-                                                      , TxInInfo( TxInInfo, txInInfoResolved)
-                                                      , TxInfo( txInfoValidRange
-                                                              , txInfoMint
-                                                              , txInfoReferenceInputs
-                                                              , txInfoInputs)
-                                                      , OutputDatum(OutputDatum)
-                                                      , TxOut( txOutDatum
-                                                             , txOutAddress
-                                                             , txOutValue)
-                                                      , Map
-                                                      , BuiltinByteString
-                                                      , FromData(fromBuiltinData) )
-import Plutus.V2.Ledger.Contexts                      ( TxOutRef
-                                                      , ScriptContext(scriptContextTxInfo)
-                                                      , TxInInfo(TxInInfo, txInInfoResolved)
-                                                      , TxInfo( txInfoValidRange
-                                                              , txInfoMint
-                                                              , txInfoReferenceInputs
-                                                              , txInfoInputs )
-                                                      , TxOut(txOutDatum, txOutAddress, txOutValue)
-                                                      , findOwnInput
-                                                      , getContinuingOutputs
-                                                      , txSignedBy
-                                                      , valuePaidTo )
+import Plutus.V2.Ledger.Api
+import Plutus.V2.Ledger.Contexts
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap                    as Map
 import           PlutusTx.AssocMap                    ( Map
@@ -122,10 +92,10 @@ import Utils                                          ( takeSqrt
 -- QVF PARAMETERS
 -- {{{
 data QVFParams = QVFParams
-  { qvfKeyHolder      :: !PubKeyHash
-  , qvfSymbol         :: !CurrencySymbol
-  , qvfProjectSymbol  :: !CurrencySymbol
-  , qvfDonationSymbol :: !CurrencySymbol
+  { qvfKeyHolder      :: PubKeyHash
+  , qvfSymbol         :: CurrencySymbol
+  , qvfProjectSymbol  :: CurrencySymbol
+  , qvfDonationSymbol :: CurrencySymbol
   }
 
 PlutusTx.makeLift ''QVFParams
@@ -137,10 +107,10 @@ PlutusTx.makeLift ''QVFParams
 -- REGISTRATION INFO
 -- {{{
 data RegistrationInfo = RegistrationInfo
-  { riTxOutRef   :: !TxOutRef
-  , riPubKeyHash :: !PubKeyHash
-  , riLabel      :: !BuiltinByteString
-  , riRequested  :: !Integer
+  { riTxOutRef   :: TxOutRef
+  , riPubKeyHash :: PubKeyHash
+  , riLabel      :: BuiltinByteString
+  , riRequested  :: Integer
   }
 
 PlutusTx.unstableMakeIsData ''RegistrationInfo
@@ -150,9 +120,9 @@ PlutusTx.unstableMakeIsData ''RegistrationInfo
 -- DONATION INFO
 -- {{{
 data DonationInfo = DonationInfo
-  { diProjectId :: !BuiltinByteString
-  , diDonor     :: !PubKeyHash
-  , diAmount    :: !Integer
+  { diProjectId :: BuiltinByteString
+  , diDonor     :: PubKeyHash
+  , diAmount    :: Integer
   }
 
 PlutusTx.unstableMakeIsData ''DonationInfo
@@ -162,15 +132,15 @@ PlutusTx.unstableMakeIsData ''DonationInfo
 -- REDEEMER
 -- {{{
 data QVFAction
-  = UpdateDeadline        !POSIXTime
+  = UpdateDeadline        POSIXTime
   | RegisterProject       RegistrationInfo
   | DonateToProject       DonationInfo
   | FoldDonations
   | AccumulateDonations
   | PayKeyHolderFee
   | DistributePrizes
-  | UnlockEscrowFor       !PubKeyHash !Integer
-  | WithdrawBounty        !PubKeyHash
+  | UnlockEscrowFor       PubKeyHash Integer
+  | WithdrawBounty        PubKeyHash
 
 PlutusTx.makeIsDataIndexed ''QVFAction
   [ ('UpdateDeadline     , 0)
@@ -855,14 +825,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && outputPsArePresent
       -- }}}
 
-    (ReceivedDonationsCount soFar                 , DonateToProject donInfo) ->
+    (ReceivedDonationsCount _                     , DonateToProject donInfo) ->
       -- Project Donation
       -- {{{
       let
         tn = TokenName $ diProjectId donInfo
 
       in
-      && traceIfFalse
+         traceIfFalse
            "There should be exactly 1 donation asset minted."
            (mintIsPresent qvfDonationSymbol tn 1)
       && canRegisterOrDonate ()
@@ -972,7 +942,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            keyHolderImbursed
       -- }}}
 
-    (DonationAccumulationConcluded _ps ds den True , DistributePrizes       ) ->
+    (DonationAccumulationConcluded ps ds den True , DistributePrizes       ) ->
       -- Prize Distribution
       -- {{{
       let
@@ -1177,27 +1147,29 @@ instance Scripts.ValidatorTypes QVF where
   type RedeemerType QVF = QVFAction
 
 
-typedQVFValidator :: QVFParams -> Validator
-typedQVFValidator params = mkValidatorScript
-   $$(PlutusTx.compile [|| PSU.V2.mkUntypedValidator . mkQVFValidator ||])
-   `PlutusTx.applyCode`
-   PlutusTx.liftCode qvfParams
+typedQVFValidator :: QVFParams -> PSU.V2.TypedValidator QVF
+typedQVFValidator =
+  let
+    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFAction
+  in
+  PSU.V2.mkTypedValidatorParam @QVF
+    $$(PlutusTx.compile [|| mkQVFValidator ||])
+    $$(PlutusTx.compile [|| wrap ||])
 
 
 qvfValidator :: QVFParams -> Validator
 qvfValidator =
     Plutonomy.optimizeUPLC
-  . Scripts.validatorScript
+  . PSU.V2.validatorScript
   . typedQVFValidator
 
 
 qvfValidatorHash :: QVFParams -> ValidatorHash
-qvfValidatorHash = Scripts.validatorHash . typedQVFValidator
+qvfValidatorHash = PSU.V2.validatorHash . typedQVFValidator
 
 
 qvfAddress :: QVFParams -> Address
--- qvfAddress = scriptAddress . qvfValidator
-qvfAddress = scriptHashAddress . qvfValidatorHash
+qvfAddress = PSU.V2.validatorAddress . typedQVFValidator
 -- }}}
 -- }}}
 

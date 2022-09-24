@@ -29,6 +29,10 @@ module Datum where
 
 -- IMPORTS
 -- {{{
+import Data.Aeson                       ( FromJSON
+                                        , ToJSON )
+import GHC.Generics                     ( Generic )
+import Ledger
 import Plutus.V2.Ledger.Api             ( PubKeyHash
                                         , POSIXTime
                                         , Map
@@ -50,10 +54,10 @@ import PlutusTx.Prelude                 ( Bool(False)
 -- PROJECT DETAILS
 -- {{{
 data ProjectDetails = ProjectDetails
-  { pdPubKeyHash :: !PubKeyHash
-  , pdName       :: !BuiltinByteString
-  , pdRequested  :: !Integer
-  } deriving Show
+  { pdPubKeyHash :: PubKeyHash
+  , pdName       :: BuiltinByteString
+  , pdRequested  :: Integer
+  } deriving (Show, Generic, FromJSON, ToJSON)
 instance Eq ProjectDetails where
   {-# INLINABLE (==) #-}
   ProjectDetails p0 n0 r0 == ProjectDetails p1 n1 r1 =
@@ -72,31 +76,31 @@ data QVFDatum
   = DeadlineDatum
     -- ^ The datum attached to a reference UTxO for reading the deadline of the fund.
       -- {{{
-      !POSIXTime
+      POSIXTime
       -- }}}
 
   | RegisteredProjectsCount 
     -- ^ The "main" datum, keeping a record of the number of registered projects.
       -- {{{
-      !Integer
+      Integer
       -- }}}
 
   | DonationAccumulationProgress
     -- ^ For keeping track of the folded projects traversed.
       -- {{{
-      !Integer -- ^ Total project count.
-      !Integer -- ^ Projects traversed so far.
-      !Integer -- ^ Total Lovelaces so far.
-      !Integer -- ^ Sum of prize weights so far.
+      Integer -- ^ Total project count.
+      Integer -- ^ Projects traversed so far.
+      Integer -- ^ Total Lovelaces so far.
+      Integer -- ^ Sum of prize weights so far.
       -- }}}
 
   | DonationAccumulationConcluded
     -- ^ Datum after collecting all donations.
       -- {{{
-      !Integer -- ^ Total project count.
-      !Integer -- ^ Total Lovelaces.
-      !Integer -- ^ Sum of prize weights.
-      !Bool    -- ^ Key holder fee collected or not.
+      Integer -- ^ Total project count.
+      Integer -- ^ Total Lovelaces.
+      Integer -- ^ Sum of prize weights.
+      Bool    -- ^ Key holder fee collected or not.
       -- }}}
 
   | ProjectInfo
@@ -108,42 +112,42 @@ data QVFDatum
   | ReceivedDonationsCount
     -- ^ Datum for a project UTxO. Tracks number of donations, not amount.
       -- {{{
-      !Integer
+      Integer
       -- }}}
   
   | DonationFoldingProgress
     -- ^ Project UTxO during the first phase of folding the donations.
       -- {{{
-      !Integer -- ^ Total donation count.
-      !Integer -- ^ Folded so far.
+      Integer -- ^ Total donation count.
+      Integer -- ^ Folded so far.
       -- }}}
 
   | PrizeWeight
     -- ^ Result of folding all donations.
       -- {{{
-      !Integer -- ^ Prize weight.
-      !Bool    -- ^ Whether depleted or not.
+      Integer -- ^ Prize weight.
+      Bool    -- ^ Whether depleted or not.
       -- }}}
 
   | Donation
     -- ^ For a single donation UTxO.
       -- {{{
-      !PubKeyHash -- ^ Donor's public key hash.
+      PubKeyHash -- ^ Donor's public key hash.
       -- }}}
 
   | Donations
     -- ^ For output donation UTxO of the first phase of folding donations.
       -- {{{
-      !(Map PubKeyHash Integer)
+      (Map PubKeyHash Integer)
       -- }}}
 
   | Escrow
     -- ^ For UTxOs that store the excess reward won by projects.
       -- {{{
-      !(Map PubKeyHash Integer)
+      (Map PubKeyHash Integer)
       -- }}}
 
-  deriving Show
+  deriving (Show, Generic, FromJSON, ToJSON)
   -- }}}
 
 instance Eq QVFDatum where
