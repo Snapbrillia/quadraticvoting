@@ -18,14 +18,7 @@ module Utils where
 -- IMPORTS
 -- {{{
 import qualified Ledger.Ada                  as Ada
-import Plutus.V2.Ledger.Api                  ( Address(..)
-                                             , PubKeyHash(PubKeyHash)
-                                             , ValidatorHash(ValidatorHash)
-                                             , TxId(TxId)
-                                             , TxOutRef(..)
-                                             , TokenName(TokenName)
-                                             , Value
-                                             , Credential(ScriptCredential, PubKeyCredential) )
+import Plutus.V2.Ledger.Api
 import PlutusTx.Prelude                      ( otherwise
                                              , Bool
                                              , Integer
