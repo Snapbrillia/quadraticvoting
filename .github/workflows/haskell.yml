@@ -46,7 +46,7 @@ jobs:
 
     - name: Configure to use libsodium
       run: |
-        cat >> cabal.project <<EOF
+        cat > cabal.project.local <<EOF
         package cardano-crypto-praos
           flags: -external-libsodium-vrf
         EOF
@@ -61,6 +61,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get -y install libsodium23 libsodium-dev
+        sudo apt-get -y install libsecp256k1-0 libsecp256k1-dev
         sudo apt-get -y install libsystemd0 libsystemd-dev
         sudo apt-get -y remove --purge software-properties-common
         sudo apt-get -y autoremove
