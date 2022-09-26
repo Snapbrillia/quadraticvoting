@@ -83,9 +83,7 @@ import Datum                                          ( ProjectDetails(..)
 import qualified Minter.NFT                           as NFT
 import           Minter.NFT                           ( qvfTokenName
                                                       )
-import Utils                                          ( takeSqrt
-                                                      , lovelaceFromValue
-                                                      , orefToTokenName )
+import           Utils
 -- }}}
 
 
