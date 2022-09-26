@@ -62,22 +62,6 @@ mkDonationPolicy sym action ctx =
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    -- | Extracts the inline datum from a given UTxO.
-    --   Raises exception upon failure.
-    getInlineDatum :: TxOut -> QVFDatum
-    getInlineDatum utxo =
-      -- {{{
-      case txOutDatum utxo of
-        OutputDatum (Datum d) ->
-          case fromBuiltinData d of
-            Just qvfDatum ->
-              qvfDatum
-            Nothing       ->
-              traceError "Provided datum didn't have a supported structure."
-        _                     ->
-          traceError "Bad inline datum."
-      -- }}}
-
     currDonationAmount :: Integer
     currDonationAmount =  ReceivedDonationsCount $ getInlineDatum $ txInfoOutputs info 
 

@@ -138,4 +138,24 @@ orefToTokenName TxOutRef{txOutRefId = TxId txHash, txOutRefIdx = txIndex} =
   -- {{{
   TokenName $ sha2_256 $ consByteString txIndex txHash
   -- }}}
+
+
+
+{-# INLINABLE getInlineDatum #-}
+-- | Extracts the inline datum from a given UTxO.
+--
+--   Raises exception upon failure.
+getInlineDatum :: TxOut -> QVFDatum
+getInlineDatum utxo =
+  -- {{{
+  case txOutDatum utxo of
+    OutputDatum (Datum d) ->
+      case fromBuiltinData d of
+        Just qvfDatum ->
+          qvfDatum
+        Nothing       ->
+          traceError "Provided datum didn't have a supported structure."
+    _                     ->
+      traceError "Bad inline datum."
+  -- }}}
 -- }}}

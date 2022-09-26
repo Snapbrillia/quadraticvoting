@@ -177,23 +177,6 @@ mkRegistrationPolicy sym tn action ctx =
             [_,(symY', tnY', amtY)] -> symY' == sym && tn == tnY' && amtY == 1
             _               -> False
 
-        -- | Extracts the inline datum from a given UTxO.
-        --
-        --   Raises exception upon failure.
-        getInlineDatum :: TxOut -> QVFDatum
-        getInlineDatum utxo =
-          -- {{{
-          case txOutDatum utxo of
-            OutputDatum (Datum d) ->
-              case fromBuiltinData d of
-                Just qvfDatum ->
-                  qvfDatum
-                Nothing       ->
-                  traceError "Provided datum didn't have a supported structure."
-            _                     ->
-              traceError "Bad inline datum."
-          -- }}}
-
         -- soFar = riRegisteredProjectsCount regInfo
         tn'    = orefToTokenName $ riTxOutRef regInfo
 
