@@ -34,6 +34,8 @@ import PlutusTx.Prelude                      ( otherwise
 import           PlutusTx.Sqrt               ( Sqrt (..)
                                              , isqrt)
 import qualified Prelude                     as P
+
+import           Datum
 -- }}}
 
 
