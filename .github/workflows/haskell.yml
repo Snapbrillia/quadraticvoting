@@ -60,6 +60,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
+        sudo apt-get -y install pkg-config
         sudo apt-get -y install libsodium23 libsodium-dev
         sudo apt-get -y install libsecp256k1-0 libsecp256k1-dev
         sudo apt-get -y install libsystemd0 libsystemd-dev
