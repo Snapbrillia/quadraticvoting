@@ -18,25 +18,25 @@
 
 -- MODULE
 -- {{{
-module Minter.NFT where
+module Minter.Governance where
 -- }}}
 
 
 -- IMPORTS
 -- {{{
 import           Ledger                               ( scriptCurrencySymbol )
-import Ledger.Value as Value                          ( CurrencySymbol
+import           Ledger.Value as Value                ( CurrencySymbol
                                                       , TokenName(TokenName)
                                                       , flattenValue )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
-import qualified Plutus.V2.Ledger.Api                 as PlutusV2
 import           Plutus.V2.Ledger.Api                 ( MintingPolicy
                                                       , POSIXTime
                                                       , ScriptContext(..)
                                                       , TxInfo(..)
                                                       , TxInInfo(..)
                                                       , TxOutRef(..)
+                                                      , mkMintingPolicyScript
                                                       )
 import qualified PlutusTx
 import           PlutusTx.Prelude                     ( Bool(False)
@@ -91,7 +91,7 @@ mkQVFPolicy oref deadline tn () ctx =
 qvfPolicy :: TxOutRef -> POSIXTime -> MintingPolicy
 qvfPolicy oref deadline =
   -- {{{
-  Plutonomy.optimizeUPLC $ PlutusV2.mkMintingPolicyScript $
+  Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
     $$(PlutusTx.compile [|| \oref' deadline' tn' -> PSU.V2.mkUntypedMintingPolicy $ mkQVFPolicy oref' deadline' tn' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode oref

@@ -16,16 +16,16 @@
 module Minter.Registration where
 
 
-import qualified Ledger.Ada                  as Ada
+import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
+import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
+import           Plutus.V2.Ledger.Api
+import           Plutus.V2.Ledger.Contexts
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Ledger
-import qualified Ledger.Typed.Scripts as Scripts
-import           Ledger.Value         as Value
 
 import           Datum
-import qualified Minter.NFT           as NFT
+import qualified Minter.Governance                    as Gov
 import           RegistrationInfo
 import           Utils
 
@@ -61,30 +61,30 @@ mkRegistrationPolicy sym tn action ctx =
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
-  
-    -- | The resulting token name based on the specified UTxO being spent.
-    currTN :: TokenName
-    currTN = orefToTokenName riTxOutRef
-
-    inputGovUTxO :: TxOut
-    inputGovUTxO =
-      -- {{{
-      case filter (utxoHasX ownSym (Just tn) . txInInfoResolved) inputs of
-        [txIn] ->
-          -- {{{
-          txInInfoResolved txIn
-          -- }}}
-        _      ->
-          -- {{{
-          traceError
-            "Expecting exactly one funding round authentication token to be spent."
-          -- }}}
-      -- }}}
   in 
   case action of
     RegisterProject RegistrationInfo{..} ->
       -- {{{
       let
+        -- | The resulting token name based on the specified UTxO being spent.
+        currTN :: TokenName
+        currTN = orefToTokenName riTxOutRef
+
+        inputGovUTxO :: TxOut
+        inputGovUTxO =
+          -- {{{
+          case filter (utxoHasX ownSym (Just tn) . txInInfoResolved) inputs of
+            [txIn] ->
+              -- {{{
+              txInInfoResolved txIn
+              -- }}}
+            _      ->
+              -- {{{
+              traceError
+                "Expecting exactly one funding round authentication token to be spent."
+              -- }}}
+          -- }}}
+
         -- | Looks for the singular authenticated governance input UTxO to find
         --   the origin address of the governance asset, and the number of
         --   projects registrered so far.
@@ -97,7 +97,7 @@ mkRegistrationPolicy sym tn action ctx =
           case getInlineDatum inputGovUTxO of 
             RegisteredProjectsCount soFar ->
               -- {{{
-              (txOutAddress inputGoveUTxO, soFar)
+              (txOutAddress inputGovUTxO, soFar)
               -- }}}
             _                           ->
               -- {{{
@@ -117,10 +117,10 @@ mkRegistrationPolicy sym tn action ctx =
             True
             -- }}}
           -- Or is it a UTxO carrying the governance asset?
-          else if utxoHasX sym tn utxo then
+          else if utxoHasX sym (Just tn) utxo then
             -- {{{
             if txOutAddress utxo == originAddr then
-              if utxosDatumMatchesWith (RegisteredProjectsCount $ currentProjectCount + 1) then
+              if utxosDatumMatchesWith (RegisteredProjectsCount $ currentProjectCount + 1) utxo then
                 True
               else
                 traceError
@@ -188,18 +188,22 @@ mkRegistrationPolicy sym tn action ctx =
       -- }}}
   -- }}}
 
-
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-registrationPolicy :: CurrencySymbol -> Scripts.MintingPolicy
+registrationPolicy :: CurrencySymbol -> MintingPolicy
 registrationPolicy sym =
   -- {{{
+  let
+    wrap :: (RegistrationRedeemer -> ScriptContext -> Bool)
+         -> PSU.V2.UntypedMintingPolicy
+    wrap = PSU.V2.mkUntypedMintingPolicy
+  in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \sym' tn' -> Scripts.wrapMintingPolicy $ mkRegistrationPolicy sym' tn' ||])
+    $$(PlutusTx.compile [|| \sym' tn' -> wrap $ mkRegistrationPolicy sym' tn' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
     `PlutusTx.applyCode`
-    PlutusTx.liftCode NFT.qvfTokenName
+    PlutusTx.liftCode Gov.qvfTokenName
   -- }}}
 
 

@@ -79,8 +79,9 @@ import           Prelude                              ( Show
 import qualified Prelude                              as P
 
 import           Datum
-import qualified Minter.NFT                           as NFT
-import           Minter.NFT                           ( qvfTokenName )
+import qualified Minter.Governance                    as Gov
+import           Minter.Governance                    ( qvfTokenName )
+import qualified Minter.Registration
 import           RegistrationInfo
 import           Utils
 -- }}}
@@ -705,7 +706,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (RegisteredProjectsCount soFar                , RegisterProject regInfo) ->
+    (RegisteredProjectsCount _                    , RegisterProject regInfo) ->
       -- Project Registration
       -- {{{
       let

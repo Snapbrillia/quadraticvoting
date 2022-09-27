@@ -29,7 +29,8 @@ import           Text.Read                  (readMaybe)
 import           Datum
 
 import qualified QVF                        as OC
-import qualified Minter.NFT                 as Gov
+import qualified Minter.Governance          as Gov
+import qualified Minter.Registration        as Reg
 
 -- UTILS
 -- {{{
@@ -241,7 +242,8 @@ main =
         [ "<key-holder-pub-key-hash>"
         , "<txID>#<output-index>"
         , "<deadline-posix-milliseconds>"
-        , "<output-minting.plutus>"
+        , "<governance-policy.plutus>"
+        , "<registration-policy.plutus>"
         , "<output-validation.plutus>"
         , "<unit.redeemer>"
         , "<output-initial.datum>"
@@ -400,7 +402,7 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : mOF : vOF : rOF : dOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : gOF : regOF : vOF : rOF : dOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
         (Nothing   , _      ) ->
@@ -413,23 +415,25 @@ main =
           -- }}}
         (Just txRef, Just dl) -> do
           -- {{{
-          mintRes <- writeMintingPolicy mOF $ Gov.qvfPolicy txRef dl
-          case mintRes of
-            Right _ -> do
+          govRes <- writeMintingPolicy gOF $ Gov.qvfPolicy txRef dl
+          let qvfSymbol = Gov.qvfSymbol txRef dl
+          regRes <- writeMintingPolicy regOF $ Reg.registrationPolicy qvfSymbol
+          case (govRes, regRes) of
+            (Right _, Right _) -> do
               -- {{{
-              let tokenSymbol = Gov.qvfSymbol txRef dl
-                  qvfParams   =
+              let regSymbol = Reg.registrationSymbol qvfSymbol
+                  qvfParams =
                     OC.QVFParams
                       { OC.qvfKeyHolder      = fromString pkhStr
-                      , OC.qvfSymbol         = tokenSymbol
-                      , OC.qvfProjectSymbol  = tokenSymbol
-                      , OC.qvfDonationSymbol = tokenSymbol
+                      , OC.qvfSymbol         = qvfSymbol
+                      , OC.qvfProjectSymbol  = regSymbol
+                      , OC.qvfDonationSymbol = qvfSymbol
                       }
               valRes <- writeValidator vOF $ OC.qvfValidator qvfParams
               case valRes of
                 Right _ -> do
                   -- {{{
-                  andPrintSuccess mOF $ return ()
+                  andPrintSuccess gOF $ return ()
                   andPrintSuccess vOF $ return ()
                   andPrintSuccess rOF $ writeJSON rOF ()
                   andPrintSuccess dOF $ writeJSON dOF initialDatum
@@ -439,9 +443,9 @@ main =
                   putStrLn "FAILED to write Plutus script file."
                   -- }}}
               -- }}}
-            Left _  ->
+            _                  ->
               -- {{{
-              putStrLn "FAILED to write minting script file."
+              putStrLn "FAILED to write minting script files."
               -- }}}
           -- }}}
       -- }}}
