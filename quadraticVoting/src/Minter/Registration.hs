@@ -25,36 +25,26 @@ import qualified Ledger.Typed.Scripts as Scripts
 import           Ledger.Value         as Value
 
 import           Datum
-import           Utils
 import qualified Minter.NFT           as NFT
+import           RegistrationInfo
+import           Utils
 
 
 -- REDEEMER
 -- {{{
-data RegistrationInfo = RegistrationInfo
-  { riTxOutRef                :: !TxOutRef
-  , riPubKeyHash              :: !BuiltinByteString
-  , riLabel                   :: !BuiltinByteString
-  , riRequested               :: !Integer
-    }
-
-PlutusTx.unstableMakeIsData ''RegistrationInfo
-
-
 data RegistrationRedeemer
   = RegisterProject RegistrationInfo
-  | DistributePrize BuiltinByteString -- ProjectID : hashTxOutRef (riTxOutRef RegistrationInfo)
+  | ConcludeAndRefund
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
-  [ ('RegisterProject, 0)
-  , ('DistributePrize, 1)
+  [ ('RegisterProject  , 0)
+  , ('ConcludeAndRefund, 1)
   ]
 -- }}}
 
 
 -- POLICY SCRIPT
 -- {{{
-{-
 {-# INLINABLE mkRegistrationPolicy #-}
 mkRegistrationPolicy :: CurrencySymbol
                      -> TokenName
@@ -67,240 +57,137 @@ mkRegistrationPolicy sym tn action ctx =
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    hasInUTxO :: Bool
-    hasInUTxO = any (\i -> isSame (txOutValue $ txInfoResolved i)) $ txInfoInputs info
-
-    hasOutUTxO :: Bool
-    hasOutUTxO = any (\i -> isSame (txOutValue i)) $ txInfoOutputs info
-
-    isSame :: Value -> Bool
-    isSame value = case flattenValue value of
-        [_,(symY', tnY', amtY)] -> symY' == sym && tnY' == tn && amtY == 1
-        _                       -> False
+    inputs = txInfoInputs info
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
+  
+    -- | The resulting token name based on the specified UTxO being spent.
+    currTN :: TokenName
+    currTN = orefToTokenName riTxOutRef
 
-  in
+    inputGovUTxO :: TxOut
+    inputGovUTxO =
+      -- {{{
+      case filter (utxoHasX ownSym (Just tn) . txInInfoResolved) inputs of
+        [txIn] ->
+          -- {{{
+          txInInfoResolved txIn
+          -- }}}
+        _      ->
+          -- {{{
+          traceError
+            "Expecting exactly one funding round authentication token to be spent."
+          -- }}}
+      -- }}}
+  in 
   case action of
-    RegisterProject ri ->
+    RegisterProject RegistrationInfo{..} ->
+      -- {{{
       let
-        signedByRegistrator :: Bool
-        signedByRegistrator = txSignedBy info $ riPubKeyHash ri
-
-        checkTokenName :: TokenName ->  Bool
-        checkTokenName tn = unTokenName tn  == hashTxOutRef (riTxOutRef ri)
-
-        tnIsCorrect :: Bool
-        tnIsCorrect = case flattenValue (txInfoMint info) of
-            [(sym', tn', amt)] -> ownSym == sym' && checkTokenName tn' && amt  == 1 -- ownSym check may be redundant
-            _               -> False
-
-
-        hasRed :: Bool
-        hasRed = any (\i -> hasPTokenandFees (txOutValue i)) $ txInfoOutputs info
-        -- Check red UTXO is present in Output, and that it has P token
-        -- and  min 2 Ada --ref to constant in Utilities Module  is available 
-
-        hasPTokenandFees :: Value -> Bool
-        hasPTokenandFees value = case flattenValue value of
-            [(sym', tn', amt),(symY', tnY', amtY)] -> amt  == minLovelace ||
-                                                      symY' == ownSym && checkTokenName tnY' && amtY == 1
-            _               -> False
-
-        hasUTxO :: Bool
-        hasUTxO = any (\i -> txInInfoOutRef i == riTxOutRef ri) $ txInfoInputs info
-
-      in
-        traceIfFalse
-          "Registrator's signature missing"
-          signedByRegistrator                         &&
-        traceIfFalse
-          "Token name is not hash of specified UTXO"
-          tnIsCorrect                                 &&
-        traceIfFalse
-          "Not all tokens present"
-          (hasInUTxO && hasOutUTxO)                   &&
-        traceIfFalse
-          "Missing fees or incorrect token"
-          hasRed                                      &&
-        traceIfFalse
-          "Utxo does not match redeemer"
-          hasUTxO
-
-    DistributePrize  projectID  ->
-      let
-          checkTokenName :: TokenName ->  Bool
-          checkTokenName tn = unTokenName tn  == projectID
-
-          tokenIsCorrect :: Bool
-          tokenIsCorrect = case flattenValue (txInfoMint info) of
-              [(sym', tn', amt)] -> ownSym == sym' && checkTokenName tn' && amt  == (-1) -- ownSym check may be redundant
-              _               -> False
-      in
-          traceIfFalse
-            "Not all tokens present"
-            (hasInUTxO && hasOutUTxO)         &&
-          traceIfFalse
-            "Missing fees or incorrect token"
-            tokenIsCorrect
-
--}
-
-{-# INLINABLE mkRegistrationPolicy #-}
-mkRegistrationPolicy :: CurrencySymbol
-                     -> TokenName
-                     -> RegistrationRedeemer
-                     -> ScriptContext
-                     -> Bool
-mkRegistrationPolicy sym tn action ctx =
-
-
-  -- (RegisteredProjectsCount soFar                , RegisterProject regInfo) ->
-    -- Project Registration
-    -- {{{
-    RegisterProject regInfo ->
-    let
-
-        -- soFar = riRegisteredProjectsCount regInfo
-        -- look inside input utxos, find s token (if exactly one is not found, fail), pattern match on its datum; if found, extract sofar value, if not, fail.
-
-        soFar :: Integer
-        soFar = case filter (\i -> hasSToken (txOutValue $ txInInfoResolved i)) $ txInfoInputs info of
-                    [txinput] -> case (getInlineDatum $ txInInfoResolved txinput) of 
-                               RegisteredProjectsCount int  -> int
-                               _                            -> traceError "RegisteredProjectCount has no integer!"
-                    _     -> traceError "Expecting exactly one S Token"
-
-        hasSToken :: Value -> Bool
-        hasSToken value = case flattenValue value of
-            [_,(symY', tnY', amtY)] -> symY' == sym && tn == tnY' && amtY == 1
-            _               -> False
-
-        -- soFar = riRegisteredProjectsCount regInfo
-        tn'    = orefToTokenName $ riTxOutRef regInfo
-
-        -- | Raises exception on @False@.
-        outputPsArePresent :: Bool
-        outputPsArePresent =
-            -- {{{
-
-       -- extract token name that is being minted, and validate against project info
-       -- deduce the proper token name from the registration info
-
-
-         case filter (utxoHasX ownCurrencySymbol $ Just tn') (txInfoOutputs info) of -- Minting script needs outpututxos
-          -- TODO: Is it OK to expect a certain order for these outputs?
-          --       This is desired to avoid higher transaction fees.
-          [o0, o1] ->
-            -- {{{
-               traceIfFalse
-                 "First continuing output must carry project's static info."
-                 ( utxosDatumMatchesWith
-                     (ProjectInfo $ registrationInfoToProjectDetials regInfo)
-                     o0
-                 )
-            && traceIfFalse
-                 "Second continuing output must carry record of donations."
-                 ( utxosDatumMatchesWith
-                     (ReceivedDonationsCount 0)
-                     o1
-                 )
-            && traceIfFalse
-                 "Half of the registration fee should be stored in project's reference UTxO."
-                 (utxoHasLovelaces halfOfTheRegistrationFee o0)
-            && traceIfFalse
-                 "Half of the registration fee should be stored in project's main UTxO."
-                 (utxoHasLovelaces halfOfTheRegistrationFee o1)
-            -- }}}
-          _        ->
-            -- {{{
-            traceError "There should be exactly 2 project UTxOs produced."
-            -- }}}
-        -- }}}
-
-
-        -- | Helper function to see if the given UTxO carries the given amount of
-        --   Lovelaces.
-        utxoHasLovelaces :: Integer -> TxOut -> Bool
-        utxoHasLovelaces lovelaces txOut =
-          -- {{{
-          txOutValue txOut == Ada.lovelaceValueOf lovelaces
-          -- }}}
-
-
-        -- | Checks if a UTxO carries a specific inline datum.
+        -- | Looks for the singular authenticated governance input UTxO to find
+        --   the origin address of the governance asset, and the number of
+        --   projects registrered so far.
         --
-        --   Raises exception upon failure of getting the inline datum.
-        utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
-        utxosDatumMatchesWith newDatum =
+        --   Raises exception upon failure.
+        originAddr          :: Address
+        currentProjectCount :: Integer
+        (originAddr, currentProjectCount) =
           -- {{{
-          (newDatum ==) . getInlineDatum
+          case getInlineDatum inputGovUTxO of 
+            RegisteredProjectsCount soFar ->
+              -- {{{
+              (txOutAddress inputGoveUTxO, soFar)
+              -- }}}
+            _                           ->
+              -- {{{
+              traceError "Invalid datum for project registration."
+              -- }}}
+          -- }}}
+  
+        -- | Raises exception if it finds an `S` token which is getting sent to
+        --   a different address than where it's coming from, or doesn't have
+        --   a properly updated datum.
+        filterPsAndValidateS :: TxOut -> Bool
+        filterPsAndValidateS  utxo =
+          -- {{{
+          -- Is the UTxO carrying a project token?
+          if utxoHasX ownSym (Just currTN) utxo then
+            -- {{{
+            True
+            -- }}}
+          -- Or is it a UTxO carrying the governance asset?
+          else if utxoHasX sym tn utxo then
+            -- {{{
+            if txOutAddress utxo == originAddr then
+              if utxosDatumMatchesWith (RegisteredProjectsCount $ currentProjectCount + 1) then
+                True
+              else
+                traceError
+                  "Output governance UTxO must increment the project count by 1."
+            else
+              traceError
+                "Governance token must be sent back to the same address from which it's getting consumed."
+            -- }}}
+          else
+            -- {{{
+            False
+            -- }}}
           -- }}}
 
-
-
-
-        -- | Checks 1 X comes from the script, and 1 X goes back to the script,
-        --   with enough added Lovelaces and properly updated datum.
+        -- | Validates the presence of 2 output project UTxOs: one for storing
+        --   project's static information, and the other to keep a record of
+        --   the number of donations the project will receive.
+        --
+        --   Output governance UTxO gets validated by the filtering function,
+        --   but its presence is expected at the head of the filtered list.
         --
         --   Raises exception on @False@.
-        xIsPresent :: CurrencySymbol -- ^ X's currency symbol
-                   -> TokenName      -- ^ X's token name
-                   -> Integer        -- ^ Increase in output's Lovelace count
-                   -> QVFDatum       -- ^ Updated datum
-                   -> Bool
-        xIsPresent sym tn increaseInLovelace newDatum =
+        outputSAndPsArePresent :: Bool
+        outputSAndPsArePresent =
           -- {{{
-          case filter (utxoHasX sym $ Just tn) (getContinuingOutputs ctx) of
-            [txOut] ->
+          case filter filterPsAndValidateS (txInfoOutputs info) of
+            -- TODO: Is it OK to expect a certain order for these outputs?
+            --       This is desired to prevent higher transaction fees.
+            [_, p0, p1] ->
               -- {{{
-              let
-                inUTxO        = getXInputUTxO sym tn
-                inVal         = txOutValue inUTxO
-                outVal        = txOutValue txOut
-                desiredOutVal =
-                  inVal <> Ada.lovelaceValueOf increaseInLovelace
-              in
                  traceIfFalse
-                   "Authenticated output doesn't have enough Lovelaces"
-                   (outVal == desiredOutVal)
+                   "First project output must carry its static info."
+                   ( utxosDatumMatchesWith
+                       (ProjectInfo riProjectDetails)
+                       p0
+                   )
               && traceIfFalse
-                   "Invalid datum attached to the authenticated output."
-                   (utxosDatumMatchesWith newDatum txOut)
+                   "Second project output must carry its record of donations."
+                   ( utxosDatumMatchesWith
+                       (ReceivedDonationsCount 0)
+                       p1
+                   )
+              && traceIfFalse
+                   "Half of the registration fee should be stored in project's reference UTxO."
+                   (utxoHasLovelaces halfOfTheRegistrationFee p0)
+              && traceIfFalse
+                   "Half of the registration fee should be stored in project's main UTxO."
+                   (utxoHasLovelaces halfOfTheRegistrationFee p1)
               -- }}}
-            _       ->
+            _           ->
               -- {{{
-              traceError "There must be exactly 1 authentication asset produced."
+              traceError
+                "There should be exactly 1 governance, and 2 project UTxOs produced."
               -- }}}
-          -- }}}
+        -- }}}
+      in
+         outputSAndPsArePresent
+      && traceIfFalse
+           "Specified UTxO must be consumed."
+           (utxoIsGettingSpent inputs riTxOutRef)
+      -- }}}
+    ConcludeAndRefund                    ->
+      -- {{{
+      traceError "TODO."
+      -- }}}
+  -- }}}
 
-        -- | Checks if a given UTxO has exactly 1 of asset X.
-        utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
-        utxoHasX sym mTN utxo =
-          -- {{{
-            isJust
-          $ find
-              ( \(sym', tn', amt') ->
-                     sym' == sym
-                  && ( case mTN of
-                         Just tn -> tn' == tn
-                         Nothing -> True
-                     )
-                  && amt' == 1
-              )
-          $ flattenValue
-          $ txOutValue utxo
-          -- }}}
-
-    in
-       xIsPresent
-         sym
-         tn
-         0
-         (RegisteredProjectsCount $ soFar + 1)
-    && outputPsArePresent
-    -- }}}
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{

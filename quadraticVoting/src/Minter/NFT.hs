@@ -39,14 +39,14 @@ import           Plutus.V2.Ledger.Api                 ( MintingPolicy
                                                       , TxOutRef(..)
                                                       )
 import qualified PlutusTx
-import PlutusTx.Prelude                               ( Bool(False)
+import           PlutusTx.Prelude                     ( Bool(False)
                                                       , Eq((==))
                                                       , ($)
                                                       , (&&)
                                                       , any
                                                       , traceError
                                                       , traceIfFalse )
-
+import           Utils
 -- }}}
 
 
@@ -57,14 +57,14 @@ qvfTokenName = TokenName "QVF"
 
 {-# INLINABLE mkQVFPolicy #-}
 mkQVFPolicy :: TxOutRef -> POSIXTime -> TokenName -> () -> ScriptContext -> Bool
-mkQVFPolicy oref _deadline tn () ctx =
+mkQVFPolicy oref deadline tn () ctx =
   -- {{{
   let
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
     hasUTxO :: Bool
-    hasUTxO = any (\i -> txInInfoOutRef i == oref) $ txInfoInputs info
+    hasUTxO = utxoIsGettingSpent (txInfoInputs info) oref
 
     checkMintedAmount :: Bool
     checkMintedAmount =
