@@ -18,24 +18,15 @@ module Utils where
 -- IMPORTS
 -- {{{
 import qualified Ledger.Ada                  as Ada
-import Plutus.V2.Ledger.Api
-import PlutusTx.Prelude                      ( otherwise
-                                             , Bool
-                                             , Integer
-                                             , Maybe(..)
-                                             , BuiltinByteString
-                                             , ($)
-                                             , (.)
-                                             , consByteString
-                                             , emptyByteString
-                                             , sha2_256
-                                             , (++)
-                                             , traceError )
+import           Plutus.V1.Ledger.Value      ( flattenValue )
+import           Plutus.V2.Ledger.Api
+import           PlutusTx.Prelude
 import           PlutusTx.Sqrt               ( Sqrt (..)
                                              , isqrt)
 import qualified Prelude                     as P
 
 import           Datum
+import           RegistrationInfo
 -- }}}
 
 
@@ -127,13 +118,20 @@ updateIfWith predicate fn xs =
   -- }}}
 
 
+{-# INLINABLE utxoIsGettingSpent #-}
+utxoIsGettingSpent :: [TxInInfo] -> TxOutRef -> Bool
+utxoIsGettingSpent inputs oref =
+  -- {{{
+  any ((== oref) . txInInfoOutRef) inputs
+  -- }}}
+
+
 {-# INLINABLE orefToTokenName #-}
 orefToTokenName :: TxOutRef -> TokenName
 orefToTokenName TxOutRef{txOutRefId = TxId txHash, txOutRefIdx = txIndex} =
   -- {{{
   TokenName $ sha2_256 $ consByteString txIndex txHash
   -- }}}
-
 
 
 {-# INLINABLE getInlineDatum #-}
@@ -153,4 +151,67 @@ getInlineDatum utxo =
     _                     ->
       traceError "Bad inline datum."
   -- }}}
+
+
+{-# INLINABLE utxosDatumMatchesWith #-}
+-- | Checks if a UTxO carries a specific inline datum.
+--
+--   Raises exception upon failure of getting the inline datum.
+utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
+utxosDatumMatchesWith newDatum =
+  -- {{{
+  (newDatum ==) . getInlineDatum
+  -- }}}
+
+
+{-# INLINABLE utxoHasX #-}
+-- | Checks if a given UTxO has exactly 1 of asset X.
+utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
+utxoHasX sym mTN utxo =
+  -- {{{
+    isJust
+  $ find
+      ( \(sym', tn', amt') ->
+             sym' == sym
+          && ( case mTN of
+                 Just tn -> tn' == tn
+                 Nothing -> True
+             )
+          && amt' == 1
+      )
+  $ flattenValue
+  $ txOutValue utxo
+  -- }}}
+
+
+{-# INLINABLE utxoHasLovelaces #-}
+-- | Helper function to see if the given UTxO carries the given amount of
+--   Lovelaces.
+utxoHasLovelaces :: Integer -> TxOut -> Bool
+utxoHasLovelaces lovelaces txOut =
+  -- {{{
+  txOutValue txOut == Ada.lovelaceValueOf lovelaces
+  -- }}}
+-- }}}
+
+
+-- CONSTANTS
+-- {{{
+registrationFee :: Integer
+registrationFee = 3_000_000
+
+halfOfTheRegistrationFee :: Integer
+halfOfTheRegistrationFee = 1_500_000
+
+maxDonationInputsForPhaseOne :: Integer
+maxDonationInputsForPhaseOne = 120
+
+maxDonationInputsForPhaseTwo :: Integer
+maxDonationInputsForPhaseTwo = 250
+
+maxTotalDonationCount :: Integer
+maxTotalDonationCount = 30_000
+
+minKeyHolderFee :: Integer
+minKeyHolderFee = 10_000_000
 -- }}}

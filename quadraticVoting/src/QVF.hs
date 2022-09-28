@@ -78,11 +78,11 @@ import           Prelude                              ( Show
                                                       )
 import qualified Prelude                              as P
 
-import Datum                                          ( ProjectDetails(..)
-                                                      , QVFDatum(..) )
-import qualified Minter.NFT                           as NFT
-import           Minter.NFT                           ( qvfTokenName
-                                                      )
+import           Datum
+import qualified Minter.Governance                    as Gov
+import           Minter.Governance                    ( qvfTokenName )
+import qualified Minter.Registration
+import           RegistrationInfo
 import           Utils
 -- }}}
 
@@ -102,19 +102,6 @@ PlutusTx.makeLift ''QVFParams
 
 -- QVF ACTION
 -- {{{
--- REGISTRATION INFO
--- {{{
-data RegistrationInfo = RegistrationInfo
-  { riTxOutRef   :: TxOutRef
-  , riPubKeyHash :: PubKeyHash
-  , riLabel      :: BuiltinByteString
-  , riRequested  :: Integer
-  }
-
-PlutusTx.unstableMakeIsData ''RegistrationInfo
--- }}}
-
-
 -- DONATION INFO
 -- {{{
 data DonationInfo = DonationInfo
@@ -198,24 +185,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
     signedByKeyHolder _ =
       -- {{{
       traceIfFalse "Unauthorized." $ txSignedBy info qvfKeyHolder
-      -- }}}
-
-    -- | Checks if a given UTxO has exactly 1 of asset X.
-    utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
-    utxoHasX sym mTN utxo =
-      -- {{{
-        isJust
-      $ find
-          ( \(sym', tn', amt') ->
-                 sym' == sym
-              && ( case mTN of
-                     Just tn -> tn' == tn
-                     Nothing -> True
-                 )
-              && amt' == 1
-          )
-      $ flattenValue
-      $ txOutValue utxo
       -- }}}
 
     -- | Finds how much X asset is present in the given UTxO.
@@ -308,15 +277,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- {{{
           traceError "Missing reference input."
           -- }}}
-      -- }}}
-
-    -- | Checks if a UTxO carries a specific inline datum.
-    --
-    --   Raises exception upon failure of getting the inline datum.
-    utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
-    utxosDatumMatchesWith newDatum =
-      -- {{{
-      (newDatum ==) . getInlineDatum
       -- }}}
 
     -- | Looks for the presence of a UTxO from the script in the input list
@@ -688,14 +648,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
         (flattenValue $ txInfoMint info)
       -- }}}
 
-    -- | Helper function to see if the given UTxO carries the given amount of
-    --   Lovelaces.
-    utxoHasLovelaces :: Integer -> TxOut -> Bool
-    utxoHasLovelaces lovelaces txOut =
-      -- {{{
-      txOutValue txOut == lovelaceValueOf lovelaces
-      -- }}}
-
     -- | Expects a single continuing output, and validates given predicates.
     validateSingleOutput :: Maybe Integer
                          -> Maybe QVFDatum
@@ -754,56 +706,16 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (RegisteredProjectsCount soFar                , RegisterProject regInfo) ->
+    (RegisteredProjectsCount _                    , RegisterProject regInfo) ->
       -- Project Registration
       -- {{{
       let
         tn = orefToTokenName $ riTxOutRef regInfo
-
-        -- | Raises exception on @False@.
-        outputPsArePresent :: Bool
-        outputPsArePresent =
-          -- {{{
-          case filter (utxoHasX qvfProjectSymbol $ Just tn) (getContinuingOutputs ctx) of
-            -- TODO: Is it OK to expect a certain order for these outputs?
-            --       This is desired to avoid higher transaction fees.
-            [o0, o1] ->
-              -- {{{
-                 traceIfFalse
-                   "First continuing output must carry project's static info."
-                   ( utxosDatumMatchesWith
-                       (ProjectInfo $ registrationInfoToProjectDetials regInfo)
-                       o0
-                   )
-              && traceIfFalse
-                   "Second continuing output must carry record of donations."
-                   ( utxosDatumMatchesWith
-                       (ReceivedDonationsCount 0)
-                       o1
-                   )
-              && traceIfFalse
-                   "Half of the registration fee should be stored in project's reference UTxO."
-                   (utxoHasLovelaces halfOfTheRegistrationFee o0)
-              && traceIfFalse
-                   "Half of the registration fee should be stored in project's main UTxO."
-                   (utxoHasLovelaces halfOfTheRegistrationFee o1)
-              -- }}}
-            _        ->
-              -- {{{
-              traceError "There should be exactly 2 project UTxOs produced."
-              -- }}}
-          -- }}}
       in
          traceIfFalse
            "There should be exactly 2 project assets minted."
            (mintIsPresent qvfProjectSymbol tn 2)
-      && xIsPresent
-           qvfSymbol
-           qvfTokenName
-           0
-           (RegisteredProjectsCount $ soFar + 1)
       && canRegisterOrDonate ()
-      && outputPsArePresent
       -- }}}
 
     (ReceivedDonationsCount _                     , DonateToProject donInfo) ->
@@ -1098,16 +1010,28 @@ mkQVFValidator QVFParams{..} datum action ctx =
       case Map.lookup winner beneficiaries of
         Just bounty ->
           -- {{{
-             traceIfFalse
-               "Unauthentic escrow UTxO."
-               (currUTxOHasX qvfProjectSymbol tn)
-          && traceIfFalse
-               "The bounty winner must be imbursed."
-               (lovelaceFromValue (valuePaidTo info winner) == bounty)
-          && validateSingleOutput
-               (Just $ currLovelaces - bounty)
-               (Just $ Escrow $ Map.delete winner beneficiaries)
-               (Just (qvfSymbol, qvfTokenName))
+          let
+            remainingBounty = currLovelaces - bounty
+          in
+          if remainingBounty > halfOfTheRegistrationFee then
+            -- {{{
+               traceIfFalse
+                 "Unauthentic escrow UTxO."
+                 (currUTxOHasX qvfProjectSymbol tn)
+            && traceIfFalse
+                 "The bounty winner must be imbursed."
+                 (lovelaceFromValue (valuePaidTo info winner) == bounty)
+            && validateSingleOutput
+                 (Just remainingBounty)
+                 (Just $ Escrow $ Map.delete winner beneficiaries)
+                 (Just (qvfSymbol, qvfTokenName))
+            -- }}}
+          else 
+            -- {{{
+            traceIfFalse
+              "Both project assets must be getting burnt."
+              (mintIsPresent qvfProjectSymbol tn (negate 2))
+            -- }}}
           -- }}}
         Nothing     ->
           -- {{{
@@ -1157,12 +1081,6 @@ qvfAddress = PSU.V2.validatorAddress . typedQVFValidator
 
 -- UTILS
 -- {{{
-{-# INLINABLE registrationInfoToProjectDetials #-}
-registrationInfoToProjectDetials :: RegistrationInfo -> ProjectDetails
-registrationInfoToProjectDetials RegistrationInfo{..} =
-  -- {{{
-  ProjectDetails riPubKeyHash riLabel riRequested
-  -- }}}
 
 
 {-# INLINABLE foldDonationsMap #-}
@@ -1206,28 +1124,6 @@ findProjectsWonLovelaces pool sumW w =
   -- {{{
   (w * pool) `divide` sumW
   -- }}}
--- }}}
-
-
--- CONSTANTS
--- {{{
-registrationFee :: Integer
-registrationFee = 3_000_000
-
-halfOfTheRegistrationFee :: Integer
-halfOfTheRegistrationFee = 1_500_000
-
-maxDonationInputsForPhaseOne :: Integer
-maxDonationInputsForPhaseOne = 120
-
-maxDonationInputsForPhaseTwo :: Integer
-maxDonationInputsForPhaseTwo = 250
-
-maxTotalDonationCount :: Integer
-maxTotalDonationCount = 30_000
-
-minKeyHolderFee :: Integer
-minKeyHolderFee = 10_000_000
 -- }}}
 
 

@@ -22,7 +22,9 @@ library
 
   exposed-modules:     QVF
                      , Datum
-                     , Minter.NFT
+                     , Minter.Governance
+                     , Minter.Registration
+                     , RegistrationInfo
                      , Utils
 
   build-depends:       base >= 4.9 && < 5
