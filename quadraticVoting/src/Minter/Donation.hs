@@ -20,6 +20,7 @@ import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts
+import qualified PlutusTx.AssocMap                    as Map
 import qualified PlutusTx
 import           PlutusTx.Prelude
 
@@ -32,7 +33,7 @@ import           Utils
 -- {{{
 data DonationRedeemer
   = DonateToProject DonationInfo
-  | FoldDonations
+  | FoldDonations   BuiltinByteString -- ^ Project's identifier
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
@@ -52,7 +53,8 @@ mkDonationPolicy sym action ctx =
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    inputs = txInfoInputs info
+    inputs  = txInfoInputs info
+    outputs = txInfoOutputs info
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
@@ -104,7 +106,7 @@ mkDonationPolicy sym action ctx =
         outputSAndVArePresent :: Bool
         outputSAndVArePresent =
           -- {{{
-          case filter filterVAndValidateP (txInfoOutputs info) of
+          case filter filterVAndValidateP outputs of
             -- TODO: Verify the enforcement of specific order.
             [_, v] ->
               -- {{{
@@ -129,9 +131,63 @@ mkDonationPolicy sym action ctx =
            (currDCount < maxTotalDonationCount)
       && outputSAndVArePresent
       -- }}}
-    FoldDonations                    ->
+    FoldDonations projectId          ->
       -- {{{
-      traceError "TODO."
+      let
+        tn :: TokenName
+        tn = TokenName projectId
+
+        -- Raises exception upon failure.
+        inputProjUTxO :: TxOut
+        inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
+
+        originAddr :: Address
+        originAddr = txOutAddress inputProjUTxO
+
+        foldDonationsPhaseTwo :: Integer -> Bool
+        foldDonationsPhaseTwo requiredDonationCount =
+          -- {{{
+          let
+            (ds, total, finalMap) = foldDonationInputs ownSym tn inputs
+            updatedDatum          =
+              PrizeWeight (foldDonationsMap finalMap) False
+          in
+          case filter (validateGovUTxO sym tn originAddr updatedDatum) outputs of
+            [o] ->
+              -- {{{
+                 traceIfFalse
+                   "All donations must be included in the final folding transaction."
+                   (ds == requiredDonationCount)
+              && traceIfFalse
+                   "All donations Lovelaces must be included within the project UTxO."
+                   (utxoHasLovelaces (total + halfOfTheRegistrationFee) o)
+              -- }}}
+            _   ->
+              -- {{{
+              traceError "Missing output project UTxO with prize weight."
+              -- }}}
+          -- }}}
+      in
+      case getInlineDatum inputProjUTxO of
+        ReceivedDonationsCount tot        ->
+          -- {{{
+          if tot <= maxDonationInputsForPhaseTwo then
+            foldDonationsPhaseTwo tot
+          else
+            traceError "Donation count is too large for direct burning."
+          -- }}}
+        DonationFoldingProgress tot soFar ->
+          -- {{{
+          if tot == soFar then
+            foldDonationsPhaseTwo tot
+          else
+            traceError "All donation tokens must be folded before burning."
+          -- }}}
+        _                                 ->
+          -- {{{
+          traceError
+            "Project UTxO must carry the proper datum to allow burning of its donation tokens."
+          -- }}}
       -- }}}
   -- }}}
 
@@ -155,4 +211,25 @@ donationPolicy sym =
 
 donationSymbol :: CurrencySymbol -> CurrencySymbol
 donationSymbol = scriptCurrencySymbol . donationPolicy
+-- }}}
+
+
+-- UTILS
+-- {{{
+{-# INLINABLE foldDonationsMap #-}
+-- | Notating Lovelace contributions to each project as \(v\), this is the
+--   quadratic formula to represent individual prize weights (\(w_p\)):
+--   \[
+--       w_p = (\sum{\sqrt{v}})^2
+--   \]
+foldDonationsMap :: Map PubKeyHash Integer -> Integer
+foldDonationsMap dsMap =
+  -- {{{
+  let
+    ds                      = Map.toList dsMap
+    foldFn (_, lovelaces) w = takeSqrt lovelaces + w
+    initW                   = foldr foldFn 0 ds
+  in
+  initW * initW
+  -- }}}
 -- }}}
