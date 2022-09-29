@@ -15,28 +15,21 @@
 
 module Minter.Donation where
 
-import Datum
+import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
+import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
+import           Plutus.V2.Ledger.Api
+import           Plutus.V2.Ledger.Contexts
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Ledger
-import qualified Ledger.Typed.Scripts as Scripts
-import           Ledger.Value         as Value
 
-import Utils
+import           Datum
+import           DonationInfo
+import           Utils
 
 
 -- REDEEMER
 -- {{{
-data DonationInfo = DonationInfo
-  { diProjectId :: !BuiltinByteString
-  , diDonor     :: !BuiltinByteString
-  , diAmount    :: !Integer
-  }
-
-PlutusTx.unstableMakeIsData ''DonationInfo
-
-
 data DonationRedeemer
   = DonateToProject DonationInfo
   | FoldDonations
@@ -55,116 +48,106 @@ mkDonationPolicy :: CurrencySymbol
                  -> Bool
 mkDonationPolicy sym action ctx =
   -- {{{
-  case action of DonateToProject di ->
-    let
-    tn = TokenName $ diProjectId donInfo
-
+  let
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    currDonationAmount :: Integer
-    currDonationAmount =  ReceivedDonationsCount $ getInlineDatum $ txInfoOutputs info 
+    inputs = txInfoInputs info
 
-    utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
-    utxosDatumMatchesWith newDatum =
+    ownSym :: CurrencySymbol
+    ownSym = ownCurrencySymbol ctx
+  in
+  case action of
+    DonateToProject DonationInfo{..} ->
       -- {{{
-      (newDatum ==) . getInlineDatum
-      -- }}}
+      let
+        tn :: TokenName
+        tn = TokenName diProjectId
+
+        -- Raises exception upon failure.
+        inputProjUTxO :: TxOut
+        inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
+
+        -- | Looks for the singular project input UTxO to find its origin
+        --   address, and the number of donations received so far.
+        --
+        --   Raises exception upon failure.
+        originAddr :: Address
+        currDCount :: Integer
+        (originAddr, currDCount) =
+          -- {{{
+          case getInlineDatum inputProjUTxO of 
+            ReceivedDonationsCount soFar ->
+              -- {{{
+              (txOutAddress inputProjUTxO, soFar)
+              -- }}}
+            _                           ->
+              -- {{{
+              traceError "Invalid datum for donation count."
+              -- }}}
+          -- }}}
+
+        -- | Raises exception upon failure (full description at the `Utils`
+        --   module).
+        filterVAndValidateP :: TxOut -> Bool
+        filterVAndValidateP =
+          -- {{{
+          filterXAndValidateGov
+            ownSym
+            tn
+            sym
+            tn
+            originAddr
+            (ReceivedDonationsCount $ currDCount + 1)
+          -- }}}
   
-    xIsPresent :: CurrencySymbol -- ^ X's currency symbol
-               -> TokenName      -- ^ X's token name
-               -> Integer        -- ^ Increase in output's Lovelace count
-               -> QVFDatum       -- ^ Updated datum
-               -> Bool
-    xIsPresent sym tn increaseInLovelace newDatum =
-      -- {{{
-      case filter (utxoHasX sym $ Just tn) (txInfoOutputs info) of
-        [txOut] ->
+        outputSAndVArePresent :: Bool
+        outputSAndVArePresent =
           -- {{{
-          let
-            inUTxO        = getXInputUTxO sym tn
-            inVal         = txOutValue inUTxO
-            outVal        = txOutValue txOut
-            desiredOutVal =
-              inVal <> lovelaceValueOf increaseInLovelace
-          in
-             traceIfFalse
-               "Authenticated output doesn't have enough Lovelaces"
-               (outVal == desiredOutVal)
-          && traceIfFalse
-               "Invalid datum attached to the authenticated output."
-               (utxosDatumMatchesWith newDatum txOut)
+          case filter filterVAndValidateP (txInfoOutputs info) of
+            -- TODO: Verify the enforcement of specific order.
+            [_, v] ->
+              -- {{{
+                 traceIfFalse
+                   "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
+                   (utxosDatumMatchesWith (Donation diDonor) v)
+              && traceIfFalse
+                   "Donation UTxO must carry exactly the same Lovelace count as specified."
+                   (utxoHasLovelaces diAmount v)
+              -- }}}
+            _        ->
+              -- {{{
+              traceError "There should be exactly 1 governance UTxO, and 1 donation UTxO produced."
+              -- }}}
           -- }}}
-        _       ->
-          -- {{{
-          traceError "There must be exactly 1 authentication asset produced."
-          -- }}}
+      in 
+         traceIfFalse
+           "Donation amount is too small"
+           (diAmount >= minDonationAmount)
+      && traceIfFalse
+           "This project has reached the maximum number of donations."
+           (currDCount < maxTotalDonationCount)
+      && outputSAndVArePresent
       -- }}}
-
-    utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
-    utxoHasX sym mTN utxo =
+    FoldDonations                    ->
       -- {{{
-        isJust
-      $ find
-          ( \(sym', tn', amt') ->
-                 sym' == sym
-              && ( case mTN of
-                     Just tn -> tn' == tn
-                     Nothing -> True
-                 )
-              && amt' == 1
-          )
-      $ flattenValue
-      $ txOutValue utxo
+      traceError "TODO."
       -- }}}
-
-    outputVIsPresent :: Bool
-    outputVIsPresent =
-      -- {{{
-      case filter (utxoHasX sym $ Just tn) (txInfoOutputs info) of
-        [o] ->
-          -- {{{
-              traceIfFalse
-                "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
-                  ( utxosDatumMatchesWith
-                      (Donation % diDonor donInfo)
-                      o
-                  )
-          && traceIfFalse
-                "Donation UTxO must carry exactly the same Lovelace count as specified."
-                ((lovelaceValueOf (diAmount donInfo)) == (txOutValue o))
-          -- }}}
-        _        ->
-          -- {{{
-          traceError "There should be exactly 1 donation UTxO produced."
-          -- }}}
-      -- }}}
-
-    in 
-       traceIfFalse
-         "Donation amount is too small"
-         (diAmount di >= minDonationAmount)
-    && traceIfFalse
-         "This project has reached the maximum number of donations."
-         (currDonationAmount < maxTotalDonationCount)
-    && outputVIsPresent
-    && xIsPresent sym tn 0 (ReceivedDonationsCount $ currDonationAmount + 1)
-
   -- }}}
 
-minDonationAmount :: Integer
-minDonationAmount = 2_000_000
-
-maxTotalDonationCount :: Integer
-maxTotalDonationCount = 30_000
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-donationPolicy :: CurrencySymbol -> Scripts.MintingPolicy
+donationPolicy :: CurrencySymbol -> MintingPolicy
 donationPolicy sym =
   -- {{{
+  let
+    wrap :: (DonationRedeemer -> ScriptContext -> Bool)
+         -> PSU.V2.UntypedMintingPolicy
+    wrap = PSU.V2.mkUntypedMintingPolicy
+  in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| Scripts.wrapMintingPolicy . mkDonationPolicy ||])
+    $$(PlutusTx.compile [|| wrap . mkDonationPolicy ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
   -- }}}

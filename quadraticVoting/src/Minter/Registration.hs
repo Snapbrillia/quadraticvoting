@@ -71,28 +71,16 @@ mkRegistrationPolicy sym tn action ctx =
         currTN = orefToTokenName riTxOutRef
 
         inputGovUTxO :: TxOut
-        inputGovUTxO =
-          -- {{{
-          case filter (utxoHasX ownSym (Just tn) . txInInfoResolved) inputs of
-            [txIn] ->
-              -- {{{
-              txInInfoResolved txIn
-              -- }}}
-            _      ->
-              -- {{{
-              traceError
-                "Expecting exactly one funding round authentication token to be spent."
-              -- }}}
-          -- }}}
+        inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
         -- | Looks for the singular authenticated governance input UTxO to find
         --   the origin address of the governance asset, and the number of
         --   projects registrered so far.
         --
         --   Raises exception upon failure.
-        originAddr          :: Address
-        currentProjectCount :: Integer
-        (originAddr, currentProjectCount) =
+        originAddr :: Address
+        currPCount :: Integer
+        (originAddr, currPCount) =
           -- {{{
           case getInlineDatum inputGovUTxO of 
             RegisteredProjectsCount soFar ->
@@ -104,35 +92,19 @@ mkRegistrationPolicy sym tn action ctx =
               traceError "Invalid datum for project registration."
               -- }}}
           -- }}}
-  
-        -- | Raises exception if it finds an `S` token which is getting sent to
-        --   a different address than where it's coming from, or doesn't have
-        --   a properly updated datum.
+
+        -- | Raises exception upon failure (full description at the `Utils`
+        --   module).
         filterPsAndValidateS :: TxOut -> Bool
-        filterPsAndValidateS  utxo =
+        filterPsAndValidateS =
           -- {{{
-          -- Is the UTxO carrying a project token?
-          if utxoHasX ownSym (Just currTN) utxo then
-            -- {{{
-            True
-            -- }}}
-          -- Or is it a UTxO carrying the governance asset?
-          else if utxoHasX sym (Just tn) utxo then
-            -- {{{
-            if txOutAddress utxo == originAddr then
-              if utxosDatumMatchesWith (RegisteredProjectsCount $ currentProjectCount + 1) utxo then
-                True
-              else
-                traceError
-                  "Output governance UTxO must increment the project count by 1."
-            else
-              traceError
-                "Governance token must be sent back to the same address from which it's getting consumed."
-            -- }}}
-          else
-            -- {{{
-            False
-            -- }}}
+          filterXAndValidateGov
+            ownSym
+            currTN
+            sym
+            tn
+            originAddr
+            (RegisteredProjectsCount $ currPCount + 1)
           -- }}}
 
         -- | Validates the presence of 2 output project UTxOs: one for storing

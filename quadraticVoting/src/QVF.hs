@@ -82,6 +82,7 @@ import           Datum
 import qualified Minter.Governance                    as Gov
 import           Minter.Governance                    ( qvfTokenName )
 import qualified Minter.Registration
+import           DonationInfo
 import           RegistrationInfo
 import           Utils
 -- }}}
@@ -101,20 +102,6 @@ PlutusTx.makeLift ''QVFParams
 
 
 -- QVF ACTION
--- {{{
--- DONATION INFO
--- {{{
-data DonationInfo = DonationInfo
-  { diProjectId :: BuiltinByteString
-  , diDonor     :: PubKeyHash
-  , diAmount    :: Integer
-  }
-
-PlutusTx.unstableMakeIsData ''DonationInfo
--- }}}
-
-
--- REDEEMER
 -- {{{
 data QVFAction
   = UpdateDeadline        POSIXTime
@@ -138,7 +125,6 @@ PlutusTx.makeIsDataIndexed ''QVFAction
   , ('UnlockEscrowFor    , 7)
   , ('WithdrawBounty     , 8)
   ]
--- }}}
 -- }}}
 
 
