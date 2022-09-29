@@ -22,6 +22,8 @@ library
 
   exposed-modules:     QVF
                      , Datum
+                     , DonationInfo
+                     , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration
                      , RegistrationInfo

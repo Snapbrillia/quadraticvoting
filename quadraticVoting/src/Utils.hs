@@ -153,6 +153,71 @@ getInlineDatum utxo =
   -- }}}
 
 
+{-# INLINABLE getInputGovernanceUTxOFrom #-}
+-- | Abstraction to find a given "governance" UTxO.
+--
+--   Raises exception upon failure.
+getInputGovernanceUTxOFrom :: CurrencySymbol
+                           -> TokenName
+                           -> [TxInInfo]
+                           -> TxOut
+getInputGovernanceUTxOFrom sym tn inputs =
+  -- {{{
+  case filter (utxoHasX sym (Just tn) . txInInfoResolved) inputs of
+    [txIn] ->
+      -- {{{
+      txInInfoResolved txIn
+      -- }}}
+    _      ->
+      -- {{{
+      traceError
+        "Expecting exactly one governance token to be spent."
+      -- }}}
+  -- }}}
+
+
+{-# INLINABLE filterXAndValidateGov #-}
+-- | Meant to be used a filtering function to allow outpus carrying singular
+--   governance and X assets to pass through.
+--
+--   Raises exception if it finds a governance token which is getting sent to
+--   a different address than where it's coming from, or doesn't have a
+--   properly updated datum.
+filterXAndValidateGov :: CurrencySymbol
+                      -> TokenName
+                      -> CurrencySymbol
+                      -> TokenName
+                      -> Address
+                      -> QVFDatum
+                      -> TxOut
+                      -> Bool
+filterXAndValidateGov xSym xTN govSym govTN origAddr updatedDatum utxo =
+  -- {{{
+  -- Is the UTxO carrying an X token?
+  if utxoHasX xSym (Just xTN) utxo then
+    -- {{{
+    True
+    -- }}}
+  -- Or is it a UTxO carrying the governance asset?
+  else if utxoHasX govSym (Just govTN) utxo then
+    -- {{{
+    if txOutAddress utxo == origAddr then
+      if utxosDatumMatchesWith updatedDatum utxo then
+        True
+      else
+        traceError
+          "Output governance UTxO must have a properly updated datum."
+    else
+      traceError
+        "Governance token must be sent back to the same address from which it's getting consumed."
+    -- }}}
+  else
+    -- {{{
+    False
+    -- }}}
+  -- }}}
+
+
 {-# INLINABLE utxosDatumMatchesWith #-}
 -- | Checks if a UTxO carries a specific inline datum.
 --
@@ -214,4 +279,7 @@ maxTotalDonationCount = 30_000
 
 minKeyHolderFee :: Integer
 minKeyHolderFee = 10_000_000
+
+minDonationAmount :: Integer
+minDonationAmount = 2_000_000
 -- }}}

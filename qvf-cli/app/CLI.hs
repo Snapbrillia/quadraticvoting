@@ -29,6 +29,7 @@ import           Text.Read                  (readMaybe)
 import           Datum
 
 import qualified QVF                        as OC
+import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
 import qualified Minter.Registration        as Reg
 
@@ -244,6 +245,7 @@ main =
         , "<deadline-posix-milliseconds>"
         , "<governance-policy.plutus>"
         , "<registration-policy.plutus>"
+        , "<donation-policy.plutus>"
         , "<output-validation.plutus>"
         , "<unit.redeemer>"
         , "<output-initial.datum>"
@@ -402,7 +404,7 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : gOF : regOF : vOF : rOF : dOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : gOF : regOF : donOF : vOF : rOF : dOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
         (Nothing   , _      ) ->
@@ -417,17 +419,19 @@ main =
           -- {{{
           govRes <- writeMintingPolicy gOF $ Gov.qvfPolicy txRef dl
           let qvfSymbol = Gov.qvfSymbol txRef dl
+              regSymbol = Reg.registrationSymbol qvfSymbol
+              donSymbol = Don.donationSymbol regSymbol
           regRes <- writeMintingPolicy regOF $ Reg.registrationPolicy qvfSymbol
-          case (govRes, regRes) of
-            (Right _, Right _) -> do
+          donRes <- writeMintingPolicy donOF $ Don.donationPolicy regSymbol
+          case (govRes, regRes, donRes) of
+            (Right _, Right _, Right _) -> do
               -- {{{
-              let regSymbol = Reg.registrationSymbol qvfSymbol
-                  qvfParams =
+              let qvfParams =
                     OC.QVFParams
                       { OC.qvfKeyHolder      = fromString pkhStr
                       , OC.qvfSymbol         = qvfSymbol
                       , OC.qvfProjectSymbol  = regSymbol
-                      , OC.qvfDonationSymbol = qvfSymbol
+                      , OC.qvfDonationSymbol = donSymbol
                       }
               valRes <- writeValidator vOF $ OC.qvfValidator qvfParams
               case valRes of
