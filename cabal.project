@@ -1,14 +1,14 @@
 -- Bump this if you need newer packages from Hackage and
 -- run `nix flake lock --update-input hackageNix` after updating index-state.
-index-state: 2022-04-28T09:22:25Z
+index-state: 2022-05-18T00:00:00Z
 
 packages:
     quadraticVoting
     qvf-cli
-    qvf-generate-scripts
+    -- qvf-generate-scripts
 
 -- flags for the plutonomy optimizer
-flags:      +plutus-4710dff2e
+flags:      +plutus-f680ac697
 
 -- You never, ever, want this.
 write-ghc-environment-files: never
@@ -44,14 +44,29 @@ test-show-details: streaming
 --
 -- * it has strict aeson < 1.5 dep - this will be fixed in the next release.
 allow-newer:
-    size-based:template-haskell
+    *:aeson
+  , size-based:template-haskell
 
 constraints:
      -- Because later versions of hedgehog introduce a change which break 'cardano-ledger':
      -- Test/Cardano/Chain/Delegation/Model.hs:91:41: error:
      --   • Could not deduce (TraversableB SignalSDELEG)
      -- TODO: Try to remove on next `cardano-node` version upgrade.
-     hedgehog >= 1.0.2 && < 1.1
+    aeson >= 2
+  , hedgehog >= 1.1
+
+-- The plugin will typically fail when producing Haddock documentation. However,
+-- in this instance you can simply tell it to defer any errors to runtime (which
+-- will never happen since you're building documentation).
+--
+-- So, any package using 'PlutusTx.compile' in the code for which you need to
+-- generate haddock documentation should use the following 'haddock-options'.
+package plutus-ledger
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
+package plutus-script-utils
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
+package plutus-contract
+  haddock-options: "--optghc=-fplugin-opt PlutusTx.Plugin:defer-errors"
 
 -- The plugin will typically fail when producing Haddock documentation. However,
 -- in this instance you can simply tell it to defer any errors to runtime (which
@@ -93,93 +108,14 @@ package cardano-wallet-core-integration
 -- This reflects the packages stanza from plutus-apps/cabal.project
 source-repository-package
   type: git
-  location: https://github.com/input-output-hk/plutus-apps
-  -- the v2022-04-06 release
-  tag: 14bed17e8608162ee81969e482c1815fb78bd7b0
-  subdir: 
+  location: https://github.com/input-output-hk/plutus-apps.git
+  tag: 87b647b05902a7cef37340fda9acb175f962f354
+  --sha256: 06h2bx91vc4lbn63gqgb94nbih27gpajczs46jysq1g7f24fp3bj
+  subdir:
     freer-extras
-    playground-common
-    plutus-chain-index
-    plutus-chain-index-core
-    plutus-contract
-    plutus-contract-certification
     plutus-ledger
+    plutus-script-utils
     plutus-ledger-constraints
-    plutus-pab
-    plutus-pab-executables
-    plutus-playground-server
-    plutus-use-cases
-    quickcheck-dynamic
-    web-ghc
-  --sha256: 1l24wcmd8g0854bbnxsi03gr9jv96r337hjailg5rgb7gmchrias
-
--- Direct dependency.
--- Are you thinking of updating this tag to some other commit?
--- Please ensure that the commit you are about to use is the latest one from
--- the *develop* branch of this repo:
---   * <https://github.com/input-output-hk/iohk-monitoring-framework/commits/develop>
--- (not master!)
---
--- In particular we rely on the code from this PR:
---  * <https://github.com/input-output-hk/iohk-monitoring-framework/pull/622>
--- being merged.
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/iohk-monitoring-framework
-  tag: 46f994e216a1f8b36fe4669b47b2a7011b0e153c
-  subdir:
-    contra-tracer
-    iohk-monitoring
-    tracer-transformers
-    plugins/backend-ekg
-    plugins/backend-aggregation
-    plugins/backend-monitoring
-    plugins/backend-trace-forwarder
-  --sha256: 1il8fx3misp3650ryj368b3x95ksz01zz3x0z9k00807j93d0ka0
-
--- Should follow cardano-node.
--- However, the following hash follows a later commit hash than cardano-node's
--- because we currently need some Data instances that are not backported.
--- In the next cardano-node release (>1.34.1), we should use the same commit hash.
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/plutus
-  tag: 4127e9cd6e889824d724c30eae55033cb50cbf3e
-  --sha256: 186w0x7vk8m8npmsfg9pdkxds0rlj6bmhr8nkgn96rkvaz5azjsb
-  subdir:
-    plutus-core
-    plutus-ledger-api
-    plutus-tx
-    plutus-tx-plugin
-    prettyprinter-configurable
-    stubs/plutus-ghc-stub
-    word-array
-
--- Should follow cardano-node
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/ekg-forward
-  tag: 297cd9db5074339a2fb2e5ae7d0780debb670c63
-  --sha256: 1zcwry3y5rmd9lgxy89wsb3k4kpffqji35dc7ghzbz603y1gy24g
-
--- Should follow plutus.
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/flat
-  tag: ee59880f47ab835dbd73bea0847dab7869fc20d8
-  --sha256: 1lrzknw765pz2j97nvv9ip3l1mcpf2zr4n56hwlz0rk7wq7ls4cm
-
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/servant-purescript
-  tag: 44e7cacf109f84984cd99cd3faf185d161826963
-  --sha256: 10pb0yfp80jhb9ryn65a4rha2lxzsn2vlhcc6xphrrkf4x5lhzqc
-
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/purescript-bridge
-  tag: 47a1f11825a0f9445e0f98792f79172efef66c00
-  --sha256: 0da1vn2l6iyfxcjk58qal1l4755v92zi6yppmjmqvxf1gacyf9px
 
 -- Direct dependency.
 -- Compared to others, cardano-wallet doesn't bump dependencies very often.
@@ -187,10 +123,13 @@ source-repository-package
 -- As, for example, bumping the node first highly risks breaking API with the wallet.
 -- Unless early bug fixes are required, this is fine as the wallet tracks stable releases of the node.
 -- And it is indeed nice for plutus-apps to track stable releases of the node too.
+--
+-- The current version is dated 2022/08/10
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-wallet
-  tag: f6d4db733c4e47ee11683c343b440552f59beff7
+  tag: 18a931648550246695c790578d4a55ee2f10463e
+  --sha256: 0i40hp1mdbljjcj4pn3n6zahblkb2jmpm8l4wnb36bya1pzf66fx
   subdir:
     lib/cli
     lib/core
@@ -202,15 +141,20 @@ source-repository-package
     lib/strict-non-empty-containers
     lib/test-utils
     lib/text-class
-  --sha256: 0gb3zyv3q5v5sd8r29s02yc0brwq5a01is9c0n528391n2r8g1yy
+
+-- Direct dependency.
+source-repository-package
+    type: git
+    location: https://github.com/input-output-hk/quickcheck-dynamic
+    tag: c272906361471d684440f76c297e29ab760f6a1e
+    --sha256: 1b9ppgavqad78a2z1zxv7v4jasjz6zz0mxkr0zx0bbcd0i00jajf
 
 -- Should follow cardano-wallet.
--- Currently tracking v1.34.1.
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-node
-  tag: 73f9a746362695dc2cb63ba757fbcabb81733d23
-  --sha256: 1hh53whcj5y9kw4qpkiza7rmkniz18r493vv4dzl1a8r5fy3b2bv
+  tag: 1.35.3
+  --sha256: 020fwimsm24yblr1fmnwx240wj8r3x715p89cpjgnnd8axwf32p0
   subdir:
     cardano-api
     cardano-cli
@@ -221,11 +165,19 @@ source-repository-package
     trace-forward
     trace-resources
 
+-- Should follow cardano-node
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/ekg-forward
+  tag: 297cd9db5074339a2fb2e5ae7d0780debb670c63
+  --sha256: 1zcwry3y5rmd9lgxy89wsb3k4kpffqji35dc7ghzbz603y1gy24g
+
+-- Should follow cardano-node
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-config
-  tag: e9de7a2cf70796f6ff26eac9f9540184ded0e4e6
-  --sha256: 1wm1c99r5zvz22pdl8nhkp13falvqmj8dgkm8fxskwa9ydqz01ld
+  tag: 1646e9167fab36c0bff82317743b96efa2d3adaa
+  --sha256: 11kf65x38laqhwspsl28j2x5a4rky8mfr6356w0li5g53sfykmjc
 
 -- Using a fork until our patches can be merged upstream
 source-repository-package
@@ -237,16 +189,20 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/hedgehog-extras
-  tag: edf6945007177a638fbeb8802397f3a6f4e47c14
-  --sha256: 0wc7qzkc7j4ns2rz562h6qrx2f8xyq7yjcb7zidnj7f6j0pcd0i9
+  tag: 714ee03a5a786a05fc57ac5d2f1c2edce4660d85
+  --sha256: 1qa4mm36xynaf17990ijmzww0ij8hjrc0vw5nas6d0zx6q9hb978
 
 -- Should follow cardano-wallet.
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-ledger
-  tag: 1a9ec4ae9e0b09d54e49b2a40c4ead37edadcce5
+  tag: c7c63dabdb215ebdaed8b63274965966f2bf408f
+  --sha256: 1cn1z3dh5dy5yy42bwfd8rg25mg8qp3m55gyfsl563wgw4q1nd6d
   subdir:
     eras/alonzo/impl
+    eras/alonzo/test-suite
+    eras/babbage/impl
+    eras/babbage/test-suite
     eras/byron/chain/executable-spec
     eras/byron/crypto
     eras/byron/crypto/test
@@ -256,28 +212,26 @@ source-repository-package
     eras/shelley/impl
     eras/shelley/test-suite
     eras/shelley-ma/impl
-    libs/cardano-data
+    eras/shelley-ma/test-suite
     libs/cardano-ledger-core
     libs/cardano-ledger-pretty
     libs/cardano-protocol-tpraos
-    libs/compact-map
-    libs/non-integral
+    libs/cardano-data
+    libs/vector-map
     libs/set-algebra
     libs/small-steps
     libs/small-steps-test
-  --sha256: 0avzyiqq0m8njd41ck9kpn992yq676b1az9xs77977h7cf85y4wm
+    libs/non-integral
 
 -- Should follow cardano-wallet.
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/ouroboros-network
-  tag: 4fac197b6f0d2ff60dc3486c593b68dc00969fbf
+  tag: cb9eba406ceb2df338d8384b35c8addfe2067201
+  --sha256: 066llskxzjgcs13lwlvklb28azb9kd9b77j61x8fvrj1rlf5njfw
   subdir:
-    io-classes
-    io-sim
     monoidal-synchronisation
     network-mux
-    ntp-client
     ouroboros-consensus
     ouroboros-consensus-byron
     ouroboros-consensus-cardano
@@ -286,28 +240,55 @@ source-repository-package
     ouroboros-network
     ouroboros-network-framework
     ouroboros-network-testing
+    ntp-client
+
+-- Should follow cardano-node.
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/io-sim
+  tag: 57e888b1894829056cb00b7b5785fdf6a74c3271
+  --sha256: 1kv8lwmrw1c0g03jy3i3fgk3c8d47ihjcslg295djqj442y95y2f
+  subdir:
+    io-classes
+    io-sim
     strict-stm
+
+-- Should follow cardano-wallet.
+-- Until https://github.com/tibbe/ekg-json/pull/12 gets merged with aeson2 support
+source-repository-package
+  type: git
+  location: https://github.com/vshabanov/ekg-json
+  tag: 00ebe7211c981686e65730b7144fbf5350462608
+  --sha256: 1zvjm3pb38w0ijig5wk5mdkzcszpmlp5d4zxvks2jk1rkypi8gsm
+
+-- Should follow cardano-node.
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/typed-protocols
+  tag: 181601bc3d9e9d21a671ce01e0b481348b3ca104
+  subdir:
     typed-protocols
     typed-protocols-cborg
     typed-protocols-examples
-  --sha256: 1b43vbdsr9m3ry1kgag2p2ixpv54gw7a4vvmndxl6knqg8qbsb8b
+  --sha256: 1lr97b2z7l0rpsmmz92rsv27qzd5vavz10cf7n25svya4kkiysp5
 
 -- Should follow cardano-wallet.
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-base
-  tag: 41545ba3ac6b3095966316a99883d678b5ab8da8
+  tag: 0f3a867493059e650cda69e20a5cbf1ace289a57
+  --sha256: 0p0az3sbkhb7njji8xxdrfb0yx2gc8fmrh872ffm8sfip1w29gg1
   subdir:
     base-deriving-via
     binary
     binary/test
     cardano-crypto-class
     cardano-crypto-praos
-    measures
+    cardano-crypto-tests
     orphans-deriving-via
-    slotting
+    measures
     strict-containers
-  --sha256: 0icq9y3nnl42fz536da84414av36g37894qnyw4rk3qkalksqwir
+    slotting
 
 -- Should follow cardano-wallet.
 source-repository-package
@@ -326,15 +307,33 @@ source-repository-package
   tag: f73079303f663e028288f9f4a9e08bcca39a923e
   --sha256: 1n87i15x54s0cjkh3nsxs4r1x016cdw1fypwmr68936n3xxsjn6q
 
+
+-- Should follow cardano-node.
+-- But in case there are failures with the plutus version, update to the latest
+-- commit hash of the release/1.0.0 plutus branch.
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/plutus
+  tag: a56c96598b4b25c9e28215214d25189331087244
+  --sha256: 12d6bndmj0dxl6xlaqmf78326yp5hw093bmybmqfpdkvk4mgz03j
+  subdir:
+    plutus-core
+    plutus-ledger-api
+    plutus-tx
+    plutus-tx-plugin
+    prettyprinter-configurable
+    stubs/plutus-ghc-stub
+    word-array
+
 -- Should follow cardano-wallet.
 source-repository-package
   type: git
   location: https://github.com/input-output-hk/cardano-addresses
-  tag: 71006f9eb956b0004022e80aadd4ad50d837b621
+  tag: b7273a5d3c21f1a003595ebf1e1f79c28cd72513
   subdir:
     command-line
     core
-  --sha256: 11dl3fmq7ry5wdmz8kw07ji8yvrxnrsf7pgilw5q9mi4aqyvnaqk
+  --sha256: 129r5kyiw10n2021bkdvnr270aiiwyq58h472d151ph0r7wpslgp
 
 -- Should follow cardano-wallet.
 source-repository-package
@@ -343,6 +342,30 @@ source-repository-package
   tag: cde90a2b27f79187ca8310b6549331e59595e7ba
   --sha256: 17c88rbva3iw82yg9srlxjv2ia5wjb9cyqw44hik565f5v9svnyg
 
+-- Direct dependency.
+-- Are you thinking of updating this tag to some other commit?
+-- Please ensure that the commit you are about to use is the latest one from
+-- the *develop* branch of this repo:
+--   * <https://github.com/input-output-hk/iohk-monitoring-framework/commits/develop>
+-- (not master!)
+--
+-- In particular we rely on the code from this PR:
+--  * <https://github.com/input-output-hk/iohk-monitoring-framework/pull/622>
+-- being merged.
+source-repository-package
+    type: git
+    location: https://github.com/input-output-hk/iohk-monitoring-framework
+    tag: 066f7002aac5a0efc20e49643fea45454f226caa
+    --sha256: 0s6x4in11k5ba7nl7la896g28sznf9185xlqg9c604jqz58vj9nj
+    subdir: contra-tracer
+            iohk-monitoring
+            plugins/backend-aggregation
+            plugins/backend-ekg
+            plugins/backend-monitoring
+            plugins/backend-trace-forwarder
+            plugins/scribe-systemd
+            tracer-transformers
+
 -- Should follow cardano-wallet.
 source-repository-package
   type: git
@@ -350,11 +373,20 @@ source-repository-package
   tag: 3825d3abf75f83f406c1f7161883c438dac7277d
   --sha256: 19wahfv726fa3mqajpqdqhnl9ica3xmf68i254q45iyjcpj1psqx
 
+-- Should follow plutus.
+-- https://github.com/Quid2/flat/pull/22 fixes a potential exception
+-- when decoding invalid (e.g. malicious) text literals.
+source-repository-package
+    type: git
+    location: https://github.com/Quid2/flat
+    tag: ee59880f47ab835dbd73bea0847dab7869fc20d8
+    --sha256: 1lrzknw765pz2j97nvv9ip3l1mcpf2zr4n56hwlz0rk7wq7ls4cm
+
 source-repository-package
   type: git
   location:  https://github.com/well-typed/plutonomy
-  tag: f60abbb244892a4e237b51df963e5c544143f01d
-  --sha256: 0izdqzawgfcap6zf3ymd9j97myyyk22isc9r9snsld31mpqnh7hw
+  tag: 41a8c0778131e5a71165fd0cfc7eeddceacd8d6f
+  --sha256: 0a6yl7fj6wfcv1q9514hgrvdw1ic8fqrmbzgawdywv30d75nzdcf
 
 -- Temporary indexing
 source-repository-package
@@ -362,9 +394,3 @@ source-repository-package
   location: https://github.com/raduom/hysterical-screams
   tag: 4c523469e9efd3f0d10d17da3304923b7b0e0674
   --sha256: 0w118v4vffrsjxfmwfv8qcn2qxmxpd1gxwcjnda91qz09jnpg0vp
-
-source-repository-package
-  type: git
-  location: https://github.com/input-output-hk/quickcheck-dynamic
-  tag: c272906361471d684440f76c297e29ab760f6a1e
-  --sha256: 1b9ppgavqad78a2z1zxv7v4jasjz6zz0mxkr0zx0bbcd0i00jajf

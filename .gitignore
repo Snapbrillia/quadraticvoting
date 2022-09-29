@@ -6,6 +6,7 @@ tx.sign
 scripts/testnet
 testnet/keyHolder.skey
 preview-testnet
+testnet
 testnet2
 cabal-dev
 protocol.json

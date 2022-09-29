@@ -150,24 +150,24 @@
           legacyPackages = pkgs;
 
           # Built by `nix build .`
-          defaultPackage = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
+          defaultPackage = packages.qvf-cli.components.exes.qvf-cli;
 
           # Run by `nix run .`
-          defaultApp = apps.qvf-generate-scripts;
+          defaultApp = apps.qvf-cli;
 
           # Built by `nix build .#qvf-generate-scripts-static.x86_64-linux`
           # Bundle  to a docker image:
           # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts-static.x86_64-linux
           # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0.tar.gz
           # docker run qvf-generate-scripts-x86_64-unknown-linux-musl-0.1.0.0:latest xxx
-          qvf-generate-scripts-static = jobs.x86_64-linux.linux.musl.qvf-generate-scripts;
+          qvf-cli-static = jobs.x86_64-linux.linux.musl.qvf-cli;
 
           # Built by `nix build .#qvf-generate-scripts.x86_64-linux`
           # Bundle to a docker image:
           # nix bundle --bundler github:NixOS/bundlers#toDockerImage .#qvf-generate-scripts.x86_64-linux
           # docker load < qvf-generate-scripts-exe-qvf-generate-scripts-0.1.0.0.tar.gz
           # docker run qvf-generate-scripts-0.1.0.0:latest xxx          
-          qvf-generate-scripts = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
+          qvf-cli = packages.qvf-cli.components.exes.qvf-cli;
 
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
@@ -195,12 +195,12 @@
         }
       );
       jobs = flake.jobs;
-      qvf-generate-scripts-static = flake.qvf-generate-scripts-static;
-      qvf-generate-scripts = flake.qvf-generate-scripts;
+      qvf-cli-static = flake.qvf-cli-static;
+      qvf-cli = flake.qvf-cli;
     in
     flake // {
 
-      inherit jobs qvf-generate-scripts-static qvf-generate-scripts ;
+      inherit jobs qvf-cli-static qvf-cli ;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};

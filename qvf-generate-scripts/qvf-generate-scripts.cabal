@@ -33,7 +33,6 @@ library
       aeson
     , aws-lambda-haskell-runtime
     , base >= 4.9 && <5
-    , plutus-contract
     , plutus-ledger
     , plutus-tx-plugin
     , quadraticVoting
