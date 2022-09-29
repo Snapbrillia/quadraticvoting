@@ -1,3 +1,5 @@
+# Build: docker build -t haskell-cabal-build -f  Docker/CabalBuild.Dockerfile .
+# Invocation: docker run -t --mount type=bind,src=`pwd`,dst=/home/builder/repo -w /home/builder/repo haskell-cabal-build cabal build all
 FROM amd64/fedora:latest
 
 SHELL ["/bin/bash", "--rcfile", "~/.profile", "-c"]
@@ -91,12 +93,16 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh \
 # Add /home/builder/.ghcup/bin to PATH so we don't have to remember to do it all the time
 ENV PATH="/home/builder/.ghcup/bin:${PATH}"
 
+# Remove the contents of the directory created above. We're going to bind-mount a host resident volume here
+# So we retain then cache.
+RUN rm -rf /home/builder/.cabal/* 
+
 # Test we can build
-USER root
-RUN rm -rf /home/builder/test \
-  && mkdir -p /home/builder/test
-COPY --chown=builder:builder . /home/builder/test
-RUN echo "PATH=${PATH}"
-RUN  su -s /bin/bash -c 'cd /home/builder/test && CABAL_BUILDDIR=/home/builder/test/docker-dist-newstyle cabal build all' - builder \
-  && cd /home/builder \
-  && rm -rf /home/builder/test
+# USER root
+# RUN rm -rf /home/builder/test \
+#   && mkdir -p /home/builder/test
+# COPY --chown=builder:builder . /home/builder/test
+# RUN echo "PATH=${PATH}"
+# RUN  su -s /bin/bash -c 'cd /home/builder/test && CABAL_BUILDDIR=/home/builder/test/docker-dist-newstyle cabal build all' - builder \
+#   && cd /home/builder \
+#   && rm -rf /home/builder/test
