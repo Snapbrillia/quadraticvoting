@@ -251,21 +251,14 @@ utxosDatumMatchesWith newDatum =
 
 {-# INLINABLE utxoXCount #-}
 -- | Finds how much X asset is present in the given UTxO.
-utxoXCount :: CurrencySymbol -> Maybe TokenName -> TxOut -> Integer
-utxoXCount sym mTN =
+utxoXCount :: CurrencySymbol -> TokenName -> TxOut -> Integer
+utxoXCount sym tn =
   -- {{{
-    ( \case 
-        Just (_, _, amt) -> amt
-        Nothing          -> 0
+    ( \case
+        Just (_, _, amt') -> amt'
+        Nothing           -> 0
     )
-  . find
-      ( \(sym', tn', _) ->
-             sym' == sym
-          && ( case mTN of
-                 Just tn -> tn' == tn
-                 Nothing -> True
-             )
-      )
+  . find (\(sym', tn', _) -> sym' == sym && tn' == tn)
   . flattenValue
   . txOutValue
   -- }}}
@@ -274,7 +267,21 @@ utxoXCount sym mTN =
 {-# INLINABLE utxoHasX #-}
 -- | Checks if a given UTxO has exactly 1 of asset X.
 utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
-utxoHasX sym mTN utxo = utxoXCount sym mTN utxo == 1
+utxoHasX sym mTN =
+  -- {{{
+    isJust
+  . find
+      ( \(sym', tn', amt') ->
+             sym' == sym
+          && ( case mTN of
+                 Just tn -> tn' == tn
+                 Nothing -> True
+             )
+          && amt' == 1
+      )
+  . flattenValue
+  . txOutValue
+  -- }}}
 
 
 {-# INLINABLE utxoHasLovelaces #-}
@@ -313,7 +320,7 @@ foldDonationInputs donationSymbol donationTN inputs =
     foldFn TxInInfo{txInInfoResolved = o} (count, total, dMap) =
       -- {{{
       let
-        xCount               = utxoXCount donationSymbol (Just donationTN) o
+        xCount               = utxoXCount donationSymbol donationTN o
         lovelaces            = lovelaceFromValue $ txOutValue o
         helperFn mapForUnion =
           -- {{{
