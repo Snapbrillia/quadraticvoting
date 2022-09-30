@@ -143,21 +143,41 @@ $ cd ~/src/quadraticvoting
 $ nix build .#qvf-cli-static.x86_64-linux -o qvf-cli-static
 $ ldd qvf-cli-static/bin/qvf-cli 
 $	not a dynamic executable
+```
 
 6. __AWS SAM__
 
-We can use ['AWS SAM'](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) to build, run and deploy AWS Lambda Functions. There is an example lambda function under quadraticvoting/qvf-generate-scripts. There are 2 SAM templates ([qvf-generate-scripts-static.yaml](https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts-static.yaml) and [qvf-generate-scripts-dynamic.yaml])(https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts-dynamic.yaml) that provide a lambda function implemented by a 
-* fully statically linked executable
-* a dynamically linked executable and the closure of its dependencies (shared libraries)
-respectively.
+We can use ['AWS SAM'](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) to build, run and deploy AWS Lambda Functions. There is an example lambda function under quadraticvoting/qvf-generate-scripts. There are 3 SAM templates:
 
-To build the (dynamic) example:
+* [qvf-generate-scripts.yaml](https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts.yaml)
+* [qvf-generate-scripts-static.yaml](https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts-static.yaml) - deprecated
+* [qvf-generate-scripts-dynamic.yaml](https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts-dynamic.yaml) - deprecated
+
+The latter 2 examples are deprecated because they are not guaranteed to be built in the correct environment (i.e. Amazon Linux).
+
+[qvf-generate-scripts.yaml](https://github.com/Snapbrillia/quadraticvoting/qvf-generate-scripts.yaml) is built via a docker image based on the latest Fedora image (the same a Amazon Linux). Unfortunately 'sam build' and an underlying docker build do not play together well - because 'sam build' uses a chroot environment. So there is a custom build script - [sam-build.sh](https://github.com/Snapbrillia/quadraticvoting/sam-build.sh). This has some prerequisites:
+
+1. Docker - see https://docs.docker.com/engine/install/
+2. yq - see https://github.com/mikefarah/yq
+3. jq - sudo apt-get install -y jq
+
+The script is invoked as follows:
+
 ```bash
-$ sam build -t qvf-generate-scripts-dynamic.yaml
+$ ./sam-build.sh qvf-generate-scripts.yaml
+```
+Once this has been successfully executed the function can can be invoked as follows:
+```bash
+$ sam local invoke QvfGenerateScriptsFunction  -e qvf-generate-scripts/events/qvf-gen-scripts.json [--debug]
+```
+
+To build the deprecated static example:
+```bash
+$ sam build -t qvf-generate-scripts-static.yaml
 ```
 To invoke the lambda locally:
 ```bash
-$ sam local invoke QvfGenerateScriptsDynamicFunction  -e qvf-generate-scripts/events/qvf-gen-scripts.json [--debug]
+$ sam local invoke QvfGenerateScriptsStaticFunction  -e qvf-generate-scripts/events/qvf-gen-scripts.json [--debug]
 ```
 
 # Editor Support
