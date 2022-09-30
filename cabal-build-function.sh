@@ -53,14 +53,15 @@ expand_lib_path () {
 
 expand_lib_paths ()
 {
-    for lib in "$1" ; do
+    for lib in $1 ; do
         expand_lib_path ${lib}
     done
 }
 
 get_shared_objects ()
 {
-    expand_lib_paths "$(echo "$1" | awk '{print $(NF-1)}')"
+    local libs=$(echo "$@" | awk '{print $(NF-1)}')
+    expand_lib_paths "${libs}"
 }
 
 # check for dynamic exe
@@ -179,3 +180,7 @@ fi
 
 echo -e "${BOOTSTRAP_SCRIPT}" > ${BOOTSTRAP}
 chmod +x ${BOOTSTRAP}
+
+# explicitly strip the executable (coz cabal doesn't do a good job - if at all - when asked)
+strip -s -o ${FUNCTION_EXE}.stripped ${FUNCTION_EXE}
+mv ${FUNCTION_EXE}.stripped ${FUNCTION_EXE}
