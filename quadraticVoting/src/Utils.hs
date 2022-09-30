@@ -9,6 +9,7 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase            #-}
 -- }}}
 
 
@@ -20,13 +21,13 @@ module Utils where
 import qualified Ledger.Ada                  as Ada
 import           Plutus.V1.Ledger.Value      ( flattenValue )
 import           Plutus.V2.Ledger.Api
+import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.Prelude
 import           PlutusTx.Sqrt               ( Sqrt (..)
                                              , isqrt)
 import qualified Prelude                     as P
 
 import           Datum
-import           RegistrationInfo
 -- }}}
 
 
@@ -176,6 +177,37 @@ getInputGovernanceUTxOFrom sym tn inputs =
   -- }}}
 
 
+{-# INLINABLE validateGovUTxO #-}
+-- | Checks if a given UTxO carries a single "governance" asset. If it doesn't,
+--   the returned value will simply be @False@. But if it does carry the asset,
+--   unless its address and datum comply with the given ones, raises exception.
+validateGovUTxO :: CurrencySymbol
+                -> TokenName
+                -> Address
+                -> QVFDatum
+                -> TxOut
+                -> Bool
+validateGovUTxO govSym govTN origAddr updatedDatum utxo =
+  -- {{{
+  if utxoHasX govSym (Just govTN) utxo then
+    -- {{{
+    if txOutAddress utxo == origAddr then
+      if utxosDatumMatchesWith updatedDatum utxo then
+        True
+      else
+        traceError
+          "Output governance UTxO must have a properly updated datum."
+    else
+      traceError
+        "Governance token must be sent back to the same address from which it's getting consumed."
+    -- }}}
+  else
+    -- {{{
+    False
+    -- }}}
+  -- }}}
+
+
 {-# INLINABLE filterXAndValidateGov #-}
 -- | Meant to be used a filtering function to allow outpus carrying singular
 --   governance and X assets to pass through.
@@ -199,21 +231,9 @@ filterXAndValidateGov xSym xTN govSym govTN origAddr updatedDatum utxo =
     True
     -- }}}
   -- Or is it a UTxO carrying the governance asset?
-  else if utxoHasX govSym (Just govTN) utxo then
-    -- {{{
-    if txOutAddress utxo == origAddr then
-      if utxosDatumMatchesWith updatedDatum utxo then
-        True
-      else
-        traceError
-          "Output governance UTxO must have a properly updated datum."
-    else
-      traceError
-        "Governance token must be sent back to the same address from which it's getting consumed."
-    -- }}}
   else
     -- {{{
-    False
+    validateGovUTxO govSym govTN origAddr updatedDatum utxo
     -- }}}
   -- }}}
 
@@ -229,24 +249,32 @@ utxosDatumMatchesWith newDatum =
   -- }}}
 
 
-{-# INLINABLE utxoHasX #-}
--- | Checks if a given UTxO has exactly 1 of asset X.
-utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
-utxoHasX sym mTN utxo =
+{-# INLINABLE utxoXCount #-}
+-- | Finds how much X asset is present in the given UTxO.
+utxoXCount :: CurrencySymbol -> Maybe TokenName -> TxOut -> Integer
+utxoXCount sym mTN =
   -- {{{
-    isJust
-  $ find
-      ( \(sym', tn', amt') ->
+    ( \case 
+        Just (_, _, amt) -> amt
+        Nothing          -> 0
+    )
+  . find
+      ( \(sym', tn', _) ->
              sym' == sym
           && ( case mTN of
                  Just tn -> tn' == tn
                  Nothing -> True
              )
-          && amt' == 1
       )
-  $ flattenValue
-  $ txOutValue utxo
+  . flattenValue
+  . txOutValue
   -- }}}
+
+
+{-# INLINABLE utxoHasX #-}
+-- | Checks if a given UTxO has exactly 1 of asset X.
+utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool
+utxoHasX sym mTN utxo = utxoXCount sym mTN utxo == 1
 
 
 {-# INLINABLE utxoHasLovelaces #-}
@@ -256,6 +284,71 @@ utxoHasLovelaces :: Integer -> TxOut -> Bool
 utxoHasLovelaces lovelaces txOut =
   -- {{{
   txOutValue txOut == Ada.lovelaceValueOf lovelaces
+  -- }}}
+
+
+{-# INLINABLE foldDonationInputs #-}
+-- | Collects all the donation UTxOs (to one project, specified in the token
+--   name) into a @Map@ value: mapping their public key hashes to their donated
+--   Lovelace count. It also counts the number of donations.
+--
+--   Allows mixture of `Donation` and `Donations` datums (TODO?).
+--
+--   There is also no validation for assuring the UTxO is coming from the
+--   script address (TODO?).
+--
+--   Ignores UTxOs that don't have the specified donation asset, but raises
+--   exception if it finds the asset with a datum other than `Donation` or
+--   `Donations`.
+foldDonationInputs :: CurrencySymbol
+                   -> TokenName
+                   -> [TxInInfo]
+                   -> ( Integer                -- ^ Count of folded donations
+                      , Integer                -- ^ Total donated Lovelaces
+                      , Map PubKeyHash Integer -- ^ Record of donors and their contributions.
+                      )
+foldDonationInputs donationSymbol donationTN inputs =
+  -- {{{
+  let
+    foldFn TxInInfo{txInInfoResolved = o} (count, total, dMap) =
+      -- {{{
+      let
+        xCount               = utxoXCount donationSymbol (Just donationTN) o
+        lovelaces            = lovelaceFromValue $ txOutValue o
+        helperFn mapForUnion =
+          -- {{{
+          ( count + xCount
+          , total + lovelaces
+          , Map.unionWith (+) mapForUnion dMap
+          )
+          -- }}}
+      in
+      if xCount > 0 then
+        -- {{{
+        case getInlineDatum o of
+          Donation donor  ->
+            -- {{{
+            -- TODO: Here we have an implicit assumption that since the
+            --       UTxO has a `Donation` datum, it must also carry
+            --       exactly 1 donation asset.
+            helperFn $ Map.singleton donor lovelaces
+            -- }}}
+          Donations soFar ->
+            -- {{{
+            helperFn soFar
+            -- }}}
+          _               ->
+            -- {{{
+            traceError "Unexpected UTxO encountered."
+            -- }}}
+        -- }}}
+      else
+        -- {{{
+        (count, total, dMap)
+        -- }}}
+      -- }}}
+  in
+  foldr foldFn (0, 0, Map.empty) inputs
   -- }}}
 -- }}}
 
@@ -275,7 +368,8 @@ maxDonationInputsForPhaseTwo :: Integer
 maxDonationInputsForPhaseTwo = 250
 
 maxTotalDonationCount :: Integer
-maxTotalDonationCount = 30_000
+maxTotalDonationCount =
+  maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
 minKeyHolderFee :: Integer
 minKeyHolderFee = 10_000_000
