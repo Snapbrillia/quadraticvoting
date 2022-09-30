@@ -394,3 +394,10 @@ source-repository-package
   location: https://github.com/raduom/hysterical-screams
   tag: 4c523469e9efd3f0d10d17da3304923b7b0e0674
   --sha256: 0w118v4vffrsjxfmwfv8qcn2qxmxpd1gxwcjnda91qz09jnpg0vp
+
+-- aeson-2.x aware
+source-repository-package
+  type: git
+  location: https://github.com/nomeata/aws-lambda-haskell-runtime
+  tag: fa19268282a5afff7aa0ba8babc723d835bed4f1
+  --sha256: 057g2hf9gws6qbbxgg2vlz9vi4s22lajf4fcifk8f39qssw094g0
