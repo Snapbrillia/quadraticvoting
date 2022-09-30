@@ -1,5 +1,11 @@
 # Build: docker build -t haskell-cabal-build -f  Docker/CabalBuild.Dockerfile .
-# local invocation: docker run -t -v `pwd`:/home/builder/repo -v `pwd`/.cabal:/home/builder/.cabal -w /home/builder/repo haskell-cabal-build <cmd>
+# Invocation: docker run -t -v `pwd`:/home/builder/repo -v `pwd`/.cabal.docker:/home/builder/.cabal -w /home/builder/repo haskell-cabal-build <cmd>
+# E.G. To set up a lambda for SAM:
+# docker run -t -v `pwd`:/home/builder/repo -v `pwd`/.cabal.docker:/home/builder/.cabal \
+#            -w /home/builder/repo haskell-cabal-build \
+#            ./cabal-build-function.sh .aws-sam/build/QvfGenerateScripts qvf-generate-scripts
+# Shell for dev: docker run -i -t -v `pwd`:/home/builder/repo -v `pwd`/.cabal.docker:/home/builder/.cabal -w /home/builder/repo haskell-cabal-build bash
+# - although you might not need/want the bind-mounts.
 FROM amd64/fedora:latest
 
 SHELL ["/bin/bash", "--rcfile", "~/.profile", "-c"]
