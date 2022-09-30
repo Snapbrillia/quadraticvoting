@@ -2,6 +2,14 @@
 
 TEMPLATE=$1
 
+if ! which yq ; then
+    echo "ERROR: yq not found on PATH. Please install (see https://github.com/mikefarah/yq)."
+fi 
+
+if ! which jq ; then
+    echo "ERROR: jq not found on PATH. Please install (sudo apt-get install -y jq)."
+fi 
+
 RESOURCES=$(yq '.Resources' -o json < ${TEMPLATE})
 FUNCTION=$(echo "${RESOURCES}" | jq -r '. | keys[0]')
 TARGET=$(echo "${RESOURCES}" | jq '.[]' | jq -r 'getpath(["Properties","Handler"])')
