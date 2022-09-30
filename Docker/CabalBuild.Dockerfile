@@ -1,5 +1,5 @@
 # Build: docker build -t haskell-cabal-build -f  Docker/CabalBuild.Dockerfile .
-# Invocation: docker run -t --mount type=bind,src=`pwd`,dst=/home/builder/repo -w /home/builder/repo haskell-cabal-build cabal build all
+# local invocation: docker run -t -v `pwd`:/home/builder/repo -v `pwd`/.cabal:/home/builder/.cabal -w /home/builder/repo haskell-cabal-build <cmd>
 FROM amd64/fedora:latest
 
 SHELL ["/bin/bash", "--rcfile", "~/.profile", "-c"]
