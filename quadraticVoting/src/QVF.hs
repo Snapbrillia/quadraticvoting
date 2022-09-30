@@ -77,12 +77,13 @@ import           Prelude                              ( Show
                                                       )
 import qualified Prelude                              as P
 
-import           Datum
+import           Data.Datum
+import           Data.DonationInfo
+import           Data.Redeemer
+import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
 import           Minter.Governance                    ( qvfTokenName )
 import qualified Minter.Registration
-import           DonationInfo
-import           RegistrationInfo
 import           Utils
 -- }}}
 
@@ -97,33 +98,6 @@ data QVFParams = QVFParams
   }
 
 PlutusTx.makeLift ''QVFParams
--- }}}
-
-
--- QVF ACTION
--- {{{
-data QVFAction
-  = UpdateDeadline        POSIXTime
-  | RegisterProject       RegistrationInfo
-  | DonateToProject       DonationInfo
-  | FoldDonations
-  | AccumulateDonations
-  | PayKeyHolderFee
-  | DistributePrizes
-  | UnlockEscrowFor       PubKeyHash Integer
-  | WithdrawBounty        PubKeyHash
-
-PlutusTx.makeIsDataIndexed ''QVFAction
-  [ ('UpdateDeadline     , 0)
-  , ('RegisterProject    , 1)
-  , ('DonateToProject    , 2)
-  , ('FoldDonations      , 3)
-  , ('AccumulateDonations, 4)
-  , ('PayKeyHolderFee    , 5)
-  , ('DistributePrizes   , 6)
-  , ('UnlockEscrowFor    , 7)
-  , ('WithdrawBounty     , 8)
-  ]
 -- }}}
 
 

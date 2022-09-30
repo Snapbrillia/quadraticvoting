@@ -21,12 +21,13 @@ library
   default-language:    Haskell2010
 
   exposed-modules:     QVF
-                     , Datum
-                     , DonationInfo
+                     , Data.Datum
+                     , Data.DonationInfo
+                     , Data.Redeemer
+                     , Data.RegistrationInfo
                      , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration
-                     , RegistrationInfo
                      , Utils
 
   build-depends:       base >= 4.9 && < 5

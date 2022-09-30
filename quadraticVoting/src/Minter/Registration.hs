@@ -24,9 +24,9 @@ import           Plutus.V2.Ledger.Contexts
 import qualified PlutusTx
 import           PlutusTx.Prelude
 
-import           Datum
+import           Data.Datum
+import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
-import           RegistrationInfo
 import           Utils
 
 
@@ -34,7 +34,7 @@ import           Utils
 -- {{{
 data RegistrationRedeemer
   = RegisterProject RegistrationInfo
-  | ConcludeAndRefund
+  | ConcludeAndRefund BuiltinByteString
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
@@ -154,8 +154,43 @@ mkRegistrationPolicy sym tn action ctx =
            "Specified UTxO must be consumed."
            (utxoIsGettingSpent inputs riTxOutRef)
       -- }}}
-    ConcludeAndRefund                    ->
+    ConcludeAndRefund projectId          ->
       -- {{{
+      let
+        currTN :: TokenName
+        currTN = TokenName projectId
+
+        inputPsAreValid =
+          case filter (utxoHasX ownSym (Just currTN) . txInInfoResolved) inputs of
+            [p0, p1] ->
+              -- {{{
+              case getInlineDatum (txInInfoResolved p0) of
+                ProjectInfo ProjectDetails{..} ->
+                  -- {{{
+                  case getInlineDatum (txInInfoResolved p1) of
+                    DonationAccumulationConcluded _ _ _ True ->
+                      -- {{{
+                      True
+                      -- }}}
+                    Escrow  _                                ->
+                      -- {{{
+                      True
+                      -- }}}
+                    _                                        ->
+                      -- {{{
+                      traceError "Invalid datum for the second project input."
+                      -- }}}
+                  -- }}}
+                _                              ->
+                  -- {{{
+                  traceError "First project input must be the info UTxO."
+                  -- }}}
+              -- }}}
+            _        ->
+              -- {{{
+              traceError "Exactly 2 project inputs are expected."
+              -- }}}
+      in
       traceError "TODO."
       -- }}}
   -- }}}

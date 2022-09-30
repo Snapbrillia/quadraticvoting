@@ -32,7 +32,7 @@ import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol )
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Datum
+import           Data.Datum
 import           Utils
 -- }}}
 

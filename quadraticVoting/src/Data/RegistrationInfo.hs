@@ -23,25 +23,24 @@
 
 -- MODULE
 -- {{{
-module RegistrationInfo where
+module Data.RegistrationInfo where
 -- }}}
 
 
 -- IMPORTS
 -- {{{
-import Data.Aeson                       ( FromJSON
+import           Data.Aeson             ( FromJSON
                                         , ToJSON )
-import GHC.Generics                     ( Generic )
-import Plutus.V2.Ledger.Api             ( PubKeyHash
+import           GHC.Generics           ( Generic )
+import           Plutus.V2.Ledger.Api   ( PubKeyHash
                                         , TxOutRef )
 import           Prelude                ( Show
-                                        , show
-                                        )
+                                        , show )
 import qualified PlutusTx
 import           PlutusTx.Prelude       ( Integer
                                         , BuiltinByteString
                                         , Eq(..) )
-import           Datum                  ( ProjectDetails(..) )
+import           Data.Datum             ( ProjectDetails(..) )
 -- }}}
 
 

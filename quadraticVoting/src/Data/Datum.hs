@@ -23,27 +23,26 @@
 
 -- MODULE
 -- {{{
-module Datum where
+module Data.Datum where
 -- }}}
 
 
 -- IMPORTS
 -- {{{
-import Data.Aeson                       ( FromJSON
+import           Data.Aeson             ( FromJSON
                                         , ToJSON )
-import GHC.Generics                     ( Generic )
-import Ledger
-import Plutus.V2.Ledger.Api             ( PubKeyHash
+import           GHC.Generics           ( Generic )
+import           Ledger
+import           Plutus.V2.Ledger.Api   ( PubKeyHash
                                         , POSIXTime
                                         , Map
                                         , BuiltinByteString )
 import qualified PlutusTx.AssocMap      as Map
 import           PlutusTx.AssocMap      ( Map )
 import           Prelude                ( Show
-                                        , show
-                                        )
+                                        , show )
 import qualified PlutusTx
-import PlutusTx.Prelude                 ( Bool(False)
+import           PlutusTx.Prelude       ( Bool(False)
                                         , Integer
                                         , BuiltinByteString
                                         , Eq(..)
@@ -69,7 +68,7 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 -- }}}
 
 
--- DATUM
+-- QVF DATUM
 -- {{{
 data QVFDatum
   -- {{{

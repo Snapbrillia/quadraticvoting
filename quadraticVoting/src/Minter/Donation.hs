@@ -24,8 +24,8 @@ import qualified PlutusTx.AssocMap                    as Map
 import qualified PlutusTx
 import           PlutusTx.Prelude
 
-import           Datum
-import           DonationInfo
+import           Data.Datum
+import           Data.DonationInfo
 import           Utils
 
 
