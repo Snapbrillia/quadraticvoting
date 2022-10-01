@@ -96,10 +96,10 @@ haskell-nix.cabalProject' ({ pkgs
           })
           projectPackagesExes;
       })
-      {
-        packages = lib.genAttrs projectPackageNames
-          (name: { configureFlags = [ "--ghc-option=-Werror" ]; });
-      }
+      # {
+      #   packages = lib.genAttrs projectPackageNames
+      #     (name: { configureFlags = [ "--ghc-option=-Werror" ]; });
+      # }
       # Musl libc fully static build
       ({ pkgs, ... }: lib.mkIf pkgs.stdenv.hostPlatform.isMusl (
         let
