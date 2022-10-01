@@ -47,6 +47,7 @@ import           PlutusTx.Prelude       ( Bool(False)
                                         , BuiltinByteString
                                         , Eq(..)
                                         , (&&) )
+import           Data.DonationInfo
 -- }}}
 
 
@@ -54,7 +55,7 @@ import           PlutusTx.Prelude       ( Bool(False)
 -- {{{
 data QVFAction
   = UpdateDeadline        POSIXTime
-  | RegisterProject       RegistrationInfo
+  | RegisterProject
   | DonateToProject       DonationInfo
   | FoldDonations
   | AccumulateDonations

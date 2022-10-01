@@ -558,14 +558,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (RegisteredProjectsCount _                    , RegisterProject regInfo) ->
+    (RegisteredProjectsCount _                    , RegisterProject        ) ->
       -- Project Registration
       -- {{{
-      let
-        tn = orefToTokenName $ riTxOutRef regInfo
-      in
-         projectMintIsPresent True
-      && canRegisterOrDonate ()
+      projectMintIsPresent True && canRegisterOrDonate ()
       -- }}}
 
     (ReceivedDonationsCount _                     , DonateToProject donInfo) ->
@@ -807,7 +803,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
               -- }}}
           -- }}}
 
-        (projectsAccountedFor, prizesPaid) = foldr foldFn 0 inputs
+        (projectsAccountedFor, prizesPaid) = foldr foldFn (0, 0) inputs
       in
       if projectsAccountedFor > ps then -- TODO: Is this redundant?
         traceError "The impossible happened."
@@ -935,10 +931,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (Escrow beneficiaries                         , ConcludeProject        ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
-      projectMintIsPresent False
+         traceIfFalse
+           "Can not conclude with withstanding beneficiaries."
+           (Map.null beneficiaries)
+      && projectMintIsPresent False
       -- }}}
 
-    (ProjectInfo ProjectDetails{..}               , ConcludeProject        ) ->
+    (ProjectInfo _                                , ConcludeProject        ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
       projectMintIsPresent False

@@ -155,7 +155,7 @@ mkRegistrationPolicy sym tn action ctx =
            (utxoIsGettingSpent inputs riTxOutRef)
       && traceIfFalse
            "Project owner's signature is required."
-           (txSignedBy $ pdPubKeyHash riProjectDetails)
+           (txSignedBy info $ pdPubKeyHash riProjectDetails)
       -- }}}
     ConcludeAndRefund projectId          ->
       -- {{{
@@ -165,7 +165,7 @@ mkRegistrationPolicy sym tn action ctx =
 
         inputPsAreValid =
           case filter (utxoHasX ownSym (Just currTN) . txInInfoResolved) inputs of
-            [TxInInfo{txInInfoResolved = p0), TxInInfo{txInInfoResolved = p1}] ->
+            [TxInInfo{txInInfoResolved = p0}, TxInInfo{txInInfoResolved = p1}] ->
               -- {{{
               case getInlineDatum p0 of
                 ProjectInfo ProjectDetails{..} ->
@@ -180,7 +180,7 @@ mkRegistrationPolicy sym tn action ctx =
                            )
                       && traceIfFalse
                            "Transaction must be signed by the project owner."
-                           (txSignedBy pdPubKeyHash)
+                           (txSignedBy info pdPubKeyHash)
                       -- }}}
                     _                                        ->
                       -- {{{
@@ -197,7 +197,8 @@ mkRegistrationPolicy sym tn action ctx =
               traceError "Exactly 2 project inputs are expected."
               -- }}}
       in
-      traceError "TODO."
+      inputPsAreValid
+      -- traceError "TODO."
       -- }}}
   -- }}}
 

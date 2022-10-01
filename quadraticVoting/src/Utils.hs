@@ -30,7 +30,7 @@ import           PlutusTx.Sqrt               ( Sqrt (..)
                                              , isqrt )
 import qualified Prelude                     as P
 
-import           Datum
+import           Data.Datum
 -- }}}
 
 

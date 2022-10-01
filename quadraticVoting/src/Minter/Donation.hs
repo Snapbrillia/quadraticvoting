@@ -131,7 +131,7 @@ mkDonationPolicy sym action ctx =
            (currDCount < maxTotalDonationCount)
       && traceIfFalse
            "Donor's signature is required."
-           (txSignedBy diDonor)
+           (txSignedBy info diDonor)
       && outputSAndVArePresent
       -- }}}
     FoldDonations projectId          ->
