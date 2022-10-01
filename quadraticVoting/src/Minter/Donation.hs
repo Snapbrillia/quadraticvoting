@@ -129,6 +129,9 @@ mkDonationPolicy sym action ctx =
       && traceIfFalse
            "This project has reached the maximum number of donations."
            (currDCount < maxTotalDonationCount)
+      && traceIfFalse
+           "Donor's signature is required."
+           (txSignedBy diDonor)
       && outputSAndVArePresent
       -- }}}
     FoldDonations projectId          ->

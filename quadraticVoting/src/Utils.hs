@@ -13,7 +13,10 @@
 -- }}}
 
 
+-- MODULE
+-- {{{
 module Utils where
+-- }}}
 
 
 -- IMPORTS
@@ -24,7 +27,7 @@ import           Plutus.V2.Ledger.Api
 import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.Prelude
 import           PlutusTx.Sqrt               ( Sqrt (..)
-                                             , isqrt)
+                                             , isqrt )
 import qualified Prelude                     as P
 
 import           Datum
@@ -362,6 +365,9 @@ foldDonationInputs donationSymbol donationTN inputs =
 
 -- CONSTANTS
 -- {{{
+governanceLovelaces :: Integer
+governanceLovelaces = 1_500_000
+
 registrationFee :: Integer
 registrationFee = 3_000_000
 

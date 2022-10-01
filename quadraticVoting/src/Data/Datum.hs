@@ -96,7 +96,7 @@ data QVFDatum
   | DonationAccumulationConcluded
     -- ^ Datum after collecting all donations.
       -- {{{
-      Integer -- ^ Total project count.
+      Integer -- ^ Remaining projects to distribute their prizes.
       Integer -- ^ Total Lovelaces.
       Integer -- ^ Sum of prize weights.
       Bool    -- ^ Key holder fee collected or not.

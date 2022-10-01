@@ -94,6 +94,9 @@ mkQVFPolicy oref deadline tn () ctx =
               && traceIfFalse
                    "Funding round must start with 0 registered projects."
                    (count == 0)
+              && traceIfFalse
+                   "Governance UTxO must carry the required Lovelaces."
+                   (utxoHasLovelaces governanceLovelaces o1)
               -- }}}
             _                                                 ->
               -- {{{

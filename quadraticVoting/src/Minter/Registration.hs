@@ -153,6 +153,9 @@ mkRegistrationPolicy sym tn action ctx =
       && traceIfFalse
            "Specified UTxO must be consumed."
            (utxoIsGettingSpent inputs riTxOutRef)
+      && traceIfFalse
+           "Project owner's signature is required."
+           (txSignedBy $ pdPubKeyHash riProjectDetails)
       -- }}}
     ConcludeAndRefund projectId          ->
       -- {{{
@@ -162,19 +165,22 @@ mkRegistrationPolicy sym tn action ctx =
 
         inputPsAreValid =
           case filter (utxoHasX ownSym (Just currTN) . txInInfoResolved) inputs of
-            [p0, p1] ->
+            [TxInInfo{txInInfoResolved = p0), TxInInfo{txInInfoResolved = p1}] ->
               -- {{{
-              case getInlineDatum (txInInfoResolved p0) of
+              case getInlineDatum p0 of
                 ProjectInfo ProjectDetails{..} ->
                   -- {{{
-                  case getInlineDatum (txInInfoResolved p1) of
-                    DonationAccumulationConcluded _ _ _ True ->
+                  case getInlineDatum p1 of
+                    Escrow _                                 ->
                       -- {{{
-                      True
-                      -- }}}
-                    Escrow  _                                ->
-                      -- {{{
-                      True
+                         traceIfFalse
+                           "Escrow must be depleted before refunding the registration fee."
+                           ( lovelaceFromValue (txOutValue p1)
+                             == halfOfTheRegistrationFee
+                           )
+                      && traceIfFalse
+                           "Transaction must be signed by the project owner."
+                           (txSignedBy pdPubKeyHash)
                       -- }}}
                     _                                        ->
                       -- {{{
