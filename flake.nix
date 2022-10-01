@@ -169,6 +169,9 @@
           # docker run qvf-generate-scripts-0.1.0.0:latest xxx          
           qvf-cli = packages.qvf-cli.components.exes.qvf-cli;
 
+          qvf-generate-scripts-static = jobs.x86_64-linux.linux.musl.qvf-generate-scripts;
+          qvf-generate-scripts = packages.qvf-generate-scripts.components.exes.qvf-generate-scripts;
+
           # This is used by `nix develop .` to open a devShell
           inherit devShell devShells;
 
@@ -197,15 +200,17 @@
       jobs = flake.jobs;
       qvf-cli-static = flake.qvf-cli-static;
       qvf-cli = flake.qvf-cli;
+      qvf-generate-scripts-static = flake.qvf-generate-scripts-static;
+      qvf-generate-scripts = flake.qvf-generate-scripts;
     in
     flake // {
 
-      inherit jobs qvf-cli-static qvf-cli ;
+      inherit jobs qvf-cli-static qvf-cli qvf-generate-scripts-static qvf-generate-scripts;
 
       overlay = final: prev: {
         quadraticvoting-project = flake.project.${final.system};
         quadraticvoting-packages = mkQvfPackages final.quadraticvoting-project;
-        inherit (final.quadraticvoting-packages) qvf-cli quadraticVoting;
+        inherit (final.quadraticvoting-packages) qvf-cli qvf-generate-scripts quadraticVoting;
       };
     };
 }
