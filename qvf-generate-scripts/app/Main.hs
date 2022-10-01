@@ -1,6 +1,8 @@
 module Main where
 
-import           Aws.Lambda
+import           Aws.Lambda ( defaultDispatcherOptions
+                            , addStandaloneLambdaHandler
+                            , runLambdaHaskellRuntime )
 import qualified Lib
 
 main :: IO ()
