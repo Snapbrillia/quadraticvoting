@@ -42,3 +42,4 @@ QvfGenerateScriptsFunction/
 tmp/
 
 lambda-notes.txt
+.cabal*/

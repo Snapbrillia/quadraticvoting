@@ -11,8 +11,13 @@ import           Ledger               ( PubKeyHash
                                       , TxOutRef
                                       , TokenName )
 import qualified Ledger.Typed.Scripts as Scripts
-import qualified OnChain              as OC
-import qualified Token
+
+import           Datum                ( QVFDatum(RegisteredProjectsCount) )
+
+import qualified QVF                  as OC
+import qualified Minter.Donation      as Don
+import qualified Minter.Governance    as Gov
+import qualified Minter.Registration  as Reg
 
 data GenerateScriptsParams = GenerateScriptsParams
   { keyHolderPubKeyHash :: PubKeyHash
@@ -26,7 +31,7 @@ data GenerateScriptsResponse = GenerateScriptsResponse
   { validator     :: Scripts.Validator
   , mintingPolicy :: Scripts.MintingPolicy
   , unitRedeemer  :: ()
-  , initialDatum  :: OC.QVFDatum
+  , initialDatum  :: QVFDatum
   } 
   deriving (Generic, FromJSON, ToJSON)
 
@@ -34,12 +39,15 @@ handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScri
 handler GenerateScriptsParams {..} _ = 
   return $ Right $ GenerateScriptsResponse validator mintingPolicy () initialDatum
   where 
-    tokenSymbol  = Token.qvfSymbol txRef authTokenName
-    qvfParams    = OC.QVFParams
-                    { OC.qvfKeyHolder  = keyHolderPubKeyHash
-                    , OC.qvfSymbol     = tokenSymbol
-                    , OC.qvfTokenName  = authTokenName
-                    }
+    currencySymbol = Gov.qvfSymbol txRef deadline
+    regSymbol      = Reg.registrationSymbol currencySymbol
+    donSymbol      = Don.donationSymbol regSymbol
+    qvfParams      = OC.QVFParams
+                      { OC.qvfKeyHolder      = keyHolderPubKeyHash
+                      , OC.qvfSymbol         = currencySymbol
+                      , OC.qvfProjectSymbol  = regSymbol
+                      , OC.qvfDonationSymbol = donSymbol
+                      }
     validator = OC.qvfValidator qvfParams
-    mintingPolicy = Token.qvfPolicy txRef authTokenName
-    initialDatum  = OC.initialDatum deadline
+    mintingPolicy = Gov.qvfPolicy txRef deadline
+    initialDatum  = RegisteredProjectsCount 0
