@@ -72,3 +72,4 @@ jobs:
           pwd
           ls -al
           whoami
+          ls -al repo
