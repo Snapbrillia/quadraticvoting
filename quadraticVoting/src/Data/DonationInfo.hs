@@ -23,7 +23,7 @@
 
 -- MODULE
 -- {{{
-module DonationInfo where
+module Data.DonationInfo where
 -- }}}
 
 
