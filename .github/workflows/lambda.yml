@@ -44,6 +44,12 @@ jobs:
     - name: Setup Github Scripts
       run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
 
+    - name: Check Env
+      run: |
+        whoami
+        pwd
+        ls -al
+
     - name: Haskell versions
       run: |
         ghc --version
