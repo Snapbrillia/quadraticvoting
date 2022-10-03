@@ -49,6 +49,7 @@ jobs:
         whoami
         pwd
         ls -al
+        cat /etc/group
 
     - name: Haskell versions
       run: |
@@ -79,6 +80,7 @@ jobs:
           ls -al
           whoami
           ls -al /root
+          cat /etc/group
           ./cabal-build-function.sh .aws-sam qvf-generate-scripts
 
     - name: Check result
