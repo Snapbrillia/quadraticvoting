@@ -44,14 +44,6 @@ jobs:
     - name: Setup Github Scripts
       run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
 
-    - name: Check Env
-      run: |
-        whoami
-        pwd
-        ls -al
-        cat /etc/group
-        cat /etc/passwd
-
     - name: Haskell versions
       run: |
         ghc --version
@@ -75,14 +67,7 @@ jobs:
       with:
         image: tyutchev/gitaction-haskell-cabal-build:latest
         options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
-        # run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
-        run: |
-          pwd
-          ls -al
-          whoami
-          cat /etc/group
-          cat /etc/passwd
-          ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+        run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
 
     - name: Check result
       run: |
