@@ -66,10 +66,10 @@ jobs:
       uses: addnab/docker-run-action@v3
       with:
         image: tyutchev/haskell-cabal-build:latest
-        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/builder/repo -v /home/runner/.cabal:/home/builder/.cabal 
-        # run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
-        run: |
-          pwd
-          ls -al
-          whoami
-          ls -al repo
+        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/builder/repo -v /home/runner/.cabal:/home/builder/.cabal -w /home/builder/repo
+        run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+        # run: |
+        #   pwd
+        #   ls -al
+        #   whoami
+        #   ls -al repo
