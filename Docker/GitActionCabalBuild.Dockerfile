@@ -1,10 +1,10 @@
 # Build: docker build -t haskell-cabal-build -f  Docker/CabalBuild.Dockerfile .
-# Invocation: docker run -t -v `pwd`:/root/repo -v `pwd`/.cabal.docker:/root/.cabal -w /root/repo haskell-cabal-build <cmd>
+# Invocation: docker run -t -v `pwd`:/home/runner/repo -v `pwd`/.cabal.docker:/home/runner/.cabal -w /home/runner/repo haskell-cabal-build <cmd>
 # E.G. To set up a lambda for SAM:
-# docker run -t -v `pwd`:/root/repo -v `pwd`/.cabal.docker:/root/.cabal \
-#            -w /root/repo haskell-cabal-build \
+# docker run -t -v `pwd`:/home/runner/repo -v `pwd`/.cabal.docker:/home/runner/.cabal \
+#            -w /home/runner/repo haskell-cabal-build \
 #            ./cabal-build-function.sh .aws-sam/build/QvfGenerateScripts qvf-generate-scripts
-# Shell for dev: docker run -i -t -v `pwd`:/root/repo -v `pwd`/.cabal.docker:/root/.cabal -w /root/repo haskell-cabal-build bash
+# Shell for dev: docker run -i -t -v `pwd`:/home/runner/repo -v `pwd`/.cabal.docker:/home/runner/.cabal -w /home/runner/repo haskell-cabal-build bash
 # - although you might not need/want the bind-mounts.
 FROM amd64/fedora:latest
 
@@ -69,8 +69,19 @@ RUN git checkout ac83be33 \
 ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
 ENV PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
 
+RUN groupadd -r -g 121 docker
+
+# Create USER runner 
+RUN useradd -u 1001 -g 121 -ms /bin/bash runner
+
+# switch to USER = runner and make CWD /home/runner
+USER runner
+ENV USER=runner
+
+WORKDIR /home/runner
+
 # This is where we will bind-mount the root dir of the repo we're building
-RUN mkdir -p /src/repo
+RUN mkdir /home/runner/repo
 
 # set up git LFS 
 RUN git lfs install
@@ -78,26 +89,18 @@ RUN git lfs install
 # Install Nix and ghcup and then install the verions of ghc, cabal and stack that we want. 
 # The versions are made explicit
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh \
-  && source /root/.ghcup/env \
-  && /root/.ghcup/bin/ghcup install ghc 8.10.7 --force --set \
-  && /root/.ghcup/bin/ghcup install cabal 3.6.2.0 --force \
-  && /root/.ghcup/bin/ghcup set cabal 3.6.2.0 \
-  && /root/.ghcup/bin/ghcup install stack 2.7.5 --force \
-  && /root/.ghcup/bin/ghcup set stack 2.7.5
+  && source /home/runner/.ghcup/env \
+  && /home/runner/.ghcup/bin/ghcup install ghc 8.10.7 --force --set \
+  && /home/runner/.ghcup/bin/ghcup install cabal 3.6.2.0 --force \
+  && /home/runner/.ghcup/bin/ghcup set cabal 3.6.2.0 \
+  && /home/runner/.ghcup/bin/ghcup install stack 2.7.5 --force \
+  && /home/runner/.ghcup/bin/ghcup set stack 2.7.5
 
-# Add /root/.ghcup/bin to PATH so we don't have to remember to do it all the time
-ENV PATH="/root/.ghcup/bin:${PATH}"
+# Add /home/runner/.ghcup/bin to PATH so we don't have to remember to do it all the time
+ENV PATH="/home/runner/.ghcup/bin:${PATH}"
 
 # Remove the contents of the directory created above. We're going to bind-mount a host resident volume here
 # So we retain then cache.
-RUN rm -rf /root/.cabal/* 
+RUN rm -rf /home/runner/.cabal/* 
 
-# Test we can build
-# USER root
-# RUN rm -rf /root/test \
-#   && mkdir -p /root/test
-# COPY --chown=builder:builder . /root/test
-# RUN echo "PATH=${PATH}"
-# RUN  su -s /bin/bash -c 'cd /root/test && CABAL_BUILDDIR=/root/test/docker-dist-newstyle cabal build all' - builder \
-#   && cd /root \
-#   && rm -rf /root/test
+
