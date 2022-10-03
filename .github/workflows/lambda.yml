@@ -30,12 +30,6 @@ jobs:
 
     steps:
 
-    - uses: haskell/actions/setup@v1
-      id: setup-haskell
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: 3.6.2.0
-
     - name: Set cache version
       run: echo "CACHE_VERSION=grFfw8r" >> $GITHUB_ENV
 
@@ -43,11 +37,6 @@ jobs:
 
     - name: Setup Github Scripts
       run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
-
-    - name: Haskell versions
-      run: |
-        ghc --version
-        cabal --version
 
     - name: Cabal update
       run: retry 2 cabal update
@@ -67,4 +56,4 @@ jobs:
       with:
         image: tyutchev/haskell-cabal-build:latest
         options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/builder/repo -v /home/runner/.cabal:/home/builder/.cabal 
-        run: /home/runner/work/quadraticvoting/quadraticvoting/cabal-build-function.sh .aws-sam qvf-generate-scripts
+        run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
