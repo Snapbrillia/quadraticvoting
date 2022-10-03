@@ -30,12 +30,6 @@ jobs:
 
     steps:
 
-    - uses: haskell/actions/setup@v1
-      id: setup-haskell
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: 3.6.2.0
-
     - name: Set cache version
       run: echo "CACHE_VERSION=grFfw8r" >> $GITHUB_ENV
 
@@ -44,18 +38,24 @@ jobs:
     - name: Setup Github Scripts
       run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
 
-    - name: Haskell versions
-      run: |
-        ghc --version
-        cabal --version
+    - name: Build using Docker
+      uses: addnab/docker-run-action@v3
+      with:
+        image: tyutchev/gitaction-haskell-cabal-build:latest
+        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
+        run: |
+          cabal update
+          cabal build qvf-generate-scripts --dry-run
 
-    - name: Cabal update
-      run: retry 2 cabal update
+    - name: Record dependencies
+      run: |        
+        cat /home/runner/work/quadraticvoting/quadraticvoting/dist-newstyle/cache/plan.json | jq -r '."install-plan"[].id' | sort | uniq > dependencies.txt
+        date > date.txt
 
     - uses: actions/cache@v2
       name: Cache cabal store
       with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        path: /home/runner/.cabal
         key: cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
         restore-keys: |
           cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
