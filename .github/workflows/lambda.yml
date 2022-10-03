@@ -65,11 +65,18 @@ jobs:
     - name: Build using Docker
       uses: addnab/docker-run-action@v3
       with:
-        image: tyutchev/haskell-cabal-build:latest
-        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/builder/repo -v /home/runner/.cabal:/home/builder/.cabal -w /home/builder/repo
-        run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
-        # run: |
-        #   pwd
-        #   ls -al
-        #   whoami
-        #   ls -al repo
+        image: tyutchev/gitaction-haskell-cabal-build:latest
+        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/src/repo -v /home/runner/.cabal:/root/.cabal -w /src/repo
+        # run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+        run: |
+          pwd
+          ls -al
+          whoami
+          ls -al /root
+          ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+
+    - name: Check result
+      run: |
+        ls -al /home/runner/work/quadraticvoting/quadraticvoting
+        ls -al /home/runner/work/quadraticvoting/quadraticvoting/.aws-sam
+        ls -al /home/runner/work/quadraticvoting/quadraticvoting/.aws-sam/lib
