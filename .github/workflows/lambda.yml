@@ -38,12 +38,16 @@ jobs:
     - name: Setup Github Scripts
       run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
 
+    - name: Setup .cabal
+      run: mkdir -p /home/runner/.cabal
+
     - name: Build using Docker
       uses: addnab/docker-run-action@v3
       with:
         image: tyutchev/gitaction-haskell-cabal-build:latest
         options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
         run: |
+          ls -al /home/runner
           cabal update
           cabal build qvf-generate-scripts --dry-run
 
