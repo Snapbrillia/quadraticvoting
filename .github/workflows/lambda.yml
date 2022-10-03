@@ -67,4 +67,8 @@ jobs:
       with:
         image: tyutchev/haskell-cabal-build:latest
         options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/builder/repo -v /home/runner/.cabal:/home/builder/.cabal 
-        run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+        # run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+        run: |
+          pwd
+          ls -al
+          whoami
