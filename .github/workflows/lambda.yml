@@ -1,0 +1,70 @@
+name: QvfGenerateScriptsFunction lambda build
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason'
+        required: false
+        default: manual
+      tests:
+        description: 'Tests'
+        required: false
+        default: some
+  create:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc: ["8.10.7"]
+        os: [ubuntu-latest]
+
+    steps:
+
+    - uses: haskell/actions/setup@v1
+      id: setup-haskell
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: 3.6.2.0
+
+    - name: Set cache version
+      run: echo "CACHE_VERSION=grFfw8r" >> $GITHUB_ENV
+
+    - uses: actions/checkout@v2
+
+    - name: Setup Github Scripts
+      run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
+
+    - name: Haskell versions
+      run: |
+        ghc --version
+        cabal --version
+
+    - name: Cabal update
+      run: retry 2 cabal update
+
+    - uses: actions/cache@v2
+      name: Cache cabal store
+      with:
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
+        restore-keys: |
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
+
+    - name: Build using Docker
+      uses: addnab/docker-run-action@v3
+      with:
+        image: tyutchev/haskell-cabal-build:latest
+        options: -v $(pwd):/home/builder/repo -v /home/runner/.cabal:/home/builder/.cabal 
+        run: $(pwd)/cabal-build-function.sh .aws-sam qvf-generate-scripts
