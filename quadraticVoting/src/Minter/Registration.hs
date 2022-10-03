@@ -24,9 +24,9 @@ import           Plutus.V2.Ledger.Contexts
 import qualified PlutusTx
 import           PlutusTx.Prelude
 
-import           Datum
+import           Data.Datum
+import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
-import           RegistrationInfo
 import           Utils
 
 
@@ -34,7 +34,7 @@ import           Utils
 -- {{{
 data RegistrationRedeemer
   = RegisterProject RegistrationInfo
-  | ConcludeAndRefund
+  | ConcludeAndRefund BuiltinByteString
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
@@ -153,10 +153,52 @@ mkRegistrationPolicy sym tn action ctx =
       && traceIfFalse
            "Specified UTxO must be consumed."
            (utxoIsGettingSpent inputs riTxOutRef)
+      && traceIfFalse
+           "Project owner's signature is required."
+           (txSignedBy info $ pdPubKeyHash riProjectDetails)
       -- }}}
-    ConcludeAndRefund                    ->
+    ConcludeAndRefund projectId          ->
       -- {{{
-      traceError "TODO."
+      let
+        currTN :: TokenName
+        currTN = TokenName projectId
+
+        inputPsAreValid =
+          case filter (utxoHasX ownSym (Just currTN) . txInInfoResolved) inputs of
+            [TxInInfo{txInInfoResolved = p0}, TxInInfo{txInInfoResolved = p1}] ->
+              -- {{{
+              case getInlineDatum p0 of
+                ProjectInfo ProjectDetails{..} ->
+                  -- {{{
+                  case getInlineDatum p1 of
+                    Escrow _                                 ->
+                      -- {{{
+                         traceIfFalse
+                           "Escrow must be depleted before refunding the registration fee."
+                           ( lovelaceFromValue (txOutValue p1)
+                             == halfOfTheRegistrationFee
+                           )
+                      && traceIfFalse
+                           "Transaction must be signed by the project owner."
+                           (txSignedBy info pdPubKeyHash)
+                      -- }}}
+                    _                                        ->
+                      -- {{{
+                      traceError "Invalid datum for the second project input."
+                      -- }}}
+                  -- }}}
+                _                              ->
+                  -- {{{
+                  traceError "First project input must be the info UTxO."
+                  -- }}}
+              -- }}}
+            _        ->
+              -- {{{
+              traceError "Exactly 2 project inputs are expected."
+              -- }}}
+      in
+      inputPsAreValid
+      -- traceError "TODO."
       -- }}}
   -- }}}
 

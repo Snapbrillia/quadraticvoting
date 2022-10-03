@@ -32,7 +32,7 @@ import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol )
 import qualified PlutusTx
 import           PlutusTx.Prelude
-import           Datum
+import           Data.Datum
 import           Utils
 -- }}}
 
@@ -94,6 +94,9 @@ mkQVFPolicy oref deadline tn () ctx =
               && traceIfFalse
                    "Funding round must start with 0 registered projects."
                    (count == 0)
+              && traceIfFalse
+                   "Governance UTxO must carry the required Lovelaces."
+                   (utxoHasLovelaces governanceLovelaces o1)
               -- }}}
             _                                                 ->
               -- {{{

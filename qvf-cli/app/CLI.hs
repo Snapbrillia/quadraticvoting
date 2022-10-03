@@ -1,4 +1,7 @@
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE LambdaCase        #-}
 
@@ -7,26 +10,30 @@ module Main (main) where
 
 
 import           Cardano.Api
-import           Cardano.Api.Shelley        (PlutusScript (..))
-import           Codec.Serialise            (Serialise, serialise)
+import           Cardano.Api.Shelley        ( PlutusScript (..) )
+import           Codec.Serialise            ( Serialise
+                                            , serialise )
 import qualified Data.Aeson                 as A
-import           Data.Aeson                 (encode)
+import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Short      as SBS
 import qualified Data.List                  as List
-import           Data.Maybe                 (fromJust)
-import           Data.String                (fromString)
-import           Data.Time.Clock.POSIX      (getPOSIXTime)
-import           Plutus.V1.Ledger.Api       (fromBuiltin, BuiltinByteString)
-import           Plutus.V1.Ledger.Value     (TokenName (..))
+import           Data.Maybe                 ( fromJust )
+import           Data.String                ( fromString )
+import           Data.Time.Clock.POSIX      ( getPOSIXTime )
+import           GHC.Generics               ( Generic )
+import           Plutus.V1.Ledger.Api       ( fromBuiltin
+                                            , BuiltinByteString )
+import           Plutus.V1.Ledger.Value     ( TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
-import           PlutusTx                   (Data (..))
+import           PlutusTx                   ( Data (..) )
 import qualified PlutusTx
-import           System.Environment         (getArgs)
-import           Text.Read                  (readMaybe)
+import           PlutusTx.Prelude           ( lengthOfByteString )
+import           System.Environment         ( getArgs )
+import           Text.Read                  ( readMaybe )
 
-import           Datum
+import           Data.Datum
 
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
@@ -85,6 +92,13 @@ parseJSONValue bs =
     Nothing ->
       return $ Left "Invalid JSON."
   -- }}}
+
+
+unsafeParsePlutusJSON :: FilePath -> IO OutputPlutus
+unsafeParsePlutusJSON file = do
+  fileContent <- LBS.readFile file
+  let Just decoded = A.decode fileContent
+  return decoded
 
 
 -- TODO !@! - remove? Not used.
@@ -235,7 +249,7 @@ main =
     scriptHelp         =
       -- {{{
       makeHelpText
-        (    "Generate the compiled Plutus validation and minting script\n"
+        (    "Generate the compiled Plutus validation and minting scripts\n"
           ++ "\t(note the UTxO format):"
         )
         "generate"
@@ -246,7 +260,7 @@ main =
         , "<governance-policy.plutus>"
         , "<registration-policy.plutus>"
         , "<donation-policy.plutus>"
-        , "<output-validation.plutus>"
+        , "<qvf-validator.plutus>"
         , "<unit.redeemer>"
         , "<output-initial.datum>"
         ]
@@ -273,11 +287,11 @@ main =
       ++ "options are:\n\n"
 
       ++ "Utility:\n"
-      ++ "\tqvf-cli generate scripts     --help\n"
-      ++ "\tqvf-cli pretty-datum         --help\n"
-      ++ "\tqvf-cli data-to-cbor         --help\n"
-      ++ "\tqvf-cli string-to-hex        --help\n"
-      ++ "\tqvf-cli get-deadline-slot    --help\n\n"
+      ++ "\tqvf-cli generate scripts  --help\n"
+      ++ "\tqvf-cli pretty-datum      --help\n"
+      ++ "\tqvf-cli data-to-cbor      --help\n"
+      ++ "\tqvf-cli string-to-hex     --help\n"
+      ++ "\tqvf-cli get-deadline-slot --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
@@ -290,6 +304,20 @@ main =
       -- {{{
       ioAction
       putStrLn $ outFile ++ " generated SUCCESSFULLY."
+      -- }}}
+
+    andPrintSuccessWithSize :: Show a
+                             => FilePath
+                             -> (FilePath -> IO a)
+                             -> IO ()
+                             -> IO ()
+    andPrintSuccessWithSize outFile getByteCount ioAction = do
+      -- {{{
+      ioAction
+      printable <- getByteCount outFile
+      let byteCount = show printable
+      putStrLn $
+        outFile ++ " generated SUCCESSFULLY (" ++ byteCount ++ " bytes)."
       -- }}}
 
     printGenerateHelp :: String -> IO ()
@@ -404,20 +432,12 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : gOF : regOF : donOF : vOF : rOF : dOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : govOF : regOF : donOF : qvfOF : rOF : dOF : _ -> do
       -- {{{
       case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
-        (Nothing   , _      ) ->
-          -- {{{
-          putStrLn "FAILED to parse the given UTxO."
-          -- }}}
-        (_         , Nothing) ->
-          -- {{{
-          putStrLn "FAILED to parse the deadline."
-          -- }}}
         (Just txRef, Just dl) -> do
           -- {{{
-          govRes <- writeMintingPolicy gOF $ Gov.qvfPolicy txRef dl
+          govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
           let qvfSymbol = Gov.qvfSymbol txRef dl
               regSymbol = Reg.registrationSymbol qvfSymbol
               donSymbol = Don.donationSymbol regSymbol
@@ -433,12 +453,14 @@ main =
                       , OC.qvfProjectSymbol  = regSymbol
                       , OC.qvfDonationSymbol = donSymbol
                       }
-              valRes <- writeValidator vOF $ OC.qvfValidator qvfParams
+              valRes <- writeValidator qvfOF $ OC.qvfValidator qvfParams
               case valRes of
                 Right _ -> do
                   -- {{{
-                  andPrintSuccess gOF $ return ()
-                  andPrintSuccess vOF $ return ()
+                  andPrintSuccessWithSize govOF unsafeParsePlutusJSON $ return ()
+                  andPrintSuccessWithSize regOF unsafeParsePlutusJSON $ return ()
+                  andPrintSuccessWithSize donOF unsafeParsePlutusJSON $ return ()
+                  andPrintSuccessWithSize qvfOF unsafeParsePlutusJSON $ return ()
                   andPrintSuccess rOF $ writeJSON rOF ()
                   andPrintSuccess dOF $ writeJSON dOF initialDatum
                   -- }}}
@@ -451,6 +473,14 @@ main =
               -- {{{
               putStrLn "FAILED to write minting script files."
               -- }}}
+          -- }}}
+        (Nothing   , _      ) ->
+          -- {{{
+          putStrLn "FAILED to parse the given UTxO."
+          -- }}}
+        (_         , Nothing) ->
+          -- {{{
+          putStrLn "FAILED to parse the deadline."
           -- }}}
       -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
@@ -503,4 +533,15 @@ main =
       -- }}}
     _                                                                   ->
       putStrLn "FAILED: Invalid arguments for QVF-CLI."
+-- }}}
+
+
+-- EXTRA
+-- {{{
+data OutputPlutus = OutputPlutus
+  { cborHex :: BuiltinByteString
+  } deriving (Generic, A.ToJSON, A.FromJSON)
+instance Show OutputPlutus where
+  show OutputPlutus{..} =
+    show $ lengthOfByteString cborHex
 -- }}}

@@ -24,8 +24,8 @@ import qualified PlutusTx.AssocMap                    as Map
 import qualified PlutusTx
 import           PlutusTx.Prelude
 
-import           Datum
-import           DonationInfo
+import           Data.Datum
+import           Data.DonationInfo
 import           Utils
 
 
@@ -129,6 +129,9 @@ mkDonationPolicy sym action ctx =
       && traceIfFalse
            "This project has reached the maximum number of donations."
            (currDCount < maxTotalDonationCount)
+      && traceIfFalse
+           "Donor's signature is required."
+           (txSignedBy info diDonor)
       && outputSAndVArePresent
       -- }}}
     FoldDonations projectId          ->
