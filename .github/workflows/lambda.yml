@@ -50,6 +50,7 @@ jobs:
         pwd
         ls -al
         cat /etc/group
+        cat /etc/passwd
 
     - name: Haskell versions
       run: |
