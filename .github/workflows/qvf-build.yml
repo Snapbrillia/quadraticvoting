@@ -1,0 +1,86 @@
+name: Build QVF artifacts
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason'
+        required: false
+        default: manual
+      tests:
+        description: 'Tests'
+        required: false
+        default: some
+  create:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc: ["8.10.7"]
+        os: [ubuntu-latest]
+
+    steps:
+
+    - name: Set cache version
+      run: echo "CACHE_VERSION=grFfw8r" >> $GITHUB_ENV
+
+    - uses: actions/checkout@v2
+
+    - name: Setup Github Scripts
+      run: echo "$(pwd)/.github/bin" >> $GITHUB_PATH
+
+    - name: Setup .cabal
+      run: mkdir -p /home/runner/.cabal
+
+    - name: Init .cabal cache
+      uses: addnab/docker-run-action@v3
+      with:
+        image: tyutchev/gitaction-haskell-cabal-build:latest
+        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
+        run: |
+          cabal update
+          cabal build all --dry-run
+
+    - name: Record dependencies
+      run: |        
+        cat /home/runner/work/quadraticvoting/quadraticvoting/dist-newstyle/cache/plan.json | jq -r '."install-plan"[].id' | sort | uniq > dependencies.txt
+        date > date.txt
+
+    - uses: actions/cache@v2
+      name: Cache cabal store
+      with:
+        path: /home/runner/.cabal
+        key: cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
+        restore-keys: |
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}-${{ hashFiles('date.txt') }}
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('dependencies.txt') }}
+          cache-${{ env.CACHE_VERSION }}-${{ runner.os }}-${{ matrix.ghc }}
+
+    - name: Build qvf-cli using Docker
+      uses: addnab/docker-run-action@v3
+      with:
+        image: tyutchev/gitaction-haskell-cabal-build:latest
+        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
+        run: cabal build qvf-cli
+
+    - name: Build QvfGenerateScriptsFunction artifacts using Docker
+      uses: addnab/docker-run-action@v3
+      with:
+        image: tyutchev/gitaction-haskell-cabal-build:latest
+        options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
+        run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
+
+    - name: Check result
+      run: |
+        ls -al /home/runner/work/quadraticvoting/quadraticvoting
+        ls -al /home/runner/work/quadraticvoting/quadraticvoting/.aws-sam
+        ls -al /home/runner/work/quadraticvoting/quadraticvoting/.aws-sam/lib
