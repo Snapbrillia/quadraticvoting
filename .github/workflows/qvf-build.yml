@@ -78,9 +78,3 @@ jobs:
         image: tyutchev/gitaction-haskell-cabal-build:latest
         options: -v /home/runner/work/quadraticvoting/quadraticvoting:/home/runner/repo -v /home/runner/.cabal:/home/runner/.cabal -w /home/runner/repo
         run: ./cabal-build-function.sh .aws-sam qvf-generate-scripts
-
-    - name: Check result
-      run: |
-        ls -al /home/runner/work/quadraticvoting/quadraticvoting
-        ls -al /home/runner/work/quadraticvoting/quadraticvoting/.aws-sam
-        ls -al /home/runner/work/quadraticvoting/quadraticvoting/.aws-sam/lib
