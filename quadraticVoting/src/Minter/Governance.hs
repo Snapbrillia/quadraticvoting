@@ -59,7 +59,16 @@ mkQVFPolicy oref deadline tn () ctx =
     ownSym = ownCurrencySymbol ctx
 
     hasUTxO :: Bool
-    hasUTxO = utxoIsGettingSpent (txInfoInputs info) oref
+    hasUTxO =
+      -- {{{
+      utxoIsGettingSpent (txInfoInputs info) oref
+      -- }}}
+
+    deadlineIsValid :: Bool
+    deadlineIsValid =
+      -- {{{
+      Interval.to deadline `Interval.contains` txInfoValidRange info
+      -- }}}
 
     checkMintedAmount :: Bool
     checkMintedAmount =
@@ -111,6 +120,7 @@ mkQVFPolicy oref deadline tn () ctx =
       -- }}}
   in
      traceIfFalse "UTxO not consumed." hasUTxO
+  && traceIfFalse "Deadline has passed." deadlineIsValid
   && checkMintedAmount
   && validOutputsPresent
   -- }}}
