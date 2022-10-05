@@ -28,6 +28,7 @@ import           Ledger                               ( scriptCurrencySymbol )
 import           Ledger.Value as Value                ( flattenValue )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
+import qualified Plutus.V1.Ledger.Interval            as Interval
 import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol )
 import qualified PlutusTx
