@@ -3,25 +3,44 @@ export MAGIC='--testnet-magic 1097911063'
 
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
 export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
-export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet2"
+export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet"
 export cli="cardano-cli"
 export qvf="qvf-cli"
 # export qvf="cabal run qvf-cli --"
 # ========================================== #
 
+export scriptLabel="qvf"
+export fileNamesJSONFile="$preDir/fileNames.json"
+touch $fileNamesJSONFile
+echo "{ \"ocfnTokenNameHex\"      : \"$preDir/token-name.hex\""              > $fileNamesJSONFile
+echo ", \"ocfnGovernanceMinter\"  : \"$preDir/governance-policy.plutus\""   >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceSymbol\"  : \"$preDir/governance-policy.symbol\""   >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationMinter\": \"$preDir/registration-policy.plutus\"" >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationSymbol\": \"$preDir/registration-policy.symbol\"" >> $fileNamesJSONFile
+echo ", \"ocfnDonationMinter\"    : \"$preDir/donation-policy.plutus\""     >> $fileNamesJSONFile
+echo ", \"ocfnDonationSymbol\"    : \"$preDir/donation-policy.symbol\""     >> $fileNamesJSONFile
+echo ", \"ocfnQVFMainValidator\"  : \"$preDir/$scriptLabel.plutus\""        >> $fileNamesJSONFile
+echo ", \"ocfnContractAddress\"   : \"$preDir/$scriptLabel.addr\""          >> $fileNamesJSONFile
+echo ", \"ocfnQVFGovernanceUTxO\" : \"$preDir/gov.utxo\""                   >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineSlot\"      : \"$preDir/deadline.slot\""              >> $fileNamesJSONFile
+echo ", \"ocfnUnitRedeemer\"      : \"$preDir/unit.redeemer\""              >> $fileNamesJSONFile
+echo ", \"ocfnInitialDatum\"      : \"$preDir/initial.datum\""              >> $fileNamesJSONFile
+echo "}" >> $fileNamesJSONFile
+getFileName() {
+  cat $fileNamesJSONFile | jq .$1
+}
+export scriptPlutusFile=$(getFileName ocfnQVFMainValidator)
+export scriptAddressFile=$(getFileName ocfnContractAddress)
+export govSymFile=$(getFileName ocfnGovernanceSymbol)
+export govSym=$(cat $govSymFile)
+export tokenNameHexFile=$(getFileName ocfnTokenNameHex)
+export govScriptFile=$(getFileName ocfnGovernanceMinter)
+export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
+export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export keyHolder="keyHolder"
 export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
 export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
 export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
-export scriptLabel="qvf"
-export scriptPlutusFile="$preDir/$scriptLabel.plutus"
-export scriptAddressFile="$preDir/$scriptLabel.addr"
-export policyIdFile="$preDir/$scriptLabel.symbol"
-export policyId=$(cat $policyIdFile)
-export tokenNameHexFile="$preDir/token.hex"
-export policyScriptFile="$preDir/minting.plutus"
-export authAssetUTxOFile="$preDir/authAsset.utxo"
-export deadlineSlotFile="$preDir/deadline.slot"
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
 export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
@@ -110,18 +129,18 @@ plutus_script_to_address() {
 #
 # This function has builtin safety to prevent rewrites and wallet loss.
 #
-# For now, the maximum number of generated wallets is capped at 100.
+# For now, the maximum number of generated wallets is capped at 100000.
 # 
 # Takes 2 arguments:
 #   1. Starting number,
 #   2. Ending number.
 generate_wallets_from_to() {
 
-    max_amt=100
+    max_amt=100000
 
     if [ `expr $2 - $1` -ge $max_amt ]
     then
-    echo "That's over 100 wallets generated. Please reconsider. Edit fn if you really want to."
+    echo "That's over 100,000 wallets generated. Please reconsider. Edit fn if you really want to."
     else
 
     # Important part

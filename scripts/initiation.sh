@@ -3,14 +3,10 @@
 . scripts/env.sh
 
 startingWallet=1
-endingWallet=20
-totalLovelaceToDistribute=4000000000
+endingWallet=50000
+totalLovelaceToDistribute=5000000000000 # 100 ADA per wallet.
 
-tokenName="QVF"
-deadline=1663701377000
-
-# Storing the hex format of the token name:
-$qvf string-to-hex $tokenName $tokenNameHexFile
+deadline=1667642400000
 
 tokenNameHex=$(cat $tokenNameHexFile)
 
