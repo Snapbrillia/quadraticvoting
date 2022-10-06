@@ -106,6 +106,9 @@ mkQVFPolicy oref deadline tn () ctx =
                    (count == 0)
               && traceIfFalse
                    "Governance UTxO must carry the required Lovelaces."
+                   (utxoHasLovelaces governanceLovelaces o0)
+              && traceIfFalse
+                   "Governance UTxO must carry the required Lovelaces."
                    (utxoHasLovelaces governanceLovelaces o1)
               -- }}}
             _                                                 ->

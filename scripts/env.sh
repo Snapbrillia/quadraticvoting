@@ -12,30 +12,45 @@ export qvf="qvf-cli"
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 touch $fileNamesJSONFile
-echo "{ \"ocfnTokenNameHex\"      : \"$preDir/token-name.hex\""              > $fileNamesJSONFile
-echo ", \"ocfnGovernanceMinter\"  : \"$preDir/governance-policy.plutus\""   >> $fileNamesJSONFile
-echo ", \"ocfnGovernanceSymbol\"  : \"$preDir/governance-policy.symbol\""   >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationMinter\": \"$preDir/registration-policy.plutus\"" >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationSymbol\": \"$preDir/registration-policy.symbol\"" >> $fileNamesJSONFile
-echo ", \"ocfnDonationMinter\"    : \"$preDir/donation-policy.plutus\""     >> $fileNamesJSONFile
-echo ", \"ocfnDonationSymbol\"    : \"$preDir/donation-policy.symbol\""     >> $fileNamesJSONFile
-echo ", \"ocfnQVFMainValidator\"  : \"$preDir/$scriptLabel.plutus\""        >> $fileNamesJSONFile
-echo ", \"ocfnContractAddress\"   : \"$preDir/$scriptLabel.addr\""          >> $fileNamesJSONFile
-echo ", \"ocfnQVFGovernanceUTxO\" : \"$preDir/gov.utxo\""                   >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineSlot\"      : \"$preDir/deadline.slot\""              >> $fileNamesJSONFile
-echo ", \"ocfnUnitRedeemer\"      : \"$preDir/unit.redeemer\""              >> $fileNamesJSONFile
-echo ", \"ocfnInitialDatum\"      : \"$preDir/initial.datum\""              >> $fileNamesJSONFile
+echo "{ \"ocfnTokenNameHex\"       : \"$preDir/token-name.hex\""               > $fileNamesJSONFile
+echo ", \"ocfnGovernanceMinter\"   : \"$preDir/governance-policy.plutus\""    >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceSymbol\"   : \"$preDir/governance-policy.symbol\""    >> $fileNamesJSONFile
+echo ", \"ocfnQVFGovernanceUTxO\"  : \"$preDir/gov.utxo\""                    >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationMinter\" : \"$preDir/registration-policy.plutus\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationSymbol\" : \"$preDir/registration-policy.symbol\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationRefUTxO\": \"$preDir/registration-policy.refUTxO\"" >> $fileNamesJSONFile
+echo ", \"ocfnDonationMinter\"     : \"$preDir/donation-policy.plutus\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationSymbol\"     : \"$preDir/donation-policy.symbol\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationRefUTxO\"    : \"$preDir/donation-policy.refUTxO\""     >> $fileNamesJSONFile
+echo ", \"ocfnQVFMainValidator\"   : \"$preDir/$scriptLabel.plutus\""         >> $fileNamesJSONFile
+echo ", \"ocfnQVFRefUTxO\"         : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
+echo ", \"ocfnContractAddress\"    : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineSlot\"       : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
+echo ", \"ocfnUnitRedeemer\"       : \"$preDir/unit.redeemer\""               >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineDatum\"      : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
+echo ", \"ocfnInitialGovDatum\"    : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
   cat $fileNamesJSONFile | jq .$1
 }
-export scriptPlutusFile=$(getFileName ocfnQVFMainValidator)
+# Main script:
+export mainScriptFile=$(getFileName ocfnQVFMainValidator)
 export scriptAddressFile=$(getFileName ocfnContractAddress)
-export govSymFile=$(getFileName ocfnGovernanceSymbol)
-export govSym=$(cat $govSymFile)
-export tokenNameHexFile=$(getFileName ocfnTokenNameHex)
+
+# Minters:
 export govScriptFile=$(getFileName ocfnGovernanceMinter)
+export govSymFile=$(getFileName ocfnGovernanceSymbol)
+export regScriptFile=$(getFileName ocfnRegistrationMinter)
+export regSymFile=$(getFileName ocfnRegistrationSymbol)
+export donScriptFile=$(getFileName ocfnDonationMinter)
+export donSymFile=$(getFileName ocfnDonationSymbol)
+ 
+export tokenNameHexFile=$(getFileName ocfnTokenNameHex)
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
+export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
+export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
+export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
+
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export keyHolder="keyHolder"
 export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
@@ -45,6 +60,7 @@ export latestInteractionSlotFile="$preDir/latestInteraction.slot"
 export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
+export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
 
 
 # Takes 1 argument:
@@ -53,10 +69,28 @@ get_deadline_slot() {
   $qvf get-deadline-slot $(get_newest_slot) $1
 }
 
+get_current_slot() {
+  $cli query tip $MAGIC | jq '.slot|tonumber'
+}
+
+
+# Keeps querying the node until it first reaches a `syncProgress` of 100%.
+# Continues polling until sees a "fresh" slot number to return.
+get_newest_slot() {
+  sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  while [ $sync -lt 100 ]; do
+    sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  done
+  initialSlot=$($cli query tip $MAGIC | jq .slot)
+  newSlot=$initialSlot
+  while [ $newSlot = $initialSlot ]; do
+    newSlot=$($cli query tip $MAGIC | jq .slot)
+  done
+  echo $newSlot
+}
 
 store_current_slot() {
-  slot=$($cli query tip $MAGIC | jq '.slot|tonumber')
-  echo $slot > $latestInteractionSlotFile
+  get_current_slot > $latestInteractionSlotFile
 }
 
 wait_for_new_slot() {
@@ -117,9 +151,9 @@ vkey_to_public_key_hash() {
 # 
 # Doesn't take any arguments, uses global variables.
 plutus_script_to_address() {
-    $cli address build-script           \
-        $MAGIC                          \
-        --script-file $scriptPlutusFile \
+    $cli address build-script         \
+        $MAGIC                        \
+        --script-file $mainScriptFile \
         --out-file $scriptAddressFile
 }
 
@@ -176,6 +210,10 @@ get_first_utxo_of() {
         | sed 1,2d                        \
         | awk 'FNR == 1 {print $1"#"$2}'`
 }
+
+# Takes 2 arguments:
+#   1. Wallet number/name,
+#   2. Row of the UTxO table.
 get_nth_utxo_of() {
     echo `$cli query utxo                    \
         --address $(cat $preDir/$1.addr)     \
@@ -428,22 +466,6 @@ interact_with_smart_contract() {
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
     $cli query protocol-parameters $MAGIC --out-file $protocolsFile
-}
-
-
-# Keeps querying the node until it first reaches a `syncProgress` of 100%.
-# Continues polling until sees a "fresh" slot number to return.
-get_newest_slot() {
-  sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
-  while [ $sync -lt 100 ]; do
-    sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
-  done
-  initialSlot=$($cli query tip $MAGIC | jq .slot)
-  newSlot=$initialSlot
-  while [ $newSlot = $initialSlot ]; do
-    newSlot=$($cli query tip $MAGIC | jq .slot)
-  done
-  echo $newSlot
 }
 
 

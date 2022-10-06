@@ -3,15 +3,13 @@
 . scripts/env.sh
 
 startingWallet=1
-endingWallet=50000
-totalLovelaceToDistribute=5000000000000 # 100 ADA per wallet.
+endingWallet=20
+totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
 deadline=1667642400000
 
 tokenNameHex=$(cat $tokenNameHexFile)
-
-unitRedeemer="$preDir/unit.redeemer"
-initialDatum="$preDir/initial.datum"
+govSym=""
 
 
 generate_wallets_and_distribute() {
@@ -34,18 +32,18 @@ get_script_address() {
   cat $scriptAddressFile
 }
 
-get_policy_id() {
-  $cli transaction policyid --script-file $policyScriptFile
+get_gov_symbol() {
+  $cli transaction policyid --script-file $govScriptFile
 }
 
-store_policy_id() {
-  policyId=$($cli transaction policyid --script-file $policyScriptFile)
-  echo $policyId > $policyIdFile
+store_gov_symbol() {
+  govSym=$($cli transaction policyid --script-file $govScriptFile)
+  echo $govSym > $govSymFile
 }
 
-get_auth_asset() {
-  store_policy_id
-  echo $policyId.$tokenNameHex
+get_gov_asset() {
+  store_gov_symbol
+  echo $govSym.$tokenNameHex
 }
 
 get_script_data_hash() {
@@ -53,59 +51,114 @@ get_script_data_hash() {
 }
 
 initiate_fund() {
+  # {{{
+  currentSlot=$(get_newest_slot)
+
+  # Generating the validation script, minting script, and some other files:
+  $qvf generate scripts                 \
+    $keyHoldersPubKeyHash               \
+    $genesisUTxO                        \
+    $currentSlot                        \
+    $deadline                           \
+    $(cat $fileNamesJSONFile | jq -c .)
+  
+  scriptAddr=$(get_script_address)
+
+  # STORING SCRIPTS ON-CHAIN #
+  # {{{
   # Since the key holder wallet is going to hold a single UTxO after the
   # distribution, we can get the first UTxO of the wallet address and use
   # it as the genesis UTxO:
-  genesisUTxO=$(get_first_utxo_of $keyHolder)
-
-  # Storing the UTxO:
-  echo $genesisUTxO > $authAssetUTxOFile
-
-  # Generating the validation script, minting script, and some other files:
-  $qvf generate scripts   \
-    $keyHoldersPubKeyHash \
-    $genesisUTxO          \
-    $tokenName            \
-    $deadline             \
-    $policyScriptFile     \
-    $scriptPlutusFile     \
-    $unitRedeemer         \
-    $initialDatum
-  
-  scriptAddr=$(get_script_address)
-  authAsset=$(get_auth_asset)
-
-  # COMMENTED OUT FOR TESTING - TODO: UNCOMMENT
-  deadlineSlot=$(get_deadline_slot $initialDatum)
-  echo $deadlineSlot > $deadlineSlotFile
-  # deadlineSlot=$(cat $deadlineSlotFile) 
-  # Structure of the first UTxO to be sent to the script address. The 2 ADA
-  # here is to compensate both the required minimum of ~1.2 ADA, and the limit
-  # imposed by the distribution endpoint of the validator.
-  firstUTxO="$scriptAddr + 2000000 lovelace + 1 $authAsset"
+  spendingUTxO=$(get_first_utxo_of $keyHolder)
+  scriptLovelaces=15000000 # 15.0 ADA
+  scriptUTxO="$scriptAddr + $scriptLovelaces lovelace"
 
   generate_protocol_params
 
-  $cli transaction build                    \
-    --babbage-era                           \
-    $MAGIC                                  \
-    --tx-in $genesisUTxO                    \
-    --tx-in-collateral $genesisUTxO         \
-    --tx-out "$firstUTxO"                   \
-    --tx-out-datum-embed-file $initialDatum \
-    --mint "1 $authAsset"                   \
-    --mint-script-file $policyScriptFile    \
-    --mint-redeemer-file $unitRedeemer      \
-    --change-address $keyHoldersAddress     \
-    --protocol-params-file $protocolsFile   \
-    --out-file $txBody     
-  
-  # Signing of the transaction:
-  sign_tx_by $keyHoldersSigningKeyFile
+  # Transaction to submit the main script to chain:
+  $cli $BUILD_TX_CONST_ARGS                        \
+    --tx-in $spendingUTxO                          \
+    --tx-in-collateral $spendingUTxO               \
+    --tx-out "$scriptUTxO"                         \
+    --tx-out-reference-script-file $mainScriptFile \
+    --change-address $keyHoldersAddress
 
-  # Submission of the transaction:
+  sign_tx_by $keyHoldersSigningKeyFile
   submit_tx
 
-  # Store current slot number for future interactions:
   store_current_slot
+  wait_for_new_slot
+
+  # At this point there is only one UTxO sitting at the script address:
+  qvfRefUTxO=$(get_first_utxo_of $scriptAddr)
+
+  # So should be the case with key holder's wallet:
+  spendingUTxO=$(get_first_utxo_of $keyHolder)
+
+  generate_protocol_params
+
+  # Transaction to submit the minting scripts to chain:
+  $cli $BUILD_TX_CONST_ARGS                       \
+    --tx-in $spendingUTxO                         \
+    --tx-in-collateral $spendingUTxO              \
+    --tx-out "$scriptUTxO"                        \
+    --tx-out-reference-script-file $regScriptFile \
+    --tx-out "$scriptUTxO"                        \
+    --tx-out-reference-script-file $donScriptFile \
+    --change-address $keyHoldersAddress
+
+  sign_tx_by $keyHoldersSigningKeyFile
+  submit_tx
+
+  store_current_slot
+  wait_for_new_slot
+
+  regRefUTxO=$(get_first_utxo_of $scriptAddr)
+  if [ $regRefUTxO == $qvfRefUTxO ]; then
+    regRefUTxO=$(get_nth_utxo_of $scriptAddr 2)
+    donRefUTxO=$(get_nth_utxo_of $scriptAddr 3)
+  else
+    donRefUTxO=$(get_nth_utxo_of $scriptAddr 2)
+  fi
+  # }}}
+
+  echo $qvfRefUTxO > $qvfRefUTxOFile
+  echo $regRefUTxO > $regRefUTxOFile
+  echo $donRefUTxO > $donRefUTxOFile
+
+  genesisUTxO=$(get_first_utxo_of $keyHolder)
+
+  echo $genesisUTxO > $govUTxOFile
+
+  deadlineDatum=$(getFileName ocfnDeadlineDatum)
+  govDatum=$(getFileName ocfnInitialGovDatum)
+  deadlineSlot=$(cat $deadlineSlotFile) 
+  govAsset=$(get_gov_asset)
+
+  govLovelaces=1500000 #  1.5 ADA
+  firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
+
+  generate_protocol_params
+
+  # Transaction to mint 2 governance tokens, and include 1 in two UTxOs
+  # produced at the script address. Minter expects the deadline UTxO
+  # to be produced first.
+  $cli $BUILD_TX_CONST_ARGS                   \
+    --tx-in $genesisUTxO                      \
+    --tx-in-collateral $genesisUTxO           \
+    --tx-out "$firstUTxO"                     \
+    --tx-out-inline-datum-file $deadlineDatum \
+    --tx-out "$firstUTxO"                     \
+    --tx-out-inline-datum-file $govDatum      \
+    --invalid-hereafter $deadlineSlot         \
+    --mint "2 $govAsset"                      \
+    --mint-script-file $govScriptFile         \
+    --mint-redeemer-file $unitRedeemer        \
+    --change-address $keyHoldersAddress
+  
+  sign_tx_by $keyHoldersSigningKeyFile
+  submit_tx
+
+  store_current_slot
+  # }}}
 }

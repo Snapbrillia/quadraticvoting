@@ -44,11 +44,6 @@ import qualified Minter.Registration        as Reg
 
 -- UTILS
 -- {{{
-explainFailure :: String -> Maybe a -> Either String a
-explainFailure errMsg Nothing  = Left errMsg
-explainFailure _      (Just x) = Right x
-
-
 dataToScriptData :: Data -> ScriptData
 -- {{{
 dataToScriptData (Constr n xs) = ScriptDataConstructor n $ dataToScriptData <$> xs
@@ -176,8 +171,11 @@ unsafeTokenNameToHex =
   -- }}}
 
 
-initialDatum :: QVFDatum
-initialDatum = RegisteredProjectsCount 0
+deadlineDatum :: Ledger.POSIXTime -> QVFDatum
+deadlineDatum dl = DeadlineDatum dl
+
+initialGovDatum :: QVFDatum
+initialGovDatum = RegisteredProjectsCount 0
 -- }}}
 
 
@@ -263,13 +261,13 @@ main =
           ++ "\t\t, ocfnQVFMainValidator   :: String\n"
           ++ "\t\t, ocfnDeadlineSlot       :: String\n"
           ++ "\t\t, ocfnUnitRedeemer       :: String\n"
-          ++ "\t\t, ocfnInitialDatum       :: String\n"
+          ++ "\t\t, ocfnDeadlineDatum      :: String\n"
+          ++ "\t\t, ocfnInitialGovDatum    :: String\n"
           ++ "\t\t}"
         )
-        "generate"
-        "scripts"
-        [ "<key-holder-pub-key-hash>"
-        , "<txID>#<output-index>"
+        "generate scripts"
+        "<key-holder-pub-key-hash>"
+        [ "<txID>#<output-index>"
         , "<current-slot-number>"
         , "<deadline-posix-milliseconds>"
         , "{file-names-json}"
@@ -477,7 +475,8 @@ main =
               donOF      = ocfnDonationMinter
               qvfOF      = ocfnQVFMainValidator
               redeemerOF = ocfnUnitRedeemer
-              initDatOF  = ocfnInitialDatum
+              dlDatOF    = ocfnDeadlineDatum
+              initDatOF  = ocfnInitialGovDatum
               dlSlotOF   = ocfnDeadlineSlot
               qvfSymbol  = Gov.qvfSymbol txRef dl
               regSymbol  = Reg.registrationSymbol qvfSymbol
@@ -523,7 +522,8 @@ main =
                     dlSlotOF
                     (LBS.writeFile dlSlotOF $ encode dlSlot)
                   andPrintSuccess redeemerOF $ writeJSON redeemerOF ()
-                  andPrintSuccess initDatOF $ writeJSON initDatOF initialDatum
+                  andPrintSuccess dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
+                  andPrintSuccess initDatOF $ writeJSON initDatOF initialGovDatum
                   -- }}}
                 Left _  ->
                   -- {{{
@@ -601,7 +601,8 @@ data OffChainFileNames = OffChainFileNames
   , ocfnQVFMainValidator   :: String
   , ocfnDeadlineSlot       :: String
   , ocfnUnitRedeemer       :: String
-  , ocfnInitialDatum       :: String
+  , ocfnDeadlineDatum      :: String
+  , ocfnInitialGovDatum    :: String
   } deriving (Generic, A.ToJSON, A.FromJSON)
 
 

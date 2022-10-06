@@ -87,7 +87,7 @@ update_contract() {
     deadlineArg=$6
   fi
 
-  args='--tx-in '$utxoFromDonor' --tx-in-collateral '$utxoFromDonor' --tx-in '$utxoAtScript' --tx-in-datum-file '$currDatum' --tx-in-script-file '$scriptPlutusFile' --tx-in-redeemer-file '$action' --tx-out "'$scriptAddr' + '$newLovelace' lovelace + 1 '$authAsset'" --tx-out-datum-embed-file '$updatedDatum' '$5' --change-address '$changeAddress' '$deadlineArg' --protocol-params-file '$protocolsFile' --cddl-format '$requiredSigner' --out-file '$txBody
+  args='--tx-in '$utxoFromDonor' --tx-in-collateral '$utxoFromDonor' --tx-in '$utxoAtScript' --tx-in-datum-file '$currDatum' --tx-in-script-file '$mainScriptFile' --tx-in-redeemer-file '$action' --tx-out "'$scriptAddr' + '$newLovelace' lovelace + 1 '$authAsset'" --tx-out-datum-embed-file '$updatedDatum' '$5' --change-address '$changeAddress' '$deadlineArg' --protocol-params-file '$protocolsFile' --cddl-format '$requiredSigner' --out-file '$txBody
 
   echo $args
   # echo $donorAddrFile
