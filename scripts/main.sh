@@ -70,9 +70,7 @@ update_contract() {
   utxoAtScript=$(remove_quotes $utxo)
   changeAddress=$(cat $donorAddrFile)
   deadlineSlot=$(cat $deadlineSlotFile)
-  currentSlot=$($cli query tip $MAGIC | jq '.slot|tonumber')
-  currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
-  correctSlot=$(( $deadlineSlot < $currentSlotPlusFiveHundred ? $deadlineSlot : $currentSlotPlusFiveHundred ))
+  correctSlot=$(cap_deadline_slot $deadlineSlot)
   deadlineArg="$invalidAfter $correctSlot"
   if [ ! -z "$3" ]; then
     changeAddress=$3

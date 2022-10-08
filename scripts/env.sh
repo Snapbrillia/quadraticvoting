@@ -1,12 +1,11 @@
-export MAGIC='--testnet-magic 1097911063'
-# export MAGIC='--testnet-magic 2'
+export MAGIC='--testnet-magic 2'
 
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
-export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
-export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet"
-export cli="cardano-cli"
-export qvf="qvf-cli"
-# export qvf="cabal run qvf-cli --"
+export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
+export preDir="$HOME/code/quadraticvoting/testnet"
+export cli="$HOME/preview-testnet/cardano-cli"
+# export qvf="qvf-cli"
+export qvf="cabal run qvf-cli --"
 # ========================================== #
 
 export scriptLabel="qvf"
@@ -26,12 +25,11 @@ echo ", \"ocfnQVFMainValidator\"   : \"$preDir/$scriptLabel.plutus\""         >>
 echo ", \"ocfnQVFRefUTxO\"         : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
 echo ", \"ocfnContractAddress\"    : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
 echo ", \"ocfnDeadlineSlot\"       : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
-echo ", \"ocfnUnitRedeemer\"       : \"$preDir/unit.redeemer\""               >> $fileNamesJSONFile
 echo ", \"ocfnDeadlineDatum\"      : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
 echo ", \"ocfnInitialGovDatum\"    : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
-  cat $fileNamesJSONFile | jq .$1
+  remove_quotes $(cat $fileNamesJSONFile | jq -c .$1)
 }
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
@@ -46,12 +44,15 @@ export donScriptFile=$(getFileName ocfnDonationMinter)
 export donSymFile=$(getFileName ocfnDonationSymbol)
  
 export tokenNameHexFile=$(getFileName ocfnTokenNameHex)
+touch $tokenNameHexFile
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
 export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
+export referenceWallet="referenceWallet"
+export referenceWalletAddress=$(cat "$preDir/$referenceWallet.addr")
 export keyHolder="keyHolder"
 export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
 export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
@@ -71,6 +72,18 @@ get_deadline_slot() {
 
 get_current_slot() {
   $cli query tip $MAGIC | jq '.slot|tonumber'
+}
+
+# Picks the min value between a given slot, and 500 slots after the current
+# slot. Meant to be used for `invalid-hereafter` argument of `cardano-cli`.
+#
+# Takes 1 argument:
+#   1. Deadline slot.
+cap_deadline_slot() {
+  currentSlot=$(get_current_slot)
+  currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
+  cappedSlot=$(( $1 < $currentSlotPlusFiveHundred ? $1 : $currentSlotPlusFiveHundred ))
+  echo $cappedSlot
 }
 
 
@@ -245,14 +258,12 @@ get_all_input_utxos_at() {
 #   1. Wallet number/name,
 #   *. Any additional wallet number/name.
 show_utxo_tables () {
-    for i in $@
-    do
-        echo
-        echo $i
-        cardano-cli query utxo               \
-            --address $(cat $preDir/$i.addr) \
-            $MAGIC
-    done
+  for i in $@
+  do
+    echo
+    echo $i
+    $cli query utxo $MAGIC --address $(cat $preDir/$i.addr)
+  done
 }
 
 # Given a numeric range (inclusive), displays the utxo information table from

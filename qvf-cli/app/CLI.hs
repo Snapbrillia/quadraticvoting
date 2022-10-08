@@ -18,9 +18,7 @@ import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Short      as SBS
-import           Data.Either                ( lefts )
 import qualified Data.List                  as List
-import qualified Data.Map                   as Map
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import           Data.Time.Clock.POSIX      ( getPOSIXTime )
@@ -260,7 +258,6 @@ main =
           ++ "\t\t, ocfnDonationMinter     :: String\n"
           ++ "\t\t, ocfnQVFMainValidator   :: String\n"
           ++ "\t\t, ocfnDeadlineSlot       :: String\n"
-          ++ "\t\t, ocfnUnitRedeemer       :: String\n"
           ++ "\t\t, ocfnDeadlineDatum      :: String\n"
           ++ "\t\t, ocfnInitialGovDatum    :: String\n"
           ++ "\t\t}"
@@ -474,7 +471,6 @@ main =
               regOF      = ocfnRegistrationMinter
               donOF      = ocfnDonationMinter
               qvfOF      = ocfnQVFMainValidator
-              redeemerOF = ocfnUnitRedeemer
               dlDatOF    = ocfnDeadlineDatum
               initDatOF  = ocfnInitialGovDatum
               dlSlotOF   = ocfnDeadlineSlot
@@ -484,6 +480,7 @@ main =
 
           writeTokenNameHex ocfnTokenNameHex Gov.qvfTokenName
 
+          dlSlot <- getDeadlineSlot currSlot dl
           govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
           regRes <- writeMintingPolicy regOF $ Reg.registrationPolicy qvfSymbol
           donRes <- writeMintingPolicy donOF $ Don.donationPolicy regSymbol
@@ -517,11 +514,9 @@ main =
                     qvfOF
                     (unsafeParseJSON @OutputPlutus)
                     (return ())
-                  dlSlot <- getDeadlineSlot currSlot dl
                   andPrintSuccess
                     dlSlotOF
                     (LBS.writeFile dlSlotOF $ encode dlSlot)
-                  andPrintSuccess redeemerOF $ writeJSON redeemerOF ()
                   andPrintSuccess dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
                   andPrintSuccess initDatOF $ writeJSON initDatOF initialGovDatum
                   -- }}}
@@ -600,7 +595,6 @@ data OffChainFileNames = OffChainFileNames
   , ocfnDonationMinter     :: String
   , ocfnQVFMainValidator   :: String
   , ocfnDeadlineSlot       :: String
-  , ocfnUnitRedeemer       :: String
   , ocfnDeadlineDatum      :: String
   , ocfnInitialGovDatum    :: String
   } deriving (Generic, A.ToJSON, A.FromJSON)

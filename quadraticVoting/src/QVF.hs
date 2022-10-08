@@ -40,6 +40,7 @@ import           Plutus.V1.Ledger.Value               ( flattenValue
                                                       , AssetClass(..) )
 import Plutus.V2.Ledger.Api
 import Plutus.V2.Ledger.Contexts
+import           PlutusTx                             ( Data(..) )
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap                    as Map
 import           PlutusTx.AssocMap                    ( Map )

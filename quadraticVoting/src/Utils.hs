@@ -293,7 +293,7 @@ utxoHasX sym mTN =
 utxoHasLovelaces :: Integer -> TxOut -> Bool
 utxoHasLovelaces lovelaces txOut =
   -- {{{
-  txOutValue txOut == Ada.lovelaceValueOf lovelaces
+  Ada.fromValue (txOutValue txOut) == Ada.lovelaceOf lovelaces
   -- }}}
 
 
