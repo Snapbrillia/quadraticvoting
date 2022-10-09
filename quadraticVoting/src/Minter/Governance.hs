@@ -138,15 +138,15 @@ mkQVFPolicy oref deadline dlTN tn _ ctx =
     validOutputsPresent =
       -- {{{
       case txInfoOutputs info of
-        [o0, o1]    ->
+        [o0, o1]     ->
           -- {{{
           validateTwoOutputs o0 o1
           -- }}}
-        [_, o0, o1] ->
+        [ch, o0, o1] ->
           -- {{{
-          validateTwoOutputs o0 o1
+          utxoHasOnlyAda' ch && validateTwoOutputs o0 o1
           -- }}}
-        _           ->
+        _            ->
           -- {{{
           traceError "The 2 minted tokens must be split among 2 UTxOs."
           -- }}}

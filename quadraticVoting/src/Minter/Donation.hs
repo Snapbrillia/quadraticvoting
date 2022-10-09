@@ -94,7 +94,7 @@ mkDonationPolicy sym action ctx =
         filterVAndValidateP :: TxOut -> Bool
         filterVAndValidateP =
           -- {{{
-          filterXAndValidateGov
+          utxoHasXOrValidGov
             ownSym
             tn
             sym

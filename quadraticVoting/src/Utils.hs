@@ -211,22 +211,22 @@ validateGovUTxO govSym govTN origAddr updatedDatum utxo =
   -- }}}
 
 
-{-# INLINABLE filterXAndValidateGov #-}
--- | Meant to be used a filtering function to allow outpus carrying singular
+{-# INLINABLE utxoHasXOrValidGov #-}
+-- | Meant to be used as a filtering function to allow outpus carrying singular
 --   governance and X assets to pass through.
 --
 --   Raises exception if it finds a governance token which is getting sent to
 --   a different address than where it's coming from, or doesn't have a
 --   properly updated datum.
-filterXAndValidateGov :: CurrencySymbol
-                      -> TokenName
-                      -> CurrencySymbol
-                      -> TokenName
-                      -> Address
-                      -> QVFDatum
-                      -> TxOut
-                      -> Bool
-filterXAndValidateGov xSym xTN govSym govTN origAddr updatedDatum utxo =
+utxoHasXOrValidGov :: CurrencySymbol
+                   -> TokenName
+                   -> CurrencySymbol
+                   -> TokenName
+                   -> Address
+                   -> QVFDatum
+                   -> TxOut
+                   -> Bool
+utxoHasXOrValidGov xSym xTN govSym govTN origAddr updatedDatum utxo =
   -- {{{
   -- Is the UTxO carrying an X token?
   if utxoHasX xSym (Just xTN) utxo then
@@ -294,6 +294,27 @@ utxoHasLovelaces :: Integer -> TxOut -> Bool
 utxoHasLovelaces lovelaces txOut =
   -- {{{
   Ada.fromValue (txOutValue txOut) == Ada.lovelaceOf lovelaces
+  -- }}}
+
+
+{-# INLINABLE utxoHasOnlyAda #-}
+-- | Checks if a UTxO carries any other tokens than Lovelaces..
+utxoHasOnlyAda :: TxOut -> Bool
+utxoHasOnlyAda TxOut{txOutValue = val} =
+  -- {{{
+  case flattenValue val of
+    [_] -> True
+    _   -> False
+  -- }}}
+
+
+{-# INLINABLE utxoHasOnlyAda' #-}
+-- | Alternate version that raises exception upon @False@. Meant for change
+--   outputs.
+utxoHasOnlyAda' :: TxOut -> Bool
+utxoHasOnlyAda' =
+  -- {{{
+  traceIfFalse "Change output can't have any tokens." . utxoHasOnlyAda
   -- }}}
 
 
