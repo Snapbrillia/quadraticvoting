@@ -8,9 +8,7 @@ totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
 deadline=1667642400000
 
-tokenNameHex=""
 govSym=""
-
 
 generate_wallets_and_distribute() {
   # Generating multiple wallets:
@@ -43,7 +41,12 @@ store_gov_symbol() {
 
 get_gov_asset() {
   store_gov_symbol
-  echo $govSym.$tokenNameHex
+  echo $govSym.
+}
+
+get_deadline_asset() {
+  store_gov_symbol
+  echo $govSym.$(cat $deadlineTokenNameHexFile)
 }
 
 get_script_data_hash() {
@@ -70,8 +73,6 @@ initiate_fund() {
 
   # SUBMITING THE INITIAL TRANSACTION
   # {{{
-  tokenNameHex=$(cat $tokenNameHexFile)
-  # 
   scriptAddr=$(get_script_address)
 
   deadlineSlot=$(cat $deadlineSlotFile) 
@@ -79,9 +80,11 @@ initiate_fund() {
 
   deadlineDatum=$(getFileName ocfnDeadlineDatum)
   govDatumFile=$(getFileName ocfnInitialGovDatum)
+  deadlineAsset=$(get_deadline_asset)
   govAsset=$(get_gov_asset)
   govLovelaces=1500000 #  1.5 ADA
-  firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
+  firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
+  secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
 
   generate_protocol_params
 
@@ -93,10 +96,10 @@ initiate_fund() {
     --tx-in-collateral $genesisUTxO           \
     --tx-out "$firstUTxO"                     \
     --tx-out-inline-datum-file $deadlineDatum \
-    --tx-out "$firstUTxO"                     \
+    --tx-out "$secondUTxO"                    \
     --tx-out-inline-datum-file $govDatumFile  \
     --invalid-hereafter $cappedSlot           \
-    --mint "2 $govAsset"                      \
+    --mint "1 $deadlineAsset + 1 $govAsset"   \
     --mint-script-file $govScriptFile         \
     --mint-redeemer-value 0                   \
     --change-address $keyHoldersAddress
@@ -106,6 +109,7 @@ initiate_fund() {
   # }}}
 
   store_current_slot
+  wait_for_new_slot
   wait_for_new_slot
 
   # STORING SCRIPTS ON-CHAIN #
@@ -129,6 +133,7 @@ initiate_fund() {
 
   store_current_slot
   wait_for_new_slot
+  wait_for_new_slot
 
   # At this point there is only one UTxO sitting at the reference wallet:
   qvfRefUTxO=$(get_first_utxo_of $referenceWallet)
@@ -136,7 +141,7 @@ initiate_fund() {
   # So should be the case with key holder's wallet:
   spendingUTxO=$(get_first_utxo_of $keyHolder)
 
-  scriptLovelaces=30000000 # 60.0 ADA
+  scriptLovelaces=30000000 # 30.0 ADA
   scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
 
   generate_protocol_params
@@ -147,8 +152,10 @@ initiate_fund() {
     --tx-in-collateral $spendingUTxO              \
     --tx-out "$scriptUTxO"                        \
     --tx-out-reference-script-file $regScriptFile \
+    --tx-out-inline-datum-value 0                 \
     --tx-out "$scriptUTxO"                        \
     --tx-out-reference-script-file $donScriptFile \
+    --tx-out-inline-datum-value 1                 \
     --change-address $keyHoldersAddress
 
   sign_tx_by $keyHoldersSigningKeyFile

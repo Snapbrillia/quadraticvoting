@@ -8,25 +8,34 @@ export cli="$HOME/preview-testnet/cardano-cli"
 export qvf="cabal run qvf-cli --"
 # ========================================== #
 
+# Removes the double quotes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_quotes() {
+  echo $1           \
+  | sed 's|[",]||g'
+}
+
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 touch $fileNamesJSONFile
-echo "{ \"ocfnTokenNameHex\"       : \"$preDir/token-name.hex\""               > $fileNamesJSONFile
-echo ", \"ocfnGovernanceMinter\"   : \"$preDir/governance-policy.plutus\""    >> $fileNamesJSONFile
-echo ", \"ocfnGovernanceSymbol\"   : \"$preDir/governance-policy.symbol\""    >> $fileNamesJSONFile
-echo ", \"ocfnQVFGovernanceUTxO\"  : \"$preDir/gov.utxo\""                    >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationMinter\" : \"$preDir/registration-policy.plutus\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationSymbol\" : \"$preDir/registration-policy.symbol\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationRefUTxO\": \"$preDir/registration-policy.refUTxO\"" >> $fileNamesJSONFile
-echo ", \"ocfnDonationMinter\"     : \"$preDir/donation-policy.plutus\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationSymbol\"     : \"$preDir/donation-policy.symbol\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationRefUTxO\"    : \"$preDir/donation-policy.refUTxO\""     >> $fileNamesJSONFile
-echo ", \"ocfnQVFMainValidator\"   : \"$preDir/$scriptLabel.plutus\""         >> $fileNamesJSONFile
-echo ", \"ocfnQVFRefUTxO\"         : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
-echo ", \"ocfnContractAddress\"    : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineSlot\"       : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineDatum\"      : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
-echo ", \"ocfnInitialGovDatum\"    : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
+echo "{ \"ocfnDeadlineTokenNameHex\": \"$preDir/deadline-token-name.hex\""      > $fileNamesJSONFile
+echo ", \"ocfnGovernanceMinter\"    : \"$preDir/governance-policy.plutus\""    >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceSymbol\"    : \"$preDir/governance-policy.symbol\""    >> $fileNamesJSONFile
+echo ", \"ocfnQVFGovernanceUTxO\"   : \"$preDir/gov.utxo\""                    >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationMinter\"  : \"$preDir/registration-policy.plutus\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationSymbol\"  : \"$preDir/registration-policy.symbol\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationRefUTxO\" : \"$preDir/registration-policy.refUTxO\"" >> $fileNamesJSONFile
+echo ", \"ocfnDonationMinter\"      : \"$preDir/donation-policy.plutus\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationSymbol\"      : \"$preDir/donation-policy.symbol\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationRefUTxO\"     : \"$preDir/donation-policy.refUTxO\""     >> $fileNamesJSONFile
+echo ", \"ocfnQVFMainValidator\"    : \"$preDir/$scriptLabel.plutus\""         >> $fileNamesJSONFile
+echo ", \"ocfnQVFRefUTxO\"          : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
+echo ", \"ocfnContractAddress\"     : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineSlot\"        : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineDatum\"       : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
+echo ", \"ocfnInitialGovDatum\"     : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
   remove_quotes $(cat $fileNamesJSONFile | jq -c .$1)
@@ -43,8 +52,8 @@ export regSymFile=$(getFileName ocfnRegistrationSymbol)
 export donScriptFile=$(getFileName ocfnDonationMinter)
 export donSymFile=$(getFileName ocfnDonationSymbol)
  
-export tokenNameHexFile=$(getFileName ocfnTokenNameHex)
-touch $tokenNameHexFile
+export deadlineTokenNameHexFile=$(getFileName ocfnDeadlineTokenNameHex)
+touch $deadlineTokenNameHexFile
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
@@ -113,16 +122,6 @@ wait_for_new_slot() {
     current=$($cli query tip $MAGIC | jq '.slot|tonumber')
   done
   echo $current
-}
-
-
-# Removes the double quotes.
-#
-# Takes 1 argument:
-#   1. Target string.
-remove_quotes() {
-  echo $1           \
-  | sed 's|[",]||g'
 }
 
 
@@ -242,13 +241,27 @@ get_nth_utxo_of() {
 # Takes 1 argument:
 #   1. Wallet number/name.
 get_all_input_utxos_at() {
-    echo `$cli query utxo                             \
-        --address $(cat $preDir/$1.addr)              \
-        $MAGIC                                        \
-        | sed 1,2d                                    \
-        | awk '{print $1"#"$2}'                       \
-        | sed 's/^/--tx-in /'                         \
-        | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'`
+  echo `$cli query utxo                           \
+    --address $(cat $preDir/$1.addr)              \
+    $MAGIC                                        \
+    | sed 1,2d                                    \
+    | awk '{print $1"#"$2}'                       \
+    | sed 's/^/--tx-in /'                         \
+    | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'`
+}
+
+
+# Consumes all UTxOs at a wallet, and produces a single one in return, which
+# carries all the Lovelaces. Does NOT support native tokens.
+#
+# Takes 1 argument:
+#   1. Wallet number/name.
+tidy_up_wallet() {
+  addr=$(cat $preDir/$1.addr)
+  inputs=$(get_all_input_utxos_at $1)
+  $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
+  sign_tx_by $preDir/$1.skey
+  submit_tx
 }
 
 
