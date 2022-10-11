@@ -60,6 +60,7 @@ addressToBuiltinByteString Address {..} =
   -- }}}
 
 
+-- TODO: Remove.
 {-# INLINABLE pluck #-}
 pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
 pluck _ [] = Nothing
@@ -97,6 +98,7 @@ lovelaceFromValue :: Value -> Integer
 lovelaceFromValue = Ada.getLovelace . Ada.fromValue
 
 
+-- TODO: Remove.
 {-# INLINABLE updateIfWith #-}
 -- | If an element of the given list satisfies the
 --   predicate, that single element is updated,
@@ -167,15 +169,19 @@ getInputGovernanceUTxOFrom :: CurrencySymbol
                            -> TxOut
 getInputGovernanceUTxOFrom sym tn inputs =
   -- {{{
-  case filter (utxoHasX sym (Just tn) . txInInfoResolved) inputs of
-    [txIn] ->
+  case inputs of
+    txIn : _ ->
       -- {{{
-      txInInfoResolved txIn
+      if utxoHasX sym (Just tn) $ txInInfoResolved txIn then
+        txInInfoResolved txIn
+      else
+        traceError
+          "The first inputs must carry the governance asset of the context."
       -- }}}
-    _      ->
+    _        ->
       -- {{{
       traceError
-        "Expecting exactly one governance token to be spent."
+        "Zero inputs (impossible)."
       -- }}}
   -- }}}
 
@@ -184,15 +190,14 @@ getInputGovernanceUTxOFrom sym tn inputs =
 -- | Checks if a given UTxO carries a single "governance" asset. If it doesn't,
 --   the returned value will simply be @False@. But if it does carry the asset,
 --   unless its address and datum comply with the given ones, raises exception.
-validateGovUTxO :: CurrencySymbol
-                -> TokenName
+validateGovUTxO :: Value
                 -> Address
                 -> QVFDatum
                 -> TxOut
                 -> Bool
-validateGovUTxO govSym govTN origAddr updatedDatum utxo =
+validateGovUTxO govVal origAddr updatedDatum utxo =
   -- {{{
-  if utxoHasX govSym (Just govTN) utxo then
+  if utxoHasValue govVal utxo then
     -- {{{
     if txOutAddress utxo == origAddr then
       if utxosDatumMatchesWith updatedDatum utxo then
@@ -262,6 +267,38 @@ utxoXCount sym tn =
         Nothing           -> 0
     )
   . find (\(sym', tn', _) -> sym' == sym && tn' == tn)
+  . flattenValue
+  . txOutValue
+  -- }}}
+
+
+{-# INLINABLE utxoHasValue #-}
+utxoHasValue :: Value -> TxOut -> Bool
+utxoHasValue val =
+  -- {{{
+  (== val) . txOutValue
+  -- }}}
+
+
+{-# INLINABLE utxoHasOnlyXWithLovelaces #-}
+-- | Checks if a given UTxO has *only* 1 of asset X, and a given amount of
+--   Lovelaces.
+utxoHasOnlyXWithLovelaces :: CurrencySymbol
+                          -> TokenName
+                          -> Integer
+                          -> TxOut
+                          -> Bool
+utxoHasOnlyXWithLovelaces sym tn lovelaces =
+  -- {{{
+    ( \case
+        [(_, _, amt), (sym', tn', amt')] ->
+             amt  == lovelaces
+          && sym' == sym
+          && tn'  == tn
+          && amt' == 1
+        _                                ->
+          False
+    )
   . flattenValue
   . txOutValue
   -- }}}

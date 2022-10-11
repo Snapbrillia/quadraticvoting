@@ -70,57 +70,42 @@ mkDonationPolicy sym action ctx =
         inputProjUTxO :: TxOut
         inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
-        -- | Looks for the singular project input UTxO to find its origin
-        --   address, and the number of donations received so far.
+        -- | Checks the datum of the input project UTxO, and in case the datum
+        --   has a proper constructor, the number of donations received so far
+        --   is retrieved.
         --
         --   Raises exception upon failure.
-        originAddr :: Address
         currDCount :: Integer
-        (originAddr, currDCount) =
+        currDCount =
           -- {{{
           case getInlineDatum inputProjUTxO of 
             ReceivedDonationsCount soFar ->
               -- {{{
-              (txOutAddress inputProjUTxO, soFar)
+              soFar
               -- }}}
-            _                           ->
+            _                            ->
               -- {{{
               traceError "Invalid datum for donation count."
               -- }}}
           -- }}}
 
-        -- | Raises exception upon failure (full description at the `Utils`
-        --   module).
-        filterVAndValidateP :: TxOut -> Bool
-        filterVAndValidateP =
+        outputSAndVAreValid :: TxOut -> TxOut -> Bool
+        outputSAndVAreValid s v =
           -- {{{
-          utxoHasXOrValidGov
-            ownSym
-            tn
-            sym
-            tn
-            originAddr
-            (ReceivedDonationsCount $ currDCount + 1)
-          -- }}}
-  
-        outputSAndVArePresent :: Bool
-        outputSAndVArePresent =
-          -- {{{
-          case filter filterVAndValidateP outputs of
-            -- TODO: Verify the enforcement of specific order.
-            [_, v] ->
-              -- {{{
-                 traceIfFalse
-                   "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
-                   (utxosDatumMatchesWith (Donation diDonor) v)
-              && traceIfFalse
-                   "Donation UTxO must carry exactly the same Lovelace count as specified."
-                   (utxoHasLovelaces diAmount v)
-              -- }}}
-            _        ->
-              -- {{{
-              traceError "There should be exactly 1 governance UTxO, and 1 donation UTxO produced."
-              -- }}}
+             traceIfFalse
+               "The first UTxO produced at the script address must be the updated project UTxO."
+               ( validateGovUTxO
+                   (txOutValue inputProjUTxO)
+                   (txOutAddress inputProjUTxO)
+                   (ReceivedDonationsCount $ currDCount + 1)
+                   s
+               )
+          && traceIfFalse
+               "Invalid value for the donation UTxO."
+               (utxoHasOnlyXWithLovelaces ownSym tn diAmount v)
+          && traceIfFalse
+               "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
+               (utxosDatumMatchesWith (Donation diDonor) v)
           -- }}}
       in 
          traceIfFalse
@@ -144,9 +129,6 @@ mkDonationPolicy sym action ctx =
         inputProjUTxO :: TxOut
         inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
-        originAddr :: Address
-        originAddr = txOutAddress inputProjUTxO
-
         foldDonationsPhaseTwo :: Integer -> Bool
         foldDonationsPhaseTwo requiredDonationCount =
           -- {{{
@@ -154,20 +136,39 @@ mkDonationPolicy sym action ctx =
             (ds, total, finalMap) = foldDonationInputs ownSym tn inputs
             updatedDatum          =
               PrizeWeight (foldDonationsMap finalMap) False
-          in
-          case filter (validateGovUTxO sym tn originAddr updatedDatum) outputs of
-            [o] ->
+            foldedOutputIsValid o =
               -- {{{
                  traceIfFalse
+                   "Invalid updated value for the project UTxO."
+                   ( utxoHasOnlyXWithLovelaces
+                       sym
+                       tn
+                       (total + halfOfTheRegistrationFee)
+                       o
+                   )
+              && traceIfFalse
+                   "Invalid updated value for the project UTxO."
+                   (utxosDatumMatchesWith updatedDatum o)
+              && traceIfFalse
+                   "Folded UTxO must be produced at its originating address."
+                   (txOutAddress o == txOutAddress inputProjUTxO)
+              && traceIfFalse
                    "All donations must be included in the final folding transaction."
                    (ds == requiredDonationCount)
-              && traceIfFalse
-                   "All donations Lovelaces must be included within the project UTxO."
-                   (utxoHasLovelaces (total + halfOfTheRegistrationFee) o)
               -- }}}
-            _   ->
+          in
+          case outputs of
+            [o]    ->
               -- {{{
-              traceError "Missing output project UTxO with prize weight."
+              foldedOutputIsValid o
+              -- }}}
+            [_, o] ->
+              -- {{{
+              foldedOutputIsValid o
+              -- }}}
+            _      ->
+              -- {{{
+              traceError "Invalid outputs pattern."
               -- }}}
           -- }}}
       in

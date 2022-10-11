@@ -105,11 +105,11 @@ mkQVFPolicy oref deadline dlTN tn _ ctx =
     validateTwoOutputs o0 o1 =
       -- {{{
          traceIfFalse
-           "Missing governance token in the deadline UTxO."
-           (utxoHasX ownSym (Just dlTN) o0)
+           "Invalid value for the deadline UTxO."
+           (utxoHasOnlyXWithLovelaces ownSym dlTN governanceLovelaces o0)
       && traceIfFalse
-           "Missing governance token in the main UTxO."
-           (utxoHasX ownSym (Just tn) o1)
+           "Invalid value for the main UTxO."
+           (utxoHasOnlyXWithLovelaces ownSym tn governanceLovelaces o1)
       && ( case (getInlineDatum o0, getInlineDatum o1) of
              (DeadlineDatum dl, RegisteredProjectsCount count) ->
                -- {{{
@@ -119,12 +119,6 @@ mkQVFPolicy oref deadline dlTN tn _ ctx =
                && traceIfFalse
                     "Funding round must start with 0 registered projects."
                     (count == 0)
-               && traceIfFalse
-                    "Deadline UTxO must carry the required Lovelaces."
-                    (utxoHasLovelaces governanceLovelaces o0)
-               && traceIfFalse
-                    "Governance UTxO must carry the required Lovelaces."
-                    (utxoHasLovelaces governanceLovelaces o1)
                -- }}}
              _                                                 ->
                -- {{{
