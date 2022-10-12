@@ -94,20 +94,17 @@ parseJSONValue bs =
   -- }}}
 
 
-unsafeParsePlutusJSON :: FilePath -> IO OutputPlutus
-unsafeParsePlutusJSON file = do
+unsafeParseJSON :: A.FromJSON a => FilePath -> IO a
+unsafeParseJSON file = do
+  -- {{{
   fileContent <- LBS.readFile file
   let Just decoded = A.decode fileContent
   return decoded
+  -- }}}
 
 
--- TODO !@! - remove? Not used.
--- parseJSON :: FilePath -> IO (Either String Data)
--- parseJSON file = do
---   -- {{{
---   fileContent <- LBS.readFile file
---   parseJSONValue fileContent
---   -- }}}
+-- unsafeParsePlutusJSON :: FilePath -> IO OutputPlutus
+-- unsafeParsePlutusJSON = unsafeParseJSON
 
 
 writeScript :: Serialise a => FilePath -> a -> IO (Either (FileError ()) ())
@@ -172,8 +169,11 @@ unsafeTokenNameToHex =
   -- }}}
 
 
-initialDatum :: QVFDatum
-initialDatum = RegisteredProjectsCount 0
+deadlineDatum :: Ledger.POSIXTime -> QVFDatum
+deadlineDatum dl = DeadlineDatum dl
+
+initialGovDatum :: QVFDatum
+initialGovDatum = RegisteredProjectsCount 0
 -- }}}
 
 
@@ -249,20 +249,25 @@ main =
     scriptHelp         =
       -- {{{
       makeHelpText
-        (    "Generate the compiled Plutus validation and minting scripts\n"
-          ++ "\t(note the UTxO format):"
+        (    "Generate the compiled Plutus validation and minting scripts.\n\n"
+
+          ++ "\tThe JSON for file names should have these fields:\n\n"
+          ++ "\t\t{ ocfnTokenNameHex       :: String\n"
+          ++ "\t\t, ocfnGovernanceMinter   :: String\n"
+          ++ "\t\t, ocfnRegistrationMinter :: String\n"
+          ++ "\t\t, ocfnDonationMinter     :: String\n"
+          ++ "\t\t, ocfnQVFMainValidator   :: String\n"
+          ++ "\t\t, ocfnDeadlineSlot       :: String\n"
+          ++ "\t\t, ocfnDeadlineDatum      :: String\n"
+          ++ "\t\t, ocfnInitialGovDatum    :: String\n"
+          ++ "\t\t}"
         )
-        "generate"
-        "scripts"
-        [ "<key-holder-pub-key-hash>"
-        , "<txID>#<output-index>"
+        "generate scripts"
+        "<key-holder-pub-key-hash>"
+        [ "<txID>#<output-index>"
+        , "<current-slot-number>"
         , "<deadline-posix-milliseconds>"
-        , "<governance-policy.plutus>"
-        , "<registration-policy.plutus>"
-        , "<donation-policy.plutus>"
-        , "<qvf-validator.plutus>"
-        , "<unit.redeemer>"
-        , "<output-initial.datum>"
+        , "{file-names-json}"
         ]
       -- }}}
     deadlineToSlotHelp :: String
@@ -416,6 +421,23 @@ main =
           Left "Bad args."
       -- }}}
 
+    writeTokenNameHex :: FilePath -> TokenName -> IO ()
+    writeTokenNameHex outFile tn =
+      -- {{{
+        LBS.writeFile outFile
+      $ fromString
+      $ unsafeTokenNameToHex tn
+      -- }}}
+
+    getDeadlineSlot :: Integer -> Ledger.POSIXTime -> IO Integer
+    getDeadlineSlot currSlot (Ledger.POSIXTime deadline) = do
+      -- {{{
+      let slotLength = 1000
+      currPOSIX <- round . (* 1000) <$> getPOSIXTime -- milliseconds
+      let diff = deadline - currPOSIX
+      return $ diff `div` slotLength + currSlot
+      -- }}}
+
     mapKeyForKeyHolder :: String
     mapKeyForKeyHolder = "keyHolder"
     -- }}}
@@ -432,15 +454,34 @@ main =
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : deadlineStr : govOF : regOF : donOF : qvfOF : rOF : dOF : _ -> do
+    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _ ->
       -- {{{
-      case (readTxOutRef txRefStr, Ledger.POSIXTime <$> readMaybe deadlineStr) of
-        (Just txRef, Just dl) -> do
+      let
+        results = ScriptGenerationArgumentsParseResults
+          { sgUTxO      = readTxOutRef txRefStr
+          , sgSlot      = readMaybe currSlotStr
+          , sgDeadline  = Ledger.POSIXTime <$> readMaybe deadlineStr
+          , sgFileNames = A.decode $ fromString fileNamesJSON
+          }
+      in
+      handleScriptGenerationArguments results $
+        \txRef currSlot dl OffChainFileNames{..} -> do
           -- {{{
+          let govOF      = ocfnGovernanceMinter
+              regOF      = ocfnRegistrationMinter
+              donOF      = ocfnDonationMinter
+              qvfOF      = ocfnQVFMainValidator
+              dlDatOF    = ocfnDeadlineDatum
+              initDatOF  = ocfnInitialGovDatum
+              dlSlotOF   = ocfnDeadlineSlot
+              qvfSymbol  = Gov.qvfSymbol txRef dl
+              regSymbol  = Reg.registrationSymbol qvfSymbol
+              donSymbol  = Don.donationSymbol regSymbol
+
+          writeTokenNameHex ocfnTokenNameHex Gov.qvfTokenName
+
+          dlSlot <- getDeadlineSlot currSlot dl
           govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
-          let qvfSymbol = Gov.qvfSymbol txRef dl
-              regSymbol = Reg.registrationSymbol qvfSymbol
-              donSymbol = Don.donationSymbol regSymbol
           regRes <- writeMintingPolicy regOF $ Reg.registrationPolicy qvfSymbol
           donRes <- writeMintingPolicy donOF $ Don.donationPolicy regSymbol
           case (govRes, regRes, donRes) of
@@ -457,12 +498,27 @@ main =
               case valRes of
                 Right _ -> do
                   -- {{{
-                  andPrintSuccessWithSize govOF unsafeParsePlutusJSON $ return ()
-                  andPrintSuccessWithSize regOF unsafeParsePlutusJSON $ return ()
-                  andPrintSuccessWithSize donOF unsafeParsePlutusJSON $ return ()
-                  andPrintSuccessWithSize qvfOF unsafeParsePlutusJSON $ return ()
-                  andPrintSuccess rOF $ writeJSON rOF ()
-                  andPrintSuccess dOF $ writeJSON dOF initialDatum
+                  andPrintSuccessWithSize
+                    govOF
+                    (unsafeParseJSON @OutputPlutus)
+                    (return ())
+                  andPrintSuccessWithSize
+                    regOF
+                    (unsafeParseJSON @OutputPlutus)
+                    (return ())
+                  andPrintSuccessWithSize
+                    donOF
+                    (unsafeParseJSON @OutputPlutus)
+                    (return ())
+                  andPrintSuccessWithSize
+                    qvfOF
+                    (unsafeParseJSON @OutputPlutus)
+                    (return ())
+                  andPrintSuccess
+                    dlSlotOF
+                    (LBS.writeFile dlSlotOF $ encode dlSlot)
+                  andPrintSuccess dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
+                  andPrintSuccess initDatOF $ writeJSON initDatOF initialGovDatum
                   -- }}}
                 Left _  ->
                   -- {{{
@@ -473,14 +529,6 @@ main =
               -- {{{
               putStrLn "FAILED to write minting script files."
               -- }}}
-          -- }}}
-        (Nothing   , _      ) ->
-          -- {{{
-          putStrLn "FAILED to parse the given UTxO."
-          -- }}}
-        (_         , Nothing) ->
-          -- {{{
-          putStrLn "FAILED to parse the deadline."
           -- }}}
       -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
@@ -502,11 +550,7 @@ main =
         -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{
-      andPrintSuccess outFile
-        $ LBS.writeFile outFile
-        $ fromString
-        $ unsafeTokenNameToHex
-        $ fromString tn
+      andPrintSuccess outFile $ writeTokenNameHex outFile $ fromString tn
       -- }}}
     "get-deadline-slot" : currSlotStr : datumJSON : _                   -> do
       -- {{{
@@ -514,12 +558,10 @@ main =
         Just currSlot -> do
           -- {{{
           actOnData datumJSON $ \case
-            DeadlineDatum (Ledger.POSIXTime deadline) -> do
+            DeadlineDatum dlPOSIX -> do
               -- {{{
-              let slotLength = 1000
-              currPOSIX <- round . (* 1000) <$> getPOSIXTime -- milliseconds
-              let diff       = deadline - currPOSIX
-              print $ diff `div` slotLength + currSlot
+              dlSlot <- getDeadlineSlot currSlot dlPOSIX
+              print dlSlot
               -- }}}
             _                                         ->
               -- {{{
@@ -544,4 +586,90 @@ data OutputPlutus = OutputPlutus
 instance Show OutputPlutus where
   show OutputPlutus{..} =
     show $ lengthOfByteString cborHex
+
+
+data OffChainFileNames = OffChainFileNames
+  { ocfnTokenNameHex       :: String
+  , ocfnGovernanceMinter   :: String
+  , ocfnRegistrationMinter :: String
+  , ocfnDonationMinter     :: String
+  , ocfnQVFMainValidator   :: String
+  , ocfnDeadlineSlot       :: String
+  , ocfnDeadlineDatum      :: String
+  , ocfnInitialGovDatum    :: String
+  } deriving (Generic, A.ToJSON, A.FromJSON)
+
+
+data ScriptGenerationArgumentsParseResults =
+  ScriptGenerationArgumentsParseResults
+    { sgUTxO      :: Maybe Ledger.TxOutRef
+    , sgSlot      :: Maybe Integer
+    , sgDeadline  :: Maybe Ledger.POSIXTime
+    , sgFileNames :: Maybe OffChainFileNames
+    }
+
+
+unwrapScriptGenerationArgs :: ScriptGenerationArgumentsParseResults
+                           -> Either String ( Ledger.TxOutRef
+                                            , Integer
+                                            , Ledger.POSIXTime
+                                            , OffChainFileNames
+                                            )
+unwrapScriptGenerationArgs ScriptGenerationArgumentsParseResults{..} =
+  -- {{{
+  case (sgUTxO, sgSlot, sgDeadline, sgFileNames) of
+    (Just utxo, Just slot, Just dl, Just fns) ->
+      -- {{{
+      Right (utxo, slot, dl, fns)
+      -- }}}
+    _                                         ->
+      -- {{{
+      let
+        listPrefix     = "\n\t- "
+        utxoError      =
+          -- {{{
+          case sgUTxO of
+            Just _  -> ""
+            Nothing -> listPrefix ++ "Invalid UTxO"
+          -- }}}
+        slotError      =
+          -- {{{
+          case sgSlot of
+            Just _  -> ""
+            Nothing -> listPrefix ++ "Invalid current slot"
+          -- }}}
+        deadlineError  =
+          -- {{{
+          case sgDeadline of
+            Just _  -> ""
+            Nothing -> listPrefix ++ "Invalid deadline POSIX"
+          -- }}}
+        fileNamesError =
+          -- {{{
+          case sgFileNames of
+            Just _  -> ""
+            Nothing -> listPrefix ++ "Invalid JSON for file names"
+          -- }}}
+      in
+      Left $
+           "FAILED: One or more bad arguments found:"
+        ++ utxoError
+        ++ slotError
+        ++ deadlineError
+        ++ fileNamesError
+      -- }}}
+  -- }}}
+
+
+handleScriptGenerationArguments :: ScriptGenerationArgumentsParseResults
+                                -> (Ledger.TxOutRef -> Integer -> Ledger.POSIXTime -> OffChainFileNames -> IO ())
+                                -> IO ()
+handleScriptGenerationArguments results handler =
+  -- {{{
+  case unwrapScriptGenerationArgs results of
+    Right (txRef, currSlot, dl, ocfn) ->
+      handler txRef currSlot dl ocfn
+    Left errMsg                       ->
+      putStrLn errMsg
+  -- }}}
 -- }}}

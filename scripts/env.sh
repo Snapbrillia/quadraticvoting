@@ -1,31 +1,67 @@
-export MAGIC='--testnet-magic 1097911063'
-# export MAGIC='--testnet-magic 2'
+export MAGIC='--testnet-magic 2'
 
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
-export CARDANO_NODE_SOCKET_PATH="$HOME/node.socket"
-export preDir="$HOME/code/snapbrillia/quadraticvoting/testnet2"
-export cli="cardano-cli"
-export qvf="qvf-cli"
-# export qvf="cabal run qvf-cli --"
+export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
+export preDir="$HOME/code/quadraticvoting/testnet"
+export cli="$HOME/preview-testnet/cardano-cli"
+# export qvf="qvf-cli"
+export qvf="cabal run qvf-cli --"
 # ========================================== #
 
+export scriptLabel="qvf"
+export fileNamesJSONFile="$preDir/fileNames.json"
+touch $fileNamesJSONFile
+echo "{ \"ocfnTokenNameHex\"       : \"$preDir/token-name.hex\""               > $fileNamesJSONFile
+echo ", \"ocfnGovernanceMinter\"   : \"$preDir/governance-policy.plutus\""    >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceSymbol\"   : \"$preDir/governance-policy.symbol\""    >> $fileNamesJSONFile
+echo ", \"ocfnQVFGovernanceUTxO\"  : \"$preDir/gov.utxo\""                    >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationMinter\" : \"$preDir/registration-policy.plutus\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationSymbol\" : \"$preDir/registration-policy.symbol\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationRefUTxO\": \"$preDir/registration-policy.refUTxO\"" >> $fileNamesJSONFile
+echo ", \"ocfnDonationMinter\"     : \"$preDir/donation-policy.plutus\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationSymbol\"     : \"$preDir/donation-policy.symbol\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationRefUTxO\"    : \"$preDir/donation-policy.refUTxO\""     >> $fileNamesJSONFile
+echo ", \"ocfnQVFMainValidator\"   : \"$preDir/$scriptLabel.plutus\""         >> $fileNamesJSONFile
+echo ", \"ocfnQVFRefUTxO\"         : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
+echo ", \"ocfnContractAddress\"    : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineSlot\"       : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineDatum\"      : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
+echo ", \"ocfnInitialGovDatum\"    : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
+echo "}" >> $fileNamesJSONFile
+getFileName() {
+  remove_quotes $(cat $fileNamesJSONFile | jq -c .$1)
+}
+# Main script:
+export mainScriptFile=$(getFileName ocfnQVFMainValidator)
+export scriptAddressFile=$(getFileName ocfnContractAddress)
+
+# Minters:
+export govScriptFile=$(getFileName ocfnGovernanceMinter)
+export govSymFile=$(getFileName ocfnGovernanceSymbol)
+export regScriptFile=$(getFileName ocfnRegistrationMinter)
+export regSymFile=$(getFileName ocfnRegistrationSymbol)
+export donScriptFile=$(getFileName ocfnDonationMinter)
+export donSymFile=$(getFileName ocfnDonationSymbol)
+ 
+export tokenNameHexFile=$(getFileName ocfnTokenNameHex)
+touch $tokenNameHexFile
+export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
+export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
+export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
+export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
+
+export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
+export referenceWallet="referenceWallet"
+export referenceWalletAddress=$(cat "$preDir/$referenceWallet.addr")
 export keyHolder="keyHolder"
 export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
 export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
 export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
-export scriptLabel="qvf"
-export scriptPlutusFile="$preDir/$scriptLabel.plutus"
-export scriptAddressFile="$preDir/$scriptLabel.addr"
-export policyIdFile="$preDir/$scriptLabel.symbol"
-export policyId=$(cat $policyIdFile)
-export tokenNameHexFile="$preDir/token.hex"
-export policyScriptFile="$preDir/minting.plutus"
-export authAssetUTxOFile="$preDir/authAsset.utxo"
-export deadlineSlotFile="$preDir/deadline.slot"
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
 export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
+export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
 
 
 # Takes 1 argument:
@@ -34,10 +70,40 @@ get_deadline_slot() {
   $qvf get-deadline-slot $(get_newest_slot) $1
 }
 
+get_current_slot() {
+  $cli query tip $MAGIC | jq '.slot|tonumber'
+}
+
+# Picks the min value between a given slot, and 500 slots after the current
+# slot. Meant to be used for `invalid-hereafter` argument of `cardano-cli`.
+#
+# Takes 1 argument:
+#   1. Deadline slot.
+cap_deadline_slot() {
+  currentSlot=$(get_current_slot)
+  currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
+  cappedSlot=$(( $1 < $currentSlotPlusFiveHundred ? $1 : $currentSlotPlusFiveHundred ))
+  echo $cappedSlot
+}
+
+
+# Keeps querying the node until it first reaches a `syncProgress` of 100%.
+# Continues polling until sees a "fresh" slot number to return.
+get_newest_slot() {
+  sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  while [ $sync -lt 100 ]; do
+    sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
+  done
+  initialSlot=$($cli query tip $MAGIC | jq .slot)
+  newSlot=$initialSlot
+  while [ $newSlot = $initialSlot ]; do
+    newSlot=$($cli query tip $MAGIC | jq .slot)
+  done
+  echo $newSlot
+}
 
 store_current_slot() {
-  slot=$($cli query tip $MAGIC | jq '.slot|tonumber')
-  echo $slot > $latestInteractionSlotFile
+  get_current_slot > $latestInteractionSlotFile
 }
 
 wait_for_new_slot() {
@@ -98,9 +164,9 @@ vkey_to_public_key_hash() {
 # 
 # Doesn't take any arguments, uses global variables.
 plutus_script_to_address() {
-    $cli address build-script           \
-        $MAGIC                          \
-        --script-file $scriptPlutusFile \
+    $cli address build-script         \
+        $MAGIC                        \
+        --script-file $mainScriptFile \
         --out-file $scriptAddressFile
 }
 
@@ -110,18 +176,18 @@ plutus_script_to_address() {
 #
 # This function has builtin safety to prevent rewrites and wallet loss.
 #
-# For now, the maximum number of generated wallets is capped at 100.
+# For now, the maximum number of generated wallets is capped at 100000.
 # 
 # Takes 2 arguments:
 #   1. Starting number,
 #   2. Ending number.
 generate_wallets_from_to() {
 
-    max_amt=100
+    max_amt=100000
 
     if [ `expr $2 - $1` -ge $max_amt ]
     then
-    echo "That's over 100 wallets generated. Please reconsider. Edit fn if you really want to."
+    echo "That's over 100,000 wallets generated. Please reconsider. Edit fn if you really want to."
     else
 
     # Important part
@@ -157,6 +223,10 @@ get_first_utxo_of() {
         | sed 1,2d                        \
         | awk 'FNR == 1 {print $1"#"$2}'`
 }
+
+# Takes 2 arguments:
+#   1. Wallet number/name,
+#   2. Row of the UTxO table.
 get_nth_utxo_of() {
     echo `$cli query utxo                    \
         --address $(cat $preDir/$1.addr)     \
@@ -188,14 +258,12 @@ get_all_input_utxos_at() {
 #   1. Wallet number/name,
 #   *. Any additional wallet number/name.
 show_utxo_tables () {
-    for i in $@
-    do
-        echo
-        echo $i
-        cardano-cli query utxo               \
-            --address $(cat $preDir/$i.addr) \
-            $MAGIC
-    done
+  for i in $@
+  do
+    echo
+    echo $i
+    $cli query utxo $MAGIC --address $(cat $preDir/$i.addr)
+  done
 }
 
 # Given a numeric range (inclusive), displays the utxo information table from
@@ -409,22 +477,6 @@ interact_with_smart_contract() {
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
     $cli query protocol-parameters $MAGIC --out-file $protocolsFile
-}
-
-
-# Keeps querying the node until it first reaches a `syncProgress` of 100%.
-# Continues polling until sees a "fresh" slot number to return.
-get_newest_slot() {
-  sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
-  while [ $sync -lt 100 ]; do
-    sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
-  done
-  initialSlot=$($cli query tip $MAGIC | jq .slot)
-  newSlot=$initialSlot
-  while [ $newSlot = $initialSlot ]; do
-    newSlot=$($cli query tip $MAGIC | jq .slot)
-  done
-  echo $newSlot
 }
 
 
