@@ -138,8 +138,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}}
 
     -- | Checks for key holder's signature. Induced laziness.
-    signedByKeyHolder :: () -> Bool
-    signedByKeyHolder _ =
+    signedByKeyHolder :: Bool
+    signedByKeyHolder =
       -- {{{
       traceIfFalse "Unauthorized." $ txSignedBy info qvfKeyHolder
       -- }}}
@@ -257,8 +257,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
           && traceIfFalse
                "Project output must preserve its Lovelaces."
                (utxoHasLovelaces halfOfTheRegistrationFee op)
-          && canFoldOrDistribute ()
-          && signedByKeyHolder ()
+          && canFoldOrDistribute
+          && signedByKeyHolder
           -- }}}
         _                  ->
           -- {{{
@@ -397,8 +397,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --   is still in progress.
     --
     --   Raises exception on @False@.
-    canRegisterOrDonate :: () -> Bool
-    canRegisterOrDonate _ =
+    canRegisterOrDonate :: Bool
+    canRegisterOrDonate =
       -- {{{
       case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
@@ -411,8 +411,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --   has ended.
     --
     --   Raises exception on @False@.
-    canFoldOrDistribute :: () -> Bool
-    canFoldOrDistribute _ =
+    canFoldOrDistribute :: Bool
+    canFoldOrDistribute =
       -- {{{
       case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
@@ -498,7 +498,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
   case (datum, action) of
     (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
       -- {{{
-         signedByKeyHolder ()
+         signedByKeyHolder
       && traceIfFalse
            "New deadline has already passed."
            (deadlineReached newDl)
@@ -514,7 +514,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount _                    , RegisterProject        ) ->
       -- Project Registration
       -- {{{
-      projectMintIsPresent True && canRegisterOrDonate ()
+      projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
     (ReceivedDonationsCount _                     , DonateToProject donInfo) ->
@@ -526,7 +526,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
          traceIfFalse
            "There should be exactly 1 donation asset minted."
            (mintIsPresent qvfDonationSymbol tn 1)
-      && canRegisterOrDonate ()
+      && canRegisterOrDonate
       -- }}}
 
     (Donation _                                   , FoldDonations          ) ->
@@ -561,8 +561,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
            traceIfFalse
              "All donation assets must be burnt."
              (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute ()
-        && signedByKeyHolder ()
+        && canFoldOrDistribute
+        && signedByKeyHolder
       else
         -- Folding should happen in two phases.
         foldDonationsPhaseOne
@@ -587,8 +587,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
            traceIfFalse
              "All donation assets must be burnt."
              (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute ()
-        && signedByKeyHolder ()
+        && canFoldOrDistribute
+        && signedByKeyHolder
       else
         let
           expected  = min remaining maxDonationInputsForPhaseOne
