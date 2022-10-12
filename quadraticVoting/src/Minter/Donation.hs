@@ -117,7 +117,21 @@ mkDonationPolicy sym action ctx =
       && traceIfFalse
            "Donor's signature is required."
            (txSignedBy info diDonor)
-      && outputSAndVArePresent
+      && ( case outputs of
+             [s, v]    ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             [_, s, v] ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             _              ->
+               -- {{{
+               traceError
+                 "There should be exactly 1 project, and 1 donation UTxOs produced."
+               -- }}}
+         )
       -- }}}
     FoldDonations projectId          ->
       -- {{{

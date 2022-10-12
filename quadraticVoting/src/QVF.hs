@@ -186,22 +186,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
         Nothing -> traceError "Current UTxO is unauthentic."
       -- }}}
 
-    -- | Tries to find an input from the script that carries a single X asset.
-    --
-    --   Expects to find exactly 1. Raises exception otherwise.
-    getXInputUTxO :: CurrencySymbol -> TokenName -> TxOut
-    getXInputUTxO sym tn =
-      -- {{{
-      case filter (utxoHasX sym (Just tn) . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = inUTxO}] ->
-          if utxoSitsAtScript inUTxO then
-            inUTxO
-          else
-            traceError "Input authentication asset must come from the script."
-        _      ->
-          traceError "There should be exactly 1 authentication asset in input."
-      -- }}}
-
     -- | Looks inside the reference inputs and extracts the inline datum
     --   attached to one of which carries the given asset.
     --
@@ -237,38 +221,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       in
       isJust $ find predicate inputs
-      -- }}}
-  
-    -- | Checks 1 X comes from the script, and 1 X goes back to the script,
-    --   with enough added Lovelaces and properly updated datum.
-    --
-    --   Raises exception on @False@.
-    xIsPresent :: CurrencySymbol -- ^ X's currency symbol
-               -> TokenName      -- ^ X's token name
-               -> Integer        -- ^ Increase in output's Lovelace count
-               -> QVFDatum       -- ^ Updated datum
-               -> Bool
-    xIsPresent sym tn increaseInLovelace newDatum =
-      -- {{{
-      case filter (utxoHasX sym $ Just tn) (getContinuingOutputs ctx) of
-        [txOut@TxOut{txOutValue = outVal}] ->
-          -- {{{
-          let
-            TxOut{txOutValue = inVal} = getXInputUTxO sym tn
-            desiredOutVal             =
-              inVal <> lovelaceValueOf increaseInLovelace
-          in
-             traceIfFalse
-               "Authenticated output doesn't have enough Lovelaces"
-               (outVal == desiredOutVal)
-          && traceIfFalse
-               "Invalid datum attached to the authenticated output."
-               (utxosDatumMatchesWith newDatum txOut)
-          -- }}}
-        _       ->
-          -- {{{
-          traceError "There must be exactly 1 authentication asset produced."
-          -- }}}
       -- }}}
 
     -- | Collection of validations for consuming a set number of donation
@@ -693,7 +645,28 @@ mkQVFValidator QVFParams{..} datum action ctx =
         keyHolderImbursed     =
           lovelaceFromValue (valuePaidTo info qvfKeyHolder) == khFee
       in
-         xIsPresent qvfSymbol qvfTokenName (negate khFee) updatedDatum
+         traceIfFalse
+           "Unauthentic governance UTxO provided."
+           (currUTxOHasX qvfSymbol qvfTokenName)
+      && ( case getContinuingOutputs ctx of
+             [o] ->
+               -- {{{
+               let
+                 inVal         = txOutValue currUTxO
+                 desiredOutVal = inVal <> lovelaceValueOf (negate khFee)
+               in
+                  traceIfFalse
+                    "Invalid Lovelace count at the produced governance UTxO."
+                    (utxoHasValue desiredOutVal o)
+               && traceIfFalse
+                    "Governance datum not updated properly."
+                    (utxosDatumMatchesWith updatedDatum o)
+               -- }}}
+             _   ->
+               -- {{{
+               traceError "Governance UTxO not produced."
+               -- }}}
+         )
       && traceIfFalse
            "Key holder fees must be paid accurately."
            keyHolderImbursed

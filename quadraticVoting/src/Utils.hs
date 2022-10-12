@@ -216,36 +216,6 @@ validateGovUTxO govVal origAddr updatedDatum utxo =
   -- }}}
 
 
-{-# INLINABLE utxoHasXOrValidGov #-}
--- | Meant to be used as a filtering function to allow outpus carrying singular
---   governance and X assets to pass through.
---
---   Raises exception if it finds a governance token which is getting sent to
---   a different address than where it's coming from, or doesn't have a
---   properly updated datum.
-utxoHasXOrValidGov :: CurrencySymbol
-                   -> TokenName
-                   -> CurrencySymbol
-                   -> TokenName
-                   -> Address
-                   -> QVFDatum
-                   -> TxOut
-                   -> Bool
-utxoHasXOrValidGov xSym xTN govSym govTN origAddr updatedDatum utxo =
-  -- {{{
-  -- Is the UTxO carrying an X token?
-  if utxoHasX xSym (Just xTN) utxo then
-    -- {{{
-    True
-    -- }}}
-  -- Or is it a UTxO carrying the governance asset?
-  else
-    -- {{{
-    validateGovUTxO govSym govTN origAddr updatedDatum utxo
-    -- }}}
-  -- }}}
-
-
 {-# INLINABLE utxosDatumMatchesWith #-}
 -- | Checks if a UTxO carries a specific inline datum.
 --
