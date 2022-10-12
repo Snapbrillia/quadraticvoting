@@ -110,6 +110,7 @@ initiate_fund() {
 
   store_current_slot
   wait_for_new_slot
+  store_current_slot
   wait_for_new_slot
 
   # STORING SCRIPTS ON-CHAIN #
@@ -133,6 +134,7 @@ initiate_fund() {
 
   store_current_slot
   wait_for_new_slot
+  store_current_slot
   wait_for_new_slot
 
   # At this point there is only one UTxO sitting at the reference wallet:
@@ -163,6 +165,8 @@ initiate_fund() {
 
   store_current_slot
   wait_for_new_slot
+  store_current_slot
+  wait_for_new_slot
 
   regRefUTxO=$(get_first_utxo_of $referenceWallet)
   if [ $regRefUTxO == $qvfRefUTxO ]; then
@@ -179,5 +183,48 @@ initiate_fund() {
 
   store_current_slot
 
+  # }}}
+}
+
+
+dev_depletion() {
+  # {{{
+  collateral=$(get_first_utxo_of $keyHolder)
+  deadlineAsset=$(get_deadline_asset)
+  govAsset=$(get_gov_asset)
+  $cli $BUILD_TX_CONST_ARGS                                        \
+    --tx-in-collateral $collateral                                 \
+    --tx-in $(get_first_utxo_of $scriptLabel)                      \
+    --spending-tx-in-reference $(cat testnet/$scriptLabel.refUTxO) \
+    --spending-plutus-script-v2                                    \
+    --spending-reference-tx-in-inline-datum-present                \
+    --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
+    --tx-in $(get_nth_utxo_of $scriptLabel 2)                      \
+    --spending-tx-in-reference $(cat testnet/$scriptLabel.refUTxO) \
+    --spending-plutus-script-v2                                    \
+    --spending-reference-tx-in-inline-datum-present                \
+    --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
+    --mint "-1 $deadlineAsset + -1 $govAsset"                      \
+    --mint-script-file $govScriptFile                              \
+    --mint-redeemer-value 1                                        \
+    --change-address $(cat testnet/$keyHolder.addr)
+  sign_tx_by $preDir/$keyHolder.skey
+  submit_tx
+  store_current_slot
+  wait_for_new_slot
+  show_utxo_tables $scriptLabel
+  # }}}
+}
+
+deplete_reference_wallet() {
+  # {{{
+  $cli $BUILD_TX_CONST_ARGS                    \
+    $(get_all_input_utxos_at $referenceWallet) \
+    --change-address $keyHoldersAddress
+  sign_tx_by $preDir/$referenceWallet.skey
+  submit_tx
+  store_current_slot
+  wait_for_new_slot
+  show_utxo_tables $referenceWallet
   # }}}
 }

@@ -53,11 +53,16 @@ mkQVFPolicy :: TxOutRef
             -> POSIXTime
             -> TokenName
             -> TokenName
-            -> BuiltinData
+            -> Integer
             -> ScriptContext
             -> Bool
-mkQVFPolicy oref deadline dlTN tn _ ctx =
+mkQVFPolicy oref deadline dlTN tn r ctx =
   -- {{{
+  -- For development. TODO: REMOVE.
+  if r == 1 then
+    True
+  else
+  ---------------------------------
   let
     info :: TxInfo
     info = scriptContextTxInfo ctx
@@ -215,7 +220,7 @@ qvfPolicy :: TxOutRef -> POSIXTime -> MintingPolicy
 qvfPolicy oref deadline =
   -- {{{
   let
-    wrap :: (BuiltinData -> ScriptContext -> Bool) -> PSU.V2.UntypedMintingPolicy
+    wrap :: (Integer -> ScriptContext -> Bool) -> PSU.V2.UntypedMintingPolicy
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $

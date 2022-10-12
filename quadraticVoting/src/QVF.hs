@@ -917,6 +917,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent False
       -- }}}
 
+    (_                                            , Dev                    ) ->
+      -- For development. TODO: REMOVE.
+      True
     (_                                            , _                      ) ->
       traceError "Invalid transaction."
   -- }}}

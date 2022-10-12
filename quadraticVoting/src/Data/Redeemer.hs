@@ -64,6 +64,7 @@ data QVFAction
   | UnlockEscrowFor       PubKeyHash Integer
   | WithdrawBounty        PubKeyHash
   | ConcludeProject
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''QVFAction
   [ ('UpdateDeadline     , 0)
@@ -76,6 +77,7 @@ PlutusTx.makeIsDataIndexed ''QVFAction
   , ('UnlockEscrowFor    , 7)
   , ('WithdrawBounty     , 8)
   , ('ConcludeProject    , 9)
+  , ('Dev                , 10)
   ]
 -- }}}
 

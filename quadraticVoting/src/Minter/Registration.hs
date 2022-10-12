@@ -221,6 +221,7 @@ mkRegistrationPolicy sym tn action ctx =
       -- }}}
   -- }}}
 
+
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
 registrationPolicy :: CurrencySymbol -> MintingPolicy
