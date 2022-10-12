@@ -141,7 +141,7 @@ initiate_fund() {
   # So should be the case with key holder's wallet:
   spendingUTxO=$(get_first_utxo_of $keyHolder)
 
-  scriptLovelaces=30000000 # 30.0 ADA
+  scriptLovelaces=32000000 # 32.0 ADA
   scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
 
   generate_protocol_params

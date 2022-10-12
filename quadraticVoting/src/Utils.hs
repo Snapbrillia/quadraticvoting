@@ -261,11 +261,8 @@ utxoHasOnlyXWithLovelaces :: CurrencySymbol
 utxoHasOnlyXWithLovelaces sym tn lovelaces =
   -- {{{
     ( \case
-        [(_, _, amt), (sym', tn', amt')] ->
-             amt  == lovelaces
-          && sym' == sym
-          && tn'  == tn
-          && amt' == 1
+        [(sym', tn', amt'), (_, _, amt)] ->
+          amt == lovelaces && sym' == sym && tn' == tn && amt' == 1
         _                                ->
           False
     )
@@ -301,27 +298,6 @@ utxoHasLovelaces :: Integer -> TxOut -> Bool
 utxoHasLovelaces lovelaces txOut =
   -- {{{
   Ada.fromValue (txOutValue txOut) == Ada.lovelaceOf lovelaces
-  -- }}}
-
-
-{-# INLINABLE utxoHasOnlyAda #-}
--- | Checks if a UTxO carries any other tokens than Lovelaces..
-utxoHasOnlyAda :: TxOut -> Bool
-utxoHasOnlyAda TxOut{txOutValue = val} =
-  -- {{{
-  case flattenValue val of
-    [_] -> True
-    _   -> False
-  -- }}}
-
-
-{-# INLINABLE utxoHasOnlyAda' #-}
--- | Alternate version that raises exception upon @False@. Meant for change
---   outputs.
-utxoHasOnlyAda' :: TxOut -> Bool
-utxoHasOnlyAda' =
-  -- {{{
-  traceIfFalse "Change output can't have any tokens." . utxoHasOnlyAda
   -- }}}
 
 
