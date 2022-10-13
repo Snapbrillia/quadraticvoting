@@ -189,7 +189,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     getDatumFromRefX :: CurrencySymbol -> TokenName -> QVFDatum
     getDatumFromRefX sym tn =
       -- {{{
-      case find (utxoHasOnlyX sym (Just tn) . txInInfoResolved) (txInfoReferenceInputs info) of
+      case find (utxoHasX sym (Just tn) . txInInfoResolved) (txInfoReferenceInputs info) of
         Just txIn ->
           -- {{{
           getInlineDatum (txInInfoResolved txIn)
