@@ -271,6 +271,25 @@ utxoHasOnlyXWithLovelaces sym tn lovelaces =
   -- }}}
 
 
+{-# INLINABLE utxoHasOnlyX #-}
+-- | Checks if a given UTxO has *only* 1 of asset X, and some Lovelaces.
+utxoHasOnlyX :: CurrencySymbol
+             -> TokenName
+             -> TxOut
+             -> Bool
+utxoHasOnlyX sym tn =
+  -- {{{
+    ( \case
+        [(sym', tn', amt'), _] ->
+          sym' == sym && tn' == tn && amt' == 1
+        _                      ->
+          False
+    )
+  . flattenValue
+  . txOutValue
+  -- }}}
+
+
 {-# INLINABLE utxoHasX #-}
 -- | Checks if a given UTxO has exactly 1 of asset X.
 utxoHasX :: CurrencySymbol -> Maybe TokenName -> TxOut -> Bool

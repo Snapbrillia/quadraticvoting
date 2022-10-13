@@ -148,27 +148,23 @@ mkQVFValidator QVFParams{..} datum action ctx =
     currUTxOHasX :: CurrencySymbol -> TokenName -> Bool
     currUTxOHasX sym tn =
       -- {{{
-      utxoHasX sym (Just tn) currUTxO
+      utxoHasOnlyX sym tn currUTxO
       -- }}}
 
     -- | Tries to find a singular asset with a given symbol inside the given
     --   UTxO, and returns its token name.
-    --
-    --   TODO: Presumes the given UTxO has only Lovelaces and the desired
-    --         asset, and that Lovelaces show up first after calling
-    --         `flattenValue`.
     getTokenNameOfUTxO :: CurrencySymbol -> TxOut -> Maybe TokenName
     getTokenNameOfUTxO sym utxo =
       -- {{{
       case flattenValue (txOutValue utxo) of
-        [_, (sym', tn', amt')] ->
+        [(sym', tn', amt'), _] ->
           -- {{{
           if sym' == sym && amt' == 1 then
             Just tn'
           else
             Nothing
           -- }}}
-        _                   ->
+        _                      ->
           -- {{{
           Nothing
           -- }}}
@@ -193,7 +189,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     getDatumFromRefX :: CurrencySymbol -> TokenName -> QVFDatum
     getDatumFromRefX sym tn =
       -- {{{
-      case find (utxoHasX sym (Just tn) . txInInfoResolved) (txInfoReferenceInputs info) of
+      case find (utxoHasOnlyX sym (Just tn) . txInInfoResolved) (txInfoReferenceInputs info) of
         Just txIn ->
           -- {{{
           getInlineDatum (txInInfoResolved txIn)
@@ -446,12 +442,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     projectMintIsPresent :: Bool -> Bool
     projectMintIsPresent mint =
+      -- {{{
       let
         tn = getCurrTokenName qvfProjectSymbol
       in
       traceIfFalse
         "There should be exactly 2 project assets minted/burnt."
         (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
+      -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.
     validateSingleOutput :: Maybe Integer
