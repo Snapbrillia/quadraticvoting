@@ -229,6 +229,56 @@ main =
         "<token-name>"
         ["<output.hex>"]
       -- }}}
+    scriptHelp         :: String
+    scriptHelp         =
+      -- {{{
+      makeHelpText
+        (    "Generate the compiled Plutus validation and minting scripts.\n\n"
+
+          ++ "\tThe JSON for file names should have these fields:\n\n"
+          ++ "\t\t{ ocfnDeadlineTokenNameHex :: String\n"
+          ++ "\t\t, ocfnGovernanceMinter     :: String\n"
+          ++ "\t\t, ocfnRegistrationMinter   :: String\n"
+          ++ "\t\t, ocfnDonationMinter       :: String\n"
+          ++ "\t\t, ocfnQVFMainValidator     :: String\n"
+          ++ "\t\t, ocfnDeadlineSlot         :: String\n"
+          ++ "\t\t, ocfnDeadlineDatum        :: String\n"
+          ++ "\t\t, ocfnInitialGovDatum      :: String\n"
+          ++ "\t\t, ocfnCurrentDatum         :: String\n"
+          ++ "\t\t, ocfnUpdatedDatum         :: String\n"
+          ++ "\t\t, ocfnNewDatum             :: String\n"
+          ++ "\t\t, ocfnExtraDatum           :: String\n"
+          ++ "\t\t, ocfnQVFRedeemer          :: String\n"
+          ++ "\t\t, ocfnMinterRedeemer       :: String\n"
+          ++ "\t\t}"
+        )
+        "generate scripts"
+        "<key-holder-pub-key-hash>"
+        [ "<txID>#<output-index>"
+        , "<current-slot-number>"
+        , "<deadline-posix-milliseconds>"
+        , "{file-names-json}"
+        ]
+      -- }}}
+    registrationHelp   :: String
+    registrationHelp   =
+      -- {{{
+      makeHelpText
+        (    "Read the current datum from disk, and write the corresponding files:\n"
+          ++ "\t\t- Updated governance datum,\n"
+          ++ "\t\t- New initial project datum,\n"
+          ++ "\t\t- Static datum for project's info,\n"
+          ++ "\t\t- Redeemer for the QVF validator,\n"
+          ++ "\t\t- Redeemer for the registration policy."
+        )
+        "register-project"
+        "<txID>#<output-index>"
+        [ "<project-owner-pub-key-hash>"
+        , "<project-name>"
+        , "<project-requested-fund>"
+        , "{file-names-json}"
+        ]
+      -- }}}
     prettyDatumHelp    :: String
     prettyDatumHelp    =
       -- {{{
@@ -246,31 +296,6 @@ main =
         "data-to-cbor"
         "{arbitrary-data-json-value}"
         []
-      -- }}}
-    scriptHelp         :: String
-    scriptHelp         =
-      -- {{{
-      makeHelpText
-        (    "Generate the compiled Plutus validation and minting scripts.\n\n"
-
-          ++ "\tThe JSON for file names should have these fields:\n\n"
-          ++ "\t\t{ ocfnDeadlineTokenNameHex :: String\n"
-          ++ "\t\t, ocfnGovernanceMinter     :: String\n"
-          ++ "\t\t, ocfnRegistrationMinter   :: String\n"
-          ++ "\t\t, ocfnDonationMinter       :: String\n"
-          ++ "\t\t, ocfnQVFMainValidator     :: String\n"
-          ++ "\t\t, ocfnDeadlineSlot         :: String\n"
-          ++ "\t\t, ocfnDeadlineDatum        :: String\n"
-          ++ "\t\t, ocfnInitialGovDatum      :: String\n"
-          ++ "\t\t}"
-        )
-        "generate scripts"
-        "<key-holder-pub-key-hash>"
-        [ "<txID>#<output-index>"
-        , "<current-slot-number>"
-        , "<deadline-posix-milliseconds>"
-        , "{file-names-json}"
-        ]
       -- }}}
     deadlineToSlotHelp :: String
     deadlineToSlotHelp =
@@ -295,6 +320,7 @@ main =
 
       ++ "Utility:\n"
       ++ "\tqvf-cli generate scripts  --help\n"
+      ++ "\tqvf-cli register-project  --help\n"
       ++ "\tqvf-cli pretty-datum      --help\n"
       ++ "\tqvf-cli data-to-cbor      --help\n"
       ++ "\tqvf-cli string-to-hex     --help\n"
@@ -341,6 +367,8 @@ main =
     printActionHelp action =
       -- {{{
       case action of
+        "register-project"     ->
+          putStrLn registrationHelp
         "pretty-datum"         ->
           putStrLn prettyDatumHelp
         "data-to-cbor"         ->
@@ -403,22 +431,22 @@ main =
                       -> IO ()
     actOnCurrentDatum ocfn qvfRedeemer mMinterRedeemer datumToIO = do
       -- {{{
-      let qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
-      andPrintSuccess $ writeJSON updatedDatumFile updatedDatum
-      andPrintSuccess $ writeJSON qvfRedeemerFile qvfRedeemer
-      ( case mMinterRedeemer of
-          Nothing             ->
-            -- {{{
-            return ()
-            -- }}}
-          Just minterRedeemer ->
-            -- {{{
-            andPrintSuccess
-              $ writeJSON
-                  (getFileName ocfn ocfnMinterRedeemer)
-                  minterRedeemer
-            -- }}}
-      )
+      let datumJSON       = getFileName ocfn ocfnCurrentDatum
+          qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
+      andPrintSuccess qvfRedeemerFile $ writeJSON qvfRedeemerFile qvfRedeemer
+      case mMinterRedeemer of
+        Nothing             ->
+          -- {{{
+          return ()
+          -- }}}
+        Just minterRedeemer ->
+          -- {{{
+          let
+            minterRedeemerFile = getFileName ocfn ocfnMinterRedeemer
+          in
+          andPrintSuccess minterRedeemerFile $
+            writeJSON minterRedeemerFile minterRedeemer
+          -- }}}
       datumVal <- LBS.readFile datumJSON
       fromDatumValue datumVal datumToIO
       -- }}}
@@ -585,22 +613,25 @@ main =
               let
                 updatedDatum     :: QVFDatum
                 updatedDatum     = RegisteredProjectsCount $ soFar + 1
+                updatedDatumFile :: FilePath
                 updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
 
                 newDatum         :: QVFDatum
                 newDatum         = ReceivedDonationsCount 0
+                newDatumFile     :: FilePath
                 newDatumFile     = getFileName ocfn ocfnNewDatum
 
                 extraDatum       :: QVFDatum
                 extraDatum       = ProjectInfo projDetails
+                extraDatumFile   :: FilePath
                 extraDatumFile   = getFileName ocfn ocfnExtraDatum
-              in
+              in do
               andPrintSuccess updatedDatumFile $
                 writeJSON updatedDatumFile updatedDatum
               andPrintSuccess newDatumFile $
                 writeJSON newDatumFile newDatum
               andPrintSuccess extraDatumFile $
-                writeJSON extraDatum
+                writeJSON extraDatumFile extraDatum
               -- }}}
             _                             ->
               -- {{{
@@ -711,7 +742,7 @@ data OffChainFileNames = OffChainFileNames
   } deriving (Generic, A.ToJSON, A.FromJSON)
 
 
-getFileName :: OffChainFileNames -> (OffChainFileNames -> String) -> String
+getFileName :: OffChainFileNames -> (OffChainFileNames -> String) -> FilePath
 getFileName ocfn handle = ocfnPreDir ocfn ++ "/" ++ handle ocfn
 
 
