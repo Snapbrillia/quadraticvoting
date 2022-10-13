@@ -6,7 +6,7 @@ startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-deadline=1667642400000
+export deadline=1667642400000
 
 govSym=""
 
@@ -41,12 +41,11 @@ store_gov_symbol() {
 
 get_gov_asset() {
   store_gov_symbol
-  echo $govSym.
+  echo $govSym
 }
 
 get_deadline_asset() {
-  store_gov_symbol
-  echo $govSym.$(cat $deadlineTokenNameHexFile)
+  echo $(cat $govSymFile).$(cat $deadlineTokenNameHexFile)
 }
 
 get_script_data_hash() {
@@ -80,8 +79,10 @@ initiate_fund() {
 
   deadlineDatum=$(getFileName ocfnDeadlineDatum)
   govDatumFile=$(getFileName ocfnInitialGovDatum)
-  deadlineAsset=$(get_deadline_asset)
+  # NOTE: The order of these 2 assignments matters.
   govAsset=$(get_gov_asset)
+  deadlineAsset=$(get_deadline_asset)
+  # -----------------------------------------------
   govLovelaces=1500000 #  1.5 ADA
   firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
   secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"

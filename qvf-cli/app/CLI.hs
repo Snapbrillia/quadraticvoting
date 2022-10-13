@@ -34,6 +34,8 @@ import           System.Environment         ( getArgs )
 import           Text.Read                  ( readMaybe )
 
 import           Data.Datum
+import           Data.Redeemer
+import           Data.RegistrationInfo
 
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
@@ -393,6 +395,34 @@ main =
         (putStrLn "FAILED: Improper data.")
       -- }}}
 
+    actOnCurrentDatum :: PlutusTx.ToData a 
+                      => OffChainFileNames
+                      -> QVFAction
+                      -> Maybe a
+                      -> (QVFDatum -> IO ())
+                      -> IO ()
+    actOnCurrentDatum ocfn qvfRedeemer mMinterRedeemer datumToIO = do
+      -- {{{
+      let qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
+      andPrintSuccess $ writeJSON updatedDatumFile updatedDatum
+      andPrintSuccess $ writeJSON qvfRedeemerFile qvfRedeemer
+      ( case mMinterRedeemer of
+          Nothing             ->
+            -- {{{
+            return ()
+            -- }}}
+          Just minterRedeemer ->
+            -- {{{
+            andPrintSuccess
+              $ writeJSON
+                  (getFileName ocfn ocfnMinterRedeemer)
+                  minterRedeemer
+            -- }}}
+      )
+      datumVal <- LBS.readFile datumJSON
+      fromDatumValue datumVal datumToIO
+      -- }}}
+
     actOnData :: String -> (QVFDatum -> IO ()) -> IO ()
     actOnData datumJSON datumToIO = do
       -- {{{
@@ -465,20 +495,21 @@ main =
           }
       in
       handleScriptGenerationArguments results $
-        \txRef currSlot dl OffChainFileNames{..} -> do
+        \txRef currSlot dl ocfn -> do
           -- {{{
-          let govOF      = ocfnGovernanceMinter
-              regOF      = ocfnRegistrationMinter
-              donOF      = ocfnDonationMinter
-              qvfOF      = ocfnQVFMainValidator
-              dlDatOF    = ocfnDeadlineDatum
-              initDatOF  = ocfnInitialGovDatum
-              dlSlotOF   = ocfnDeadlineSlot
-              qvfSymbol  = Gov.qvfSymbol txRef dl
-              regSymbol  = Reg.registrationSymbol qvfSymbol
-              donSymbol  = Don.donationSymbol regSymbol
+          let govOF     = getFileName ocfn ocfnGovernanceMinter
+              regOF     = getFileName ocfn ocfnRegistrationMinter
+              donOF     = getFileName ocfn ocfnDonationMinter
+              qvfOF     = getFileName ocfn ocfnQVFMainValidator
+              dlDatOF   = getFileName ocfn ocfnDeadlineDatum
+              initDatOF = getFileName ocfn ocfnInitialGovDatum
+              dlSlotOF  = getFileName ocfn ocfnDeadlineSlot
+              dlTNOF    = getFileName ocfn ocfnDeadlineTokenNameHex
+              qvfSymbol = Gov.qvfSymbol txRef dl
+              regSymbol = Reg.registrationSymbol qvfSymbol
+              donSymbol = Don.donationSymbol regSymbol
 
-          writeTokenNameHex ocfnDeadlineTokenNameHex Gov.deadlineTokenName
+          writeTokenNameHex dlTNOF Gov.deadlineTokenName
 
           dlSlot <- getDeadlineSlot currSlot dl
           govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
@@ -529,6 +560,56 @@ main =
               -- {{{
               putStrLn "FAILED to write minting script files."
               -- }}}
+          -- }}}
+      -- }}}
+    "register-project" : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _              ->
+      -- {{{
+      case (readTxOutRef txRefStr, readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
+        (Just utxo, Just reqFund, Just ocfn) ->
+          -- {{{
+          let
+            govRedeemer :: QVFAction
+            govRedeemer = RegisterProject
+
+            projDetails :: ProjectDetails
+            projDetails =
+              ProjectDetails (fromString pkhStr) (fromString lbl) reqFund
+
+            regRedeemer :: Reg.RegistrationRedeemer
+            regRedeemer =
+              Reg.RegisterProject $ RegistrationInfo utxo projDetails
+          in
+          actOnCurrentDatum ocfn govRedeemer (Just regRedeemer) $ \case
+            RegisteredProjectsCount soFar ->
+              -- {{{
+              let
+                updatedDatum     :: QVFDatum
+                updatedDatum     = RegisteredProjectsCount $ soFar + 1
+                updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+
+                newDatum         :: QVFDatum
+                newDatum         = ReceivedDonationsCount 0
+                newDatumFile     = getFileName ocfn ocfnNewDatum
+
+                extraDatum       :: QVFDatum
+                extraDatum       = ProjectInfo projDetails
+                extraDatumFile   = getFileName ocfn ocfnExtraDatum
+              in
+              andPrintSuccess updatedDatumFile $
+                writeJSON updatedDatumFile updatedDatum
+              andPrintSuccess newDatumFile $
+                writeJSON newDatumFile newDatum
+              andPrintSuccess extraDatumFile $
+                writeJSON extraDatum
+              -- }}}
+            _                             ->
+              -- {{{
+              putStrLn "FAILED: Provided current datum is incompatible."
+              -- }}}
+          -- }}}
+        _                                    ->
+          -- {{{
+          putStrLn "FAILED: Bad arguments."
           -- }}}
       -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
@@ -588,8 +669,32 @@ instance Show OutputPlutus where
     show $ lengthOfByteString cborHex
 
 
+-- TODO: Create a module that only exposes the `OffChainFileNames` type
+--       constructor, and the `getFileName` without exposing any of the
+--       handles. Current solution involves use of type-level string literals.
+--
+--       Such a design would allow a more robust filename extraction (with
+--       absolute paths). An outcome similar to the code snippet below
+--       (utilizing the `TypeApplications` extension) would be desireable.
+--
+--       (Sample excerpt from the script generation endpoint of `main`.)
+--
+--       ```hs
+--       let govOF     = getFileName ocfn @"ocfnGovernanceMinter"
+--           regOF     = getFileName ocfn @"ocfnRegistrationMinter"
+--           donOF     = getFileName ocfn @"ocfnDonationMinter"
+--           qvfOF     = getFileName ocfn @"ocfnQVFMainValidator"
+--           dlDatOF   = getFileName ocfn @"ocfnDeadlineDatum"
+--           initDatOF = getFileName ocfn @"ocfnInitialGovDatum"
+--           dlSlotOF  = getFileName ocfn @"ocfnDeadlineSlot"
+--           dlTNOF    = getFileName ocfn @"ocfnDeadlineTokenNameHex"
+--       ```
+--
+--       Another solution could be a custom `FromJSON` instance.
+--
 data OffChainFileNames = OffChainFileNames
-  { ocfnDeadlineTokenNameHex :: String
+  { ocfnPreDir               :: String
+  , ocfnDeadlineTokenNameHex :: String
   , ocfnGovernanceMinter     :: String
   , ocfnRegistrationMinter   :: String
   , ocfnDonationMinter       :: String
@@ -597,7 +702,17 @@ data OffChainFileNames = OffChainFileNames
   , ocfnDeadlineSlot         :: String
   , ocfnDeadlineDatum        :: String
   , ocfnInitialGovDatum      :: String
+  , ocfnCurrentDatum         :: String
+  , ocfnUpdatedDatum         :: String
+  , ocfnNewDatum             :: String
+  , ocfnExtraDatum           :: String
+  , ocfnQVFRedeemer          :: String
+  , ocfnMinterRedeemer       :: String
   } deriving (Generic, A.ToJSON, A.FromJSON)
+
+
+getFileName :: OffChainFileNames -> (OffChainFileNames -> String) -> String
+getFileName ocfn handle = ocfnPreDir ocfn ++ "/" ++ handle ocfn
 
 
 data ScriptGenerationArgumentsParseResults =

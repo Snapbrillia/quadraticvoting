@@ -20,25 +20,32 @@ remove_quotes() {
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 touch $fileNamesJSONFile
-echo "{ \"ocfnDeadlineTokenNameHex\": \"$preDir/deadline-token-name.hex\""      > $fileNamesJSONFile
-echo ", \"ocfnGovernanceMinter\"    : \"$preDir/governance-policy.plutus\""    >> $fileNamesJSONFile
-echo ", \"ocfnGovernanceSymbol\"    : \"$preDir/governance-policy.symbol\""    >> $fileNamesJSONFile
-echo ", \"ocfnQVFGovernanceUTxO\"   : \"$preDir/gov.utxo\""                    >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationMinter\"  : \"$preDir/registration-policy.plutus\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationSymbol\"  : \"$preDir/registration-policy.symbol\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationRefUTxO\" : \"$preDir/registration-policy.refUTxO\"" >> $fileNamesJSONFile
-echo ", \"ocfnDonationMinter\"      : \"$preDir/donation-policy.plutus\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationSymbol\"      : \"$preDir/donation-policy.symbol\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationRefUTxO\"     : \"$preDir/donation-policy.refUTxO\""     >> $fileNamesJSONFile
-echo ", \"ocfnQVFMainValidator\"    : \"$preDir/$scriptLabel.plutus\""         >> $fileNamesJSONFile
-echo ", \"ocfnQVFRefUTxO\"          : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
-echo ", \"ocfnContractAddress\"     : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineSlot\"        : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineDatum\"       : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
-echo ", \"ocfnInitialGovDatum\"     : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
+echo "{ \"ocfnPreDir\"              : \"$preDir\""                              > $fileNamesJSONFile
+echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
+echo ", \"ocfnQVFGovernanceUTxO\"   : \"gov.utxo\""                    >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationMinter\"  : \"registration-policy.plutus\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationSymbol\"  : \"registration-policy.symbol\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationRefUTxO\" : \"registration-policy.refUTxO\"" >> $fileNamesJSONFile
+echo ", \"ocfnDonationMinter\"      : \"donation-policy.plutus\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationSymbol\"      : \"donation-policy.symbol\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationRefUTxO\"     : \"donation-policy.refUTxO\""     >> $fileNamesJSONFile
+echo ", \"ocfnQVFMainValidator\"    : \"$scriptLabel.plutus\""         >> $fileNamesJSONFile
+echo ", \"ocfnQVFRefUTxO\"          : \"$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
+echo ", \"ocfnContractAddress\"     : \"$scriptLabel.addr\""           >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineSlot\"        : \"deadline.slot\""               >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineDatum\"       : \"deadline.govDatum\""           >> $fileNamesJSONFile
+echo ", \"ocfnInitialGovDatum\"     : \"initial.govDatum\""            >> $fileNamesJSONFile
+echo ", \"ocfnCurrentDatum\"        : \"current.datum\""               >> $fileNamesJSONFile
+echo ", \"ocfnUpdatedDatum\"        : \"updated.datum\""               >> $fileNamesJSONFile
+echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileNamesJSONFile
+echo ", \"ocfnExtraDatum\"          : \"extra.datum\""                 >> $fileNamesJSONFile
+echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
+echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
-  remove_quotes $(cat $fileNamesJSONFile | jq -c .$1)
+  echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
 }
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
