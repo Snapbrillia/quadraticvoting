@@ -105,12 +105,10 @@ initiate_fund() {
     --mint-redeemer-value 0                   \
     --change-address $keyHoldersAddress
   
-  sign_tx_by $keyHoldersSigningKeyFile
-  submit_tx
+  sign_and_submit_tx $keyHoldersSigningKeyFile
+  wait_for_new_slot
   # }}}
 
-  store_current_slot
-  wait_for_new_slot
   store_current_slot
   wait_for_new_slot
 
@@ -130,11 +128,9 @@ initiate_fund() {
     --tx-out-reference-script-file $mainScriptFile \
     --change-address $keyHoldersAddress
 
-  sign_tx_by $keyHoldersSigningKeyFile
-  submit_tx
-
-  store_current_slot
+  sign_and_submit_tx $keyHoldersSigningKeyFile
   wait_for_new_slot
+
   store_current_slot
   wait_for_new_slot
 
@@ -161,11 +157,9 @@ initiate_fund() {
     --tx-out-inline-datum-value 1                 \
     --change-address $keyHoldersAddress
 
-  sign_tx_by $keyHoldersSigningKeyFile
-  submit_tx
-
-  store_current_slot
+  sign_and_submit_tx $keyHoldersSigningKeyFile
   wait_for_new_slot
+
   store_current_slot
   wait_for_new_slot
 
@@ -196,12 +190,12 @@ dev_depletion() {
   $cli $BUILD_TX_CONST_ARGS                                        \
     --tx-in-collateral $collateral                                 \
     --tx-in $(get_first_utxo_of $scriptLabel)                      \
-    --spending-tx-in-reference $(cat testnet/$scriptLabel.refUTxO) \
+    --spending-tx-in-reference $(cat qvfRefUTxOFile)               \
     --spending-plutus-script-v2                                    \
     --spending-reference-tx-in-inline-datum-present                \
     --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
     --tx-in $(get_nth_utxo_of $scriptLabel 2)                      \
-    --spending-tx-in-reference $(cat testnet/$scriptLabel.refUTxO) \
+    --spending-tx-in-reference $(cat qvfRefUTxOFile)               \
     --spending-plutus-script-v2                                    \
     --spending-reference-tx-in-inline-datum-present                \
     --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
@@ -209,9 +203,7 @@ dev_depletion() {
     --mint-script-file $govScriptFile                              \
     --mint-redeemer-value 1                                        \
     --change-address $(cat testnet/$keyHolder.addr)
-  sign_tx_by $preDir/$keyHolder.skey
-  submit_tx
-  store_current_slot
+  sign_and_submit_tx $preDir/$keyHolder.skey
   wait_for_new_slot
   show_utxo_tables $scriptLabel
   # }}}
@@ -222,9 +214,7 @@ deplete_reference_wallet() {
   $cli $BUILD_TX_CONST_ARGS                    \
     $(get_all_input_utxos_at $referenceWallet) \
     --change-address $keyHoldersAddress
-  sign_tx_by $preDir/$referenceWallet.skey
-  submit_tx
-  store_current_slot
+  sign_and_submit_tx $preDir/$referenceWallet.skey
   wait_for_new_slot
   show_utxo_tables $referenceWallet
   # }}}

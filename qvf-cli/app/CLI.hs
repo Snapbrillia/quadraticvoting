@@ -41,6 +41,7 @@ import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
 import qualified Minter.Registration        as Reg
+import           Utils
 
 -- UTILS
 -- {{{
@@ -172,7 +173,7 @@ unsafeTokenNameToHex =
 
 
 deadlineDatum :: Ledger.POSIXTime -> QVFDatum
-deadlineDatum dl = DeadlineDatum dl
+deadlineDatum = DeadlineDatum
 
 initialGovDatum :: QVFDatum
 initialGovDatum = RegisteredProjectsCount 0
@@ -247,7 +248,6 @@ main =
           ++ "\t\t, ocfnCurrentDatum         :: String\n"
           ++ "\t\t, ocfnUpdatedDatum         :: String\n"
           ++ "\t\t, ocfnNewDatum             :: String\n"
-          ++ "\t\t, ocfnExtraDatum           :: String\n"
           ++ "\t\t, ocfnQVFRedeemer          :: String\n"
           ++ "\t\t, ocfnMinterRedeemer       :: String\n"
           ++ "\t\t}"
@@ -611,27 +611,37 @@ main =
             RegisteredProjectsCount soFar ->
               -- {{{
               let
-                updatedDatum     :: QVFDatum
-                updatedDatum     = RegisteredProjectsCount $ soFar + 1
-                updatedDatumFile :: FilePath
-                updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+                updatedDatum      :: QVFDatum
+                updatedDatum      = RegisteredProjectsCount $ soFar + 1
+                updatedDatumFile  :: FilePath
+                updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
-                newDatum         :: QVFDatum
-                newDatum         = ReceivedDonationsCount 0
-                newDatumFile     :: FilePath
-                newDatumFile     = getFileName ocfn ocfnNewDatum
+                newDatum          :: QVFDatum
+                newDatum          = ReceivedDonationsCount 0
+                newDatumFile      :: FilePath
+                newDatumFile      = getFileName ocfn ocfnNewDatum
 
-                extraDatum       :: QVFDatum
-                extraDatum       = ProjectInfo projDetails
-                extraDatumFile   :: FilePath
-                extraDatumFile   = getFileName ocfn ocfnExtraDatum
+                projTokenName     :: TokenName
+                projTokenName     = orefToTokenName utxo
+                projTokenNameFile :: FilePath
+                projTokenNameFile = getFileName ocfn ocfnProjectTokenName
+
+                projInfo          :: QVFDatum
+                projInfo          = ProjectInfo projDetails
+                projInfoFile      :: FilePath
+                projInfoFile      =
+                     ocfnPreDir ocfn
+                  ++ "/"
+                  ++ unsafeTokenNameToHex projTokenName
               in do
+              andPrintSuccess projTokenNameFile $
+                writeTokenNameHex projTokenNameFile projTokenName
               andPrintSuccess updatedDatumFile $
                 writeJSON updatedDatumFile updatedDatum
               andPrintSuccess newDatumFile $
                 writeJSON newDatumFile newDatum
-              andPrintSuccess extraDatumFile $
-                writeJSON extraDatumFile extraDatum
+              andPrintSuccess projInfoFile $
+                writeJSON projInfoFile projInfo
               -- }}}
             _                             ->
               -- {{{
@@ -736,9 +746,9 @@ data OffChainFileNames = OffChainFileNames
   , ocfnCurrentDatum         :: String
   , ocfnUpdatedDatum         :: String
   , ocfnNewDatum             :: String
-  , ocfnExtraDatum           :: String
   , ocfnQVFRedeemer          :: String
   , ocfnMinterRedeemer       :: String
+  , ocfnProjectTokenName     :: String
   } deriving (Generic, A.ToJSON, A.FromJSON)
 
 

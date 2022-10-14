@@ -40,9 +40,9 @@ echo ", \"ocfnInitialGovDatum\"     : \"initial.govDatum\""            >> $fileN
 echo ", \"ocfnCurrentDatum\"        : \"current.datum\""               >> $fileNamesJSONFile
 echo ", \"ocfnUpdatedDatum\"        : \"updated.datum\""               >> $fileNamesJSONFile
 echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileNamesJSONFile
-echo ", \"ocfnExtraDatum\"          : \"extra.datum\""                 >> $fileNamesJSONFile
 echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
 echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
+echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
   echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
@@ -58,9 +58,18 @@ export regScriptFile=$(getFileName ocfnRegistrationMinter)
 export regSymFile=$(getFileName ocfnRegistrationSymbol)
 export donScriptFile=$(getFileName ocfnDonationMinter)
 export donSymFile=$(getFileName ocfnDonationSymbol)
+
+# Datums and redeemers:
+export currentDatumFile=$(getFileName ocfnCurrentDatum)
+export updatedDatumFile=$(getFileName ocfnUpdatedDatum)
+export newDatumFile=$(getFileName ocfnNewDatum)
+export qvfRedeemerFile=$(getFileName ocfnQVFRedeemer)
+export minterRedeemerFile=$(getFileName ocfnMinterRedeemer)
  
 export deadlineTokenNameHexFile=$(getFileName ocfnDeadlineTokenNameHex)
 touch $deadlineTokenNameHexFile
+export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
+touch $projectTokenNameFile
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
@@ -78,6 +87,34 @@ export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
 export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
+
+
+# Generate a fresh protocol parametsrs JSON file.
+generate_protocol_params() {
+    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+}
+
+
+# Takes at least 1 argument:
+#   1. The signing key file.
+#   *. Any additional signing key files.
+sign_tx_by() {
+  signArg=""
+  for i in $@; do
+    signArg="$signArg --signing-key-file $i"
+  done
+  $cli transaction sign    \
+    --tx-body-file $txBody \
+    $signArg               \
+    $MAGIC                 \
+    --out-file $txSigned
+}
+
+
+# Submits $txSigned to the chain.
+submit_tx() {
+  $cli transaction submit $MAGIC --tx-file $txSigned
+}
 
 
 # Takes 1 argument:
@@ -137,6 +174,12 @@ wait_for_new_slot() {
   echo    "Latest interaction slot:      $latest"
   echo    "Current slot after extension: $current"
   echo -e "--------------------------------------\n"
+}
+
+sign_and_submit_tx() {
+  sign_tx_by "$@"
+  submit_tx
+  store_current_slot
 }
 
 
@@ -275,10 +318,9 @@ tidy_up_wallet() {
   addr=$(cat $preDir/$1.addr)
   inputs=$(get_all_input_utxos_at $1)
   $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
-  sign_tx_by $preDir/$1.skey
-  submit_tx
-  store_current_slot
+  sign_and_submit_tx $preDir/$1.skey
   wait_for_new_slot
+  show_utxo_tables $1
 }
 
 
@@ -501,36 +543,6 @@ interact_with_smart_contract() {
     $cli transaction submit                       \
         $MAGIC                                    \
         --tx-file tx.signed
-}
-
-
-# Generate a fresh protocol parametsrs JSON file.
-generate_protocol_params() {
-    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
-}
-
-
-# Takes at least 1 argument:
-#   1. The signing key file.
-#   *. Any additional signing key files.
-sign_tx_by() {
-    signArg=""
-    for i in $@; do
-      signArg="$signArg --signing-key-file $i"
-    done
-    $cli transaction sign      \
-        --tx-body-file $txBody \
-        $signArg               \
-        $MAGIC                 \
-        --out-file $txSigned
-}
-
-
-# Submits $txSigned to the chain.
-submit_tx() {
-    $cli transaction submit \
-        $MAGIC              \
-        --tx-file $txSigned
 }
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell
