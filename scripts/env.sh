@@ -4,9 +4,18 @@ export MAGIC='--testnet-magic 2'
 export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
 export preDir="$HOME/code/quadraticvoting/testnet"
 export cli="$HOME/preview-testnet/cardano-cli"
-# export qvf="qvf-cli"
-export qvf="cabal run qvf-cli --"
+export qvf="qvf-cli"
+# export qvf="cabal run qvf-cli --"
 # ========================================== #
+
+# Removes the single quotes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_single_quotes() {
+  echo $1           \
+  | sed 's|['"\'"',]||g'
+}
 
 # Removes the double quotes.
 #
@@ -43,6 +52,7 @@ echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileN
 echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
 echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
 echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
+echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.txt\""     >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
   echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
@@ -70,6 +80,8 @@ export deadlineTokenNameHexFile=$(getFileName ocfnDeadlineTokenNameHex)
 touch $deadlineTokenNameHexFile
 export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
 touch $projectTokenNameFile
+export registeredProjectsFile=$(getFileName ocfnRegisteredProjects)
+touch $registeredProjectsFile
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)

@@ -9,6 +9,8 @@
 module Main (main) where
 
 
+import Debug.Trace (trace)
+
 import           Cardano.Api
 import           Cardano.Api.Shelley        ( PlutusScript (..) )
 import           Codec.Serialise            ( Serialise
@@ -18,6 +20,7 @@ import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Short      as SBS
+import qualified Data.Char                  as Char
 import qualified Data.List                  as List
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
@@ -139,6 +142,57 @@ writeMintingPolicy file =
   -- }}}
 
 
+hexStringToByteString :: String -> Maybe LBS.ByteString
+hexStringToByteString str =
+  -- {{{
+  let
+    helper =
+      -- {{{
+      \case
+        '0' -> Just 0
+        '1' -> Just 1
+        '2' -> Just 2
+        '3' -> Just 3
+        '4' -> Just 4
+        '5' -> Just 5
+        '6' -> Just 6
+        '7' -> Just 7
+        '8' -> Just 8
+        '9' -> Just 9
+        'a' -> Just 10
+        'b' -> Just 11
+        'c' -> Just 12
+        'd' -> Just 13
+        'e' -> Just 14
+        'f' -> Just 15
+        _   -> Nothing
+      -- }}}
+    go []                (_, soFar)     = Just $ LBS.pack soFar
+    go (currChar : rest) (mPrev, soFar) =
+      case mPrev of
+        Just prev ->
+          -- {{{
+          let
+            mVal = do
+              v1 <- helper currChar
+              v0 <- helper prev
+              return $ 16 * v0 + v1
+          in
+          case mVal of
+            Just w ->
+              go rest (Nothing, soFar ++ [w])
+            Nothing ->
+              Nothing
+          -- }}}
+        Nothing   ->
+          -- {{{
+          go rest (Just currChar, soFar)
+          -- }}}
+  in
+  go str (Nothing, [])
+  -- }}}
+
+
 readTxOutRef :: String -> Maybe Ledger.TxOutRef
 readTxOutRef s =
   -- {{{
@@ -156,6 +210,7 @@ readTxOutRef s =
       -- }}}
   -- }}}
 
+
 builtinByteStringToString :: BuiltinByteString -> String
 builtinByteStringToString =
     BS8.unpack
@@ -163,6 +218,7 @@ builtinByteStringToString =
   . fromJust
   . deserialiseFromRawBytes AsAssetName
   . fromBuiltin
+
 
 -- | From PPP's 6th lecture.
 unsafeTokenNameToHex :: TokenName -> String
@@ -297,6 +353,15 @@ main =
         "{arbitrary-data-json-value}"
         []
       -- }}}
+    cborToDataHelp     :: String
+    cborToDataHelp     =
+      -- {{{
+      makeHelpText
+        "Return the CBOR encoding of a JSON formatted `Data` value:"
+        "cbor-to-data"
+        "{arbitrary-data-json-value}"
+        []
+      -- }}}
     deadlineToSlotHelp :: String
     deadlineToSlotHelp =
       -- {{{
@@ -323,6 +388,7 @@ main =
       ++ "\tqvf-cli register-project  --help\n"
       ++ "\tqvf-cli pretty-datum      --help\n"
       ++ "\tqvf-cli data-to-cbor      --help\n"
+      ++ "\tqvf-cli cbor-to-data      --help\n"
       ++ "\tqvf-cli string-to-hex     --help\n"
       ++ "\tqvf-cli get-deadline-slot --help\n\n"
 
@@ -373,6 +439,8 @@ main =
           putStrLn prettyDatumHelp
         "data-to-cbor"         ->
           putStrLn dataToCBORHelp
+        "cbor-to-data"         ->
+          putStrLn cborToDataHelp
         "string-to-hex"        ->
           putStrLn toHexHelp
         "get-deadline-slot"    ->
@@ -650,7 +718,16 @@ main =
           -- }}}
         _                                    ->
           -- {{{
-          putStrLn "FAILED: Bad arguments."
+          putStrLn $ "FAILED with bad arguments: "
+            ++ txRefStr
+            ++ " "
+            ++ pkhStr
+            ++ " "
+            ++ lbl
+            ++ " "
+            ++ reqFundStr
+            ++ " "
+            ++ fileNamesJSON
           -- }}}
       -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
@@ -670,6 +747,27 @@ main =
           . encode
         )
         -- }}}
+    "cbor-to-data" : cborStr : _                                        ->
+      -- {{{
+      let
+        mScriptData :: Maybe ScriptData
+        mScriptData = do
+          -- {{{
+          bs  <- hexStringToByteString cborStr
+          let bs8 = BS8.pack $ Char.chr . fromIntegral <$> LBS.unpack bs
+          case deserialiseFromCBOR AsScriptData bs8 of
+            Right sd ->
+              Just sd
+            Left _   ->
+              Nothing
+          -- }}}
+      in
+      case mScriptData of
+        Just sd ->
+          print $ encode $ scriptDataToJson ScriptDataJsonDetailedSchema sd
+        Nothing -> do
+          putStrLn "FAILED to decode CBOR."
+      -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{
       andPrintSuccess outFile $ writeTokenNameHex outFile $ fromString tn

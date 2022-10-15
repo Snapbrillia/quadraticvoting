@@ -1,8 +1,8 @@
 . scripts/env.sh
 
 
-AUTH_ID=$(cat ../blockfrost.id)
-URL="https://cardano-testnet.blockfrost.io/api/v0"
+AUTH_ID=$(cat $preDir/../../blockfrost.id)
+URL="https://cardano-preview.blockfrost.io/api/v0"
 
 
 bf_query_address() {
@@ -29,27 +29,50 @@ bf_get_first_utxo_of_address() {
 #      from Blockfrost.
 keep_utxos_with_asset() {
   echo $2 \
-    | jq -c --arg authAsset "$1" 'map(
-        select(
-          .amount | .[] | contains (
-            { "unit": $authAsset
-            }
-          )
-        )
-      )'
+    | jq -c --arg authAsset "$1" 'map(select((.amount | .[1] | .unit) == $authAsset))'
 }
 
 
+# An intermediate function to be used by `reconstruct_utxos`.
+#
+# Takes 1 argument:
+#   1. The JSON value containing list of UTxO's returned
+#      from Blockfrost.
+helper_reconstruct_utxos(){
+  echo $1 \
+    | jq -c --arg datumJSON "$datumJSON" 'map(
+      { utxo: (.tx_hash + "#" + (.tx_index|tostring))
+      , datumCBOR: .inline_datum
+      , lovelace: (.amount | .[0] | .quantity)
+      })'
+}
+
+
+# Converts the CBOR of the inline datum to the value itself using the
+# `qvf-cli` application.
+#
 # Takes 1 argument:
 #   1. The JSON value containing list of UTxO's returned
 #      from Blockfrost.
 reconstruct_utxos() {
-  echo $1 \
-    | jq -c 'map(
-      { utxo: (.tx_hash + "#" + (.tx_index|tostring))
-      , datum: .inline_datum
-      , lovelace: (.amount | .[0] | .quantity)
-      })'
+  finalJSON="["
+  count=1
+  len=$(echo "$1" | jq length)
+  for obj in $(helper_reconstruct_utxos "$1" | jq -c .[]); do
+    utxo=$(echo "$obj" | jq -c .utxo)
+    cbor=$(echo "$obj" | jq -c .datumCBOR)
+    datum=$($qvf cbor-to-data $(remove_quotes $cbor) | jq -c fromjson)
+    lovelace=$(echo "$obj" | jq -c .lovelace)
+    newObj="{\"utxo\":$utxo,\"datum\":$datum,\"lovelace\":$lovelace}"
+    if [ $count -eq $len ]; then
+      finalJSON="$finalJSON$newObj"
+    else
+      finalJSON="$finalJSON$newObj,"
+    fi
+    count=$(expr $count + 1)
+  done
+  finalJSON="$finalJSON]"
+  echo $finalJSON
 }
 
 
@@ -63,8 +86,8 @@ reconstruct_utxos() {
 #      without a `.` in between).
 bf_get_utxos_datums_lovelaces() {
   zero=$(bf_query_address $1)
-  one=$(keep_utxos_with_asset $2 $zero)
-  echo $(reconstruct_utxos $one)
+  one=$(keep_utxos_with_asset $2 "$zero")
+  echo $(reconstruct_utxos "$one")
 }
 
 
@@ -99,4 +122,21 @@ bf_get_datum_value_from_hash() {
     -s "$URL/scripts/datum/$1"
 }
 
+
+# Assumes the object format is the one returned by
+# `bf_get_utxos_hashes_lovelaces`.
+#
+# Takes 1 (or 2) argument(s):
+#   1. JSON value with the format described above.
+#   2. (Optional) Custom datum value.
+bf_add_datum_value_to_utxo() {
+  datumHash=$(echo $1 | jq -c .datumHash)
+  datumValue=""
+  if [ ! -z "$2" ]; then
+    datumValue=$(echo $2 | jq -c .)
+  else
+    datumValue=$(bf_get_datum_value_from_hash $(remove_quotes $datumHash) | jq -c .json_value)
+  fi
+  echo $1 | jq -c --arg datumValue "$datumValue" '. += {datumValue: ($datumValue | fromjson)}'
+}
 

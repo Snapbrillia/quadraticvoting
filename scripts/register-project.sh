@@ -15,27 +15,29 @@ cappedSlot=$(cap_deadline_slot $deadlineSlot)
 govUTxOObj="$(bf_get_utxos_datums_lovelaces $qvfAddress $govAsset | jq -c '.[0]')"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
-echo $govCurrDatum > $currentDatumFile
+echo "$govCurrDatum" > $currentDatumFile
 govLovelaces=$(echo $govUTxOObj | jq -c .lovelace)
-deadlineUTxO=$(remove_quotes $(bf_get_utxos_datums_lovelaces $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
+deadlineUTxOObj="$(bf_get_utxos_datums_lovelaces $qvfAddress $deadlineAsset | jq -c '.[0]')"
+deadlineUTxO=$(remove_quotes $($cho $deadlineUTxOObj | jq -c .utxo))
 
 projectOwnerWalletLabel=$1
 projectName=$2
 projectRequestedFund=$3
-projectOwnerAddress=$4
+projectOwnerAddress=$(cat $preDir/$projectOwnerWalletLabel.addr)
 
 projectIdUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
 projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)
 
-$qvf register-project       \
-  $projectIdUTxO            \
-  $projectOwnerPKH          \
-	$projectName              \
-	$projectRequestedFund     \
-  $(cat $fileNamesJSONFile)
+$qvf register-project         \
+  $projectIdUTxO              \
+  $projectOwnerPKH            \
+	$projectName                \
+	$projectRequestedFund       \
+  "$(cat $fileNamesJSONFile)"
 
 # {{{
 projectTokenName=$(cat $projectTokenNameFile)
+echo $projectTokenName >> $registeredProjectsFile
 projectAsset="$regSym.$projectTokenName"
 projectDatumFile="$newDatumFile"
 projectInfoDatumFile="$preDir/$projectTokenName"
@@ -44,8 +46,8 @@ regFeeLovelaces=1500000 # 1.5 ADA, half of the registration fee.
 firstUTxO="$qvfAddr + $govLovelaces lovelace + 1 $govAsset"
 projUTxO="$qvfAddr + $regFeeLovelaces lovelace + 1 $projectAsset"
 
-qvfRefUTxO=$(cat qvfRefUTxOFile)
-regRefUTxO=$(cat regRefUTxOFile)
+qvfRefUTxO=$(cat $qvfRefUTxOFile)
+regRefUTxO=$(cat $regRefUTxOFile)
 
 generate_protocol_params
 

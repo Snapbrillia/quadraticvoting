@@ -54,6 +54,11 @@ get_script_data_hash() {
 
 initiate_fund() {
   # {{{
+  for proj in $(cat $registeredProjectsFile); do
+    rm $preDir/$proj
+  done
+  rm $registeredProjectsFile
+  touch $registeredProjectsFile
   currentSlot=$(get_newest_slot)
 
   # GENERATING SCRIPTS
@@ -83,6 +88,11 @@ initiate_fund() {
   govAsset=$(get_gov_asset)
   deadlineAsset=$(get_deadline_asset)
   # -----------------------------------------------
+  regSym=$($cli transaction policyid --script-file $regScriptFile)
+  echo $regSym > $regSymFile
+  donSym=$($cli transaction policyid --script-file $donScriptFile)
+  echo $donSym > $donSymFile
+
   govLovelaces=1500000 #  1.5 ADA
   firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
   secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
