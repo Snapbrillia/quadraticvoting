@@ -233,10 +233,10 @@ vkey_to_public_key_hash() {
 # 
 # Doesn't take any arguments, uses global variables.
 plutus_script_to_address() {
-    $cli address build-script         \
-        $MAGIC                        \
-        --script-file $mainScriptFile \
-        --out-file $scriptAddressFile
+  $cli address build-script       \
+    $MAGIC                        \
+    --script-file $mainScriptFile \
+    --out-file $scriptAddressFile
 }
 
 

@@ -200,12 +200,12 @@ dev_depletion() {
   $cli $BUILD_TX_CONST_ARGS                                        \
     --tx-in-collateral $collateral                                 \
     --tx-in $(get_first_utxo_of $scriptLabel)                      \
-    --spending-tx-in-reference $(cat qvfRefUTxOFile)               \
+    --spending-tx-in-reference $(cat $qvfRefUTxOFile)              \
     --spending-plutus-script-v2                                    \
     --spending-reference-tx-in-inline-datum-present                \
     --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
     --tx-in $(get_nth_utxo_of $scriptLabel 2)                      \
-    --spending-tx-in-reference $(cat qvfRefUTxOFile)               \
+    --spending-tx-in-reference $(cat $qvfRefUTxOFile)              \
     --spending-plutus-script-v2                                    \
     --spending-reference-tx-in-inline-datum-present                \
     --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
