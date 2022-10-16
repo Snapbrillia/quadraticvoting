@@ -169,19 +169,15 @@ getInputGovernanceUTxOFrom :: CurrencySymbol
                            -> TxOut
 getInputGovernanceUTxOFrom sym tn inputs =
   -- {{{
-  case inputs of
-    txIn : _ ->
+  case find (utxoHasOnlyX sym tn . txInInfoResolved) inputs of
+    Just txIn ->
       -- {{{
-      if utxoHasX sym (Just tn) $ txInInfoResolved txIn then
-        txInInfoResolved txIn
-      else
-        traceError
-          "The first inputs must carry the governance asset of the context."
+      txInInfoResolved txIn
       -- }}}
-    _        ->
+    Nothing   ->
       -- {{{
       traceError
-        "Zero inputs (impossible)."
+        "Governance asset missing."
       -- }}}
   -- }}}
 

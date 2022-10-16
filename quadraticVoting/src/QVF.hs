@@ -91,7 +91,7 @@ data QVFParams = QVFParams
   , qvfSymbol         :: CurrencySymbol
   , qvfProjectSymbol  :: CurrencySymbol
   , qvfDonationSymbol :: CurrencySymbol
-  }
+  } deriving (Show)
 
 PlutusTx.makeLift ''QVFParams
 -- }}}
@@ -157,10 +157,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
     getTokenNameOfUTxO sym utxo =
       -- {{{
       case flattenValue (txOutValue utxo) of
-        [(sym', tn', amt'), _] ->
+        [(sym', tn', amt'), (sym'', tn'', amt'')] ->
           -- {{{
           if sym' == sym && amt' == 1 then
             Just tn'
+          else if sym'' == sym && amt'' == 1 then
+            Just tn''
           else
             Nothing
           -- }}}
@@ -443,12 +445,17 @@ mkQVFValidator QVFParams{..} datum action ctx =
     projectMintIsPresent :: Bool -> Bool
     projectMintIsPresent mint =
       -- {{{
-      let
-        tn = getCurrTokenName qvfProjectSymbol
-      in
-      traceIfFalse
-        "There should be exactly 2 project assets minted/burnt."
-        (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
+      case flattenValue (txInfoMint info) of
+        [(sym', _, amt')] ->
+             traceIfFalse
+               "Invalid asset is getting minted/burnt."
+               (sym' == qvfProjectSymbol)
+          && traceIfFalse
+               "There should be exactly 2 project assets minted/burnt."
+               (if mint then amt' == 2 else amt' == negate 2)
+        _                 ->
+          traceError "Only one project asset must be minted/burnt."
+               -- (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
       -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.

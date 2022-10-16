@@ -197,21 +197,34 @@ dev_depletion() {
   collateral=$(get_first_utxo_of $keyHolder)
   deadlineAsset=$(get_deadline_asset)
   govAsset=$(get_gov_asset)
-  $cli $BUILD_TX_CONST_ARGS                                        \
-    --tx-in-collateral $collateral                                 \
-    --tx-in $(get_first_utxo_of $scriptLabel)                      \
-    --spending-tx-in-reference $(cat $qvfRefUTxOFile)              \
-    --spending-plutus-script-v2                                    \
-    --spending-reference-tx-in-inline-datum-present                \
-    --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
-    --tx-in $(get_nth_utxo_of $scriptLabel 2)                      \
-    --spending-tx-in-reference $(cat $qvfRefUTxOFile)              \
-    --spending-plutus-script-v2                                    \
-    --spending-reference-tx-in-inline-datum-present                \
-    --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
-    --mint "-1 $deadlineAsset + -1 $govAsset"                      \
-    --mint-script-file $govScriptFile                              \
-    --mint-redeemer-value 1                                        \
+
+  txIn=""
+  # {{{ LOOP TO FIND $txIn 
+  # Creating the complete input list to consume every UTxO sitting at the
+  # script address.
+  #
+  # Since `get_all_input_utxos_at` returns all the UTxOs such that each of them
+  # are prefixed with "--tx-in ", we are using an extra variable ($count), to
+  # handle the intermittent whitespaces.
+  count=0
+  const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer"
+  for i in $(get_all_input_utxos_at $scriptLabel); do
+    if [ $count -eq 0 ]; then
+      txIn="$txIn$i "
+      count=1
+    else
+      txIn="$txIn$i $const "
+      count=0
+    fi
+  done
+  # }}}
+
+  $cli $BUILD_TX_CONST_ARGS                         \
+    --tx-in-collateral $collateral                  \
+    $txIn                                           \
+    --mint "-1 $deadlineAsset + -1 $govAsset"       \
+    --mint-script-file $govScriptFile               \
+    --mint-redeemer-value 1                         \
     --change-address $(cat testnet/$keyHolder.addr)
   sign_and_submit_tx $preDir/$keyHolder.skey
   wait_for_new_slot
@@ -228,4 +241,16 @@ deplete_reference_wallet() {
   wait_for_new_slot
   show_utxo_tables $referenceWallet
   # }}}
+}
+
+dev_reset() {
+  dev_depletion
+  deplete_reference_wallet
+  tidy_up_wallet $keyHolder
+}
+
+dev_restart() {
+  dev_reset
+  cabal install qvf-cli --overwrite-policy=always
+  initiate_fund
 }

@@ -24,7 +24,6 @@ module Minter.Governance where
 
 -- IMPORTS
 -- {{{
-import           Ledger                               ( scriptCurrencySymbol )
 import           Ledger.Value as Value                ( flattenValue )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
@@ -236,7 +235,9 @@ qvfPolicy oref deadline =
   -- }}}
 
 
-qvfSymbol :: TxOutRef -> POSIXTime -> CurrencySymbol
-qvfSymbol oref deadline = scriptCurrencySymbol $ qvfPolicy oref deadline
+-- TODO: Commented out as it seems to generate a different symbol compared to
+--       the one computed by `Cardano.Api`.
+-- qvfSymbol :: TxOutRef -> POSIXTime -> CurrencySymbol
+-- qvfSymbol oref deadline = scriptCurrencySymbol $ qvfPolicy oref deadline
 
 

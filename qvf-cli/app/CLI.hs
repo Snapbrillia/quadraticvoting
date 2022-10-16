@@ -73,6 +73,29 @@ scriptDataToData (ScriptDataBytes bs)         =
   -- }}}
 
 
+scriptToCardanoApiScript :: Ledger.Script -> Script PlutusScriptV2
+scriptToCardanoApiScript =
+  -- {{{
+    PlutusScript PlutusScriptV2
+  . PlutusScriptSerialised
+  . SBS.toShort
+  . LBS.toStrict
+  . serialise
+  -- }}}
+
+
+mintingPolicyToSymbol :: Ledger.MintingPolicy -> Ledger.CurrencySymbol
+mintingPolicyToSymbol =
+  -- {{{
+    fromString
+  . BS8.unpack
+  . serialiseToRawBytesHex
+  . hashScript
+  . scriptToCardanoApiScript
+  . Ledger.getMintingPolicy
+  -- }}}
+
+
 writeJSON :: PlutusTx.ToData a => FilePath -> a -> IO ()
 writeJSON file =
   -- {{{
@@ -601,26 +624,41 @@ main =
               initDatOF = getFileName ocfn ocfnInitialGovDatum
               dlSlotOF  = getFileName ocfn ocfnDeadlineSlot
               dlTNOF    = getFileName ocfn ocfnDeadlineTokenNameHex
-              qvfSymbol = Gov.qvfSymbol txRef dl
-              regSymbol = Reg.registrationSymbol qvfSymbol
-              donSymbol = Don.donationSymbol regSymbol
+              --
+              govPolicy = Gov.qvfPolicy txRef dl
+              govSymbol = mintingPolicyToSymbol govPolicy
+              --
+              regPolicy = Reg.registrationPolicy govSymbol
+              regSymbol = mintingPolicyToSymbol regPolicy
+              --
+              donPolicy = Don.donationPolicy regSymbol
+              donSymbol = mintingPolicyToSymbol donPolicy
+
+          putStrLn "Gov. Symbol:"
+          print govSymbol
+          putStrLn "Reg. Symbol:"
+          print regSymbol
+          putStrLn "Don. Symbol:"
+          print donSymbol
 
           writeTokenNameHex dlTNOF Gov.deadlineTokenName
 
           dlSlot <- getDeadlineSlot currSlot dl
-          govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
-          regRes <- writeMintingPolicy regOF $ Reg.registrationPolicy qvfSymbol
-          donRes <- writeMintingPolicy donOF $ Don.donationPolicy regSymbol
+          govRes <- writeMintingPolicy govOF govPolicy
+          regRes <- writeMintingPolicy regOF regPolicy
+          donRes <- writeMintingPolicy donOF donPolicy
           case (govRes, regRes, donRes) of
             (Right _, Right _, Right _) -> do
               -- {{{
               let qvfParams =
                     OC.QVFParams
                       { OC.qvfKeyHolder      = fromString pkhStr
-                      , OC.qvfSymbol         = qvfSymbol
+                      , OC.qvfSymbol         = govSymbol
                       , OC.qvfProjectSymbol  = regSymbol
                       , OC.qvfDonationSymbol = donSymbol
                       }
+              putStrLn "QVF Parameters:"
+              print qvfParams
               valRes <- writeValidator qvfOF $ OC.qvfValidator qvfParams
               case valRes of
                 Right _ -> do

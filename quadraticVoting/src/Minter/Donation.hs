@@ -15,7 +15,6 @@
 
 module Minter.Donation where
 
-import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V2.Ledger.Api
@@ -227,8 +226,8 @@ donationPolicy sym =
   -- }}}
 
 
-donationSymbol :: CurrencySymbol -> CurrencySymbol
-donationSymbol = scriptCurrencySymbol . donationPolicy
+-- donationSymbol :: CurrencySymbol -> CurrencySymbol
+-- donationSymbol = scriptCurrencySymbol . donationPolicy
 -- }}}
 
 
