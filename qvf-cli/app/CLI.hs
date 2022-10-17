@@ -167,8 +167,9 @@ hexStringToByteString str =
         'f' -> Just 15
         _   -> Nothing
       -- }}}
-    go []                (_, soFar)     = Just $ LBS.pack soFar
-    go (currChar : rest) (mPrev, soFar) =
+    go []                (Just _, soFar) = Nothing
+    go []                (_, soFar)      = Just $ LBS.pack soFar
+    go (currChar : rest) (mPrev, soFar)  =
       case mPrev of
         Just prev ->
           -- {{{
