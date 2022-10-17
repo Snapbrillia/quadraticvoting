@@ -47,12 +47,12 @@ args="
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
   --tx-in $donatorIdUTxO                                    \
   --tx-in-collateral $donatorIdUTxO                         \
-  --tx-out \"$projUTxO\"                                   \
+  --tx-out \"$projUTxO\"                                    \
   --tx-out-inline-datum-file $updatedDatumFile              \
-  --tx-out \"$donateUTxO\"                                    \
+  --tx-out \"$donateUTxO\"                                  \
   --tx-out-inline-datum-file $newDatumFile                  \
   --invalid-hereafter $cappedSlot                           \
-  --mint \"2 $donateAsset\"                                \
+  --mint \"2 $donateAsset\"                                 \
   --mint-tx-in-reference $donRefUTxO                        \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
@@ -71,12 +71,12 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
   --tx-in $donatorIdUTxO                                    \
   --tx-in-collateral $donatorIdUTxO                         \
-  --tx-out "$projUTxO"                                     \
-  --tx-out-inline-datum-file $updatedDatumFile                  \
-  --tx-out "$donateUTxO"                                      \
-  --tx-out-inline-datum-file $newDatumFile                  \           
+  --tx-out "$projUTxO"                                      \
+  --tx-out-inline-datum-file $updatedDatumFile              \
+  --tx-out "$donateUTxO"                                    \
+  --tx-out-inline-datum-file $newDatumFile                  \
   --invalid-hereafter $cappedSlot                           \
-  --mint "2 $donateAsset"                                  \
+  --mint "2 $donateAsset"                                   \
   --mint-tx-in-reference $donRefUTxO                        \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
