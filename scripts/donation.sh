@@ -26,7 +26,7 @@ donatorIdUTxO=$(get_first_utxo_of $donatorWalletLabel)
 donatorOwnerPKH=$(cat $preDir/$donatorWalletLabel.pkh)
 
 donateTokenName="$projectAsset"
-donateAsset="$regSym.$donateTokenName"
+donateAsset="$donSym.$donateTokenName"
 
 # get projectUtxo assets
 projUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
