@@ -4,6 +4,10 @@
 . scripts/initiation.sh
 . scripts/blockfrost.sh
 
+donatorWalletLabel=$1
+donateAmount=$2
+projectTokenName=$3
+
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
@@ -19,13 +23,10 @@ projectUtxo=$(remove_quotes $(echo $projectUtxoObj | jq -c .utxo))
 projectLovelaces=$(remove_quotes $(echo $projectUtxoObj | jq -c .lovelace))
 deadlineUTxO=$(remove_quotes $(bf_get_utxos_datums_lovelaces $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
 
-donatorWalletLabel=$1
-donateAmount=$2
-
 donatorIdUTxO=$(get_first_utxo_of $donatorWalletLabel)
 donatorOwnerPKH=$(cat $preDir/$donatorWalletLabel.pkh)
 
-donateTokenName="$projectAsset"
+donateTokenName="$projectTokenName"
 donateAsset="$donSym.$donateTokenName"
 
 # get projectUtxo assets
@@ -52,7 +53,7 @@ args="
   --tx-out \"$donateUTxO\"                                  \
   --tx-out-inline-datum-file $newDatumFile                  \
   --invalid-hereafter $cappedSlot                           \
-  --mint \"2 $donateAsset\"                                 \
+  --mint \"1 $donateAsset\"                                 \
   --mint-tx-in-reference $donRefUTxO                        \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
@@ -76,7 +77,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --tx-out "$donateUTxO"                                    \
   --tx-out-inline-datum-file $newDatumFile                  \
   --invalid-hereafter $cappedSlot                           \
-  --mint "2 $donateAsset"                                   \
+  --mint "1 $donateAsset"                                   \
   --mint-tx-in-reference $donRefUTxO                        \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
