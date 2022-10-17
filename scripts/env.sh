@@ -30,7 +30,7 @@ remove_quotes() {
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 touch $fileNamesJSONFile
-echo "{ \"ocfnPreDir\"              : \"$preDir\""                              > $fileNamesJSONFile
+echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
 echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile

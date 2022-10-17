@@ -34,10 +34,12 @@ import           Utils
 data RegistrationRedeemer
   = RegisterProject RegistrationInfo
   | ConcludeAndRefund BuiltinByteString
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
   , ('ConcludeAndRefund, 1)
+  , ('Dev              , 10)
   ]
 -- }}}
 
@@ -218,6 +220,9 @@ mkRegistrationPolicy sym tn action ctx =
           traceError "Exactly 2 project inputs are expected."
           -- }}}
       -- }}}
+    -- TODO: REMOVE.
+    Dev                                  ->
+      True
   -- }}}
 
 

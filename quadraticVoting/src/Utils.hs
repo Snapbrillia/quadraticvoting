@@ -21,6 +21,13 @@ module Utils where
 
 -- IMPORTS
 -- {{{
+import qualified Cardano.Api                 as Cardano
+import           Cardano.Api.Shelley         ( PlutusScript(PlutusScriptSerialised) )
+import qualified Codec.Serialise             as Codec
+import qualified Data.ByteString.Char8       as BS8
+import qualified Data.ByteString.Lazy        as LBS
+import qualified Data.ByteString.Short       as SBS
+import           Data.String                 ( fromString )
 import qualified Ledger.Ada                  as Ada
 import           Plutus.V1.Ledger.Value      ( flattenValue )
 import           Plutus.V2.Ledger.Api
@@ -38,6 +45,29 @@ import           Data.Datum
 -- {{{
 lovelaceToAda :: Integer -> P.Double
 lovelaceToAda lovelace = P.fromIntegral lovelace P./ 1_000_000
+
+
+scriptToCardanoApiScript :: Script -> Cardano.Script Cardano.PlutusScriptV2
+scriptToCardanoApiScript =
+  -- {{{
+    Cardano.PlutusScript Cardano.PlutusScriptV2
+  . PlutusScriptSerialised
+  . SBS.toShort
+  . LBS.toStrict
+  . Codec.serialise
+  -- }}}
+
+
+mintingPolicyToSymbol :: MintingPolicy -> CurrencySymbol
+mintingPolicyToSymbol =
+  -- {{{
+    fromString
+  . BS8.unpack
+  . Cardano.serialiseToRawBytesHex
+  . Cardano.hashScript
+  . scriptToCardanoApiScript
+  . getMintingPolicy
+  -- }}}
 -- }}}
 
 
@@ -169,12 +199,12 @@ getInputGovernanceUTxOFrom :: CurrencySymbol
                            -> TxOut
 getInputGovernanceUTxOFrom sym tn inputs =
   -- {{{
-  case find (utxoHasOnlyX sym tn . txInInfoResolved) inputs of
-    Just txIn ->
+  case filter (utxoHasOnlyX sym tn . txInInfoResolved) inputs of
+    [txIn] ->
       -- {{{
       txInInfoResolved txIn
       -- }}}
-    Nothing   ->
+    _      ->
       -- {{{
       traceError
         "Governance asset missing."
