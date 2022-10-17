@@ -105,8 +105,6 @@ initiate_fund() {
   firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
   secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
 
-  unit="{\"constructor\":1,\"fields\":[]}"
-
   generate_protocol_params
 
   # Transaction to mint 2 governance tokens, and include 1 in two UTxOs
@@ -224,7 +222,7 @@ dev_depletion() {
   # are prefixed with "--tx-in ", we are using an extra variable ($count), to
   # handle the intermittent whitespaces.
   count=0
-  const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer"
+  const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
   for i in $(get_all_input_utxos_at $scriptLabel); do
     if [ $count -eq 0 ]; then
       txIn="$txIn$i "
