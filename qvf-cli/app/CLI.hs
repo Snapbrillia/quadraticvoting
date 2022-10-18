@@ -27,6 +27,7 @@ import           Data.String                ( fromString )
 import           Data.Time.Clock.POSIX      ( getPOSIXTime )
 import           GHC.Generics               ( Generic )
 import           Plutus.V1.Ledger.Api       ( fromBuiltin
+                                            , toBuiltin
                                             , BuiltinByteString )
 import           Plutus.V1.Ledger.Value     ( TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
@@ -37,6 +38,7 @@ import           System.Environment         ( getArgs )
 import           Text.Read                  ( readMaybe )
 
 import           Data.Datum
+import           Data.DonationInfo
 import           Data.Redeemer
 import           Data.RegistrationInfo
 
@@ -167,9 +169,9 @@ hexStringToByteString str =
         'f' -> Just 15
         _   -> Nothing
       -- }}}
-    go []                (Just _, soFar) = Nothing
-    go []                (_, soFar)      = Just $ LBS.pack soFar
-    go (currChar : rest) (mPrev, soFar)  =
+    go []                (Just _, _    ) = Nothing
+    go []                (_     , soFar) = Just $ LBS.pack soFar
+    go (currChar : rest) (mPrev , soFar) =
       case mPrev of
         Just prev ->
           -- {{{
@@ -273,11 +275,6 @@ main =
     -- {{{
     helpCurrDatum      :: String
     helpCurrDatum      = "<current.datum>"
-    helpUpdatedDatum   :: String
-    helpUpdatedDatum   = "<updated.datum>"
-    helpRedeemer       :: String
-    helpRedeemer       = "<action.redeemer>"
-    commonLastThree    = [helpCurrDatum, helpUpdatedDatum, helpRedeemer]
     toHexHelp          :: String
     toHexHelp          =
       -- {{{
@@ -336,6 +333,23 @@ main =
         , "{file-names-json}"
         ]
       -- }}}
+    donationHelp       :: String
+    donationHelp       =
+      -- {{{
+      makeHelpText
+        (    "Read the current datum from disk, and write the corresponding files:\n"
+          ++ "\t\t- Updated project datum,\n"
+          ++ "\t\t- New donation datum,\n"
+          ++ "\t\t- Redeemer for the QVF validator,\n"
+          ++ "\t\t- Redeemer for the donation policy."
+        )
+        "donate-to-project"
+        "<donors-pub-key-hash>"
+        [ "<target-project-id>"
+        , "<donation-amount>"
+        , "{file-names-json}"
+        ]
+      -- }}}
     prettyDatumHelp    :: String
     prettyDatumHelp    =
       -- {{{
@@ -387,6 +401,7 @@ main =
       ++ "Utility:\n"
       ++ "\tqvf-cli generate scripts  --help\n"
       ++ "\tqvf-cli register-project  --help\n"
+      ++ "\tqvf-cli donate-to-project --help\n"
       ++ "\tqvf-cli pretty-datum      --help\n"
       ++ "\tqvf-cli data-to-cbor      --help\n"
       ++ "\tqvf-cli cbor-to-data      --help\n"
@@ -436,6 +451,8 @@ main =
       case action of
         "register-project"     ->
           putStrLn registrationHelp
+        "donate-to-project"    ->
+          putStrLn donationHelp
         "pretty-datum"         ->
           putStrLn prettyDatumHelp
         "data-to-cbor"         ->
@@ -564,9 +581,6 @@ main =
       let diff = deadline - currPOSIX
       return $ diff `div` slotLength + currSlot
       -- }}}
-
-    mapKeyForKeyHolder :: String
-    mapKeyForKeyHolder = "keyHolder"
     -- }}}
   in do
   allArgs <- getArgs
@@ -749,6 +763,63 @@ main =
             ++ lbl
             ++ " "
             ++ reqFundStr
+            ++ " "
+            ++ fileNamesJSON
+          -- }}}
+      -- }}}
+    "donate-to-project" : pkhStr : projIdStr : amtStr : fileNamesJSON : _                      ->
+      -- {{{
+      case (hexStringToByteString projIdStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
+        (Just projId, Just amt, Just ocfn) ->
+          -- {{{
+          let
+            projId'     :: BuiltinByteString
+            projId'     = toBuiltin $ LBS.toStrict projId
+
+            govRedeemer :: QVFAction
+            govRedeemer = DonateToProject projId'
+
+            donorPKH    :: Ledger.PubKeyHash
+            donorPKH    = fromString pkhStr
+
+            donInfo     :: DonationInfo
+            donInfo     = DonationInfo projId' donorPKH amt
+
+            donRedeemer :: Don.DonationRedeemer
+            donRedeemer = Don.DonateToProject donInfo
+          in
+          actOnCurrentDatum ocfn govRedeemer (Just donRedeemer) $ \case
+            ReceivedDonationsCount soFar ->
+              -- {{{
+              let
+                updatedDatum      :: QVFDatum
+                updatedDatum      = ReceivedDonationsCount $ soFar + 1
+                updatedDatumFile  :: FilePath
+                updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+
+                newDatum          :: QVFDatum
+                newDatum          = Donation donorPKH
+                newDatumFile      :: FilePath
+                newDatumFile      = getFileName ocfn ocfnNewDatum
+              in do
+              andPrintSuccess updatedDatumFile $
+                writeJSON updatedDatumFile updatedDatum
+              andPrintSuccess newDatumFile $
+                writeJSON newDatumFile newDatum
+              -- }}}
+            _                            ->
+              -- {{{
+              putStrLn "FAILED: Provided current datum is incompatible."
+              -- }}}
+          -- }}}
+        _                                    ->
+          -- {{{
+          putStrLn $ "FAILED with bad arguments: "
+            ++ pkhStr
+            ++ " "
+            ++ projIdStr
+            ++ " "
+            ++ amtStr
             ++ " "
             ++ fileNamesJSON
           -- }}}

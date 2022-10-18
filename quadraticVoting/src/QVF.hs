@@ -529,15 +529,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
-    (ReceivedDonationsCount _                     , DonateToProject donInfo) ->
+    (ReceivedDonationsCount _                     , DonateToProject projId ) ->
       -- Project Donation
       -- {{{
-      let
-        tn = TokenName $ diProjectId donInfo
-      in
          traceIfFalse
            "There should be exactly 1 donation asset minted."
-           (mintIsPresent qvfDonationSymbol tn 1)
+           (mintIsPresent qvfDonationSymbol (TokenName projId) 1)
       && canRegisterOrDonate
       -- }}}
 
