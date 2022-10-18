@@ -77,7 +77,8 @@ import           Data.DonationInfo
 import           Data.Redeemer
 import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
-import           Minter.Governance                    ( qvfTokenName )
+import           Minter.Governance                    ( qvfTokenName
+                                                      , deadlineTokenName )
 import qualified Minter.Registration
 import           Utils
 -- }}}
@@ -447,7 +448,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     canRegisterOrDonate :: () -> Bool
     canRegisterOrDonate _ =
       -- {{{
-      case getDatumFromRefX qvfSymbol qvfTokenName of
+      case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
           traceIfFalse "This funding round is over." $ deadlineNotReached dl
         _                ->
@@ -461,7 +462,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     canFoldOrDistribute :: () -> Bool
     canFoldOrDistribute _ =
       -- {{{
-      case getDatumFromRefX qvfSymbol qvfTokenName of
+      case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
           traceIfFalse "This funding round is still in progress." $ deadlineReached dl
         _                ->
@@ -551,11 +552,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (deadlineReached newDl)
       && traceIfFalse
            "Missing authentication asset."
-           (currUTxOHasX qvfSymbol qvfTokenName)
+           (currUTxOHasX qvfSymbol deadlineTokenName)
       && validateSingleOutput
            Nothing
            (Just $ DeadlineDatum newDl)
-           (Just (qvfSymbol, qvfTokenName))
+           (Just (qvfSymbol, deadlineTokenName))
       -- }}}
 
     (RegisteredProjectsCount _                    , RegisterProject        ) ->

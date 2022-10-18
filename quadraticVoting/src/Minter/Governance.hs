@@ -40,17 +40,23 @@ import           Utils
 
 {-# INLINABLE qvfTokenName #-}
 qvfTokenName :: TokenName
-qvfTokenName = TokenName "QVF"
+qvfTokenName = emptyTokenName
+
+
+{-# INLINABLE deadlineTokenName #-}
+deadlineTokenName :: TokenName
+deadlineTokenName = TokenName "D"
 
 
 {-# INLINABLE mkQVFPolicy #-}
 mkQVFPolicy :: TxOutRef
             -> POSIXTime
             -> TokenName
+            -> TokenName
             -> BuiltinData
             -> ScriptContext
             -> Bool
-mkQVFPolicy oref deadline tn _ ctx =
+mkQVFPolicy oref deadline dlTN tn _ ctx =
   -- {{{
   let
     info :: TxInfo
@@ -75,12 +81,20 @@ mkQVFPolicy oref deadline tn _ ctx =
     checkMintedAmount =
       -- {{{
       case flattenValue (txInfoMint info) of
-        [(_, tn', amt)] ->
+        [(_, dlTN', dlAmt'), (_, tn', amt')] ->
           -- {{{
-          if tn' == tn then
-            traceIfFalse "Exactly 2 tokens must be minted" (amt == 2)
-          else
-            traceError "Bad token name."
+             traceIfFalse
+               "Bad deadline token name."
+               (dlTN' == dlTN)
+          && traceIfFalse
+               "Bad main token name."
+               (tn' == tn)
+          && traceIfFalse
+               "Exactly 1 deadline token must be minted."
+               (dlAmt' == 1)
+          && traceIfFalse
+               "Exactly 1 main token must be minted"
+               (amt' == 1)
           -- }}}
         _              ->
           -- {{{
@@ -92,7 +106,7 @@ mkQVFPolicy oref deadline tn _ ctx =
       -- {{{
          traceIfFalse
            "Missing governance token in the deadline UTxO."
-           (utxoHasX ownSym (Just tn) o0)
+           (utxoHasX ownSym (Just dlTN) o0)
       && traceIfFalse
            "Missing governance token in the main UTxO."
            (utxoHasX ownSym (Just tn) o1)
@@ -211,11 +225,13 @@ qvfPolicy oref deadline =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \oref' deadline' tn' -> wrap $ mkQVFPolicy oref' deadline' tn' ||])
+    $$(PlutusTx.compile [|| \oref' deadline' dlTN' tn' -> wrap $ mkQVFPolicy oref' deadline' dlTN' tn' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode oref
     `PlutusTx.applyCode`
     PlutusTx.liftCode deadline
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode deadlineTokenName
     `PlutusTx.applyCode`
     PlutusTx.liftCode qvfTokenName
   -- }}}

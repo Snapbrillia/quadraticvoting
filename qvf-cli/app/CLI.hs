@@ -252,14 +252,14 @@ main =
         (    "Generate the compiled Plutus validation and minting scripts.\n\n"
 
           ++ "\tThe JSON for file names should have these fields:\n\n"
-          ++ "\t\t{ ocfnTokenNameHex       :: String\n"
-          ++ "\t\t, ocfnGovernanceMinter   :: String\n"
-          ++ "\t\t, ocfnRegistrationMinter :: String\n"
-          ++ "\t\t, ocfnDonationMinter     :: String\n"
-          ++ "\t\t, ocfnQVFMainValidator   :: String\n"
-          ++ "\t\t, ocfnDeadlineSlot       :: String\n"
-          ++ "\t\t, ocfnDeadlineDatum      :: String\n"
-          ++ "\t\t, ocfnInitialGovDatum    :: String\n"
+          ++ "\t\t{ ocfnDeadlineTokenNameHex :: String\n"
+          ++ "\t\t, ocfnGovernanceMinter     :: String\n"
+          ++ "\t\t, ocfnRegistrationMinter   :: String\n"
+          ++ "\t\t, ocfnDonationMinter       :: String\n"
+          ++ "\t\t, ocfnQVFMainValidator     :: String\n"
+          ++ "\t\t, ocfnDeadlineSlot         :: String\n"
+          ++ "\t\t, ocfnDeadlineDatum        :: String\n"
+          ++ "\t\t, ocfnInitialGovDatum      :: String\n"
           ++ "\t\t}"
         )
         "generate scripts"
@@ -478,7 +478,7 @@ main =
               regSymbol  = Reg.registrationSymbol qvfSymbol
               donSymbol  = Don.donationSymbol regSymbol
 
-          writeTokenNameHex ocfnTokenNameHex Gov.qvfTokenName
+          writeTokenNameHex ocfnDeadlineTokenNameHex Gov.deadlineTokenName
 
           dlSlot <- getDeadlineSlot currSlot dl
           govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
@@ -589,14 +589,14 @@ instance Show OutputPlutus where
 
 
 data OffChainFileNames = OffChainFileNames
-  { ocfnTokenNameHex       :: String
-  , ocfnGovernanceMinter   :: String
-  , ocfnRegistrationMinter :: String
-  , ocfnDonationMinter     :: String
-  , ocfnQVFMainValidator   :: String
-  , ocfnDeadlineSlot       :: String
-  , ocfnDeadlineDatum      :: String
-  , ocfnInitialGovDatum    :: String
+  { ocfnDeadlineTokenNameHex :: String
+  , ocfnGovernanceMinter     :: String
+  , ocfnRegistrationMinter   :: String
+  , ocfnDonationMinter       :: String
+  , ocfnQVFMainValidator     :: String
+  , ocfnDeadlineSlot         :: String
+  , ocfnDeadlineDatum        :: String
+  , ocfnInitialGovDatum      :: String
   } deriving (Generic, A.ToJSON, A.FromJSON)
 
 
