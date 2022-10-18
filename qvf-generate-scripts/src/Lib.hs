@@ -18,6 +18,7 @@ import qualified QVF                  as OC
 import qualified Minter.Donation      as Don
 import qualified Minter.Governance    as Gov
 import qualified Minter.Registration  as Reg
+import           Utils                ( mintingPolicyToSymbol )
 
 data GenerateScriptsParams = GenerateScriptsParams
   { keyHolderPubKeyHash :: PubKeyHash
@@ -41,9 +42,12 @@ handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScri
 handler GenerateScriptsParams{..} _ = 
   return $ Right GenerateScriptsResponse{..}
   where 
-    qvfSymbol = Gov.qvfSymbol txRef deadline
-    regSymbol = Reg.registrationSymbol qvfSymbol
-    donSymbol = Don.donationSymbol regSymbol
+    governancePolicy   = Gov.qvfPolicy txRef deadline
+    qvfSymbol          = mintingPolicyToSymbol governancePolicy 
+    registrationPolicy = Reg.registrationPolicy qvfSymbol
+    regSymbol          = mintingPolicyToSymbol registrationPolicy
+    donationPolicy     = Don.donationPolicy regSymbol
+    donSymbol          = mintingPolicyToSymbol donationPolicy
     qvfParams = OC.QVFParams
                  { OC.qvfKeyHolder      = keyHolderPubKeyHash
                  , OC.qvfSymbol         = qvfSymbol
@@ -51,8 +55,5 @@ handler GenerateScriptsParams{..} _ =
                  , OC.qvfDonationSymbol = donSymbol
                  }
     validator          = OC.qvfValidator qvfParams
-    governancePolicy   = Gov.qvfPolicy txRef deadline
-    registrationPolicy = Reg.registrationPolicy qvfSymbol
-    donationPolicy     = Don.donationPolicy regSymbol
     unitRedeemer       = ()
     initialDatum       = RegisteredProjectsCount 0

@@ -12,7 +12,7 @@ module Main (main) where
 import Debug.Trace (trace)
 
 import           Cardano.Api
-import           Cardano.Api.Shelley        ( PlutusScript (..) )
+import           Cardano.Api.Shelley        ( PlutusScript(..) )
 import           Codec.Serialise            ( Serialise
                                             , serialise )
 import qualified Data.Aeson                 as A
@@ -70,29 +70,6 @@ scriptDataToData (ScriptDataNumber n)         =
   I n
 scriptDataToData (ScriptDataBytes bs)         =
   B bs
-  -- }}}
-
-
-scriptToCardanoApiScript :: Ledger.Script -> Script PlutusScriptV2
-scriptToCardanoApiScript =
-  -- {{{
-    PlutusScript PlutusScriptV2
-  . PlutusScriptSerialised
-  . SBS.toShort
-  . LBS.toStrict
-  . serialise
-  -- }}}
-
-
-mintingPolicyToSymbol :: Ledger.MintingPolicy -> Ledger.CurrencySymbol
-mintingPolicyToSymbol =
-  -- {{{
-    fromString
-  . BS8.unpack
-  . serialiseToRawBytesHex
-  . hashScript
-  . scriptToCardanoApiScript
-  . Ledger.getMintingPolicy
   -- }}}
 
 
@@ -190,8 +167,9 @@ hexStringToByteString str =
         'f' -> Just 15
         _   -> Nothing
       -- }}}
-    go []                (_, soFar)     = Just $ LBS.pack soFar
-    go (currChar : rest) (mPrev, soFar) =
+    go []                (Just _, soFar) = Nothing
+    go []                (_, soFar)      = Just $ LBS.pack soFar
+    go (currChar : rest) (mPrev, soFar)  =
       case mPrev of
         Just prev ->
           -- {{{
@@ -633,12 +611,18 @@ main =
               --
               donPolicy = Don.donationPolicy regSymbol
               donSymbol = mintingPolicyToSymbol donPolicy
+              --
+              yellow    = "\ESC[38:5:220m"
+              red       = "\ESC[38:5:160m"
+              green     = "\ESC[38:5:77m"
+              purple    = "\ESC[38:5:127m"
+              noColor   = "\ESC[0m"
 
-          putStrLn "Gov. Symbol:"
+          putStrLn $ yellow ++ "\nGov. Symbol:"
           print govSymbol
-          putStrLn "Reg. Symbol:"
+          putStrLn $ red ++ "\nReg. Symbol:"
           print regSymbol
-          putStrLn "Don. Symbol:"
+          putStrLn $ green ++ "\nDon. Symbol:"
           print donSymbol
 
           writeTokenNameHex dlTNOF Gov.deadlineTokenName
@@ -657,8 +641,9 @@ main =
                       , OC.qvfProjectSymbol  = regSymbol
                       , OC.qvfDonationSymbol = donSymbol
                       }
-              putStrLn "QVF Parameters:"
+              putStrLn $ purple ++ "\nQVF Parameters:"
               print qvfParams
+              putStrLn noColor
               valRes <- writeValidator qvfOF $ OC.qvfValidator qvfParams
               case valRes of
                 Right _ -> do

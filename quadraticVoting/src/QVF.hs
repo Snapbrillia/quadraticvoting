@@ -91,7 +91,16 @@ data QVFParams = QVFParams
   , qvfSymbol         :: CurrencySymbol
   , qvfProjectSymbol  :: CurrencySymbol
   , qvfDonationSymbol :: CurrencySymbol
-  } deriving (Show)
+  }
+
+instance Show QVFParams where
+  show QVFParams{..} =
+         "QVFParams"
+    P.++ "\n  { qvfKeyHolder      = " P.++ show qvfKeyHolder
+    P.++ "\n  , qvfSymbol         = " P.++ show qvfSymbol
+    P.++ "\n  , qvfProjectSymbol  = " P.++ show qvfProjectSymbol
+    P.++ "\n  , qvfDonationSymbol = " P.++ show qvfDonationSymbol
+    P.++ "\n  }"
 
 PlutusTx.makeLift ''QVFParams
 -- }}}
@@ -157,12 +166,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
     getTokenNameOfUTxO sym utxo =
       -- {{{
       case flattenValue (txOutValue utxo) of
-        [(sym', tn', amt'), (sym'', tn'', amt'')] ->
+        [(sym', tn', amt'), _] ->
           -- {{{
           if sym' == sym && amt' == 1 then
             Just tn'
-          else if sym'' == sym && amt'' == 1 then
-            Just tn''
           else
             Nothing
           -- }}}

@@ -41,6 +41,7 @@ library
                      , plutus-script-utils
                      , plutus-tx-plugin
                      , plutus-tx
+                     , serialise
 
   ghc-options:         -Wall 
                        -fobject-code

@@ -33,10 +33,12 @@ import           Utils
 data DonationRedeemer
   = DonateToProject DonationInfo
   | FoldDonations   BuiltinByteString -- ^ Project's identifier
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
   , ('FoldDonations   ,1)
+  , ('Dev             ,10)
   ]
 -- }}}
 
@@ -206,6 +208,9 @@ mkDonationPolicy sym action ctx =
             "Project UTxO must carry the proper datum to allow burning of its donation tokens."
           -- }}}
       -- }}}
+    -- TODO: REMOVE.
+    Dev                              ->
+      True
   -- }}}
 
 

@@ -20,7 +20,6 @@ executable qvf-cli
 
   build-depends:       aeson
                      , base >= 4.9 && < 5
-                     , base16-bytestring
                      , bytestring
                      , cardano-api
                      , cardano-binary
