@@ -513,14 +513,16 @@ get_all_script_utxos_datums_values() {
     'to_entries
     | map(select((.value | .value | to_entries | length) == 2))
     | map
-        ( { utxo: .key
+        ( ( .value
+          | .value
+          | to_entries
+          | map(select(.key != "lovelace"))
+          ) as $notLovelace
+        | { utxo: .key
           , datum: (.value | .inlineDatum)
           , lovelace: (.value | .value | .lovelace)
           , asset:
-              ( .value
-              | .value
-              | to_entries
-              | map(select(.key != "lovelace"))
+              ( $notLovelace
               | map
                   ( (.value | to_entries | map(.key) | .[0]) as $tn
                   | .key + (if $tn == "" then "" else ("." + $tn) end)
@@ -528,10 +530,7 @@ get_all_script_utxos_datums_values() {
               | .[0]
               )
           , assetCount:
-              ( .value
-              | .value
-              | to_entries
-              | map(select(.key != "lovelace"))
+              ( $notLovelace
               | map(.value | to_entries | map(.value) | .[])
               | .[0]
               )
@@ -545,6 +544,11 @@ get_all_script_utxos_datums_values() {
 #   2. Authentication asset ("$currencySymbol.$tokenName").
 get_script_utxos_datums_values() {
   get_all_script_utxos_datums_values $1 | jq -c --arg authAsset "$2" 'map(select(.asset == $authAsset))'
+}
+
+
+get_script_total_lovelaces() {
+  get_all_script_utxos_datums_values $1 | jq 'map(.lovelace) | reduce .[] as $l (0; . + $l)'
 }
 
 
