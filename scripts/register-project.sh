@@ -74,6 +74,6 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --policy-id $regSym                                       \
   --change-address $projectOwnerAddress
 
-sign_and_submit_tx $keyHoldersSigningKeyFile $preDir/$1.skey
+sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey
 wait_for_new_slot
 # }}}
