@@ -3,10 +3,20 @@ export MAGIC='--testnet-magic 2'
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
 export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
 export preDir="$HOME/code/quadraticvoting/testnet"
-export cli="$HOME/preview-testnet/cardano-cli"
-# export qvf="qvf-cli"
-export qvf="cabal run qvf-cli --"
+export cli="cardano-cli"
+# export cli="$HOME/preview-testnet/cardano-cli"
+export qvf="qvf-cli"
+# export qvf="cabal run qvf-cli --"
 # ========================================== #
+
+# Removes the single quotes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_single_quotes() {
+  echo $1           \
+  | sed 's|['"\'"',]||g'
+}
 
 # Removes the double quotes.
 #
@@ -20,25 +30,33 @@ remove_quotes() {
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 touch $fileNamesJSONFile
-echo "{ \"ocfnDeadlineTokenNameHex\": \"$preDir/deadline-token-name.hex\""      > $fileNamesJSONFile
-echo ", \"ocfnGovernanceMinter\"    : \"$preDir/governance-policy.plutus\""    >> $fileNamesJSONFile
-echo ", \"ocfnGovernanceSymbol\"    : \"$preDir/governance-policy.symbol\""    >> $fileNamesJSONFile
-echo ", \"ocfnQVFGovernanceUTxO\"   : \"$preDir/gov.utxo\""                    >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationMinter\"  : \"$preDir/registration-policy.plutus\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationSymbol\"  : \"$preDir/registration-policy.symbol\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationRefUTxO\" : \"$preDir/registration-policy.refUTxO\"" >> $fileNamesJSONFile
-echo ", \"ocfnDonationMinter\"      : \"$preDir/donation-policy.plutus\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationSymbol\"      : \"$preDir/donation-policy.symbol\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationRefUTxO\"     : \"$preDir/donation-policy.refUTxO\""     >> $fileNamesJSONFile
-echo ", \"ocfnQVFMainValidator\"    : \"$preDir/$scriptLabel.plutus\""         >> $fileNamesJSONFile
-echo ", \"ocfnQVFRefUTxO\"          : \"$preDir/$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
-echo ", \"ocfnContractAddress\"     : \"$preDir/$scriptLabel.addr\""           >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineSlot\"        : \"$preDir/deadline.slot\""               >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineDatum\"       : \"$preDir/deadline.govDatum\""           >> $fileNamesJSONFile
-echo ", \"ocfnInitialGovDatum\"     : \"$preDir/initial.govDatum\""            >> $fileNamesJSONFile
+echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
+echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
+echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
+echo ", \"ocfnQVFGovernanceUTxO\"   : \"gov.utxo\""                    >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationMinter\"  : \"registration-policy.plutus\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationSymbol\"  : \"registration-policy.symbol\""  >> $fileNamesJSONFile
+echo ", \"ocfnRegistrationRefUTxO\" : \"registration-policy.refUTxO\"" >> $fileNamesJSONFile
+echo ", \"ocfnDonationMinter\"      : \"donation-policy.plutus\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationSymbol\"      : \"donation-policy.symbol\""      >> $fileNamesJSONFile
+echo ", \"ocfnDonationRefUTxO\"     : \"donation-policy.refUTxO\""     >> $fileNamesJSONFile
+echo ", \"ocfnQVFMainValidator\"    : \"$scriptLabel.plutus\""         >> $fileNamesJSONFile
+echo ", \"ocfnQVFRefUTxO\"          : \"$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
+echo ", \"ocfnContractAddress\"     : \"$scriptLabel.addr\""           >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineSlot\"        : \"deadline.slot\""               >> $fileNamesJSONFile
+echo ", \"ocfnDeadlineDatum\"       : \"deadline.govDatum\""           >> $fileNamesJSONFile
+echo ", \"ocfnInitialGovDatum\"     : \"initial.govDatum\""            >> $fileNamesJSONFile
+echo ", \"ocfnCurrentDatum\"        : \"current.datum\""               >> $fileNamesJSONFile
+echo ", \"ocfnUpdatedDatum\"        : \"updated.datum\""               >> $fileNamesJSONFile
+echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileNamesJSONFile
+echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
+echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
+echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
+echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.txt\""     >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 getFileName() {
-  remove_quotes $(cat $fileNamesJSONFile | jq -c .$1)
+  echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
 }
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
@@ -51,9 +69,20 @@ export regScriptFile=$(getFileName ocfnRegistrationMinter)
 export regSymFile=$(getFileName ocfnRegistrationSymbol)
 export donScriptFile=$(getFileName ocfnDonationMinter)
 export donSymFile=$(getFileName ocfnDonationSymbol)
+
+# Datums and redeemers:
+export currentDatumFile=$(getFileName ocfnCurrentDatum)
+export updatedDatumFile=$(getFileName ocfnUpdatedDatum)
+export newDatumFile=$(getFileName ocfnNewDatum)
+export qvfRedeemerFile=$(getFileName ocfnQVFRedeemer)
+export minterRedeemerFile=$(getFileName ocfnMinterRedeemer)
  
 export deadlineTokenNameHexFile=$(getFileName ocfnDeadlineTokenNameHex)
 touch $deadlineTokenNameHexFile
+export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
+touch $projectTokenNameFile
+export registeredProjectsFile=$(getFileName ocfnRegisteredProjects)
+touch $registeredProjectsFile
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
@@ -71,6 +100,34 @@ export protocolsFile="$preDir/protocol.json"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
 export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
+
+
+# Generate a fresh protocol parametsrs JSON file.
+generate_protocol_params() {
+    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+}
+
+
+# Takes at least 1 argument:
+#   1. The signing key file.
+#   *. Any additional signing key files.
+sign_tx_by() {
+  signArg=""
+  for i in $@; do
+    signArg="$signArg --signing-key-file $i"
+  done
+  $cli transaction sign    \
+    --tx-body-file $txBody \
+    $signArg               \
+    $MAGIC                 \
+    --out-file $txSigned
+}
+
+
+# Submits $txSigned to the chain.
+submit_tx() {
+  $cli transaction submit $MAGIC --tx-file $txSigned
+}
 
 
 # Takes 1 argument:
@@ -132,6 +189,12 @@ wait_for_new_slot() {
   echo -e "--------------------------------------\n"
 }
 
+sign_and_submit_tx() {
+  sign_tx_by "$@"
+  submit_tx
+  store_current_slot
+}
+
 
 # Generates a key pair.
 #
@@ -171,10 +234,10 @@ vkey_to_public_key_hash() {
 # 
 # Doesn't take any arguments, uses global variables.
 plutus_script_to_address() {
-    $cli address build-script         \
-        $MAGIC                        \
-        --script-file $mainScriptFile \
-        --out-file $scriptAddressFile
+  $cli address build-script       \
+    $MAGIC                        \
+    --script-file $mainScriptFile \
+    --out-file $scriptAddressFile
 }
 
 
@@ -268,10 +331,9 @@ tidy_up_wallet() {
   addr=$(cat $preDir/$1.addr)
   inputs=$(get_all_input_utxos_at $1)
   $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
-  sign_tx_by $preDir/$1.skey
-  submit_tx
-  store_current_slot
+  sign_and_submit_tx $preDir/$1.skey
   wait_for_new_slot
+  show_utxo_tables $1
 }
 
 
@@ -494,36 +556,6 @@ interact_with_smart_contract() {
     $cli transaction submit                       \
         $MAGIC                                    \
         --tx-file tx.signed
-}
-
-
-# Generate a fresh protocol parametsrs JSON file.
-generate_protocol_params() {
-    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
-}
-
-
-# Takes at least 1 argument:
-#   1. The signing key file.
-#   *. Any additional signing key files.
-sign_tx_by() {
-    signArg=""
-    for i in $@; do
-      signArg="$signArg --signing-key-file $i"
-    done
-    $cli transaction sign      \
-        --tx-body-file $txBody \
-        $signArg               \
-        $MAGIC                 \
-        --out-file $txSigned
-}
-
-
-# Submits $txSigned to the chain.
-submit_tx() {
-    $cli transaction submit \
-        $MAGIC              \
-        --tx-file $txSigned
 }
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell

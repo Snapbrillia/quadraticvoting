@@ -9,8 +9,10 @@
 module Main (main) where
 
 
+import Debug.Trace (trace)
+
 import           Cardano.Api
-import           Cardano.Api.Shelley        ( PlutusScript (..) )
+import           Cardano.Api.Shelley        ( PlutusScript(..) )
 import           Codec.Serialise            ( Serialise
                                             , serialise )
 import qualified Data.Aeson                 as A
@@ -18,6 +20,7 @@ import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Short      as SBS
+import qualified Data.Char                  as Char
 import qualified Data.List                  as List
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
@@ -34,11 +37,14 @@ import           System.Environment         ( getArgs )
 import           Text.Read                  ( readMaybe )
 
 import           Data.Datum
+import           Data.Redeemer
+import           Data.RegistrationInfo
 
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
 import qualified Minter.Registration        as Reg
+import           Utils
 
 -- UTILS
 -- {{{
@@ -136,6 +142,58 @@ writeMintingPolicy file =
   -- }}}
 
 
+hexStringToByteString :: String -> Maybe LBS.ByteString
+hexStringToByteString str =
+  -- {{{
+  let
+    helper =
+      -- {{{
+      \case
+        '0' -> Just 0
+        '1' -> Just 1
+        '2' -> Just 2
+        '3' -> Just 3
+        '4' -> Just 4
+        '5' -> Just 5
+        '6' -> Just 6
+        '7' -> Just 7
+        '8' -> Just 8
+        '9' -> Just 9
+        'a' -> Just 10
+        'b' -> Just 11
+        'c' -> Just 12
+        'd' -> Just 13
+        'e' -> Just 14
+        'f' -> Just 15
+        _   -> Nothing
+      -- }}}
+    go []                (Just _, soFar) = Nothing
+    go []                (_, soFar)      = Just $ LBS.pack soFar
+    go (currChar : rest) (mPrev, soFar)  =
+      case mPrev of
+        Just prev ->
+          -- {{{
+          let
+            mVal = do
+              v1 <- helper currChar
+              v0 <- helper prev
+              return $ 16 * v0 + v1
+          in
+          case mVal of
+            Just w ->
+              go rest (Nothing, soFar ++ [w])
+            Nothing ->
+              Nothing
+          -- }}}
+        Nothing   ->
+          -- {{{
+          go rest (Just currChar, soFar)
+          -- }}}
+  in
+  go str (Nothing, [])
+  -- }}}
+
+
 readTxOutRef :: String -> Maybe Ledger.TxOutRef
 readTxOutRef s =
   -- {{{
@@ -153,6 +211,7 @@ readTxOutRef s =
       -- }}}
   -- }}}
 
+
 builtinByteStringToString :: BuiltinByteString -> String
 builtinByteStringToString =
     BS8.unpack
@@ -160,6 +219,7 @@ builtinByteStringToString =
   . fromJust
   . deserialiseFromRawBytes AsAssetName
   . fromBuiltin
+
 
 -- | From PPP's 6th lecture.
 unsafeTokenNameToHex :: TokenName -> String
@@ -170,7 +230,7 @@ unsafeTokenNameToHex =
 
 
 deadlineDatum :: Ledger.POSIXTime -> QVFDatum
-deadlineDatum dl = DeadlineDatum dl
+deadlineDatum = DeadlineDatum
 
 initialGovDatum :: QVFDatum
 initialGovDatum = RegisteredProjectsCount 0
@@ -227,6 +287,55 @@ main =
         "<token-name>"
         ["<output.hex>"]
       -- }}}
+    scriptHelp         :: String
+    scriptHelp         =
+      -- {{{
+      makeHelpText
+        (    "Generate the compiled Plutus validation and minting scripts.\n\n"
+
+          ++ "\tThe JSON for file names should have these fields:\n\n"
+          ++ "\t\t{ ocfnDeadlineTokenNameHex :: String\n"
+          ++ "\t\t, ocfnGovernanceMinter     :: String\n"
+          ++ "\t\t, ocfnRegistrationMinter   :: String\n"
+          ++ "\t\t, ocfnDonationMinter       :: String\n"
+          ++ "\t\t, ocfnQVFMainValidator     :: String\n"
+          ++ "\t\t, ocfnDeadlineSlot         :: String\n"
+          ++ "\t\t, ocfnDeadlineDatum        :: String\n"
+          ++ "\t\t, ocfnInitialGovDatum      :: String\n"
+          ++ "\t\t, ocfnCurrentDatum         :: String\n"
+          ++ "\t\t, ocfnUpdatedDatum         :: String\n"
+          ++ "\t\t, ocfnNewDatum             :: String\n"
+          ++ "\t\t, ocfnQVFRedeemer          :: String\n"
+          ++ "\t\t, ocfnMinterRedeemer       :: String\n"
+          ++ "\t\t}"
+        )
+        "generate scripts"
+        "<key-holder-pub-key-hash>"
+        [ "<txID>#<output-index>"
+        , "<current-slot-number>"
+        , "<deadline-posix-milliseconds>"
+        , "{file-names-json}"
+        ]
+      -- }}}
+    registrationHelp   :: String
+    registrationHelp   =
+      -- {{{
+      makeHelpText
+        (    "Read the current datum from disk, and write the corresponding files:\n"
+          ++ "\t\t- Updated governance datum,\n"
+          ++ "\t\t- New initial project datum,\n"
+          ++ "\t\t- Static datum for project's info,\n"
+          ++ "\t\t- Redeemer for the QVF validator,\n"
+          ++ "\t\t- Redeemer for the registration policy."
+        )
+        "register-project"
+        "<txID>#<output-index>"
+        [ "<project-owner-pub-key-hash>"
+        , "<project-name>"
+        , "<project-requested-fund>"
+        , "{file-names-json}"
+        ]
+      -- }}}
     prettyDatumHelp    :: String
     prettyDatumHelp    =
       -- {{{
@@ -245,30 +354,14 @@ main =
         "{arbitrary-data-json-value}"
         []
       -- }}}
-    scriptHelp         :: String
-    scriptHelp         =
+    cborToDataHelp     :: String
+    cborToDataHelp     =
       -- {{{
       makeHelpText
-        (    "Generate the compiled Plutus validation and minting scripts.\n\n"
-
-          ++ "\tThe JSON for file names should have these fields:\n\n"
-          ++ "\t\t{ ocfnDeadlineTokenNameHex :: String\n"
-          ++ "\t\t, ocfnGovernanceMinter     :: String\n"
-          ++ "\t\t, ocfnRegistrationMinter   :: String\n"
-          ++ "\t\t, ocfnDonationMinter       :: String\n"
-          ++ "\t\t, ocfnQVFMainValidator     :: String\n"
-          ++ "\t\t, ocfnDeadlineSlot         :: String\n"
-          ++ "\t\t, ocfnDeadlineDatum        :: String\n"
-          ++ "\t\t, ocfnInitialGovDatum      :: String\n"
-          ++ "\t\t}"
-        )
-        "generate scripts"
-        "<key-holder-pub-key-hash>"
-        [ "<txID>#<output-index>"
-        , "<current-slot-number>"
-        , "<deadline-posix-milliseconds>"
-        , "{file-names-json}"
-        ]
+        "Return the CBOR encoding of a JSON formatted `Data` value:"
+        "cbor-to-data"
+        "{arbitrary-data-json-value}"
+        []
       -- }}}
     deadlineToSlotHelp :: String
     deadlineToSlotHelp =
@@ -293,8 +386,10 @@ main =
 
       ++ "Utility:\n"
       ++ "\tqvf-cli generate scripts  --help\n"
+      ++ "\tqvf-cli register-project  --help\n"
       ++ "\tqvf-cli pretty-datum      --help\n"
       ++ "\tqvf-cli data-to-cbor      --help\n"
+      ++ "\tqvf-cli cbor-to-data      --help\n"
       ++ "\tqvf-cli string-to-hex     --help\n"
       ++ "\tqvf-cli get-deadline-slot --help\n\n"
 
@@ -339,10 +434,14 @@ main =
     printActionHelp action =
       -- {{{
       case action of
+        "register-project"     ->
+          putStrLn registrationHelp
         "pretty-datum"         ->
           putStrLn prettyDatumHelp
         "data-to-cbor"         ->
           putStrLn dataToCBORHelp
+        "cbor-to-data"         ->
+          putStrLn cborToDataHelp
         "string-to-hex"        ->
           putStrLn toHexHelp
         "get-deadline-slot"    ->
@@ -391,6 +490,34 @@ main =
             putStrLn $ "FAILED to parse data JSON: " ++ parseError
         )
         (putStrLn "FAILED: Improper data.")
+      -- }}}
+
+    actOnCurrentDatum :: PlutusTx.ToData a 
+                      => OffChainFileNames
+                      -> QVFAction
+                      -> Maybe a
+                      -> (QVFDatum -> IO ())
+                      -> IO ()
+    actOnCurrentDatum ocfn qvfRedeemer mMinterRedeemer datumToIO = do
+      -- {{{
+      let datumJSON       = getFileName ocfn ocfnCurrentDatum
+          qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
+      andPrintSuccess qvfRedeemerFile $ writeJSON qvfRedeemerFile qvfRedeemer
+      case mMinterRedeemer of
+        Nothing             ->
+          -- {{{
+          return ()
+          -- }}}
+        Just minterRedeemer ->
+          -- {{{
+          let
+            minterRedeemerFile = getFileName ocfn ocfnMinterRedeemer
+          in
+          andPrintSuccess minterRedeemerFile $
+            writeJSON minterRedeemerFile minterRedeemer
+          -- }}}
+      datumVal <- LBS.readFile datumJSON
+      fromDatumValue datumVal datumToIO
       -- }}}
 
     actOnData :: String -> (QVFDatum -> IO ()) -> IO ()
@@ -465,35 +592,58 @@ main =
           }
       in
       handleScriptGenerationArguments results $
-        \txRef currSlot dl OffChainFileNames{..} -> do
+        \txRef currSlot dl ocfn -> do
           -- {{{
-          let govOF      = ocfnGovernanceMinter
-              regOF      = ocfnRegistrationMinter
-              donOF      = ocfnDonationMinter
-              qvfOF      = ocfnQVFMainValidator
-              dlDatOF    = ocfnDeadlineDatum
-              initDatOF  = ocfnInitialGovDatum
-              dlSlotOF   = ocfnDeadlineSlot
-              qvfSymbol  = Gov.qvfSymbol txRef dl
-              regSymbol  = Reg.registrationSymbol qvfSymbol
-              donSymbol  = Don.donationSymbol regSymbol
+          let govOF     = getFileName ocfn ocfnGovernanceMinter
+              regOF     = getFileName ocfn ocfnRegistrationMinter
+              donOF     = getFileName ocfn ocfnDonationMinter
+              qvfOF     = getFileName ocfn ocfnQVFMainValidator
+              dlDatOF   = getFileName ocfn ocfnDeadlineDatum
+              initDatOF = getFileName ocfn ocfnInitialGovDatum
+              dlSlotOF  = getFileName ocfn ocfnDeadlineSlot
+              dlTNOF    = getFileName ocfn ocfnDeadlineTokenNameHex
+              --
+              govPolicy = Gov.qvfPolicy txRef dl
+              govSymbol = mintingPolicyToSymbol govPolicy
+              --
+              regPolicy = Reg.registrationPolicy govSymbol
+              regSymbol = mintingPolicyToSymbol regPolicy
+              --
+              donPolicy = Don.donationPolicy regSymbol
+              donSymbol = mintingPolicyToSymbol donPolicy
+              --
+              yellow    = "\ESC[38:5:220m"
+              red       = "\ESC[38:5:160m"
+              green     = "\ESC[38:5:77m"
+              purple    = "\ESC[38:5:127m"
+              noColor   = "\ESC[0m"
 
-          writeTokenNameHex ocfnDeadlineTokenNameHex Gov.deadlineTokenName
+          putStrLn $ yellow ++ "\nGov. Symbol:"
+          print govSymbol
+          putStrLn $ red ++ "\nReg. Symbol:"
+          print regSymbol
+          putStrLn $ green ++ "\nDon. Symbol:"
+          print donSymbol
+
+          writeTokenNameHex dlTNOF Gov.deadlineTokenName
 
           dlSlot <- getDeadlineSlot currSlot dl
-          govRes <- writeMintingPolicy govOF $ Gov.qvfPolicy txRef dl
-          regRes <- writeMintingPolicy regOF $ Reg.registrationPolicy qvfSymbol
-          donRes <- writeMintingPolicy donOF $ Don.donationPolicy regSymbol
+          govRes <- writeMintingPolicy govOF govPolicy
+          regRes <- writeMintingPolicy regOF regPolicy
+          donRes <- writeMintingPolicy donOF donPolicy
           case (govRes, regRes, donRes) of
             (Right _, Right _, Right _) -> do
               -- {{{
               let qvfParams =
                     OC.QVFParams
                       { OC.qvfKeyHolder      = fromString pkhStr
-                      , OC.qvfSymbol         = qvfSymbol
+                      , OC.qvfSymbol         = govSymbol
                       , OC.qvfProjectSymbol  = regSymbol
                       , OC.qvfDonationSymbol = donSymbol
                       }
+              putStrLn $ purple ++ "\nQVF Parameters:"
+              print qvfParams
+              putStrLn noColor
               valRes <- writeValidator qvfOF $ OC.qvfValidator qvfParams
               case valRes of
                 Right _ -> do
@@ -531,6 +681,78 @@ main =
               -- }}}
           -- }}}
       -- }}}
+    "register-project" : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _              ->
+      -- {{{
+      case (readTxOutRef txRefStr, readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
+        (Just utxo, Just reqFund, Just ocfn) ->
+          -- {{{
+          let
+            govRedeemer :: QVFAction
+            govRedeemer = RegisterProject
+
+            projDetails :: ProjectDetails
+            projDetails =
+              ProjectDetails (fromString pkhStr) (fromString lbl) reqFund
+
+            regRedeemer :: Reg.RegistrationRedeemer
+            regRedeemer =
+              Reg.RegisterProject $ RegistrationInfo utxo projDetails
+          in
+          actOnCurrentDatum ocfn govRedeemer (Just regRedeemer) $ \case
+            RegisteredProjectsCount soFar ->
+              -- {{{
+              let
+                updatedDatum      :: QVFDatum
+                updatedDatum      = RegisteredProjectsCount $ soFar + 1
+                updatedDatumFile  :: FilePath
+                updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+
+                newDatum          :: QVFDatum
+                newDatum          = ReceivedDonationsCount 0
+                newDatumFile      :: FilePath
+                newDatumFile      = getFileName ocfn ocfnNewDatum
+
+                projTokenName     :: TokenName
+                projTokenName     = orefToTokenName utxo
+                projTokenNameFile :: FilePath
+                projTokenNameFile = getFileName ocfn ocfnProjectTokenName
+
+                projInfo          :: QVFDatum
+                projInfo          = ProjectInfo projDetails
+                projInfoFile      :: FilePath
+                projInfoFile      =
+                     ocfnPreDir ocfn
+                  ++ "/"
+                  ++ unsafeTokenNameToHex projTokenName
+              in do
+              andPrintSuccess projTokenNameFile $
+                writeTokenNameHex projTokenNameFile projTokenName
+              andPrintSuccess updatedDatumFile $
+                writeJSON updatedDatumFile updatedDatum
+              andPrintSuccess newDatumFile $
+                writeJSON newDatumFile newDatum
+              andPrintSuccess projInfoFile $
+                writeJSON projInfoFile projInfo
+              -- }}}
+            _                             ->
+              -- {{{
+              putStrLn "FAILED: Provided current datum is incompatible."
+              -- }}}
+          -- }}}
+        _                                    ->
+          -- {{{
+          putStrLn $ "FAILED with bad arguments: "
+            ++ txRefStr
+            ++ " "
+            ++ pkhStr
+            ++ " "
+            ++ lbl
+            ++ " "
+            ++ reqFundStr
+            ++ " "
+            ++ fileNamesJSON
+          -- }}}
+      -- }}}
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
@@ -548,6 +770,27 @@ main =
           . encode
         )
         -- }}}
+    "cbor-to-data" : cborStr : _                                        ->
+      -- {{{
+      let
+        mScriptData :: Maybe ScriptData
+        mScriptData = do
+          -- {{{
+          bs  <- hexStringToByteString cborStr
+          let bs8 = BS8.pack $ Char.chr . fromIntegral <$> LBS.unpack bs
+          case deserialiseFromCBOR AsScriptData bs8 of
+            Right sd ->
+              Just sd
+            Left _   ->
+              Nothing
+          -- }}}
+      in
+      case mScriptData of
+        Just sd ->
+          print $ encode $ scriptDataToJson ScriptDataJsonDetailedSchema sd
+        Nothing -> do
+          putStrLn "FAILED to decode CBOR."
+      -- }}}
     "string-to-hex" : tn : outFile : _                                  ->
       -- {{{
       andPrintSuccess outFile $ writeTokenNameHex outFile $ fromString tn
@@ -588,8 +831,32 @@ instance Show OutputPlutus where
     show $ lengthOfByteString cborHex
 
 
+-- TODO: Create a module that only exposes the `OffChainFileNames` type
+--       constructor, and the `getFileName` without exposing any of the
+--       handles. Current solution involves use of type-level string literals.
+--
+--       Such a design would allow a more robust filename extraction (with
+--       absolute paths). An outcome similar to the code snippet below
+--       (utilizing the `TypeApplications` extension) would be desireable.
+--
+--       (Sample excerpt from the script generation endpoint of `main`.)
+--
+--       ```hs
+--       let govOF     = getFileName ocfn @"ocfnGovernanceMinter"
+--           regOF     = getFileName ocfn @"ocfnRegistrationMinter"
+--           donOF     = getFileName ocfn @"ocfnDonationMinter"
+--           qvfOF     = getFileName ocfn @"ocfnQVFMainValidator"
+--           dlDatOF   = getFileName ocfn @"ocfnDeadlineDatum"
+--           initDatOF = getFileName ocfn @"ocfnInitialGovDatum"
+--           dlSlotOF  = getFileName ocfn @"ocfnDeadlineSlot"
+--           dlTNOF    = getFileName ocfn @"ocfnDeadlineTokenNameHex"
+--       ```
+--
+--       Another solution could be a custom `FromJSON` instance.
+--
 data OffChainFileNames = OffChainFileNames
-  { ocfnDeadlineTokenNameHex :: String
+  { ocfnPreDir               :: String
+  , ocfnDeadlineTokenNameHex :: String
   , ocfnGovernanceMinter     :: String
   , ocfnRegistrationMinter   :: String
   , ocfnDonationMinter       :: String
@@ -597,7 +864,17 @@ data OffChainFileNames = OffChainFileNames
   , ocfnDeadlineSlot         :: String
   , ocfnDeadlineDatum        :: String
   , ocfnInitialGovDatum      :: String
+  , ocfnCurrentDatum         :: String
+  , ocfnUpdatedDatum         :: String
+  , ocfnNewDatum             :: String
+  , ocfnQVFRedeemer          :: String
+  , ocfnMinterRedeemer       :: String
+  , ocfnProjectTokenName     :: String
   } deriving (Generic, A.ToJSON, A.FromJSON)
+
+
+getFileName :: OffChainFileNames -> (OffChainFileNames -> String) -> FilePath
+getFileName ocfn handle = ocfnPreDir ocfn ++ "/" ++ handle ocfn
 
 
 data ScriptGenerationArgumentsParseResults =

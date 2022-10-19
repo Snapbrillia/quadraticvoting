@@ -93,6 +93,15 @@ data QVFParams = QVFParams
   , qvfDonationSymbol :: CurrencySymbol
   }
 
+instance Show QVFParams where
+  show QVFParams{..} =
+         "QVFParams"
+    P.++ "\n  { qvfKeyHolder      = " P.++ show qvfKeyHolder
+    P.++ "\n  , qvfSymbol         = " P.++ show qvfSymbol
+    P.++ "\n  , qvfProjectSymbol  = " P.++ show qvfProjectSymbol
+    P.++ "\n  , qvfDonationSymbol = " P.++ show qvfDonationSymbol
+    P.++ "\n  }"
+
 PlutusTx.makeLift ''QVFParams
 -- }}}
 
@@ -443,12 +452,17 @@ mkQVFValidator QVFParams{..} datum action ctx =
     projectMintIsPresent :: Bool -> Bool
     projectMintIsPresent mint =
       -- {{{
-      let
-        tn = getCurrTokenName qvfProjectSymbol
-      in
-      traceIfFalse
-        "There should be exactly 2 project assets minted/burnt."
-        (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
+      case flattenValue (txInfoMint info) of
+        [(sym', _, amt')] ->
+             traceIfFalse
+               "Invalid asset is getting minted/burnt."
+               (sym' == qvfProjectSymbol)
+          && traceIfFalse
+               "There should be exactly 2 project assets minted/burnt."
+               (if mint then amt' == 2 else amt' == negate 2)
+        _                 ->
+          traceError "Only one project asset must be minted/burnt."
+               -- (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
       -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.

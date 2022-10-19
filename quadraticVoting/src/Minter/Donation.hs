@@ -15,7 +15,6 @@
 
 module Minter.Donation where
 
-import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V2.Ledger.Api
@@ -34,10 +33,12 @@ import           Utils
 data DonationRedeemer
   = DonateToProject DonationInfo
   | FoldDonations   BuiltinByteString -- ^ Project's identifier
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
   , ('FoldDonations   ,1)
+  , ('Dev             ,10)
   ]
 -- }}}
 
@@ -207,6 +208,9 @@ mkDonationPolicy sym action ctx =
             "Project UTxO must carry the proper datum to allow burning of its donation tokens."
           -- }}}
       -- }}}
+    -- TODO: REMOVE.
+    Dev                              ->
+      True
   -- }}}
 
 
@@ -227,8 +231,8 @@ donationPolicy sym =
   -- }}}
 
 
-donationSymbol :: CurrencySymbol -> CurrencySymbol
-donationSymbol = scriptCurrencySymbol . donationPolicy
+-- donationSymbol :: CurrencySymbol -> CurrencySymbol
+-- donationSymbol = scriptCurrencySymbol . donationPolicy
 -- }}}
 
 

@@ -1,8 +1,8 @@
 . scripts/env.sh
 
 
-AUTH_ID=$(cat ../blockfrost.id)
-URL="https://cardano-testnet.blockfrost.io/api/v0"
+AUTH_ID=$(cat $preDir/../../blockfrost.id)
+URL="https://cardano-preview.blockfrost.io/api/v0"
 
 
 bf_query_address() {
@@ -29,42 +29,65 @@ bf_get_first_utxo_of_address() {
 #      from Blockfrost.
 keep_utxos_with_asset() {
   echo $2 \
-    | jq -c --arg authAsset "$1" 'map(
-        select(
-          .amount | .[] | contains (
-            { "unit": $authAsset
-            }
-          )
-        )
-      )'
+    | jq -c --arg authAsset "$1" 'map(select((.amount | .[1] | .unit) == $authAsset))'
 }
 
 
+# An intermediate function to be used by `reconstruct_utxos`.
+#
 # Takes 1 argument:
 #   1. The JSON value containing list of UTxO's returned
 #      from Blockfrost.
-reconstruct_utxos() {
+helper_reconstruct_utxos(){
   echo $1 \
-    | jq -c 'map(
+    | jq -c --arg datumJSON "$datumJSON" 'map(
       { utxo: (.tx_hash + "#" + (.tx_index|tostring))
-      , datumHash: .data_hash
+      , datumCBOR: .inline_datum
       , lovelace: (.amount | .[0] | .quantity)
       })'
 }
 
 
+# Converts the CBOR of the inline datum to the value itself using the
+# `qvf-cli` application.
+#
+# Takes 1 argument:
+#   1. The JSON value containing list of UTxO's returned
+#      from Blockfrost.
+reconstruct_utxos() {
+  finalJSON="["
+  count=1
+  len=$(echo "$1" | jq length)
+  for obj in $(helper_reconstruct_utxos "$1" | jq -c .[]); do
+    utxo=$(echo "$obj" | jq -c .utxo)
+    cbor=$(echo "$obj" | jq -c .datumCBOR)
+    datum=$($qvf cbor-to-data $(remove_quotes $cbor) | jq -c fromjson)
+    lovelace=$(echo "$obj" | jq -c .lovelace)
+    newObj="{\"utxo\":$utxo,\"datum\":$datum,\"lovelace\":$lovelace}"
+    if [ $count -eq $len ]; then
+      finalJSON="$finalJSON$newObj"
+    else
+      finalJSON="$finalJSON$newObj,"
+    fi
+    count=$(expr $count + 1)
+  done
+  finalJSON="$finalJSON]"
+  echo $finalJSON
+}
+
+
 # Returns a JSON array of objects, each having 3 fields:
-# `utxo`, `datumHash`, and `lovelace`. All elements of this
+# `utxo`, `datum`, and `lovelace`. All elements of this
 # array posses an authentication token.
 #
 # Takes 2 arguments:
 #   1. Script address,
 #   2. Authentication asset (policy ID plus the token name,
 #      without a `.` in between).
-bf_get_utxos_hashes_lovelaces() {
+bf_get_utxos_datums_lovelaces() {
   zero=$(bf_query_address $1)
-  one=$(keep_utxos_with_asset $2 $zero)
-  echo $(reconstruct_utxos $one)
+  one=$(keep_utxos_with_asset $2 "$zero")
+  echo $(reconstruct_utxos "$one")
 }
 
 
@@ -72,8 +95,8 @@ bf_get_utxos_hashes_lovelaces() {
 #   1. Script address,
 #   2. Authentication asset (policy ID plus the token name,
 #      without a `.` in between).
-bf_get_first_utxo_hash_lovelaces() {
-  echo $(bf_get_utxos_hashes_lovelaces $1 $2) \
+bf_get_first_utxo_datum_lovelaces() {
+  echo $(bf_get_utxos_datums_lovelaces $1 $2) \
     | jq .[0]
 }
 
@@ -84,9 +107,9 @@ bf_get_first_utxo_hash_lovelaces() {
 #      without a `.` in between).
 #   3. Start of random range.
 #   4. End of random range.
-bf_get_random_utxo_hash_lovelaces() {
+bf_get_random_utxo_datum_lovelaces() {
   rand=$(shuf -i $3-$4 -n 1)
-  echo $(bf_get_utxos_hashes_lovelaces $1 $2) \
+  echo $(bf_get_utxos_datums_lovelaces $1 $2) \
     | jq .[$rand]
 }
 
@@ -116,5 +139,4 @@ bf_add_datum_value_to_utxo() {
   fi
   echo $1 | jq -c --arg datumValue "$datumValue" '. += {datumValue: ($datumValue | fromjson)}'
 }
-
 

@@ -16,7 +16,6 @@
 module Minter.Registration where
 
 
-import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V2.Ledger.Api
@@ -35,10 +34,12 @@ import           Utils
 data RegistrationRedeemer
   = RegisterProject RegistrationInfo
   | ConcludeAndRefund BuiltinByteString
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
   , ('ConcludeAndRefund, 1)
+  , ('Dev              , 10)
   ]
 -- }}}
 
@@ -219,6 +220,9 @@ mkRegistrationPolicy sym tn action ctx =
           traceError "Exactly 2 project inputs are expected."
           -- }}}
       -- }}}
+    -- TODO: REMOVE.
+    Dev                                  ->
+      True
   -- }}}
 
 
@@ -241,7 +245,7 @@ registrationPolicy sym =
   -- }}}
 
 
-registrationSymbol :: CurrencySymbol -> CurrencySymbol
-registrationSymbol = scriptCurrencySymbol . registrationPolicy
+-- registrationSymbol :: CurrencySymbol -> CurrencySymbol
+-- registrationSymbol = scriptCurrencySymbol . registrationPolicy
 -- }}}
 -- }}}

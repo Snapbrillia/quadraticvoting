@@ -6,7 +6,7 @@ startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-deadline=1667642400000
+export deadline=1667642400000
 
 govSym=""
 
@@ -41,12 +41,11 @@ store_gov_symbol() {
 
 get_gov_asset() {
   store_gov_symbol
-  echo $govSym.
+  echo $govSym
 }
 
 get_deadline_asset() {
-  store_gov_symbol
-  echo $govSym.$(cat $deadlineTokenNameHexFile)
+  echo $(cat $govSymFile).$(cat $deadlineTokenNameHexFile)
 }
 
 get_script_data_hash() {
@@ -55,14 +54,27 @@ get_script_data_hash() {
 
 initiate_fund() {
   # {{{
+  for proj in $(cat $registeredProjectsFile); do
+    rm $preDir/$proj
+  done
+  rm $registeredProjectsFile
+  touch $registeredProjectsFile
+  echo "Getting the current slot..."
   currentSlot=$(get_newest_slot)
 
   # GENERATING SCRIPTS
   # {{{
+  echo
+  echo "Getting the UTxO to be used for finding the currency symbols..."
   genesisUTxO=$(get_first_utxo_of $keyHolder)
   echo $genesisUTxO > $govUTxOFile
+  echo
+  echo "The UTxO is:"
+  echo -e "\033[97m$genesisUTxO"
+  echo -e "\033[0m"
 
   # Generating the validation script, minting script, and some other files:
+  echo "Finding the scripts and writing them to disk..."
   $qvf generate scripts                   \
     $keyHoldersPubKeyHash                 \
     $genesisUTxO                          \
@@ -80,8 +92,15 @@ initiate_fund() {
 
   deadlineDatum=$(getFileName ocfnDeadlineDatum)
   govDatumFile=$(getFileName ocfnInitialGovDatum)
-  deadlineAsset=$(get_deadline_asset)
+  # NOTE: The order of these 2 assignments matters.
   govAsset=$(get_gov_asset)
+  deadlineAsset=$(get_deadline_asset)
+  # -----------------------------------------------
+  regSym=$($cli transaction policyid --script-file $regScriptFile)
+  echo $regSym > $regSymFile
+  donSym=$($cli transaction policyid --script-file $donScriptFile)
+  echo $donSym > $donSymFile
+
   govLovelaces=1500000 #  1.5 ADA
   firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
   secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
@@ -91,25 +110,23 @@ initiate_fund() {
   # Transaction to mint 2 governance tokens, and include 1 in two UTxOs
   # produced at the script address. Minter expects the deadline UTxO
   # to be produced first.
-  $cli $BUILD_TX_CONST_ARGS                   \
-    --tx-in $genesisUTxO                      \
-    --tx-in-collateral $genesisUTxO           \
-    --tx-out "$firstUTxO"                     \
-    --tx-out-inline-datum-file $deadlineDatum \
-    --tx-out "$secondUTxO"                    \
-    --tx-out-inline-datum-file $govDatumFile  \
-    --invalid-hereafter $cappedSlot           \
-    --mint "1 $deadlineAsset + 1 $govAsset"   \
-    --mint-script-file $govScriptFile         \
-    --mint-redeemer-value 0                   \
+  $cli $BUILD_TX_CONST_ARGS                    \
+    --tx-in $genesisUTxO                       \
+    --tx-in-collateral $genesisUTxO            \
+    --tx-out "$firstUTxO"                      \
+    --tx-out-inline-datum-file $deadlineDatum  \
+    --tx-out "$secondUTxO"                     \
+    --tx-out-inline-datum-file $govDatumFile   \
+    --invalid-hereafter $cappedSlot            \
+    --mint "1 $deadlineAsset + 1 $govAsset"    \
+    --mint-script-file $govScriptFile          \
+    --mint-redeemer-file $preDir/temp.redeemer \
     --change-address $keyHoldersAddress
   
-  sign_tx_by $keyHoldersSigningKeyFile
-  submit_tx
+  sign_and_submit_tx $keyHoldersSigningKeyFile
+  wait_for_new_slot
   # }}}
 
-  store_current_slot
-  wait_for_new_slot
   store_current_slot
   wait_for_new_slot
 
@@ -129,11 +146,9 @@ initiate_fund() {
     --tx-out-reference-script-file $mainScriptFile \
     --change-address $keyHoldersAddress
 
-  sign_tx_by $keyHoldersSigningKeyFile
-  submit_tx
-
-  store_current_slot
+  sign_and_submit_tx $keyHoldersSigningKeyFile
   wait_for_new_slot
+
   store_current_slot
   wait_for_new_slot
 
@@ -160,11 +175,9 @@ initiate_fund() {
     --tx-out-inline-datum-value 1                 \
     --change-address $keyHoldersAddress
 
-  sign_tx_by $keyHoldersSigningKeyFile
-  submit_tx
-
-  store_current_slot
+  sign_and_submit_tx $keyHoldersSigningKeyFile
   wait_for_new_slot
+
   store_current_slot
   wait_for_new_slot
 
@@ -187,30 +200,55 @@ initiate_fund() {
 }
 
 
+# Takes 1 argument:
+#   1. The mint argument for `cardano-cli`.
 dev_depletion() {
   # {{{
   collateral=$(get_first_utxo_of $keyHolder)
   deadlineAsset=$(get_deadline_asset)
   govAsset=$(get_gov_asset)
-  $cli $BUILD_TX_CONST_ARGS                                        \
-    --tx-in-collateral $collateral                                 \
-    --tx-in $(get_first_utxo_of $scriptLabel)                      \
-    --spending-tx-in-reference $(cat testnet/$scriptLabel.refUTxO) \
-    --spending-plutus-script-v2                                    \
-    --spending-reference-tx-in-inline-datum-present                \
-    --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
-    --tx-in $(get_nth_utxo_of $scriptLabel 2)                      \
-    --spending-tx-in-reference $(cat testnet/$scriptLabel.refUTxO) \
-    --spending-plutus-script-v2                                    \
-    --spending-reference-tx-in-inline-datum-present                \
-    --spending-reference-tx-in-redeemer-file $preDir/dev.redeemer  \
-    --mint "-1 $deadlineAsset + -1 $govAsset"                      \
-    --mint-script-file $govScriptFile                              \
-    --mint-redeemer-value 1                                        \
+  regRefUTxO=$(cat $regRefUTxOFile)
+  regSym=$(cat $regSymFile)
+  donRefUTxO=$(cat $donRefUTxOFile)
+  donSym=$(cat $donSymFile)
+  devRedeemer="$preDir/dev.redeemer"
+
+  txIn=""
+  # {{{ LOOP TO FIND $txIn 
+  # Creating the complete input list to consume every UTxO sitting at the
+  # script address.
+  #
+  # Since `get_all_input_utxos_at` returns all the UTxOs such that each of them
+  # are prefixed with "--tx-in ", we are using an extra variable ($count), to
+  # handle the intermittent whitespaces.
+  count=0
+  const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
+  for i in $(get_all_input_utxos_at $scriptLabel); do
+    if [ $count -eq 0 ]; then
+      txIn="$txIn$i "
+      count=1
+    else
+      txIn="$txIn$i $const "
+      count=0
+    fi
+  done
+  # }}}
+  $cli $BUILD_TX_CONST_ARGS                           \
+    --tx-in-collateral $collateral                    \
+    $txIn                                             \
+    --mint "$1"                                       \
+    --mint-script-file $govScriptFile                 \
+    --mint-redeemer-file $devRedeemer                 \
+    --mint-tx-in-reference $regRefUTxO                \
+    --mint-plutus-script-v2                           \
+    --mint-reference-tx-in-redeemer-file $devRedeemer \
+    --policy-id $regSym                               \
+    --mint-tx-in-reference $donRefUTxO                \
+    --mint-plutus-script-v2                           \
+    --mint-reference-tx-in-redeemer-file $devRedeemer \
+    --policy-id $donSym                               \
     --change-address $(cat testnet/$keyHolder.addr)
-  sign_tx_by $preDir/$keyHolder.skey
-  submit_tx
-  store_current_slot
+  sign_and_submit_tx $preDir/$keyHolder.skey
   wait_for_new_slot
   show_utxo_tables $scriptLabel
   # }}}
@@ -221,10 +259,24 @@ deplete_reference_wallet() {
   $cli $BUILD_TX_CONST_ARGS                    \
     $(get_all_input_utxos_at $referenceWallet) \
     --change-address $keyHoldersAddress
-  sign_tx_by $preDir/$referenceWallet.skey
-  submit_tx
-  store_current_slot
+  sign_and_submit_tx $preDir/$referenceWallet.skey
   wait_for_new_slot
   show_utxo_tables $referenceWallet
   # }}}
+}
+
+# Takes 1 argument:
+#   1. The mint argument for `cardano-cli`.
+dev_reset() {
+  dev_depletion "$1"
+  deplete_reference_wallet
+  tidy_up_wallet $keyHolder
+}
+
+# Takes 1 argument:
+#   1. The mint argument for `cardano-cli`.
+dev_restart() {
+  dev_reset "$1"
+  cabal install qvf-cli --overwrite-policy=always
+  initiate_fund
 }
