@@ -4,25 +4,25 @@
 . scripts/initiation.sh
 . scripts/blockfrost.sh
 
-qvfAddress=$(cat $scriptAddressFile)
-govAsset=$(cat $govSymFile)
-regSym=$(cat $regSymFile)
-donSym=$(cat $donSymFile)
-deadlineAsset="$govAsset$(cat $deadlineTokenNameHexFile)"
-deadlineSlot=$(cat $deadlineSlotFile)
-cappedSlot=$(cap_deadline_slot $deadlineSlot)
-
-govUTxOObj="$(bf_get_utxos_datums_lovelaces $qvfAddress $govAsset | jq -c '.[0]')"
-govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
-govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
-echo "$govCurrDatum" > $currentDatumFile
-govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
-deadlineUTxO=$(remove_quotes $(bf_get_utxos_datums_lovelaces $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
-
 projectOwnerWalletLabel=$1
 projectName=$2
 projectRequestedFund=$3
 projectOwnerAddress=$(cat $preDir/$projectOwnerWalletLabel.addr)
+
+qvfAddress=$(cat $scriptAddressFile)
+govAsset=$(cat $govSymFile)
+regSym=$(cat $regSymFile)
+donSym=$(cat $donSymFile)
+deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
+deadlineSlot=$(cat $deadlineSlotFile)
+cappedSlot=$(cap_deadline_slot $deadlineSlot)
+
+govUTxOObj="$(get_script_utxos_datums_values $qvfAddress $govAsset | jq -c '.[0]')"
+govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
+govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
+echo "$govCurrDatum" > $currentDatumFile
+govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
+deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
 
 projectIdUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
 projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)

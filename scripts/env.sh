@@ -31,6 +31,7 @@ export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 touch $fileNamesJSONFile
 echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
+echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
 echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
@@ -58,6 +59,8 @@ echo "}" >> $fileNamesJSONFile
 getFileName() {
   echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
 }
+export queryJSONFile=$(getFileName ocfnQueryJSON)
+
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
 export scriptAddressFile=$(getFileName ocfnContractAddress)
@@ -104,7 +107,7 @@ export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGI
 
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
-    $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+  $cli query protocol-parameters $MAGIC --out-file $protocolsFile
 }
 
 
@@ -201,9 +204,9 @@ sign_and_submit_tx() {
 # Takes 1 argument:
 #   1. Label for files.
 generate_skey_and_vkey() {
-    $cli address key-gen                        \
-        --verification-key-file $preDir/$1.vkey \
-        --signing-key-file $preDir/$1.skey
+  $cli address key-gen                      \
+    --verification-key-file $preDir/$1.vkey \
+    --signing-key-file $preDir/$1.skey
 }
 
 
@@ -212,10 +215,9 @@ generate_skey_and_vkey() {
 # Takes 1 argument:
 #   1. Label for files.
 vkey_to_address() {
-    $cli address build                                  \
-        $MAGIC                                          \
-        --payment-verification-key-file $preDir/$1.vkey \
-        --out-file $preDir/$1.addr
+  $cli address build $MAGIC                         \
+    --payment-verification-key-file $preDir/$1.vkey \
+    --out-file $preDir/$1.addr
 }
 
 
@@ -224,9 +226,9 @@ vkey_to_address() {
 # Takes 1 argument:
 #   1. Label for files.
 vkey_to_public_key_hash() {
-    $cli address key-hash                               \
-        --payment-verification-key-file $preDir/$1.vkey \
-        --out-file $preDir/$1.pkh
+  $cli address key-hash                             \
+    --payment-verification-key-file $preDir/$1.vkey \
+    --out-file $preDir/$1.pkh
 }
 
 
@@ -241,6 +243,17 @@ plutus_script_to_address() {
 }
 
 
+# Takes a label, and generates the corresponding wallet files.
+#
+# Takes 1 argument:
+#   1. Label for files.
+generate_wallet() {
+  generate_skey_and_vkey $1
+  vkey_to_address $1
+  vkey_to_public_key_hash $1
+}
+
+
 # Given a numeric range (inclusive), generates all four files of a wallet
 # (.vkey, .skey, .addr, .pkh) for each number.
 #
@@ -252,32 +265,20 @@ plutus_script_to_address() {
 #   1. Starting number,
 #   2. Ending number.
 generate_wallets_from_to() {
-
-    max_amt=100000
-
-    if [ `expr $2 - $1` -ge $max_amt ]
-    then
-    echo "That's over 100,000 wallets generated. Please reconsider. Edit fn if you really want to."
+  max_amt=100000
+  if [ `expr $2 - $1` -ge $max_amt ]; then
+  echo "That's over 100,000 wallets generated. Please reconsider. Edit fn if you really want to."
+  else
+  # Main loop:
+  for i in $(seq $1 $2); do
+    if [ -f $preDir/$i.vkey ] || [ -f $preDir/$i.skey ] || [ -f $preDir/$i.addr ] || [ -f $preDir/$i.pkh ]; then
+      echo "Error! $i.vkey, $i.skey, $i.addr, or $i.pkh already exist. Move/rename/remove them first and run again."
+      break
     else
-
-    # Important part
-    for i in $(seq $1 $2)
-    do
-    if [ -f $preDir/$i.vkey ] || [ -f $preDir/$i.skey ] || [ -f $preDir/$i.addr ] || [ -f $preDir/$i.pkh ]
-    then
-
-    echo "Error! $i.vkey, $i.skey, $i.addr, or $i.pkh already exist. Move/rename/remove them first and run again."
-    break
-
-    else
-
-    generate_skey_and_vkey $i
-    vkey_to_address $i
-    vkey_to_public_key_hash $i
-
+      generate_wallet $i
     fi
-    done
-    fi
+  done
+  fi
 }
 
 
@@ -287,22 +288,22 @@ generate_wallets_from_to() {
 # Takes 1 argument:
 #   1. Wallet number/name.
 get_first_utxo_of() {
-    echo `$cli query utxo                 \
-        --address $(cat $preDir/$1.addr)  \
-        $MAGIC                            \
-        | sed 1,2d                        \
-        | awk 'FNR == 1 {print $1"#"$2}'`
+  echo `$cli query utxo               \
+    --address $(cat $preDir/$1.addr)  \
+    $MAGIC                            \
+    | sed 1,2d                        \
+    | awk 'FNR == 1 {print $1"#"$2}'`
 }
 
 # Takes 2 arguments:
 #   1. Wallet number/name,
 #   2. Row of the UTxO table.
 get_nth_utxo_of() {
-    echo `$cli query utxo                    \
-        --address $(cat $preDir/$1.addr)     \
-        $MAGIC                               \
-        | sed 1,2d                           \
-        | awk 'FNR == '$2' {print $1"#"$2}'`
+  echo `$cli query utxo                  \
+    --address $(cat $preDir/$1.addr)     \
+    $MAGIC                               \
+    | sed 1,2d                           \
+    | awk 'FNR == '$2' {print $1"#"$2}'`
 }
 
 
@@ -343,13 +344,13 @@ tidy_up_wallet() {
 #   1. Wallet number/name,
 #   *. Any additional wallet number/name.
 show_utxo_tables () {
-  for i in $@
-  do
+  for i in $@; do
     echo
     echo $i
     $cli query utxo $MAGIC --address $(cat $preDir/$i.addr)
   done
 }
+
 
 # Given a numeric range (inclusive), displays the utxo information table from
 # the address of the .addr file of each number, and displays any addresses
@@ -496,11 +497,54 @@ drain_from_wallets_to() {
 # Takes 1 argument:
 #   1. User's wallet address file.
 get_first_lovelace_count_of() {
-    echo `$cli query utxo            \
-        --address $(cat $1)          \
-        $MAGIC                       \
-        | sed 1,2d                   \
-        | awk 'FNR == 1 {print $3}'`
+  echo `$cli query utxo          \
+    --address $(cat $1)          \
+    $MAGIC                       \
+    | sed 1,2d                   \
+    | awk 'FNR == 1 {print $3}'`
+}
+
+
+# Takes 1 arguemnt:
+#   1. Wallet address.
+get_all_script_utxos_datums_values() {
+  $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
+  jq -c \
+    'to_entries
+    | map(select((.value | .value | to_entries | length) == 2))
+    | map
+        ( { utxo: .key
+          , datum: (.value | .inlineDatum)
+          , lovelace: (.value | .value | .lovelace)
+          , asset:
+              ( .value
+              | .value
+              | to_entries
+              | map(select(.key != "lovelace"))
+              | map
+                  ( (.value | to_entries | map(.key) | .[0]) as $tn
+                  | .key + (if $tn == "" then "" else ("." + $tn) end)
+                  )
+              | .[0]
+              )
+          , assetCount:
+              ( .value
+              | .value
+              | to_entries
+              | map(select(.key != "lovelace"))
+              | map(.value | to_entries | map(.value) | .[])
+              | .[0]
+              )
+          }
+        )' $queryJSONFile
+}
+
+
+# Takes 2 arguemnts:
+#   1. Wallet address,
+#   2. Authentication asset ("$currencySymbol.$tokenName").
+get_script_utxos_datums_values() {
+  get_all_script_utxos_datums_values $1 | jq -c --arg authAsset "$2" 'map(select(.asset == $authAsset))'
 }
 
 
