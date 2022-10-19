@@ -117,11 +117,19 @@ store_current_slot() {
 
 wait_for_new_slot() {
   latest=$(cat $latestInteractionSlotFile)
-  current=$($cli query tip $MAGIC | jq '.slot|tonumber')
+  current=$(get_current_slot)
+  echo -e "\nWaiting for chain extension..."
+  i=1
+  sp='///---\\\|||'
   while [ $current -eq $latest ]; do
-    current=$($cli query tip $MAGIC | jq '.slot|tonumber')
+    printf "\b${sp:i++%${#sp}:1}"
+    current=$(get_current_slot)
   done
-  echo $current
+  echo
+  echo    "----------- CHAIN EXTENDED -----------"
+  echo    "Latest interaction slot:      $latest"
+  echo    "Current slot after extension: $current"
+  echo -e "--------------------------------------\n"
 }
 
 
@@ -262,6 +270,8 @@ tidy_up_wallet() {
   $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
   sign_tx_by $preDir/$1.skey
   submit_tx
+  store_current_slot
+  wait_for_new_slot
 }
 
 

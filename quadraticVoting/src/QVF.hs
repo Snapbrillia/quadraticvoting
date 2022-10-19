@@ -138,8 +138,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}}
 
     -- | Checks for key holder's signature. Induced laziness.
-    signedByKeyHolder :: () -> Bool
-    signedByKeyHolder _ =
+    signedByKeyHolder :: Bool
+    signedByKeyHolder =
       -- {{{
       traceIfFalse "Unauthorized." $ txSignedBy info qvfKeyHolder
       -- }}}
@@ -148,27 +148,23 @@ mkQVFValidator QVFParams{..} datum action ctx =
     currUTxOHasX :: CurrencySymbol -> TokenName -> Bool
     currUTxOHasX sym tn =
       -- {{{
-      utxoHasX sym (Just tn) currUTxO
+      utxoHasOnlyX sym tn currUTxO
       -- }}}
 
     -- | Tries to find a singular asset with a given symbol inside the given
     --   UTxO, and returns its token name.
-    --
-    --   TODO: Presumes the given UTxO has only Lovelaces and the desired
-    --         asset, and that Lovelaces show up first after calling
-    --         `flattenValue`.
     getTokenNameOfUTxO :: CurrencySymbol -> TxOut -> Maybe TokenName
     getTokenNameOfUTxO sym utxo =
       -- {{{
       case flattenValue (txOutValue utxo) of
-        [_, (sym', tn', amt')] ->
+        [(sym', tn', amt'), _] ->
           -- {{{
           if sym' == sym && amt' == 1 then
             Just tn'
           else
             Nothing
           -- }}}
-        _                   ->
+        _                      ->
           -- {{{
           Nothing
           -- }}}
@@ -184,22 +180,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
       case getTokenNameOfUTxO sym currUTxO of
         Just tn -> tn
         Nothing -> traceError "Current UTxO is unauthentic."
-      -- }}}
-
-    -- | Tries to find an input from the script that carries a single X asset.
-    --
-    --   Expects to find exactly 1. Raises exception otherwise.
-    getXInputUTxO :: CurrencySymbol -> TokenName -> TxOut
-    getXInputUTxO sym tn =
-      -- {{{
-      case filter (utxoHasX sym (Just tn) . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = inUTxO}] ->
-          if utxoSitsAtScript inUTxO then
-            inUTxO
-          else
-            traceError "Input authentication asset must come from the script."
-        _      ->
-          traceError "There should be exactly 1 authentication asset in input."
       -- }}}
 
     -- | Looks inside the reference inputs and extracts the inline datum
@@ -238,38 +218,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
       in
       isJust $ find predicate inputs
       -- }}}
-  
-    -- | Checks 1 X comes from the script, and 1 X goes back to the script,
-    --   with enough added Lovelaces and properly updated datum.
-    --
-    --   Raises exception on @False@.
-    xIsPresent :: CurrencySymbol -- ^ X's currency symbol
-               -> TokenName      -- ^ X's token name
-               -> Integer        -- ^ Increase in output's Lovelace count
-               -> QVFDatum       -- ^ Updated datum
-               -> Bool
-    xIsPresent sym tn increaseInLovelace newDatum =
-      -- {{{
-      case filter (utxoHasX sym $ Just tn) (getContinuingOutputs ctx) of
-        [txOut@TxOut{txOutValue = outVal}] ->
-          -- {{{
-          let
-            TxOut{txOutValue = inVal} = getXInputUTxO sym tn
-            desiredOutVal             =
-              inVal <> lovelaceValueOf increaseInLovelace
-          in
-             traceIfFalse
-               "Authenticated output doesn't have enough Lovelaces"
-               (outVal == desiredOutVal)
-          && traceIfFalse
-               "Invalid datum attached to the authenticated output."
-               (utxosDatumMatchesWith newDatum txOut)
-          -- }}}
-        _       ->
-          -- {{{
-          traceError "There must be exactly 1 authentication asset produced."
-          -- }}}
-      -- }}}
 
     -- | Collection of validations for consuming a set number of donation
     --   UTxOs, along with the project's UTxO. Outputs are expected to be
@@ -305,8 +253,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
           && traceIfFalse
                "Project output must preserve its Lovelaces."
                (utxoHasLovelaces halfOfTheRegistrationFee op)
-          && canFoldOrDistribute ()
-          && signedByKeyHolder ()
+          && canFoldOrDistribute
+          && signedByKeyHolder
           -- }}}
         _                  ->
           -- {{{
@@ -445,8 +393,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --   is still in progress.
     --
     --   Raises exception on @False@.
-    canRegisterOrDonate :: () -> Bool
-    canRegisterOrDonate _ =
+    canRegisterOrDonate :: Bool
+    canRegisterOrDonate =
       -- {{{
       case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
@@ -459,8 +407,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --   has ended.
     --
     --   Raises exception on @False@.
-    canFoldOrDistribute :: () -> Bool
-    canFoldOrDistribute _ =
+    canFoldOrDistribute :: Bool
+    canFoldOrDistribute =
       -- {{{
       case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
@@ -494,12 +442,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     projectMintIsPresent :: Bool -> Bool
     projectMintIsPresent mint =
+      -- {{{
       let
         tn = getCurrTokenName qvfProjectSymbol
       in
       traceIfFalse
         "There should be exactly 2 project assets minted/burnt."
         (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
+      -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.
     validateSingleOutput :: Maybe Integer
@@ -546,7 +496,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
   case (datum, action) of
     (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
       -- {{{
-         signedByKeyHolder ()
+         signedByKeyHolder
       && traceIfFalse
            "New deadline has already passed."
            (deadlineReached newDl)
@@ -562,7 +512,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount _                    , RegisterProject        ) ->
       -- Project Registration
       -- {{{
-      projectMintIsPresent True && canRegisterOrDonate ()
+      projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
     (ReceivedDonationsCount _                     , DonateToProject donInfo) ->
@@ -574,7 +524,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
          traceIfFalse
            "There should be exactly 1 donation asset minted."
            (mintIsPresent qvfDonationSymbol tn 1)
-      && canRegisterOrDonate ()
+      && canRegisterOrDonate
       -- }}}
 
     (Donation _                                   , FoldDonations          ) ->
@@ -609,8 +559,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
            traceIfFalse
              "All donation assets must be burnt."
              (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute ()
-        && signedByKeyHolder ()
+        && canFoldOrDistribute
+        && signedByKeyHolder
       else
         -- Folding should happen in two phases.
         foldDonationsPhaseOne
@@ -635,8 +585,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
            traceIfFalse
              "All donation assets must be burnt."
              (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute ()
-        && signedByKeyHolder ()
+        && canFoldOrDistribute
+        && signedByKeyHolder
       else
         let
           expected  = min remaining maxDonationInputsForPhaseOne
@@ -693,7 +643,28 @@ mkQVFValidator QVFParams{..} datum action ctx =
         keyHolderImbursed     =
           lovelaceFromValue (valuePaidTo info qvfKeyHolder) == khFee
       in
-         xIsPresent qvfSymbol qvfTokenName (negate khFee) updatedDatum
+         traceIfFalse
+           "Unauthentic governance UTxO provided."
+           (currUTxOHasX qvfSymbol qvfTokenName)
+      && ( case getContinuingOutputs ctx of
+             [o] ->
+               -- {{{
+               let
+                 inVal         = txOutValue currUTxO
+                 desiredOutVal = inVal <> lovelaceValueOf (negate khFee)
+               in
+                  traceIfFalse
+                    "Invalid Lovelace count at the produced governance UTxO."
+                    (utxoHasValue desiredOutVal o)
+               && traceIfFalse
+                    "Governance datum not updated properly."
+                    (utxosDatumMatchesWith updatedDatum o)
+               -- }}}
+             _   ->
+               -- {{{
+               traceError "Governance UTxO not produced."
+               -- }}}
+         )
       && traceIfFalse
            "Key holder fees must be paid accurately."
            keyHolderImbursed
@@ -944,6 +915,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent False
       -- }}}
 
+    (_                                            , Dev                    ) ->
+      -- For development. TODO: REMOVE.
+      True
     (_                                            , _                      ) ->
       traceError "Invalid transaction."
   -- }}}

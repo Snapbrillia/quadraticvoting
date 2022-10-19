@@ -57,7 +57,8 @@ mkRegistrationPolicy sym tn action ctx =
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    inputs = txInfoInputs info
+    inputs  = txInfoInputs info
+    outputs = txInfoOutputs info
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
@@ -74,88 +75,89 @@ mkRegistrationPolicy sym tn action ctx =
         inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
         -- | Looks for the singular authenticated governance input UTxO to find
-        --   the origin address of the governance asset, and the number of
-        --   projects registrered so far.
+        --   the origin address of the governance asset, its assets, and the
+        --   number of projects registrered so far.
         --
         --   Raises exception upon failure.
-        originAddr :: Address
         currPCount :: Integer
-        (originAddr, currPCount) =
+        currPCount =
           -- {{{
           case getInlineDatum inputGovUTxO of 
             RegisteredProjectsCount soFar ->
               -- {{{
-              (txOutAddress inputGovUTxO, soFar)
+              soFar
               -- }}}
-            _                           ->
+            _                             ->
               -- {{{
               traceError "Invalid datum for project registration."
               -- }}}
           -- }}}
 
-        -- | Raises exception upon failure (full description at the `Utils`
-        --   module).
-        filterPsAndValidateS :: TxOut -> Bool
-        filterPsAndValidateS =
-          -- {{{
-          filterXAndValidateGov
-            ownSym
-            currTN
-            sym
-            tn
-            originAddr
-            (RegisteredProjectsCount $ currPCount + 1)
-          -- }}}
-
-        -- | Validates the presence of 2 output project UTxOs: one for storing
-        --   project's static information, and the other to keep a record of
-        --   the number of donations the project will receive.
+        -- | Checks if the given UTxOs carry project's assets, and makes sure
+        --   the first one has a `ProjectInfo` datum, while the second one has
+        --   a `ReceivedDonationsCount` attached. Also expects each of them to
+        --   carry exactly half of the registration fee Lovelaces.
         --
-        --   Output governance UTxO gets validated by the filtering function,
-        --   but its presence is expected at the head of the filtered list.
+        --   It also validates that the produced governance UTxO is sent back
+        --   to its origin, and that it has a properly updated datum attached.
         --
         --   Raises exception on @False@.
-        outputSAndPsArePresent :: Bool
-        outputSAndPsArePresent =
+        outputSAndPsAreValid :: TxOut -> TxOut -> TxOut -> Bool
+        outputSAndPsAreValid s p0 p1 =
           -- {{{
-          case filter filterPsAndValidateS (txInfoOutputs info) of
-            -- TODO: Is it OK to expect a certain order for these outputs?
-            --       This is desired to prevent higher transaction fees.
-            [_, p0, p1] ->
-              -- {{{
-                 traceIfFalse
-                   "First project output must carry its static info."
-                   ( utxosDatumMatchesWith
-                       (ProjectInfo riProjectDetails)
-                       p0
-                   )
-              && traceIfFalse
-                   "Second project output must carry its record of donations."
-                   ( utxosDatumMatchesWith
-                       (ReceivedDonationsCount 0)
-                       p1
-                   )
-              && traceIfFalse
-                   "Half of the registration fee should be stored in project's reference UTxO."
-                   (utxoHasLovelaces halfOfTheRegistrationFee p0)
-              && traceIfFalse
-                   "Half of the registration fee should be stored in project's main UTxO."
-                   (utxoHasLovelaces halfOfTheRegistrationFee p1)
-              -- }}}
-            _           ->
-              -- {{{
-              traceError
-                "There should be exactly 1 governance, and 2 project UTxOs produced."
-              -- }}}
-        -- }}}
+             traceIfFalse
+               "The produced governance UTxO must have untouched value."
+               ( validateGovUTxO
+                   (txOutValue inputGovUTxO)
+                   (txOutAddress inputGovUTxO)
+                   (RegisteredProjectsCount $ currPCount + 1)
+                   s
+               )
+          && traceIfFalse
+               "Invalid value for project's reference UTxO."
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   p0
+               )
+          && traceIfFalse
+               "Invalid value for project's main UTxO."
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   p1
+               )
+          && traceIfFalse
+               "First project output must carry its static info."
+               (utxosDatumMatchesWith (ProjectInfo riProjectDetails) p0)
+          && traceIfFalse
+               "Second project output must carry its record of donations."
+               (utxosDatumMatchesWith (ReceivedDonationsCount 0) p1)
+          -- }}}
       in
-         outputSAndPsArePresent
-      && traceIfFalse
+         traceIfFalse
            "Specified UTxO must be consumed."
            (utxoIsGettingSpent inputs riTxOutRef)
       && traceIfFalse
            "Project owner's signature is required."
            (txSignedBy info $ pdPubKeyHash riProjectDetails)
+      && ( case outputs of
+             [s, p0, p1]    ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             [_, s, p0, p1] ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             _              ->
+               -- {{{
+               traceError
+                 "There should be exactly 1 governance, and 2 project UTxOs produced."
+               -- }}}
+         )
       -- }}}
     ConcludeAndRefund projectId          ->
       -- {{{
@@ -163,44 +165,62 @@ mkRegistrationPolicy sym tn action ctx =
         currTN :: TokenName
         currTN = TokenName projectId
 
-        inputPsAreValid =
-          case filter (utxoHasX ownSym (Just currTN) . txInInfoResolved) inputs of
-            [TxInInfo{txInInfoResolved = p0}, TxInInfo{txInInfoResolved = p1}] ->
+        validateInputs :: TxInInfo -> TxInInfo -> Bool
+        validateInputs TxInInfo{txInInfoResolved = p0} TxInInfo{txInInfoResolved = p1} =
+          -- {{{
+          case getInlineDatum p0 of
+            ProjectInfo ProjectDetails{..} ->
               -- {{{
-              case getInlineDatum p0 of
-                ProjectInfo ProjectDetails{..} ->
+              case getInlineDatum p1 of
+                Escrow _                                 ->
                   -- {{{
-                  case getInlineDatum p1 of
-                    Escrow _                                 ->
-                      -- {{{
-                         traceIfFalse
-                           "Escrow must be depleted before refunding the registration fee."
-                           ( lovelaceFromValue (txOutValue p1)
-                             == halfOfTheRegistrationFee
-                           )
-                      && traceIfFalse
-                           "Transaction must be signed by the project owner."
-                           (txSignedBy info pdPubKeyHash)
-                      -- }}}
-                    _                                        ->
-                      -- {{{
-                      traceError "Invalid datum for the second project input."
-                      -- }}}
+                     traceIfFalse
+                       "Invalid project info UTxO provided."
+                       ( utxoHasOnlyXWithLovelaces
+                           ownSym
+                           currTN
+                           halfOfTheRegistrationFee
+                           p0
+                       )
+                  && traceIfFalse
+                       "Escrow must be depleted before refunding the registration fee."
+                       ( utxoHasOnlyXWithLovelaces
+                           ownSym
+                           currTN
+                           halfOfTheRegistrationFee
+                           p1
+                       )
+                  && traceIfFalse
+                       "Transaction must be signed by the project owner."
+                       (txSignedBy info pdPubKeyHash)
                   -- }}}
-                _                              ->
+                _                                        ->
                   -- {{{
-                  traceError "First project input must be the info UTxO."
+                  traceError "Invalid datum for the second project input."
                   -- }}}
               -- }}}
-            _        ->
+            _                              ->
               -- {{{
-              traceError "Exactly 2 project inputs are expected."
+              traceError "First project input must be the info UTxO."
               -- }}}
+          -- }}}
       in
-      inputPsAreValid
-      -- traceError "TODO."
+      case inputs of
+        [i0, i1]    ->
+          -- {{{
+          validateInputs i0 i1
+          -- }}}
+        [_, i0, i1] ->
+          -- {{{
+          validateInputs i0 i1
+          -- }}}
+        _                                         ->
+          -- {{{
+          traceError "Exactly 2 project inputs are expected."
+          -- }}}
       -- }}}
   -- }}}
+
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
