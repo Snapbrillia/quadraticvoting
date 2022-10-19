@@ -12,7 +12,7 @@ qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
-deadlineAsset="$govAsset$(cat $deadlineTokenNameHexFile)"
+deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 projectAsset="$regSym.$projectTokenName"
@@ -21,13 +21,13 @@ donAsset="$donSym.$projectTokenName"
 # Get the project UTxO. Since the first project UTxO produced at the
 # registration phase is the one carrying the static UTxO, index 1 is used to
 # get the UTxO with the "state" datum attached.
-projectUTxOObj="$(bf_get_utxos_datums_lovelaces $qvfAddress $regSym$projectTokenName | jq -c '.[1]')"
+projectUTxOObj="$(get_script_utxos_datums_values $qvfAddress $projectAsset | jq -c '.[1]')"
 projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
 projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
 echo "$projectCurrDatum" > $currentDatumFile
 projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
-deadlineUTxO=$(remove_quotes $(bf_get_utxos_datums_lovelaces $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
+deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
 
 donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
 donorPKH=$(cat $preDir/$donorWalletLabel.pkh)

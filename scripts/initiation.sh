@@ -52,6 +52,14 @@ get_script_data_hash() {
   $cli transaction hash-script-data --script-data-file $1
 }
 
+
+check_key_holder_wallet() {
+  if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $preDir/$keyHolder.addr ] && [ -f $preDir/$keyHolder.pkh ]; then
+    echo "TODO: Postponed for another git branch."
+  fi
+}
+
+
 initiate_fund() {
   # {{{
   for proj in $(cat $registeredProjectsFile); do
