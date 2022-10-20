@@ -589,7 +589,7 @@ get_wallet_lovelace_utxos() {
 
 
 # Takes 1 arguemnt:
-#   1. Wallet address.
+#   1. Script address.
 get_all_script_utxos_datums_values() {
   # {{{
   $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
@@ -625,7 +625,7 @@ get_all_script_utxos_datums_values() {
 
 
 # Takes 2 arguemnts:
-#   1. Wallet address,
+#   1. Script address,
 #   2. Authentication asset ("$currencySymbol.$tokenName").
 get_script_utxos_datums_values() {
   # {{{
@@ -888,10 +888,24 @@ if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] 
   utxoCount=$(echo "$utxos" | jq length)
   totalLovelace=$(get_total_lovelaces_from_json "$utxos")
   if [ $utxoCount -eq 3 ]; then
-    echo "The reference wallet has 3 UTxOs. Moving on with the assumption that"
-    echo "they are the reference UTxOs for the scripts."
+    if [ -f $scriptAddressFile ]; then
+      scriptUTxOs=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
+      totalLovelace=$(get_total_lovelaces_from_json "$scriptUTxOs")
+      if [ $totalLovelace -eq 0 ]; then
+        echo "The reference wallet is not empty, while the contract is."
+        echo "Depleting the reference wallet into key holder's..."
+        deplete_reference_wallet
+        tidy_up_wallet $keyHolder
+      fi
+    else
+      echo "The reference wallet is not empty, while there is no contract"
+      echo "address file stored. Depleting the reference wallet..."
+      deplete_reference_wallet
+      tidy_up_wallet $keyHolder
+    fi
   elif [ $totalLovelace -gt 0 ]; then
     deplete_reference_wallet
+    tidy_up_wallet $keyHolder
   fi
 elif [ -f $preDir/$referenceWallet.vkey ] || [ -f $preDir/$referenceWallet.skey ] || [ -f $preDir/$referenceWallet.addr ] || [ -f $preDir/$referenceWallet.pkh ]; then
   echo "Some reference wallet files are missing."

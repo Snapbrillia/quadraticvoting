@@ -211,6 +211,7 @@ dev_depletion() {
   donRefUTxO=$(cat $donRefUTxOFile)
   donSym=$(cat $donSymFile)
   mintArg=$(get_all_script_utxos_datums_values $scriptAddr | jq 'map("-" + (.assetCount | tostring) + " " + .asset) | reduce .[] as $a (""; if . == "" then $a else (. + " + " + $a) end)')
+  mintArg=$(remove_quotes "$mintArg")
 
   txIn=""
   # {{{ LOOP TO FIND $txIn 
