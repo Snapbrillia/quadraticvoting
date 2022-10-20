@@ -210,6 +210,7 @@ dev_depletion() {
   regSym=$(cat $regSymFile)
   donRefUTxO=$(cat $donRefUTxOFile)
   donSym=$(cat $donSymFile)
+  scriptAddr=$(cat $scriptAddressFile)
   mintArg=$(get_all_script_utxos_datums_values $scriptAddr | jq 'map("-" + (.assetCount | tostring) + " " + .asset) | reduce .[] as $a (""; if . == "" then $a else (. + " + " + $a) end)')
   mintArg=$(remove_quotes "$mintArg")
 
@@ -266,13 +267,13 @@ deplete_reference_wallet() {
 }
 
 dev_reset() {
-  dev_depletion "$1"
+  dev_depletion
   deplete_reference_wallet
   tidy_up_wallet $keyHolder
 }
 
 dev_restart() {
-  dev_reset "$1"
+  dev_reset
   cabal install qvf-cli --overwrite-policy=always
   initiate_fund
 }

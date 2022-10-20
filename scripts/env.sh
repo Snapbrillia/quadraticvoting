@@ -1,7 +1,7 @@
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
 export MAGIC='--testnet-magic 2'
 export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
-export preDir="$HOME/code/quadraticvoting/testnet2"
+export preDir="$HOME/code/quadraticvoting/testnet"
 export cli="cardano-cli"
 export qvf="qvf-cli"
 # ========================================== #
