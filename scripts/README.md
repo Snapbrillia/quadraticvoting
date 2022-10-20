@@ -1,16 +1,38 @@
-# A Set of Helper Bash Scripts for Easy On-Chain Testing
+# Bash Solutions to Bridge `qvf-cli` and `cardano-cli` for Transaction Construction
 
-To avoid using the resource intensive Plutus Application Backend (PAB), we have
-developed a set of bash scripts to perform various test scenarios with a smart
-contract that is deployed on the testnet.
+Our custom application, `qvf-cli`, is developed to provide off-chain
+accessibility of the on-chain logics. To utilize this functionality, we have
+developed this set of bash scripts and functions for a more convenient
+developer experience.
 
-One of the primary functionalities implemented here, is the ability of using a
-single wallet that contains a large sum of Lovelaces, and distributing a total
-amount among a number of freshly generated wallets.
-
-This allows us to easily have access to numerous wallets for better testing.
-And, to prevent loss of tADA tokens, we also have a function to drain all the
-wallets into the initial wallet.
-
-These utility functions, along with all environment assignmentsare defined
+These utility functions, along with all environment assignments are defined
 in `env.sh`.
+
+## Quickstart
+
+1. Clone the repository, and navigate into its home directory:
+    ```bash
+$ git clone https://github.com/Snapbrillia/quadraticvoting
+$ cd quadraticvoting
+    ```
+
+2. Enter the Nix shell:
+    ```bash
+$ nix-shell
+# Make sure you are still in the repository's directory:
+$ cd /path/to/quadraticvoting
+    ```
+
+3. Build the `qvf-cli` binary and optionally put it in your `PATH`. An easy
+way to do that is by using Cabal's `install` command (the flag tells Cabal that
+in case the binary is already installed, it's allowed to overwrite it):
+    ```bash
+$ cabal install qvf-cli --overwrite-policy=always
+    ```
+
+4. Source `scripts/env.sh` from the repository's home directory, and the logs
+should guide you through any further requirements:
+    ```bash
+$ cd /path/to/quadraticvoting
+$ . scripts/env.sh
+    ```
