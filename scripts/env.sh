@@ -1,12 +1,9 @@
-export MAGIC='--testnet-magic 2'
-
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
+export MAGIC='--testnet-magic 2'
 export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
-export preDir="$HOME/code/quadraticvoting/testnet"
+export preDir="$HOME/code/quadraticvoting/testnet2"
 export cli="cardano-cli"
-# export cli="$HOME/preview-testnet/cardano-cli"
 export qvf="qvf-cli"
-# export qvf="cabal run qvf-cli --"
 # ========================================== #
 
 # Removes the single quotes.
@@ -14,8 +11,10 @@ export qvf="qvf-cli"
 # Takes 1 argument:
 #   1. Target string.
 remove_single_quotes() {
+  # {{{
   echo $1           \
   | sed 's|['"\'"',]||g'
+  # }}}
 }
 
 # Removes the double quotes.
@@ -23,12 +22,16 @@ remove_single_quotes() {
 # Takes 1 argument:
 #   1. Target string.
 remove_quotes() {
+  # {{{
   echo $1           \
   | sed 's|[",]||g'
+  # }}}
 }
 
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
+# Creating the $fileNamesJSONFile:
+# {{{
 touch $fileNamesJSONFile
 echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
 echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
@@ -56,9 +59,13 @@ echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileN
 echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
 echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.txt\""     >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
+# }}}
 getFileName() {
   echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
 }
+
+# Exporting variables for required file names:
+# {{{
 export queryJSONFile=$(getFileName ocfnQueryJSON)
 
 # Main script:
@@ -92,29 +99,40 @@ export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
 export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
-export referenceWallet="referenceWallet"
-export referenceWalletAddress=$(cat "$preDir/$referenceWallet.addr")
-export keyHolder="keyHolder"
-export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
-export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
-export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
-export protocolsFile="$preDir/protocol.json"
-export txBody="$preDir/tx.unsigned"
-export txSigned="$preDir/tx.signed"
-export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
-
 
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
+  # {{{
   $cli query protocol-parameters $MAGIC --out-file $protocolsFile
+  # }}}
 }
+export protocolsFile="$preDir/protocol.json"
+generate_protocol_params
+export txBody="$preDir/tx.unsigned"
+export txSigned="$preDir/tx.signed"
+# }}}
+
+# Convenient variable to replace the constant arguemnts for constructing a
+# transaction.
+export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
+
+
+# REQUIRED FOR DEVELOPMENT:
+tempRedeemer="$preDir/temp.redeemer"
+touch $tempRedeemer
+echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
+devRedeemer="$preDir/dev.redeemer"
+touch $devRedeemer
+echo "{\"constructor\":10,\"fields\":[]}" > $devRedeemer
+# =========================
 
 
 # Takes at least 1 argument:
 #   1. The signing key file.
 #   *. Any additional signing key files.
 sign_tx_by() {
+  # {{{
   signArg=""
   for i in $@; do
     signArg="$signArg --signing-key-file $i"
@@ -124,23 +142,30 @@ sign_tx_by() {
     $signArg               \
     $MAGIC                 \
     --out-file $txSigned
+  # }}}
 }
 
 
 # Submits $txSigned to the chain.
 submit_tx() {
+  # {{{
   $cli transaction submit $MAGIC --tx-file $txSigned
+  # }}}
 }
 
 
 # Takes 1 argument:
 #   1. Datum file.
 get_deadline_slot() {
+  # {{{
   $qvf get-deadline-slot $(get_newest_slot) $1
+  # }}}
 }
 
 get_current_slot() {
+  # {{{
   $cli query tip $MAGIC | jq '.slot|tonumber'
+  # }}}
 }
 
 # Picks the min value between a given slot, and 500 slots after the current
@@ -149,16 +174,19 @@ get_current_slot() {
 # Takes 1 argument:
 #   1. Deadline slot.
 cap_deadline_slot() {
+  # {{{
   currentSlot=$(get_current_slot)
   currentSlotPlusFiveHundred=$(expr $currentSlot + 500)
   cappedSlot=$(( $1 < $currentSlotPlusFiveHundred ? $1 : $currentSlotPlusFiveHundred ))
   echo $cappedSlot
+  # }}}
 }
 
 
 # Keeps querying the node until it first reaches a `syncProgress` of 100%.
 # Continues polling until sees a "fresh" slot number to return.
 get_newest_slot() {
+  # {{{
   sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
   while [ $sync -lt 100 ]; do
     sync=$($cli query tip $MAGIC | jq '.syncProgress|tonumber|floor')
@@ -169,13 +197,17 @@ get_newest_slot() {
     newSlot=$($cli query tip $MAGIC | jq .slot)
   done
   echo $newSlot
+  # }}}
 }
 
 store_current_slot() {
+  # {{{
   get_current_slot > $latestInteractionSlotFile
+  # }}}
 }
 
 wait_for_new_slot() {
+  # {{{
   latest=$(cat $latestInteractionSlotFile)
   current=$(get_current_slot)
   echo -e "\nWaiting for chain extension..."
@@ -190,12 +222,48 @@ wait_for_new_slot() {
   echo    "Latest interaction slot:      $latest"
   echo    "Current slot after extension: $current"
   echo -e "--------------------------------------\n"
+  # }}}
 }
 
 sign_and_submit_tx() {
+  # {{{
   sign_tx_by "$@"
   submit_tx
   store_current_slot
+  # }}}
+}
+
+
+# Displays the utxo information table of one or multiple addresses.
+#
+# Takes at least 1 argument:
+#   1. Wallet number/name,
+#   *. Any additional wallet number/name.
+show_utxo_tables () {
+  # {{{
+  for i in $@; do
+    echo
+    echo $i
+    $cli query utxo $MAGIC --address $(cat $preDir/$i.addr)
+  done
+  # }}}
+}
+
+
+# Consumes all UTxOs at a wallet, and produces a single one in return, which
+# carries all the Lovelaces. Does NOT support native tokens.
+#
+# Takes 1 argument:
+#   1. Wallet number/name.
+tidy_up_wallet() {
+  # {{{
+  addr=$(cat $preDir/$1.addr)
+  inputs=$(get_all_input_utxos_at $1)
+  $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
+  sign_and_submit_tx $preDir/$1.skey
+  wait_for_new_slot
+  show_utxo_tables $1
+  # }}}
 }
 
 
@@ -204,9 +272,11 @@ sign_and_submit_tx() {
 # Takes 1 argument:
 #   1. Label for files.
 generate_skey_and_vkey() {
+  # {{{
   $cli address key-gen                      \
     --verification-key-file $preDir/$1.vkey \
     --signing-key-file $preDir/$1.skey
+  # }}}
 }
 
 
@@ -215,9 +285,11 @@ generate_skey_and_vkey() {
 # Takes 1 argument:
 #   1. Label for files.
 vkey_to_address() {
+  # {{{
   $cli address build $MAGIC                         \
     --payment-verification-key-file $preDir/$1.vkey \
     --out-file $preDir/$1.addr
+  # }}}
 }
 
 
@@ -226,20 +298,11 @@ vkey_to_address() {
 # Takes 1 argument:
 #   1. Label for files.
 vkey_to_public_key_hash() {
+  # {{{
   $cli address key-hash                             \
     --payment-verification-key-file $preDir/$1.vkey \
     --out-file $preDir/$1.pkh
-}
-
-
-# Creates the associated address from a Plutus script File.
-# 
-# Doesn't take any arguments, uses global variables.
-plutus_script_to_address() {
-  $cli address build-script       \
-    $MAGIC                        \
-    --script-file $mainScriptFile \
-    --out-file $scriptAddressFile
+  # }}}
 }
 
 
@@ -248,9 +311,24 @@ plutus_script_to_address() {
 # Takes 1 argument:
 #   1. Label for files.
 generate_wallet() {
+  # {{{
   generate_skey_and_vkey $1
   vkey_to_address $1
   vkey_to_public_key_hash $1
+  # }}}
+}
+
+
+# Creates the associated address from a Plutus script File.
+# 
+# Doesn't take any arguments, uses global variables.
+plutus_script_to_address() {
+  # {{{
+  $cli address build-script       \
+    $MAGIC                        \
+    --script-file $mainScriptFile \
+    --out-file $scriptAddressFile
+  # }}}
 }
 
 
@@ -265,6 +343,7 @@ generate_wallet() {
 #   1. Starting number,
 #   2. Ending number.
 generate_wallets_from_to() {
+  # {{{
   max_amt=100000
   if [ `expr $2 - $1` -ge $max_amt ]; then
   echo "That's over 100,000 wallets generated. Please reconsider. Edit fn if you really want to."
@@ -279,6 +358,7 @@ generate_wallets_from_to() {
     fi
   done
   fi
+  # }}}
 }
 
 
@@ -288,22 +368,26 @@ generate_wallets_from_to() {
 # Takes 1 argument:
 #   1. Wallet number/name.
 get_first_utxo_of() {
+  # {{{
   echo `$cli query utxo               \
     --address $(cat $preDir/$1.addr)  \
     $MAGIC                            \
     | sed 1,2d                        \
     | awk 'FNR == 1 {print $1"#"$2}'`
+  # }}}
 }
 
 # Takes 2 arguments:
 #   1. Wallet number/name,
 #   2. Row of the UTxO table.
 get_nth_utxo_of() {
+  # {{{
   echo `$cli query utxo                  \
     --address $(cat $preDir/$1.addr)     \
     $MAGIC                               \
     | sed 1,2d                           \
     | awk 'FNR == '$2' {print $1"#"$2}'`
+  # }}}
 }
 
 
@@ -313,6 +397,7 @@ get_nth_utxo_of() {
 # Takes 1 argument:
 #   1. Wallet number/name.
 get_all_input_utxos_at() {
+  # {{{
   echo `$cli query utxo                           \
     --address $(cat $preDir/$1.addr)              \
     $MAGIC                                        \
@@ -320,35 +405,7 @@ get_all_input_utxos_at() {
     | awk '{print $1"#"$2}'                       \
     | sed 's/^/--tx-in /'                         \
     | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'`
-}
-
-
-# Consumes all UTxOs at a wallet, and produces a single one in return, which
-# carries all the Lovelaces. Does NOT support native tokens.
-#
-# Takes 1 argument:
-#   1. Wallet number/name.
-tidy_up_wallet() {
-  addr=$(cat $preDir/$1.addr)
-  inputs=$(get_all_input_utxos_at $1)
-  $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
-  sign_and_submit_tx $preDir/$1.skey
-  wait_for_new_slot
-  show_utxo_tables $1
-}
-
-
-# Displays the utxo information table of one or multiple addresses.
-#
-# Takes at least 1 argument:
-#   1. Wallet number/name,
-#   *. Any additional wallet number/name.
-show_utxo_tables () {
-  for i in $@; do
-    echo
-    echo $i
-    $cli query utxo $MAGIC --address $(cat $preDir/$i.addr)
-  done
+  # }}}
 }
 
 
@@ -361,7 +418,7 @@ show_utxo_tables () {
 #   2. Ending number,
 #   *. Any additional wallet address files.
 show_utxo_tables_from_to () {
-
+  # {{{
     for i in $(seq $1 $2)
     do
         show_utxo_tables $i
@@ -372,6 +429,7 @@ show_utxo_tables_from_to () {
     then
         show_utxo_tables $@
     fi
+  # }}}
 }
 
 # Equally distributes a given total Lovelace count from a wallet, between a
@@ -390,7 +448,7 @@ show_utxo_tables_from_to () {
 #   3. Ending number of the receiving wallets,
 #   4. Total amount of Lovelace to be distributed equally,
 distribute_from_to_wallets() {
-
+  # {{{
     spendingAddr=$(cat $preDir/$1.addr)
     tx_in_str=$(get_all_input_utxos_at $1)
     tx_out_str=''
@@ -439,6 +497,7 @@ distribute_from_to_wallets() {
     $cli transaction submit \
         $MAGIC              \
         --tx-file $txSigned
+  # }}}
 }
 
 
@@ -455,7 +514,7 @@ distribute_from_to_wallets() {
 #   2. Ending number of the spending wallets,
 #   3. Receiving wallet's number/name.
 drain_from_wallets_to() {
-
+  # {{{
     tx_in_str=''
     signing_keys_str=''
 
@@ -488,6 +547,7 @@ drain_from_wallets_to() {
         --out-file $txSigned
 
     submit_tx
+  # }}}
 }
 
 
@@ -497,17 +557,41 @@ drain_from_wallets_to() {
 # Takes 1 argument:
 #   1. User's wallet address file.
 get_first_lovelace_count_of() {
+  # {{{
   echo `$cli query utxo          \
     --address $(cat $1)          \
     $MAGIC                       \
     | sed 1,2d                   \
     | awk 'FNR == 1 {print $3}'`
+  # }}}
+}
+
+
+# Takes 1 arguemnt:
+#   1. Wallet label.
+get_wallet_lovelace_utxos() {
+  # {{{
+  $cli query utxo $MAGIC --address $(cat $preDir/$1.addr) --out-file $queryJSONFile
+  jq -c \
+    'to_entries
+    | map
+        ( ( .value
+          | .value
+          | to_entries
+          | map(select(.key == "lovelace"))
+          ) as $hasLovelace
+        | { utxo: .key
+          , lovelace: (.value | .value | .lovelace)
+          }
+        )' $queryJSONFile
+  # }}}
 }
 
 
 # Takes 1 arguemnt:
 #   1. Wallet address.
 get_all_script_utxos_datums_values() {
+  # {{{
   $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
   jq -c \
     'to_entries
@@ -536,6 +620,7 @@ get_all_script_utxos_datums_values() {
               )
           }
         )' $queryJSONFile
+  # }}}
 }
 
 
@@ -543,12 +628,19 @@ get_all_script_utxos_datums_values() {
 #   1. Wallet address,
 #   2. Authentication asset ("$currencySymbol.$tokenName").
 get_script_utxos_datums_values() {
+  # {{{
   get_all_script_utxos_datums_values $1 | jq -c --arg authAsset "$2" 'map(select(.asset == $authAsset))'
+  # }}}
 }
 
 
-get_script_total_lovelaces() {
-  get_all_script_utxos_datums_values $1 | jq 'map(.lovelace) | reduce .[] as $l (0; . + $l)'
+# Takes 1 argument:
+#   1. A JSON array such that all its elements are objects that have a
+#      "lovelace" field.
+get_total_lovelaces_from_json() {
+  # {{{
+  echo "$1" | jq 'map(.lovelace) | reduce .[] as $l (0; . + $l)'
+  # }}}
 }
 
 
@@ -564,6 +656,7 @@ get_script_total_lovelaces() {
 #   6. Amount that should be added to script's holding,
 #   7. Updated datum of the script after the transaction.
 interact_with_smart_contract() {
+  # {{{
 
     # Build script address from a script, if script address does not exist. 
     # The address name is the same as the script, except its extension is changed to .addr
@@ -604,13 +697,14 @@ interact_with_smart_contract() {
     $cli transaction submit                       \
         $MAGIC                                    \
         --tx-file tx.signed
+  # }}}
 }
 
 # Runs qvf-cli cmds with nix-shell from outside nix-shell
 # Uses a HERE doc to do this
 # PARAMS: $1=donor_pkh_file $2=receiver_pkh_file $3=lovelace_amt $4=current_datum
 update_datum_donate_qvf_cli() {
-
+  # {{{
     # Edit these: ---------
     path_to_plutus_apps=$HOME/plutus-apps
     path_to_quadratic_voting=$HOME/quadraticvoting
@@ -660,12 +754,14 @@ EOF
     chmod +x update-datum.sh
     ./update-datum.sh
     cd "$current_path"
+  # }}}
 }
 
 # WIP
 # cardano-cli transaction cmd to donate
 # PARAMS: $1=donorAddrFile $2=donorSKeyFile $3=utxoFromDonor $4=utxoAtScript $5=currentDatum $6lovelace_amt_script $7=lovelace_amt_donation
 donate_to_smart_contract() {
+  # {{{
     # Edit these: ---------
     authAsset=62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261546f6b656e
     scriptAddr=addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx
@@ -705,5 +801,104 @@ donate_to_smart_contract() {
 
     # Submit the transaction:
     $cli transaction submit $MAGIC --tx-file tx.signed
-
+  # }}}
 }
+
+
+export referenceWallet="referenceWallet"
+export keyHolder="keyHolder"
+minStartingLovelaces=300000000
+minStartingAda=300
+
+# Checks if the $keyHolder wallet exists (properly), and that it has a single
+# UTxO with enough Ada inside.
+#
+# If the wallet files exist partially, this
+# function terminates the script without any changes. If there are no wallet
+# files, the $keyHolder wallet is generated, but the script is terminated,
+# prompting the user to send some Ada to the wallet.
+#
+# If the wallet is present, it's made sure the total Lovelace count is more
+# than the minimum, and if they are spread out between multiple UTxOs, it'll
+# invoke the `tidy_up_wallet` function so that all the money is collected
+# inside a single UTxO.
+# {{{
+if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $preDir/$keyHolder.addr ] && [ -f $preDir/$keyHolder.pkh ]; then
+  utxos=$(get_wallet_lovelace_utxos $keyHolder)
+  utxoCount=$(echo "$utxos" | jq length)
+  totalLovelace=$(get_total_lovelaces_from_json "$utxos")
+  white="\033[97m"
+  noColor="\033[0m"
+  if [ $totalLovelace -gt $minStartingLovelaces ]; then
+    if [ $utxoCount -gt 1 ]; then
+      echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
+      tidy_up_wallet $keyHolder
+      echo "Done. The key holder wallet is ready."
+    fi
+    export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
+    export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
+    export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
+  else
+    echo "The key holder wallet doesn't have enough Ada. Please make sure a"
+    echo -e "minimum of $white$minStartingAda Ada$noColor is available:"
+    echo ""
+    echo -e "$white$(cat $preDir/$keyHolder.addr)$noColor"
+    return 1
+  fi
+elif [ -f $preDir/$keyHolder.vkey ] || [ -f $preDir/$keyHolder.skey ] || [ -f $preDir/$keyHolder.addr ] || [ -f $preDir/$keyHolder.pkh ]; then
+  echo "Some key holder wallet files are missing."
+  return 1
+else
+  generate_wallet $keyHolder
+  echo "No key holder wallet was found. The wallet is generated for you."
+  echo -e "Please deposit a minimum of $white$minStartingAda Ada$noColor before proceeding:"
+  echo ""
+  echo -e "$white$(cat $preDir/$keyHolder.addr)$noColor"
+  return 1
+fi
+# }}}
+
+
+# Consumes all the UTxOs sitting at the $referenceWallet, and sends them to the
+# $keyHolder wallet.
+#
+# NOTE: This function fails if any assets other than Lovelaces are present
+#       inside the $referenceWallet.
+#
+# Takes no arguments.
+deplete_reference_wallet() {
+  # {{{
+  generate_protocol_params
+  $cli $BUILD_TX_CONST_ARGS                    \
+    $(get_all_input_utxos_at $referenceWallet) \
+    --change-address $keyHoldersAddress
+  sign_and_submit_tx $preDir/$referenceWallet.skey
+  wait_for_new_slot
+  show_utxo_tables $referenceWallet
+  # }}}
+}
+
+
+# A similar check for the $referencWallet. The difference being that the wallet
+# needs to be empty. So if any Lovelaces are spotted in an existing wallet,
+# they will all get transferred to the $keyHolder wallet.
+# {{{
+if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] && [ -f $preDir/$referenceWallet.addr ] && [ -f $preDir/$referenceWallet.pkh ]; then
+  utxos=$(get_wallet_lovelace_utxos $referenceWallet)
+  utxoCount=$(echo "$utxos" | jq length)
+  totalLovelace=$(get_total_lovelaces_from_json "$utxos")
+  if [ $utxoCount -eq 3 ]; then
+    echo "The reference wallet has 3 UTxOs. Moving on with the assumption that"
+    echo "they are the reference UTxOs for the scripts."
+  elif [ $totalLovelace -gt 0 ]; then
+    deplete_reference_wallet
+  fi
+elif [ -f $preDir/$referenceWallet.vkey ] || [ -f $preDir/$referenceWallet.skey ] || [ -f $preDir/$referenceWallet.addr ] || [ -f $preDir/$referenceWallet.pkh ]; then
+  echo "Some reference wallet files are missing."
+  return 1
+else
+  generate_wallet $referenceWallet
+fi
+# }}}
+
+export referenceWalletAddress=$(cat "$preDir/$referenceWallet.addr")

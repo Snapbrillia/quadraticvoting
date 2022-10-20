@@ -1,8 +1,6 @@
 #!/bin/bash
 
-. scripts/env.sh
 . scripts/initiation.sh
-. scripts/blockfrost.sh
 
 projectOwnerWalletLabel=$1
 projectName=$2

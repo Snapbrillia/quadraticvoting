@@ -53,13 +53,6 @@ get_script_data_hash() {
 }
 
 
-check_key_holder_wallet() {
-  if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $preDir/$keyHolder.addr ] && [ -f $preDir/$keyHolder.pkh ]; then
-    echo "TODO: Postponed for another git branch."
-  fi
-}
-
-
 initiate_fund() {
   # {{{
   for proj in $(cat $registeredProjectsFile); do
@@ -118,17 +111,17 @@ initiate_fund() {
   # Transaction to mint 2 governance tokens, and include 1 in two UTxOs
   # produced at the script address. Minter expects the deadline UTxO
   # to be produced first.
-  $cli $BUILD_TX_CONST_ARGS                    \
-    --tx-in $genesisUTxO                       \
-    --tx-in-collateral $genesisUTxO            \
-    --tx-out "$firstUTxO"                      \
-    --tx-out-inline-datum-file $deadlineDatum  \
-    --tx-out "$secondUTxO"                     \
-    --tx-out-inline-datum-file $govDatumFile   \
-    --invalid-hereafter $cappedSlot            \
-    --mint "1 $deadlineAsset + 1 $govAsset"    \
-    --mint-script-file $govScriptFile          \
-    --mint-redeemer-file $preDir/temp.redeemer \
+  $cli $BUILD_TX_CONST_ARGS                   \
+    --tx-in $genesisUTxO                      \
+    --tx-in-collateral $genesisUTxO           \
+    --tx-out "$firstUTxO"                     \
+    --tx-out-inline-datum-file $deadlineDatum \
+    --tx-out "$secondUTxO"                    \
+    --tx-out-inline-datum-file $govDatumFile  \
+    --invalid-hereafter $cappedSlot           \
+    --mint "1 $deadlineAsset + 1 $govAsset"   \
+    --mint-script-file $govScriptFile         \
+    --mint-redeemer-file $tempRedeemer        \
     --change-address $keyHoldersAddress
   
   sign_and_submit_tx $keyHoldersSigningKeyFile
@@ -208,8 +201,6 @@ initiate_fund() {
 }
 
 
-# Takes 1 argument:
-#   1. The mint argument for `cardano-cli`.
 dev_depletion() {
   # {{{
   collateral=$(get_first_utxo_of $keyHolder)
@@ -219,7 +210,7 @@ dev_depletion() {
   regSym=$(cat $regSymFile)
   donRefUTxO=$(cat $donRefUTxOFile)
   donSym=$(cat $donSymFile)
-  devRedeemer="$preDir/dev.redeemer"
+  mintArg=$(get_all_script_utxos_datums_values $scriptAddr | jq 'map("-" + (.assetCount | tostring) + " " + .asset) | reduce .[] as $a (""; if . == "" then $a else (. + " + " + $a) end)')
 
   txIn=""
   # {{{ LOOP TO FIND $txIn 
@@ -244,7 +235,7 @@ dev_depletion() {
   $cli $BUILD_TX_CONST_ARGS                           \
     --tx-in-collateral $collateral                    \
     $txIn                                             \
-    --mint "$1"                                       \
+    --mint "$mintArg"                                 \
     --mint-script-file $govScriptFile                 \
     --mint-redeemer-file $devRedeemer                 \
     --mint-tx-in-reference $regRefUTxO                \
@@ -273,16 +264,12 @@ deplete_reference_wallet() {
   # }}}
 }
 
-# Takes 1 argument:
-#   1. The mint argument for `cardano-cli`.
 dev_reset() {
   dev_depletion "$1"
   deplete_reference_wallet
   tidy_up_wallet $keyHolder
 }
 
-# Takes 1 argument:
-#   1. The mint argument for `cardano-cli`.
 dev_restart() {
   dev_reset "$1"
   cabal install qvf-cli --overwrite-policy=always

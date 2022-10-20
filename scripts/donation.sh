@@ -1,8 +1,6 @@
 #!/bin/bash
 
-. scripts/env.sh
 . scripts/initiation.sh
-. scripts/blockfrost.sh
 
 donorWalletLabel=$1
 projectTokenName=$2
