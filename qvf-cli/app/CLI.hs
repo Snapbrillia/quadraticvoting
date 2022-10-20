@@ -812,7 +812,7 @@ main =
               putStrLn "FAILED: Provided current datum is incompatible."
               -- }}}
           -- }}}
-        _                                    ->
+        _                                  ->
           -- {{{
           putStrLn $ "FAILED with bad arguments: "
             ++ pkhStr
@@ -824,6 +824,18 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
+    "fold-donations" : _                                                                       ->
+      putStrLn "TODO."
+    "accumulate-donations" : _                                                                 ->
+      putStrLn "TODO."
+    "collect-key-holder-fee": _                                                                ->
+      putStrLn "TODO."
+    "distribute-prize" : _                                                                     ->
+      putStrLn "TODO."
+    "unlock-bounty-for" : _                                                                    ->
+      putStrLn "TODO."
+    "withdraw-bounty" : _                                                                      ->
+      putStrLn "TODO."
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print

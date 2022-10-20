@@ -11,28 +11,28 @@ in `env.sh`.
 ## Quickstart
 
 1. Clone the repository, and navigate into its home directory:
-    ```bash
+```bash
 $ git clone https://github.com/Snapbrillia/quadraticvoting
 $ cd quadraticvoting
-    ```
+```
 
 2. Enter the Nix shell:
-    ```bash
+```bash
 $ nix-shell
 # Make sure you are still in the repository's directory:
 $ cd /path/to/quadraticvoting
-    ```
+```
 
 3. Build the `qvf-cli` binary and optionally put it in your `PATH`. An easy
 way to do that is by using Cabal's `install` command (the flag tells Cabal that
 in case the binary is already installed, it's allowed to overwrite it):
-    ```bash
+```bash
 $ cabal install qvf-cli --overwrite-policy=always
-    ```
+```
 
 4. Source `scripts/env.sh` from the repository's home directory, and the logs
 should guide you through any further requirements:
-    ```bash
+```bash
 $ cd /path/to/quadraticvoting
 $ . scripts/env.sh
-    ```
+```
