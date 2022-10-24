@@ -828,8 +828,109 @@ main =
       putStrLn "TODO."
     "accumulate-donations" : _                                                                 ->
       putStrLn "TODO."
-    "collect-key-holder-fee": _                                                                ->
-      putStrLn "TODO."
+
+    "collect-key-holder-fee": pkhStr : fileNamesJSON : _                                       ->
+
+      -- {{{
+      case A.decode $ fromString fileNamesJSON of
+
+        Just ocfn ->
+
+          -- {{{
+          let
+
+            keyholderPKH    :: Ledger.PubKeyHash
+            keyholderPKH    = fromString pkhStr
+
+            --govRedeemer :: QVFAction
+            --govRedeemer = DonateToProject projId'
+
+            --donInfo     :: DonationInfo
+            --donInfo     = DonationInfo projId' donorPKH amt
+
+            --donRedeemer :: Don.DonationRedeemer
+            --donRedeemer = Don.DonateToProject donInfo
+
+            govRedeemer :: QVFAction
+            govRedeemer = PayKeyHolderFee
+
+            --projDetails :: ProjectDetails
+            --projDetails =
+            --  ProjectDetails (fromString pkhStr) (fromString lbl) reqFund
+
+            --regRedeemer :: Reg.RegistrationRedeemer
+            --regRedeemer =
+            --  Reg.RegisterProject $ RegistrationInfo utxo projDetails
+
+            --TODO make correct redeemer
+            someRedeemer :: Reg.RegistrationRedeemer
+            someRedeemer =
+              Reg.RegisterProject $ RegistrationInfo utxo projDetails
+
+          in
+          actOnCurrentDatum ocfn govRedeemer (Just someRedeemer) $ \case
+            --RegisteredProjectsCount soFar ->
+            DonationAccumulationConcluded _ ttls sump _ ->
+
+              -- {{{
+              let
+
+                fee = floor (fromInteger ttls * 0.05) -- floor gives remainder to the prize pool
+                updatedPool = ttls - fee
+
+                --updatedDatum      :: QVFDatum
+                --updatedDatum      = RegisteredProjectsCount $ soFar + 1
+                --updatedDatumFile  :: FilePath
+                --updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+
+                updatedDatum      :: QVFDatum
+                updatedDatum      = (DonationAccumulationConcluded $ 0 $ updatedPool $ sump $ True)
+                updatedDatumFile  :: FilePath
+                updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+
+
+
+                newDatum          :: QVFDatum
+                newDatum          = ReceivedDonationsCount 0
+                newDatumFile      :: FilePath
+                newDatumFile      = getFileName ocfn ocfnNewDatum
+
+                projTokenName     :: TokenName
+                projTokenName     = orefToTokenName utxo
+                projTokenNameFile :: FilePath
+                projTokenNameFile = getFileName ocfn ocfnProjectTokenName
+
+                projInfo          :: QVFDatum
+                projInfo          = ProjectInfo projDetails
+                projInfoFile      :: FilePath
+                projInfoFile      =
+                     ocfnPreDir ocfn
+                  ++ "/"
+                  ++ unsafeTokenNameToHex projTokenName
+              in do
+              andPrintSuccess projTokenNameFile $
+                writeTokenNameHex projTokenNameFile projTokenName
+              andPrintSuccess updatedDatumFile $
+                writeJSON updatedDatumFile updatedDatum
+              andPrintSuccess newDatumFile $
+                writeJSON newDatumFile newDatum
+              andPrintSuccess projInfoFile $
+                writeJSON projInfoFile projInfo
+              -- }}}
+            _                             ->
+              -- {{{
+              putStrLn "FAILED: Provided current datum is incompatible."
+              -- }}}
+          -- }}}
+        _                                    ->
+          -- {{{
+          putStrLn $ "FAILED with bad arguments: "
+            ++ pkhStr
+            ++ " "
+            ++ fileNamesJSON
+          -- }}}
+      -- }}}
+
     "distribute-prize" : _                                                                     ->
       putStrLn "TODO."
     "unlock-bounty-for" : _                                                                    ->
