@@ -863,19 +863,19 @@ main =
             --  Reg.RegisterProject $ RegistrationInfo utxo projDetails
 
             --TODO make correct redeemer
-            someRedeemer :: Reg.RegistrationRedeemer
-            someRedeemer =
-              Reg.RegisterProject $ RegistrationInfo utxo projDetails
+            --someRedeemer :: Reg.RegistrationRedeemer
+            --someRedeemer =
+            --  Reg.RegisterProject $ RegistrationInfo utxo projDetails
 
           in
-          actOnCurrentDatum ocfn govRedeemer (Just someRedeemer) $ \case
+          actOnCurrentDatum ocfn govRedeemer Nothing $ \case
             --RegisteredProjectsCount soFar ->
             DonationAccumulationConcluded _ ttls sump _ ->
 
               -- {{{
               let
 
-                fee = floor (fromInteger ttls * 0.05) -- floor gives remainder to the prize pool
+                fee = div (fromInteger ttls * 5) 100 -- floor gives remainder to the prize pool
                 updatedPool = ttls - fee
 
                 --updatedDatum      :: QVFDatum
