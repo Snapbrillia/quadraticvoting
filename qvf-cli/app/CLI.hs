@@ -884,14 +884,14 @@ main =
                 --updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
                 updatedDatum      :: QVFDatum
-                updatedDatum      = (DonationAccumulationConcluded $ 0 $ updatedPool $ sump $ True)
+                updatedDatum      = DonationAccumulationConcluded 0 updatedPool sump True
                 updatedDatumFile  :: FilePath
                 updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
 
 
                 newDatum          :: QVFDatum
-                newDatum          = ReceivedDonationsCount 0
+                newDatum          = DonationAccumulationConcluded 0 updatedPool sump True
                 newDatumFile      :: FilePath
                 newDatumFile      = getFileName ocfn ocfnNewDatum
 
