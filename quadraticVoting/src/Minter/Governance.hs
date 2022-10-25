@@ -53,7 +53,7 @@ data TempRedeemer
 
 PlutusTx.makeIsDataIndexed ''TempRedeemer
   [ ('Validate, 11)
-  , ('Dev     , 10)
+  , ('Dev     , 20)
   ]
 
 

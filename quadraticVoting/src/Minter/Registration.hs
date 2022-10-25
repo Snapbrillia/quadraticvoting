@@ -39,7 +39,7 @@ data RegistrationRedeemer
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
   , ('ConcludeAndRefund, 1)
-  , ('Dev              , 10)
+  , ('Dev              , 20)
   ]
 -- }}}
 

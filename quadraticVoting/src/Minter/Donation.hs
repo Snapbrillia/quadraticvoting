@@ -38,7 +38,7 @@ data DonationRedeemer
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
   , ('FoldDonations   ,1)
-  , ('Dev             ,10)
+  , ('Dev             ,20)
   ]
 -- }}}
 

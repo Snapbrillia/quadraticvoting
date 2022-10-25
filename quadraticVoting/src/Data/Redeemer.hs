@@ -58,6 +58,8 @@ data QVFAction
   | RegisterProject
   | DonateToProject       BuiltinByteString
   | FoldDonations
+  | AbsorbDuplicateDonors
+  | ConsolidateDonations
   | AccumulateDonations
   | PayKeyHolderFee
   | DistributePrizes
@@ -67,17 +69,19 @@ data QVFAction
   | Dev
 
 PlutusTx.makeIsDataIndexed ''QVFAction
-  [ ('UpdateDeadline     , 0)
-  , ('RegisterProject    , 1)
-  , ('DonateToProject    , 2)
-  , ('FoldDonations      , 3)
-  , ('AccumulateDonations, 4)
-  , ('PayKeyHolderFee    , 5)
-  , ('DistributePrizes   , 6)
-  , ('UnlockEscrowFor    , 7)
-  , ('WithdrawBounty     , 8)
-  , ('ConcludeProject    , 9)
-  , ('Dev                , 10)
+  [ ('UpdateDeadline       , 0)
+  , ('RegisterProject      , 1)
+  , ('DonateToProject      , 2)
+  , ('FoldDonations        , 3)
+  , ('AbsorbDuplicateDonors, 4)
+  , ('ConsolidateDonations , 5)
+  , ('AccumulateDonations  , 6)
+  , ('PayKeyHolderFee      , 7)
+  , ('DistributePrizes     , 8)
+  , ('UnlockEscrowFor      , 9)
+  , ('WithdrawBounty       , 10)
+  , ('ConcludeProject      , 11)
+  , ('Dev                  , 20)
   ]
 -- }}}
 
