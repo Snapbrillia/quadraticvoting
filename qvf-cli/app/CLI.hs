@@ -870,28 +870,30 @@ main =
           in
           actOnCurrentDatum ocfn govRedeemer Nothing $ \case
             --RegisteredProjectsCount soFar ->
-            DonationAccumulationConcluded _ ttls sump _ ->
+            DonationAccumulationConcluded ps totalLovelaces sumP _ ->
 
               -- {{{
               let
 
-                fee = div (fromInteger ttls * 5) 100 -- floor gives remainder to the prize pool
-                updatedPool = ttls - fee
+                --fee = div (fromInteger ttls * 5) 100 -- floor gives remainder to the prize pool
+                --updatedPool = ttls - fee
 
+                (khFee, _) = OC.findDatumAfterPayingKeyHoldersFee ps totalLovelaces sumP
+                updatedPool = totalLovelaces - khFee
                 --updatedDatum      :: QVFDatum
                 --updatedDatum      = RegisteredProjectsCount $ soFar + 1
                 --updatedDatumFile  :: FilePath
                 --updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
                 updatedDatum      :: QVFDatum
-                updatedDatum      = DonationAccumulationConcluded 0 updatedPool sump True
+                updatedDatum      = DonationAccumulationConcluded 0 updatedPool sumP True
                 updatedDatumFile  :: FilePath
                 updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
 
 
                 newDatum          :: QVFDatum
-                newDatum          = DonationAccumulationConcluded 0 updatedPool sump True
+                newDatum          = DonationAccumulationConcluded 0 updatedPool sumP True
                 newDatumFile      :: FilePath
                 newDatumFile      = getFileName ocfn ocfnNewDatum
 
