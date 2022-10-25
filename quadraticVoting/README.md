@@ -219,8 +219,10 @@ This would mean there should be a transaction for each project, where the
 donation UTxOs are folded into a singular UTxO, carrying the project's portion
 of the total funding pool (`w_p`).
 
-Due to the size limit of transactions however, a single transaction may not be
-able to handle all the vote UTxOs associated to a project.
+Due to the size limit of transactions, and also the number of UTxOs that can be
+spent in each transaction (limited by the total execution budget) however, a
+single transaction may not be able to handle all the vote UTxOs associated to a
+project.
 
 
 #### Mathematical Detour to Find the Practical Limits
@@ -231,7 +233,7 @@ By observing the CBOR of a signed transaction, we can arrive at these values:
 |------------------------------------------------|-----------|
 | Each input                                     | 38 bytes  |
 | Each wallet output                             | 67 bytes  |
-| Each key value pair (public key hash, amount)  | 68 bytes  |
+| Each key value pair (public key hash, amount)  | 69 bytes  |
 | One signature                                  | 102 bytes |
 | Each redeemer without data                     | 14 bytes  |
 
@@ -307,7 +309,7 @@ given `c`, `r`, and `s` (described below):
 ```
 s           # number of bytes to slice off of public key hashes
 t = 38      # byte size increase per input
-u = 68 - s  # byte size increase per additional public key hash
+u = 72 - s  # byte size increase per additional public key hash
 R = 14 + r  # byte size increase per redeemer
 H = 15900   # available byte count
 
@@ -360,10 +362,10 @@ multiplying x_0 and x_f:
 To find a ballpark value, we can set:
   c = 5 => C = 15710
   r = 6 => R = 20
-  s = 0 => u = 68
+  s = 0 => u = 72
   and      t = 38
 
-  therefore: T = 124.68 * 269.69 = 33624.95
+  therefore: T = 120.85 * 269.62 = 32,583.58
 ```
 
 The last transaction should either burn the vote assets, or simply leave them
