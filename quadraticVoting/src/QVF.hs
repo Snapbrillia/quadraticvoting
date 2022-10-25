@@ -111,7 +111,7 @@ PlutusTx.makeLift ''QVFParams
 {-# INLINABLE mkQVFValidator #-}
 mkQVFValidator :: QVFParams
                -> QVFDatum
-               -> QVFRedeemer
+               -> QVFAction
                -> ScriptContext
                -> Bool
 mkQVFValidator QVFParams{..} datum action ctx =
@@ -209,8 +209,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       -- }}}
 
-    -- | Looks for the presence of a UTxO from the script in the input list
-    --   with 1 X asset, and a datum that complies with the given predicate.
+    -- | Looks for a UTxO from the script at the head of the input list with
+    --   one X asset, and a datum that complies with the given predicate.
     xInputWithSpecificDatumExists :: CurrencySymbol
                                   -> TokenName
                                   -> (QVFDatum -> Bool)
@@ -220,12 +220,16 @@ mkQVFValidator QVFParams{..} datum action ctx =
       let
         predicate TxInInfo{txInInfoResolved = txOut} =
           -- {{{
-             utxoHasX sym (Just tn) txOut
+             utxoHasOnlyX sym tn txOut
           && utxoSitsAtScript txOut
           && datumPred (getInlineDatum txOut)
           -- }}}
       in
-      isJust $ find predicate inputs
+      case inputs of
+        txIn : _ ->
+          predicate txIn
+        _        ->
+          False
       -- }}}
 
     -- | Collection of validations for consuming a set number of donation
@@ -939,13 +943,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
 data QVF
 instance Scripts.ValidatorTypes QVF where
   type DatumType    QVF = QVFDatum
-  type RedeemerType QVF = QVFRedeemer
+  type RedeemerType QVF = QVFAction
 
 
 typedQVFValidator :: QVFParams -> PSU.V2.TypedValidator QVF
 typedQVFValidator =
   let
-    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFRedeemer
+    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFAction
   in
   PSU.V2.mkTypedValidatorParam @QVF
     $$(PlutusTx.compile [|| mkQVFValidator ||])

@@ -253,21 +253,6 @@ utxosDatumMatchesWith newDatum =
   -- }}}
 
 
-{-# INLINABLE utxoXCount #-}
--- | Finds how much X asset is present in the given UTxO.
-utxoXCount :: CurrencySymbol -> TokenName -> TxOut -> Integer
-utxoXCount sym tn =
-  -- {{{
-    ( \case
-        Just (_, _, amt') -> amt'
-        Nothing           -> 0
-    )
-  . find (\(sym', tn', _) -> sym' == sym && tn' == tn)
-  . flattenValue
-  . txOutValue
-  -- }}}
-
-
 {-# INLINABLE utxoHasValue #-}
 utxoHasValue :: Value -> TxOut -> Bool
 utxoHasValue val =
@@ -351,14 +336,12 @@ utxoHasLovelaces lovelaces txOut =
 --   name) into a @Map@ value: mapping their public key hashes to their donated
 --   Lovelace count. It also counts the number of donations.
 --
---   Allows mixture of `Donation` and `Donations` datums (TODO?).
---
 --   There is also no validation for assuring the UTxO is coming from the
 --   script address (TODO?).
 --
 --   Ignores UTxOs that don't have the specified donation asset, but raises
 --   exception if it finds the asset with a datum other than `Donation` or
---   `Donations`.
+--   `Donations` (based on the amount of asset).
 foldDonationInputs :: CurrencySymbol
                    -> TokenName
                    -> [TxInInfo]
@@ -369,42 +352,56 @@ foldDonationInputs :: CurrencySymbol
 foldDonationInputs donationSymbol donationTN inputs =
   -- {{{
   let
-    foldFn TxInInfo{txInInfoResolved = o} (count, total, dMap) =
+    foldFn TxInInfo{txInInfoResolved = o} acc@(count, total, dMap) =
       -- {{{
-      let
-        xCount               = utxoXCount donationSymbol donationTN o
-        lovelaces            = lovelaceFromValue $ txOutValue o
-        helperFn mapForUnion =
+      case flattenValue (txOutValue o) of
+        [(sym', tn', amt'), (_, _, lovelaces)] ->
           -- {{{
-          ( count + xCount
-          , total + lovelaces
-          , Map.unionWith (+) mapForUnion dMap
-          )
+          if sym' == donationSymbol && tn' == donationTN then
+            -- {{{
+            let
+              helperFn accMap =
+                -- {{{
+                ( count + amt'
+                , total + lovelaces
+                , Map.unionWith (+) accMap dMap
+                )
+                -- }}}
+            in
+            if amt' == 1 then
+              -- {{{
+              case getInlineDatum o of
+                Donation donor  ->
+                  -- {{{
+                  helperFn $ Map.singleton donor lovelaces
+                  -- }}}
+                _               ->
+                  -- {{{
+                  traceError "Unexpected UTxO encountered."
+                  -- }}}
+              -- }}}
+            else
+              -- {{{
+              case getInlineDatum o of
+                Donations soFar ->
+                  -- {{{
+                  helperFn soFar
+                  -- }}}
+                _               ->
+                  -- {{{
+                  traceError "Unexpected UTxO encountered."
+                  -- }}}
+              -- }}}
+            -- }}}
+          else
+            -- {{{
+            acc
+            -- }}}
           -- }}}
-      in
-      if xCount > 0 then
-        -- {{{
-        case getInlineDatum o of
-          Donation donor  ->
-            -- {{{
-            -- TODO: Here we have an implicit assumption that since the
-            --       UTxO has a `Donation` datum, it must also carry
-            --       exactly 1 donation asset.
-            helperFn $ Map.singleton donor lovelaces
-            -- }}}
-          Donations soFar ->
-            -- {{{
-            helperFn soFar
-            -- }}}
-          _               ->
-            -- {{{
-            traceError "Unexpected UTxO encountered."
-            -- }}}
-        -- }}}
-      else
-        -- {{{
-        (count, total, dMap)
-        -- }}}
+        _                                      ->
+          -- {{{
+          acc
+          -- }}}
       -- }}}
   in
   foldr foldFn (0, 0, Map.empty) inputs

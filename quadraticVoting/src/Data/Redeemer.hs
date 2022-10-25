@@ -51,9 +51,9 @@ import           Data.DonationInfo
 -- }}}
 
 
--- QVF REDEEMER
+-- QVF ACTION
 -- {{{
-data QVFRedeemer
+data QVFAction
   = UpdateDeadline        POSIXTime
   | RegisterProject
   | DonateToProject       BuiltinByteString
@@ -66,7 +66,7 @@ data QVFRedeemer
   | ConcludeProject
   | Dev
 
-PlutusTx.makeIsDataIndexed ''QVFRedeemer
+PlutusTx.makeIsDataIndexed ''QVFAction
   [ ('UpdateDeadline     , 0)
   , ('RegisterProject    , 1)
   , ('DonateToProject    , 2)
