@@ -828,8 +828,7 @@ main =
       putStrLn "TODO."
     "accumulate-donations" : _                                                                 ->
       putStrLn "TODO."
-
-    "collect-key-holder-fee": pkhStr : fileNamesJSON : _                                       ->
+    "collect-key-holder-fee": fileNamesJSON : _                                                ->
 
       -- {{{
       case A.decode $ fromString fileNamesJSON of
@@ -839,8 +838,8 @@ main =
           -- {{{
           let
 
-            keyholderPKH    :: Ledger.PubKeyHash
-            keyholderPKH    = fromString pkhStr
+            --keyholderPKH    :: Ledger.PubKeyHash
+            --keyholderPKH    = fromString pkhStr
 
             --govRedeemer :: QVFAction
             --govRedeemer = DonateToProject projId'
@@ -868,7 +867,7 @@ main =
             --  Reg.RegisterProject $ RegistrationInfo utxo projDetails
 
           in
-          actOnCurrentDatum ocfn govRedeemer Nothing $ \case
+          actOnCurrentDatum @QVFAction ocfn govRedeemer Nothing $ \case
             --RegisteredProjectsCount soFar ->
             DonationAccumulationConcluded ps totalLovelaces sumP _ ->
 
@@ -878,46 +877,23 @@ main =
                 --fee = div (fromInteger ttls * 5) 100 -- floor gives remainder to the prize pool
                 --updatedPool = ttls - fee
 
-                (khFee, _) = OC.findDatumAfterPayingKeyHoldersFee ps totalLovelaces sumP
-                updatedPool = totalLovelaces - khFee
+                --(khFee, _) = OC.findDatumAfterPayingKeyHoldersFee ps totalLovelaces sumP
+                --updatedPool = totalLovelaces - khFee
+
+                (khFee, updatedDatum) = OC.findDatumAfterPayingKeyHoldersFee ps totalLovelaces sumP
                 --updatedDatum      :: QVFDatum
                 --updatedDatum      = RegisteredProjectsCount $ soFar + 1
                 --updatedDatumFile  :: FilePath
                 --updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
-                updatedDatum      :: QVFDatum
-                updatedDatum      = DonationAccumulationConcluded 0 updatedPool sumP True
+                --updatedDatum      :: QVFDatum
+                --updatedDatum      = DonationAccumulationConcluded ps updatedPool sumP True
                 updatedDatumFile  :: FilePath
                 updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
-
-
-                newDatum          :: QVFDatum
-                newDatum          = DonationAccumulationConcluded 0 updatedPool sumP True
-                newDatumFile      :: FilePath
-                newDatumFile      = getFileName ocfn ocfnNewDatum
-
-                projTokenName     :: TokenName
-                projTokenName     = orefToTokenName utxo
-                projTokenNameFile :: FilePath
-                projTokenNameFile = getFileName ocfn ocfnProjectTokenName
-
-                projInfo          :: QVFDatum
-                projInfo          = ProjectInfo projDetails
-                projInfoFile      :: FilePath
-                projInfoFile      =
-                     ocfnPreDir ocfn
-                  ++ "/"
-                  ++ unsafeTokenNameToHex projTokenName
-              in do
-              andPrintSuccess projTokenNameFile $
-                writeTokenNameHex projTokenNameFile projTokenName
-              andPrintSuccess updatedDatumFile $
+                in do
                 writeJSON updatedDatumFile updatedDatum
-              andPrintSuccess newDatumFile $
-                writeJSON newDatumFile newDatum
-              andPrintSuccess projInfoFile $
-                writeJSON projInfoFile projInfo
+                print khFee
               -- }}}
             _                             ->
               -- {{{
@@ -927,8 +903,6 @@ main =
         _                                    ->
           -- {{{
           putStrLn $ "FAILED with bad arguments: "
-            ++ pkhStr
-            ++ " "
             ++ fileNamesJSON
           -- }}}
       -- }}}
