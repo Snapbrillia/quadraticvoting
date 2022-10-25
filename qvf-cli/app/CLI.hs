@@ -511,7 +511,7 @@ main =
 
     actOnCurrentDatum :: PlutusTx.ToData a 
                       => OffChainFileNames
-                      -> QVFAction
+                      -> QVFRedeemer
                       -> Maybe a
                       -> (QVFDatum -> IO ())
                       -> IO ()
@@ -701,7 +701,7 @@ main =
         (Just utxo, Just reqFund, Just ocfn) ->
           -- {{{
           let
-            govRedeemer :: QVFAction
+            govRedeemer :: QVFRedeemer
             govRedeemer = RegisterProject
 
             projDetails :: ProjectDetails
@@ -776,7 +776,7 @@ main =
             projId'     :: BuiltinByteString
             projId'     = toBuiltin $ LBS.toStrict projId
 
-            govRedeemer :: QVFAction
+            govRedeemer :: QVFRedeemer
             govRedeemer = DonateToProject projId'
 
             donorPKH    :: Ledger.PubKeyHash

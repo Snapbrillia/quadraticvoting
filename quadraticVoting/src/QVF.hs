@@ -111,7 +111,7 @@ PlutusTx.makeLift ''QVFParams
 {-# INLINABLE mkQVFValidator #-}
 mkQVFValidator :: QVFParams
                -> QVFDatum
-               -> QVFAction
+               -> QVFRedeemer
                -> ScriptContext
                -> Bool
 mkQVFValidator QVFParams{..} datum action ctx =
@@ -939,13 +939,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
 data QVF
 instance Scripts.ValidatorTypes QVF where
   type DatumType    QVF = QVFDatum
-  type RedeemerType QVF = QVFAction
+  type RedeemerType QVF = QVFRedeemer
 
 
 typedQVFValidator :: QVFParams -> PSU.V2.TypedValidator QVF
 typedQVFValidator =
   let
-    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFAction
+    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFRedeemer
   in
   PSU.V2.mkTypedValidatorParam @QVF
     $$(PlutusTx.compile [|| mkQVFValidator ||])
