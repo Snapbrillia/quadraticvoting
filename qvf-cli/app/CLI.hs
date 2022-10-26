@@ -869,7 +869,7 @@ main =
           in
           actOnCurrentDatum @QVFAction ocfn govRedeemer Nothing $ \case
             --RegisteredProjectsCount soFar ->
-            DonationAccumulationConcluded ps totalLovelaces sumP _ ->
+            DonationAccumulationConcluded ps totalLovelaces sumP False ->
 
               -- {{{
               let
