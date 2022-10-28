@@ -269,6 +269,23 @@ tidy_up_wallet() {
   # }}}
 }
 
+# Takes 3 arguments:
+#   1. Giver number/name.
+#   2. Recipient number/name.
+#   3. Lovelace amount.
+give_lovelace() {
+  # {{{
+  giver_addr=$(cat $preDir/$1.addr)
+  recip_addr=$(cat $preDir/$2.addr)
+  inputs='--tx-in '$(get_first_utxo_of $1)
+  $cli $BUILD_TX_CONST_ARGS $inputs \
+      --change-address $giver_addr  \
+      --tx-out recip_addr + $3
+  sign_and_submit_tx $preDir/$1.skey
+  wait_for_new_slot
+  show_utxo_tables $1
+  # }}}
+}
 
 # Generates a key pair.
 #
