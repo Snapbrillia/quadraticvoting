@@ -119,6 +119,7 @@ mkRegistrationPolicy sym tn action ctx =
                ( utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
+                   1
                    halfOfTheRegistrationFee
                    p0
                )
@@ -127,6 +128,7 @@ mkRegistrationPolicy sym tn action ctx =
                ( utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
+                   1
                    halfOfTheRegistrationFee
                    p1
                )
@@ -145,15 +147,19 @@ mkRegistrationPolicy sym tn action ctx =
            "Project owner's signature is required."
            (txSignedBy info $ pdPubKeyHash riProjectDetails)
       && ( case outputs of
-             [s, p0, p1]    ->
+             [s, p0, p1]       ->
                -- {{{
                outputSAndPsAreValid s p0 p1
                -- }}}
-             [_, s, p0, p1] ->
+             [_, s, p0, p1]    ->
                -- {{{
                outputSAndPsAreValid s p0 p1
                -- }}}
-             _              ->
+             [_, _, s, p0, p1] ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             _                 ->
                -- {{{
                traceError
                  "There should be exactly 1 governance, and 2 project UTxOs produced."
@@ -162,12 +168,8 @@ mkRegistrationPolicy sym tn action ctx =
       -- }}}
     ConcludeAndRefund projectId          ->
       -- {{{
-      let
-        currTN :: TokenName
-        currTN = TokenName projectId
-
-        validateInputs :: TxInInfo -> TxInInfo -> Bool
-        validateInputs TxInInfo{txInInfoResolved = p0} TxInInfo{txInInfoResolved = p1} =
+      case inputs of
+        TxInInfo{txInInfoResolved = p0} : TxInInfo{txInInfoResolved = p1} : rest ->
           -- {{{
           case getInlineDatum p0 of
             ProjectInfo ProjectDetails{..} ->
@@ -175,11 +177,22 @@ mkRegistrationPolicy sym tn action ctx =
               case getInlineDatum p1 of
                 Escrow _                                 ->
                   -- {{{
+                  let
+                    currTN :: TokenName
+                    currTN = TokenName projectId
+
+                    addr0 :: Address
+                    addr0 = txOutAddress p0
+
+                    addr1 :: Address
+                    addr1 = txOutAddress p1
+                  in
                      traceIfFalse
                        "Invalid project info UTxO provided."
                        ( utxoHasOnlyXWithLovelaces
                            ownSym
                            currTN
+                           1
                            halfOfTheRegistrationFee
                            p0
                        )
@@ -188,12 +201,21 @@ mkRegistrationPolicy sym tn action ctx =
                        ( utxoHasOnlyXWithLovelaces
                            ownSym
                            currTN
+                           1
                            halfOfTheRegistrationFee
                            p1
                        )
                   && traceIfFalse
                        "Transaction must be signed by the project owner."
                        (txSignedBy info pdPubKeyHash)
+                  && traceIfFalse
+                       "Mismatch of input project UTxO addresses."
+                       (addr0 == addr1)
+                  && ( if any ((== addr0) . txOutAddress . txInInfoResolved) rest then
+                         traceError "No other UTxOs from the contract can be spent."
+                       else
+                         True
+                     )
                   -- }}}
                 _                                        ->
                   -- {{{
@@ -205,17 +227,7 @@ mkRegistrationPolicy sym tn action ctx =
               traceError "First project input must be the info UTxO."
               -- }}}
           -- }}}
-      in
-      case inputs of
-        [i0, i1]    ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        [_, i0, i1] ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        _                                         ->
+        _                                                                      ->
           -- {{{
           traceError "Exactly 2 project inputs are expected."
           -- }}}

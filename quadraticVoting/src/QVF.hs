@@ -49,7 +49,6 @@ import PlutusTx.Prelude                               ( Bool(..)
                                                       , Maybe(..)
                                                       , BuiltinByteString
                                                       , Eq((==))
-                                                      , Semigroup((<>))
                                                       , Ord(max, (>=), (<), min, (>), (<=))
                                                       , AdditiveGroup((-))
                                                       , AdditiveSemigroup((+))
@@ -91,6 +90,7 @@ data QVFParams = QVFParams
   , qvfSymbol         :: CurrencySymbol
   , qvfProjectSymbol  :: CurrencySymbol
   , qvfDonationSymbol :: CurrencySymbol
+  , qvfDonationAgent  :: CurrencySymbol
   }
 
 instance Show QVFParams where
@@ -100,6 +100,7 @@ instance Show QVFParams where
     P.++ "\n  , qvfSymbol         = " P.++ show qvfSymbol
     P.++ "\n  , qvfProjectSymbol  = " P.++ show qvfProjectSymbol
     P.++ "\n  , qvfDonationSymbol = " P.++ show qvfDonationSymbol
+    P.++ "\n  , qvfDonationAgent  = " P.++ show qvfDonationAgent
     P.++ "\n  }"
 
 PlutusTx.makeLift ''QVFParams
@@ -448,9 +449,15 @@ mkQVFValidator QVFParams{..} datum action ctx =
     mintIsPresent :: CurrencySymbol -> TokenName -> Integer -> Bool
     mintIsPresent sym tn amt =
       -- {{{
-      any
-        (\(sym', tn', amt') -> sym' == sym && tn' == tn && amt' == amt)
-        (flattenValue $ txInfoMint info)
+      case flattenValue (txInfoMint info) of
+        [(sym', tn', amt')] ->
+          -- {{{
+          sym' == sym && tn' == tn && amt' == amt
+          -- }}}
+        _                   ->
+          -- {{{
+          False
+          -- }}}
       -- }}}
 
     projectMintIsPresent :: Bool -> Bool
@@ -458,15 +465,18 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
       case flattenValue (txInfoMint info) of
         [(sym', _, amt')] ->
+          -- {{{
              traceIfFalse
                "Invalid asset is getting minted/burnt."
                (sym' == qvfProjectSymbol)
           && traceIfFalse
                "There should be exactly 2 project assets minted/burnt."
                (if mint then amt' == 2 else amt' == negate 2)
+          -- }}}
         _                 ->
+          -- {{{
           traceError "Only one project asset must be minted/burnt."
-               -- (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
+          -- }}}
       -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.
@@ -664,13 +674,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && ( case getContinuingOutputs ctx of
              [o] ->
                -- {{{
-               let
-                 inVal         = txOutValue currUTxO
-                 desiredOutVal = inVal <> lovelaceValueOf (negate khFee)
-               in
                   traceIfFalse
                     "Invalid Lovelace count at the produced governance UTxO."
-                    (utxoHasValue desiredOutVal o)
+                    (addLovelacesTo (negate khFee) (txOutValue currUTxO) == txOutValue o)
                && traceIfFalse
                     "Governance datum not updated properly."
                     (utxosDatumMatchesWith updatedDatum o)

@@ -123,6 +123,14 @@ takeSqrt val =
   -- }}}
 
 
+{-# INLINABLE addIntegerTuples #-}
+-- | Adds corresponding `Integer` elements of two tuples.
+addIntegerTuples :: (Integer, Integer)
+                 -> (Integer, Integer)
+                 -> (Integer, Integer)
+addIntegerTuples (x, y) (x', y') = (x + x', y + y')
+
+
 {-# INLINABLE lovelaceFromValue #-}
 lovelaceFromValue :: Value -> Integer
 lovelaceFromValue = Ada.getLovelace . Ada.fromValue
@@ -253,27 +261,20 @@ utxosDatumMatchesWith newDatum =
   -- }}}
 
 
-{-# INLINABLE utxoHasValue #-}
-utxoHasValue :: Value -> TxOut -> Bool
-utxoHasValue val =
-  -- {{{
-  (== val) . txOutValue
-  -- }}}
-
-
 {-# INLINABLE utxoHasOnlyXWithLovelaces #-}
 -- | Checks if a given UTxO has *only* 1 of asset X, and a given amount of
 --   Lovelaces.
 utxoHasOnlyXWithLovelaces :: CurrencySymbol
                           -> TokenName
                           -> Integer
+                          -> Integer
                           -> TxOut
                           -> Bool
-utxoHasOnlyXWithLovelaces sym tn lovelaces =
+utxoHasOnlyXWithLovelaces sym tn amt lovelaces =
   -- {{{
     ( \case
-        [(sym', tn', amt'), (_, _, amt)] ->
-          amt == lovelaces && sym' == sym && tn' == tn && amt' == 1
+        [(sym', tn', amt'), (_, _, amt'')] ->
+          amt'' == lovelaces && sym' == sym && tn' == tn && amt' == amt
         _                                ->
           False
     )
@@ -331,6 +332,15 @@ utxoHasLovelaces lovelaces txOut =
   -- }}}
 
 
+{-# INLINABLE addLovelacesTo #-}
+-- | Adds a given number of Lovelaces to a `Value`.
+addLovelacesTo :: Integer -> Value -> Value
+addLovelacesTo lovelaces val =
+  -- {{{
+  val <> Ada.lovelaceValueOf lovelaces
+  -- }}}
+
+
 {-# INLINABLE foldDonationInputs #-}
 -- | Collects all the donation UTxOs (to one project, specified in the token
 --   name) into a @Map@ value: mapping their public key hashes to their donated
@@ -345,14 +355,15 @@ utxoHasLovelaces lovelaces txOut =
 foldDonationInputs :: CurrencySymbol
                    -> TokenName
                    -> [TxInInfo]
-                   -> ( Integer                -- ^ Count of folded donations
-                      , Integer                -- ^ Total donated Lovelaces
-                      , Map PubKeyHash Integer -- ^ Record of donors and their contributions.
+                   -> ( Maybe Address                     -- ^ Origin address.
+                      , Integer                           -- ^ Count of folded donations.
+                      , Integer                           -- ^ Total donated Lovelaces.
+                      , Map PubKeyHash (Integer, Integer) -- ^ Donations map.
                       )
 foldDonationInputs donationSymbol donationTN inputs =
   -- {{{
   let
-    foldFn TxInInfo{txInInfoResolved = o} acc@(count, total, dMap) =
+    foldFn TxInInfo{txInInfoResolved = o} acc@(mAddr, count, total, dMap) =
       -- {{{
       case flattenValue (txOutValue o) of
         [(sym', tn', amt'), (_, _, lovelaces)] ->
@@ -362,9 +373,17 @@ foldDonationInputs donationSymbol donationTN inputs =
             let
               helperFn accMap =
                 -- {{{
-                ( count + amt'
+                ( case mAddr of
+                    Just prevAddr ->
+                      if prevAddr == txOutAddress o then
+                        mAddr
+                      else
+                        traceError "Tokens coming from different addresses."
+                    Nothing       ->
+                      txOutAddress o
+                , count + amt'
                 , total + lovelaces
-                , Map.unionWith (+) accMap dMap
+                , Map.unionWith addIntegerTuples accMap dMap
                 )
                 -- }}}
             in
@@ -373,7 +392,7 @@ foldDonationInputs donationSymbol donationTN inputs =
               case getInlineDatum o of
                 Donation donor  ->
                   -- {{{
-                  helperFn $ Map.singleton donor lovelaces
+                  helperFn $ Map.singleton donor (1, lovelaces)
                   -- }}}
                 _               ->
                   -- {{{
@@ -404,7 +423,7 @@ foldDonationInputs donationSymbol donationTN inputs =
           -- }}}
       -- }}}
   in
-  foldr foldFn (0, 0, Map.empty) inputs
+  foldr foldFn (Nothing, 0, 0, Map.empty) inputs
   -- }}}
 -- }}}
 

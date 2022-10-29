@@ -121,10 +121,10 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
           -- {{{
              traceIfFalse
                "Invalid value for the deadline UTxO."
-               (utxoHasOnlyXWithLovelaces ownSym dlTN governanceLovelaces o0)
+               (utxoHasOnlyXWithLovelaces ownSym dlTN 1 governanceLovelaces o0)
           && traceIfFalse
                "Invalid value for the main UTxO."
-               (utxoHasOnlyXWithLovelaces ownSym tn governanceLovelaces o1)
+               (utxoHasOnlyXWithLovelaces ownSym tn 1 governanceLovelaces o1)
           && ( case (getInlineDatum o0, getInlineDatum o1) of
                  (DeadlineDatum dl, RegisteredProjectsCount count) ->
                    -- {{{
@@ -147,77 +147,23 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            [o0, o1]    ->
+            [o0, o1]       ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
-            [_, o0, o1] ->
+            [_, o0, o1]    ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
-            _           ->
+            [_, _, o0, o1] ->
+              -- {{{
+              validateTwoOutputs o0 o1
+              -- }}}
+            _              ->
               -- {{{
               traceError "The 2 minted tokens must be split among 2 UTxOs."
               -- }}}
           -- }}}
-
-        -- validDeadlineOutput :: Bool
-        -- validMainOutput     :: Bool
-        -- (validDeadlineOutput, validMainOutput) =
-        --   -- {{{
-        --   let
-        --     go []            acc                     = acc
-        --     go (utxo : rest) acc@(dlFound, rpcFound) =
-        --       if utxoHasX ownSym (Just tn) utxo then
-        --         -- {{{
-        --         if dlFound then
-        --           -- {{{
-        --           case getInlineDatum utxo of
-        --             RegisteredProjectsCount count ->
-        --               -- {{{
-        --               ( dlFound
-        --               ,    traceIfFalse
-        --                      "Funding round must start with 0 registered projects."
-        --                      (count == 0)
-        --                 && traceIfFalse
-        --                      "Governance UTxO must carry the required Lovelaces."
-        --                      (utxoHasLovelaces governanceLovelaces utxo)
-        --               )
-        --               -- }}}
-        --             _                             ->
-        --               -- {{{
-        --               traceError "Invalid datum for the second UTxO."
-        --               -- }}}
-        --           -- }}}
-        --         else
-        --           -- {{{
-        --           case getInlineDatum utxo of
-        --             DeadlineDatum dl ->
-        --               -- {{{
-        --               let
-        --                 cond =
-        --                      traceIfFalse
-        --                        "Deadline must match with the provided parameter."
-        --                        (dl == deadline)
-        --                   && traceIfFalse
-        --                        "Deadline UTxO must carry the required Lovelaces."
-        --                        (utxoHasLovelaces governanceLovelaces utxo)
-        --               in
-        --               go rest (cond, rpcFound)
-        --               -- }}}
-        --             _                ->
-        --               -- {{{
-        --               traceError "Deadline UTxO must be produced first."
-        --               -- }}}
-        --           -- }}}
-        --         -- }}}
-        --       else
-        --         -- {{{
-        --         go rest acc
-        --         -- }}}
-        --   in
-        --   go (txInfoOutputs info) (False, False)
-        --   -- }}}
       in
          traceIfFalse "UTxO not consumed." hasUTxO
       && traceIfFalse "Deadline has passed." deadlineIsValid
@@ -230,7 +176,8 @@ qvfPolicy :: TxOutRef -> POSIXTime -> MintingPolicy
 qvfPolicy oref deadline =
   -- {{{
   let
-    wrap :: (TempRedeemer -> ScriptContext -> Bool) -> PSU.V2.UntypedMintingPolicy
+    wrap :: (TempRedeemer -> ScriptContext -> Bool)
+         -> PSU.V2.UntypedMintingPolicy
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $

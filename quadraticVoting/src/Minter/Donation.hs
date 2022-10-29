@@ -32,12 +32,12 @@ import           Utils
 -- {{{
 data DonationRedeemer
   = DonateToProject DonationInfo
-  | FoldDonations   BuiltinByteString -- ^ Project's identifier
+  | Consolidate     BuiltinByteString -- ^ Project's identifier
   | Dev
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
-  , ('FoldDonations   ,1)
+  , ('Consolidate     ,1)
   , ('Dev             ,20)
   ]
 -- }}}
@@ -103,7 +103,7 @@ mkDonationPolicy sym action ctx =
                )
           && traceIfFalse
                "Invalid value for the donation UTxO."
-               (utxoHasOnlyXWithLovelaces ownSym tn diAmount v)
+               (utxoHasOnlyXWithLovelaces ownSym tn 1 diAmount v)
           && traceIfFalse
                "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
                (utxosDatumMatchesWith (Donation diDonor) v)
@@ -119,22 +119,26 @@ mkDonationPolicy sym action ctx =
            "Donor's signature is required."
            (txSignedBy info diDonor)
       && ( case outputs of
-             [s, v]    ->
+             [s, v]       ->
                -- {{{
                outputSAndVAreValid s v
                -- }}}
-             [_, s, v] ->
+             [_, s, v]    ->
                -- {{{
                outputSAndVAreValid s v
                -- }}}
-             _              ->
+             [_, _, s, v] ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             _            ->
                -- {{{
                traceError
                  "There should be exactly 1 project, and 1 donation UTxOs produced."
                -- }}}
          )
       -- }}}
-    FoldDonations projectId          ->
+    Consolidate projectId            ->
       -- {{{
       let
         tn :: TokenName
@@ -144,11 +148,34 @@ mkDonationPolicy sym action ctx =
         inputProjUTxO :: TxOut
         inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
-        foldDonationsPhaseTwo :: Integer -> Bool
-        foldDonationsPhaseTwo requiredDonationCount =
+        projAddr :: Address
+        projAddr = txOutAddress inputProjUTxO
+
+        foldVerifiedDonations :: TxInInfo -> ()
+        foldVerifiedDonations
+          TxInInfo{txInInfoResolved = utxo@TxOut{txOutValue = val}}
+          acc@(totTs, totLs, ws) =
+            case flattenValue val of
+              [(sym', tn', amt'), (_, _, lovelaces)] ->
+                if sym' == ownSym && tn' == tn then
+                  let
+                  in
+                  (totTs + amt', totLs + lovelaces, 
+                else
+                  acc
+              _                                      ->
+                acc
+          case getInlineDatum utxo of
+            ValidatedFoldedDonations m ->
+            _                          ->
+              acc
+
+        consolidateDonations :: Integer -> Bool
+        consolidateDonations requiredDonationCount =
           -- {{{
           let
-            (ds, total, finalMap) = foldDonationInputs ownSym tn inputs
+            (mOrigin, ds, total, dsMap) = foldDonationInputs ownSym tn inputs
+            (toBurn, inputsSumW) = sumSquareRoots dsMap
             updatedDatum          =
               PrizeWeight (foldDonationsMap finalMap) False
             foldedOutputIsValid o =
@@ -158,6 +185,7 @@ mkDonationPolicy sym action ctx =
                    ( utxoHasOnlyXWithLovelaces
                        sym
                        tn
+                       1
                        (total + halfOfTheRegistrationFee)
                        o
                    )
@@ -166,22 +194,26 @@ mkDonationPolicy sym action ctx =
                    (utxosDatumMatchesWith updatedDatum o)
               && traceIfFalse
                    "Folded UTxO must be produced at its originating address."
-                   (txOutAddress o == txOutAddress inputProjUTxO)
+                   (txOutAddress o == projAddr)
               && traceIfFalse
                    "All donations must be included in the final folding transaction."
                    (ds == requiredDonationCount)
               -- }}}
           in
           case outputs of
-            [o]    ->
+            [o]       ->
               -- {{{
               foldedOutputIsValid o
               -- }}}
-            [_, o] ->
+            [_, o]    ->
               -- {{{
               foldedOutputIsValid o
               -- }}}
-            _      ->
+            [_, _, o] ->
+              -- {{{
+              foldedOutputIsValid o
+              -- }}}
+            _         ->
               -- {{{
               traceError "Invalid outputs pattern."
               -- }}}
@@ -191,16 +223,16 @@ mkDonationPolicy sym action ctx =
         ReceivedDonationsCount tot        ->
           -- {{{
           if tot <= maxDonationInputsForPhaseTwo then
-            foldDonationsPhaseTwo tot
+            consolidateDonations tot
           else
             traceError "Donation count is too large for direct burning."
           -- }}}
         DonationFoldingProgress tot soFar ->
           -- {{{
           if tot == soFar then
-            foldDonationsPhaseTwo tot
+            consolidateDonations tot
           else
-            traceError "All donation tokens must be folded before burning."
+            traceError "All donation tokens must be traversed before burning."
           -- }}}
         _                                 ->
           -- {{{
@@ -238,19 +270,30 @@ donationPolicy sym =
 
 -- UTILS
 -- {{{
+{-# INLINABLE sumSquareRoots #-}
+sumSquareRoots :: Map PubKeyHash (Integer, Integer) -> (Integer, Integer)
+sumSquareRoots dsMap =
+  -- {{{
+  let
+    ds                                          = Map.toList dsMap
+    foldFn (_, (tokenCount, lovelaces)) (ts, w) =
+      (tokenCount + ts, takeSqrt lovelaces + w)
+  in
+  foldr foldFn 0 ds
+  -- }}}
+
+
 {-# INLINABLE foldDonationsMap #-}
 -- | Notating Lovelace contributions to each project as \(v\), this is the
 --   quadratic formula to represent individual prize weights (\(w_p\)):
 --   \[
 --       w_p = (\sum{\sqrt{v}})^2
 --   \]
-foldDonationsMap :: Map PubKeyHash Integer -> Integer
+foldDonationsMap :: Map PubKeyHash (Integer, Integer) -> Integer
 foldDonationsMap dsMap =
   -- {{{
   let
-    ds                      = Map.toList dsMap
-    foldFn (_, lovelaces) w = takeSqrt lovelaces + w
-    initW                   = foldr foldFn 0 ds
+    (_, initW) = sumSquareRoots dsMap
   in
   initW * initW
   -- }}}

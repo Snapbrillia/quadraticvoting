@@ -115,10 +115,20 @@ data QVFDatum
       -- }}}
   
   | DonationFoldingProgress
-    -- ^ Project UTxO during the first phase of folding the donations.
+    -- ^ Project UTxO during the final phase of folding the donations.
       -- {{{
       Integer -- ^ Total donation count.
       Integer -- ^ Folded so far.
+      Integer -- ^ Latest index assigned.
+      -- }}}
+
+  | ConsolidationProgress
+    -- ^ Project UTxO during the consolidation stage.
+      -- {{{
+      Integer -- ^ Total donation count.
+      Integer -- ^ Consolidated so far.
+      Integer -- ^ Total Lovelaces so far.
+      Integer -- ^ Sum of the square roots of donations so far.
       -- }}}
 
   | PrizeWeight
@@ -135,9 +145,40 @@ data QVFDatum
       -- }}}
 
   | Donations
-    -- ^ For output donation UTxO of the first phase of folding donations.
+    -- ^ For output donation UTxO of the folding phases prior to the last one.
       -- {{{
-      (Map PubKeyHash Integer)
+      (Map PubKeyHash (Integer, Integer))
+      -- }}}
+
+  | UnvalidatedFoldedDonations
+    -- ^ After the final phase of folding, and during the traversal.
+      -- {{{
+      Integer                             -- ^ Index of the UTxO.
+      (Map PubKeyHash (Integer, Integer)) -- ^ Map of donations.
+      Integer                             -- ^ Latest index traversed.
+      Integer                             -- ^ Last index to be traversed.
+      --
+      -- NOTES:
+      --
+      -- - Each key of the map represents a donor,
+      --
+      -- - values of the map are tuples, where the first elements represent the
+      --   number of times a public key hash has donated, while the second
+      --   elements are the cumulative amounts of Lovelaces. This explicit
+      --   distinction is needed to allow the validation of token transfer
+      --   during the folding and traversing stages,
+      --
+      -- - The last index is a static value shared between all the fully folded
+      --   donation UTxOs. The reason for this is to avoid the requirement for
+      --   getting the project's "state" UTxO involved during the traversal
+      --   stage, which, at this point, seems to justify this redundancy.
+      -- }}}
+
+  | ValidatedFoldedDonations
+    -- ^ After the final traversal, guaranteed that it does not carry duplicate
+    --   donors among all the other donations to its project.
+      -- {{{
+      (Map PubKeyHash (Integer, Integer))
       -- }}}
 
   | Escrow
@@ -158,10 +199,13 @@ instance Eq QVFDatum where
   DonationAccumulationConcluded t0 d0 w0 k0 == DonationAccumulationConcluded t1 d1 w1 k1 = t0 == t1 && d0 == d1 && w0 == w1 && k0 == k1
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
   ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
-  DonationFoldingProgress t0 s0 == DonationFoldingProgress t1 s1 = t0 == t1 && s0 == s1
+  DonationFoldingProgress t0 s0 i0 == DonationFoldingProgress t1 s1 i1 = t0 == t1 && s0 == s1 && i0 == i1
+  ConsolidationProgress t0 c0 l0 w0 == ConsolidationProgress t1 c1 l1 w1 = t0 == t1 && c0 == c1 && l0 == l1 && w0 == w1
   PrizeWeight w0 d0 == PrizeWeight w1 d1 = w0 == w1 && d0 == d1
   Donation p0 == Donation p1 = p0 == p1
   Donations m0 == Donations m1 = m0 == m1
+  UnvalidatedFoldedDonations i0 m0 t0 l0 == UnvalidatedFoldedDonations i1 m1 t1 l1 = i0 == i1 && m0 == m1 && t0 == t1 && l0 == l1
+  ValidatedFoldedDonations m0 == ValidatedFoldedDonations m1 = m0 == m1
   Escrow m0 == Escrow m1 = m0 == m1
   _ == _ = False
   -- }}}
@@ -174,9 +218,12 @@ PlutusTx.makeIsDataIndexed ''QVFDatum
   , ('ProjectInfo                  , 4)
   , ('ReceivedDonationsCount       , 5)
   , ('DonationFoldingProgress      , 6)
-  , ('PrizeWeight                  , 7)
-  , ('Donation                     , 8)
-  , ('Donations                    , 9)
-  , ('Escrow                       , 10)
+  , ('ConsolidationProgress        , 7)
+  , ('PrizeWeight                  , 8)
+  , ('Donation                     , 9)
+  , ('Donations                    , 10)
+  , ('UnvalidatedFoldedDonations   , 11)
+  , ('ValidatedFoldedDonations     , 12)
+  , ('Escrow                       , 13)
   ]
 -- }}}
