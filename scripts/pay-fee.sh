@@ -1,4 +1,9 @@
-. env.sh
+. scripts/env.sh
 
 fee=$(qvf-cli collect-key-holder-fee)
-give_lovelace $donation_recip $keyholder $fee
+
+# TODO more string processing of fee is likely
+# Should be easy and straightforward to implement, below
+fee=$fee
+
+give_lovelace $scriptAddressFile $keyholder $fee
