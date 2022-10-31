@@ -141,103 +141,157 @@ mkDonationPolicy sym action ctx =
     Consolidate projectId            ->
       -- {{{
       let
-        tn :: TokenName
-        tn = TokenName projectId
+        tn                       :: TokenName
+        tn                       = TokenName projectId
 
         -- Raises exception upon failure.
-        inputProjUTxO :: TxOut
-        inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
+        inputProjUTxO            :: TxOut
+        inputProjUTxO            = getInputGovernanceUTxOFrom sym tn inputs
 
-        projAddr :: Address
-        projAddr = txOutAddress inputProjUTxO
+        projAddr                 :: Address
+        projAddr                 = txOutAddress inputProjUTxO
 
-        foldVerifiedDonations :: TxInInfo -> ()
+        -- Raises exception upon failure.
+        foldVerifiedDonations    :: TxInInfo
+                                 -> (Integer, Integer, Integer)
+                                 -> (Integer, Integer, Integer)
         foldVerifiedDonations
           TxInInfo{txInInfoResolved = utxo@TxOut{txOutValue = val}}
           acc@(totTs, totLs, ws) =
+            -- {{{
             case flattenValue val of
               [(sym', tn', amt'), (_, _, lovelaces)] ->
+                -- {{{
                 if sym' == ownSym && tn' == tn then
-                  let
-                  in
-                  (totTs + amt', totLs + lovelaces, 
+                  -- {{{
+                  case getInlineDatum utxo of
+                    ValidatedFoldedDonations dsMap ->
+                      -- {{{
+                      let
+                        (toBurn, w) = sumSquareRoots dsMap
+                      in
+                      -- TODO: Is this redundant?
+                      if txOutAddress utxo == projAddr then
+                        -- TODO: This one is very likely redundant. Leaving it
+                        --       here for better error messages during testing.
+                        if amt' == toBurn then
+                          (totTs + amt', totLs + lovelaces, ws + w)
+                        else
+                          traceError "This shouldn't've happened happened."
+                      else
+                        traceError "The validated UTxO must come from the same address as the project UTxO."
+                      -- }}}
+                    _                              ->
+                      -- {{{
+                      traceError "Invalid UTxO."
+                      -- }}}
+                  -- }}}
                 else
+                  -- {{{
                   acc
+                  -- }}}
+                -- }}}
               _                                      ->
+                -- {{{
                 acc
-          case getInlineDatum utxo of
-            ValidatedFoldedDonations m ->
-            _                          ->
-              acc
+                -- }}}
+            -- }}}
 
-        consolidateDonations :: Integer -> Bool
-        consolidateDonations requiredDonationCount =
+        (ds, ls, inputsSumW)     = foldr foldVerifiedDonations (0, 0, 0) inputs
+
+        -- Raises exception upon failure.
+        (updatedDatum, outputLs) =
           -- {{{
-          let
-            (mOrigin, ds, total, dsMap) = foldDonationInputs ownSym tn inputs
-            (toBurn, inputsSumW) = sumSquareRoots dsMap
-            updatedDatum          =
-              PrizeWeight (foldDonationsMap finalMap) False
-            foldedOutputIsValid o =
+          case getInlineDatum inputProjUTxO of
+            ReceivedDonationsCount dSoFar                     ->
               -- {{{
-                 traceIfFalse
-                   "Invalid updated value for the project UTxO."
-                   ( utxoHasOnlyXWithLovelaces
-                       sym
-                       tn
-                       1
-                       (total + halfOfTheRegistrationFee)
-                       o
-                   )
-              && traceIfFalse
-                   "Invalid updated value for the project UTxO."
-                   (utxosDatumMatchesWith updatedDatum o)
-              && traceIfFalse
-                   "Folded UTxO must be produced at its originating address."
-                   (txOutAddress o == projAddr)
-              && traceIfFalse
-                   "All donations must be included in the final folding transaction."
-                   (ds == requiredDonationCount)
+              if dSoFar == ds then
+                ( PrizeWeight (inputsSumW * inputsSumW) False
+                , ls
+                )
+              else
+                traceError "There must be exactly an equal number of input donations for consolidation."
               -- }}}
-          in
-          case outputs of
-            [o]       ->
+            DonationFoldingProgress totDs fSoFar _            ->
               -- {{{
-              foldedOutputIsValid o
+              if fSoFar == totDs then
+                if totDs == ds then
+                  ( PrizeWeight (inputsSumW * inputsSumW) False
+                  , ls
+                  )
+                else
+                  ( ConsolidationProgress totDs toBurn ls inputsSumW
+                  , ls
+                  )
+              else
+                traceError "All donations must be folded for consolidation."
               -- }}}
-            [_, o]    ->
+            ConsolidationProgress totDs cSoFar lSoFar wsSoFar ->
               -- {{{
-              foldedOutputIsValid o
+              let
+                newCSoFar = cSoFar + ds
+                finalLs   = lSoFar + ls
+                finalSum  = wsSoFar + inputsSumW
+              in
+              if newCSoFar == totDs then
+                -- {{{
+                ( PrizeWeight (finalSum * finalSum) False
+                , finalLs
+                )
+                -- }}}
+              else
+                -- {{{
+                ( ConsolidationProgress totDs newCSoFar finalLs finalSum
+                , finalLs
+                )
+                -- }}}
               -- }}}
-            [_, _, o] ->
+            _                                                 ->
               -- {{{
-              foldedOutputIsValid o
+              traceError "Invalid datum attached to the project UTxO for consolidation."
               -- }}}
-            _         ->
-              -- {{{
-              traceError "Invalid outputs pattern."
-              -- }}}
+          -- }}}
+
+        -- Raises exception upon failure.
+        outputIsValid o          =
+          -- {{{
+             traceIfFalse
+               "Invalid updated value for the project UTxO."
+               ( utxoHasOnlyXWithLovelaces
+                   sym
+                   tn
+                   1
+                   (outputLs + halfOfTheRegistrationFee)
+                   o
+               )
+          && traceIfFalse
+               "Invalid updated value for the project UTxO."
+               (utxosDatumMatchesWith updatedDatum o)
+          && traceIfFalse
+               "Consolidated UTxO must be produced at its originating address."
+               (txOutAddress o == projAddr)
+          && traceIfFalse
+               "All donations must be included in the final folding transaction."
+               (ds == requiredDonationCount)
           -- }}}
       in
-      case getInlineDatum inputProjUTxO of
-        ReceivedDonationsCount tot        ->
+      case outputs of
+        [o]       ->
           -- {{{
-          if tot <= maxDonationInputsForPhaseTwo then
-            consolidateDonations tot
-          else
-            traceError "Donation count is too large for direct burning."
+          consolidatedOutputIsValid o
           -- }}}
-        DonationFoldingProgress tot soFar ->
+        [_, o]    ->
           -- {{{
-          if tot == soFar then
-            consolidateDonations tot
-          else
-            traceError "All donation tokens must be traversed before burning."
+          consolidatedOutputIsValid o
           -- }}}
-        _                                 ->
+        [_, _, o] ->
+          -- {{{
+          consolidatedOutputIsValid o
+          -- }}}
+        _         ->
           -- {{{
           traceError
-            "Project UTxO must carry the proper datum to allow burning of its donation tokens."
+            "Only one, two, or three outputs are allowed for consolidation."
           -- }}}
       -- }}}
     -- TODO: REMOVE.
@@ -275,26 +329,9 @@ sumSquareRoots :: Map PubKeyHash (Integer, Integer) -> (Integer, Integer)
 sumSquareRoots dsMap =
   -- {{{
   let
-    ds                                          = Map.toList dsMap
-    foldFn (_, (tokenCount, lovelaces)) (ts, w) =
-      (tokenCount + ts, takeSqrt lovelaces + w)
+    ds                          = Map.elems dsMap
+    foldFn (tCount, ls) (ts, w) = (tCount + ts, takeSqrt ls + w)
   in
   foldr foldFn 0 ds
-  -- }}}
-
-
-{-# INLINABLE foldDonationsMap #-}
--- | Notating Lovelace contributions to each project as \(v\), this is the
---   quadratic formula to represent individual prize weights (\(w_p\)):
---   \[
---       w_p = (\sum{\sqrt{v}})^2
---   \]
-foldDonationsMap :: Map PubKeyHash (Integer, Integer) -> Integer
-foldDonationsMap dsMap =
-  -- {{{
-  let
-    (_, initW) = sumSquareRoots dsMap
-  in
-  initW * initW
   -- }}}
 -- }}}

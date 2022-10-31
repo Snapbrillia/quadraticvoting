@@ -262,8 +262,8 @@ utxosDatumMatchesWith newDatum =
 
 
 {-# INLINABLE utxoHasOnlyXWithLovelaces #-}
--- | Checks if a given UTxO has *only* 1 of asset X, and a given amount of
---   Lovelaces.
+-- | Checks if a given UTxO has *only* a specifict amount of asset X, and a
+--   given amount of Lovelaces.
 utxoHasOnlyXWithLovelaces :: CurrencySymbol
                           -> TokenName
                           -> Integer
@@ -439,15 +439,8 @@ registrationFee = 3_000_000
 halfOfTheRegistrationFee :: Integer
 halfOfTheRegistrationFee = 1_500_000
 
-maxDonationInputsForPhaseOne :: Integer
-maxDonationInputsForPhaseOne = 120
-
-maxDonationInputsForPhaseTwo :: Integer
-maxDonationInputsForPhaseTwo = 250
-
 maxTotalDonationCount :: Integer
-maxTotalDonationCount =
-  maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
+maxTotalDonationCount = 10_000
 
 minKeyHolderFee :: Integer
 minKeyHolderFee = 10_000_000

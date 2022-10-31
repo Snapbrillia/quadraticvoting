@@ -95,7 +95,7 @@ data QVFParams = QVFParams
 
 instance Show QVFParams where
   show QVFParams{..} =
-         "QVFParams"
+         "QVF Parameters:"
     P.++ "\n  { qvfKeyHolder      = " P.++ show qvfKeyHolder
     P.++ "\n  , qvfSymbol         = " P.++ show qvfSymbol
     P.++ "\n  , qvfProjectSymbol  = " P.++ show qvfProjectSymbol
@@ -285,37 +285,39 @@ mkQVFValidator QVFParams{..} datum action ctx =
     traversePrizeWeights totPs psSoFar lovelacesSoFar wSoFar =
       -- {{{
       let
-        remaining = totPs - psSoFar
-        inputFoldFn TxInInfo{txInInfoResolved = o} acc@(pCount, sumL, sumW, wMap) =
-          -- {{{
-          if utxoHasX qvfProjectSymbol Nothing o then
+        remaining                                                    =
+          totPs - psSoFar
+        inputFoldFn
+          TxInInfo{txInInfoResolved = o}
+          acc@(pCount, sumL, sumW, wMap)                             =
             -- {{{
-            case getInlineDatum o of
-              PrizeWeight w False ->
+            case getTokenNameOfUTxO qvfProjectSymbol o of
+              Just tn ->
                 -- {{{
-                case getTokenNameOfUTxO qvfProjectSymbol o of
-                  Just tn ->
+                case getInlineDatum o of
+                  PrizeWeight w False ->
+                    -- {{{
                     ( pCount + 1
-                    , sumL + lovelaceFromValue (txOutValue o)
+                    ,   sumL
+                      + lovelaceFromValue (txOutValue o)
+                      - halfOfTheRegistrationFee
                     , sumW + w
                     , Map.insert tn w wMap
                     )
-                  Nothing ->
-                    traceError "Project asset not found."
+                    -- }}}
+                  _                   ->
+                    -- {{{
+                    traceError "Unexpected UTxO encountered (expected a depleted `PrizeWeight`)."
+                    -- }}}
                 -- }}}
-              _                   ->
+              Nothing ->
                 -- {{{
-                traceError "Unexpected UTxO encountered (expected a `PrizeWeight`."
+                acc
                 -- }}}
             -- }}}
-          else
-            -- {{{
-            acc
-            -- }}}
-          -- }}}
         (inputPs, sumOfTheirLovelaces, sumOfTheirWs, mapFromTNsToWs) =
           foldr inputFoldFn (0, 0, 0, Map.empty) inputs
-        outputFoldFn o acc =
+        outputFoldFn o acc                                           =
           -- {{{
           case getTokenNameOfUTxO qvfProjectSymbol o of
             Just tn ->
@@ -345,45 +347,40 @@ mkQVFValidator QVFParams{..} datum action ctx =
               let
                 lovelaces    = lovelacesSoFar + sumOfTheirLovelaces
                 w            = wSoFar + sumOfTheirWs
-                datumIsValid =
+                updatedDatum
                   -- {{{
-                  if inputPs < remaining then
-                    -- {{{
-                    utxosDatumMatchesWith
-                      ( DonationAccumulationProgress
-                          totPs
-                          (psSoFar + inputPs)
-                          lovelaces
-                          w
-                      )
-                      o
-                    -- }}}
-                  else if inputPs == remaining then
-                    -- {{{
-                    utxosDatumMatchesWith
-                      ( DonationAccumulationConcluded
-                          totPs
-                          lovelaces
-                          w
-                          False
-                      )
-                      o
-                    -- }}}
-                  else
-                    -- {{{
-                    traceError
-                      "Excessive number of prize weight inputs are provided."
-                    -- }}}
+                  | inputPs < remaining  =
+                      -- {{{
+                      DonationAccumulationProgress
+                        totPs
+                        (psSoFar + inputPs)
+                        lovelaces
+                        w
+                      -- }}}
+                  | inputPs == remaining =
+                     -- {{{
+                     DonationAccumulationConcluded totPs lovelaces w False
+                     -- }}}
+                  | otherwise            =
+                      -- {{{
+                      traceError
+                        "Excessive number of prize weight inputs are provided."
+                      -- }}}
                   -- }}}
                 isValid      =
                   -- {{{
-                     utxoHasX qvfSymbol (Just qvfTokenName) o
-                  && traceIfFalse
-                       "Main UTxO should carry all the donations."
-                       (utxoHasLovelaces lovelaces o)
+                     traceIfFalse
+                       "Main UTxO must carry all the donations."
+                       ( utxoHasOnlyXWithLovelaces
+                           qvfSymbol
+                           qvfTokenName
+                           1
+                           (lovelaces + governanceLovelaces)
+                           o
+                       )
                   && traceIfFalse
                        "Invalid datum attached to the produced main datum."
-                       datumIsValid
+                       (utxosDatumMatchesWith updatedDatum o)
                   -- }}}
               in
               if isValid then

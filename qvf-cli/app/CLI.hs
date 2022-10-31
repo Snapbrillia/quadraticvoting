@@ -25,6 +25,7 @@ import qualified Data.List                  as List
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import           Data.Time.Clock.POSIX      ( getPOSIXTime )
+import           Data.Word                  ( Word8 )
 import           GHC.Generics               ( Generic )
 import           Plutus.V1.Ledger.Api       ( fromBuiltin
                                             , toBuiltin
@@ -42,10 +43,11 @@ import           Data.DonationInfo
 import           Data.Redeemer
 import           Data.RegistrationInfo
 
-import qualified QVF                        as OC
+import qualified Agent.Donation             as Agt
 import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
 import qualified Minter.Registration        as Reg
+import qualified QVF                        as OC
 import           Utils
 
 -- UTILS
@@ -295,6 +297,7 @@ main =
           ++ "\t\t, ocfnGovernanceMinter     :: String\n"
           ++ "\t\t, ocfnRegistrationMinter   :: String\n"
           ++ "\t\t, ocfnDonationMinter       :: String\n"
+          ++ "\t\t, ocfnDonationAgent        :: String\n"
           ++ "\t\t, ocfnQVFMainValidator     :: String\n"
           ++ "\t\t, ocfnDeadlineSlot         :: String\n"
           ++ "\t\t, ocfnDeadlineDatum        :: String\n"
@@ -611,6 +614,7 @@ main =
           let govOF     = getFileName ocfn ocfnGovernanceMinter
               regOF     = getFileName ocfn ocfnRegistrationMinter
               donOF     = getFileName ocfn ocfnDonationMinter
+              agtOF     = getFileName ocfn ocfnDonationAgent
               qvfOF     = getFileName ocfn ocfnQVFMainValidator
               dlDatOF   = getFileName ocfn ocfnDeadlineDatum
               initDatOF = getFileName ocfn ocfnInitialGovDatum
@@ -626,18 +630,35 @@ main =
               donPolicy = Don.donationPolicy regSymbol
               donSymbol = mintingPolicyToSymbol donPolicy
               --
+              agtPolicy = Agt.agentPolicy donSymbol
+              agtSymbol = mintingPolicyToSymbol agtPolicy
+              --
               yellow    = "\ESC[38:5:220m"
               red       = "\ESC[38:5:160m"
               green     = "\ESC[38:5:77m"
+              blue      = "\ESC[38:5:33m"
               purple    = "\ESC[38:5:127m"
+              mkRGBColor :: Word8 -> Word8 -> Word8 -> String
+              mkRGBColor r g b =
+                "\ESC[38;2;"
+                ++ show r ++ ";"
+                ++ show g ++ ";"
+                ++ show b ++ "m"
+              yellow24  = mkRGBColor 252 209 47
+              red24     = mkRGBColor 239 76  40
+              green24   = mkRGBColor 25  176 92
+              blue24    = mkRGBColor 48  145 254
+              purple24  = mkRGBColor 155 39  255
               noColor   = "\ESC[0m"
 
-          putStrLn $ yellow ++ "\nGov. Symbol:"
+          putStrLn $ yellow24 ++ "\nGov. Symbol:"
           print govSymbol
-          putStrLn $ red ++ "\nReg. Symbol:"
+          putStrLn $ red24 ++ "\nReg. Symbol:"
           print regSymbol
-          putStrLn $ green ++ "\nDon. Symbol:"
+          putStrLn $ green24 ++ "\nDon. Symbol:"
           print donSymbol
+          putStrLn $ blue24 ++ "\nAgt. Symbol:"
+          print agtSymbol
 
           writeTokenNameHex dlTNOF Gov.deadlineTokenName
 
@@ -645,6 +666,7 @@ main =
           govRes <- writeMintingPolicy govOF govPolicy
           regRes <- writeMintingPolicy regOF regPolicy
           donRes <- writeMintingPolicy donOF donPolicy
+          agtRes <- writeMintingPolicy agtOF agtPolicy
           case (govRes, regRes, donRes) of
             (Right _, Right _, Right _) -> do
               -- {{{
@@ -654,8 +676,9 @@ main =
                       , OC.qvfSymbol         = govSymbol
                       , OC.qvfProjectSymbol  = regSymbol
                       , OC.qvfDonationSymbol = donSymbol
+                      , OC.qvfDonationAgent  = agtSymbol
                       }
-              putStrLn $ purple ++ "\nQVF Parameters:"
+              putStrLn purple24
               print qvfParams
               putStrLn noColor
               valRes <- writeValidator qvfOF $ OC.qvfValidator qvfParams
@@ -928,6 +951,7 @@ instance Show OutputPlutus where
 --       let govOF     = getFileName ocfn @"ocfnGovernanceMinter"
 --           regOF     = getFileName ocfn @"ocfnRegistrationMinter"
 --           donOF     = getFileName ocfn @"ocfnDonationMinter"
+--           agtOF     = getFileName ocfn @"ocfnDonationAgent"
 --           qvfOF     = getFileName ocfn @"ocfnQVFMainValidator"
 --           dlDatOF   = getFileName ocfn @"ocfnDeadlineDatum"
 --           initDatOF = getFileName ocfn @"ocfnInitialGovDatum"
@@ -943,6 +967,7 @@ data OffChainFileNames = OffChainFileNames
   , ocfnGovernanceMinter     :: String
   , ocfnRegistrationMinter   :: String
   , ocfnDonationMinter       :: String
+  , ocfnDonationAgent        :: String
   , ocfnQVFMainValidator     :: String
   , ocfnDeadlineSlot         :: String
   , ocfnDeadlineDatum        :: String
