@@ -280,10 +280,11 @@ give_lovelace() {
   inputs='--tx-in '$(get_first_utxo_of $1)
   $cli $BUILD_TX_CONST_ARGS $inputs \
       --change-address $giver_addr  \
-      --tx-out recip_addr + $3
+      --tx-out $recip_addr+$3
   sign_and_submit_tx $preDir/$1.skey
   wait_for_new_slot
   show_utxo_tables $1
+  show_utxo_tables $2
   # }}}
 }
 
