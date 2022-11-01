@@ -120,6 +120,7 @@ data QVFDatum
       Integer -- ^ Total donation count.
       Integer -- ^ Folded so far.
       Integer -- ^ Latest index assigned.
+      Integer -- ^ Last index to assign.
       -- }}}
 
   | ConsolidationProgress
@@ -150,7 +151,7 @@ data QVFDatum
       (Map PubKeyHash (Integer, Integer))
       -- }}}
 
-  | UnvalidatedFoldedDonations
+  | UnverifiedFoldedDonations
     -- ^ After the final phase of folding, and during the traversal.
       -- {{{
       Integer                             -- ^ Index of the UTxO.
@@ -162,7 +163,7 @@ data QVFDatum
       --
       -- - Each key of the map represents a donor,
       --
-      -- - values of the map are tuples, where the first elements represent the
+      -- - Values of the map are tuples, where the first elements represent the
       --   number of times a public key hash has donated, while the second
       --   elements are the cumulative amounts of Lovelaces. This explicit
       --   distinction is needed to allow the validation of token transfer
@@ -174,7 +175,7 @@ data QVFDatum
       --   stage, which, at this point, seems to justify this redundancy.
       -- }}}
 
-  | ValidatedFoldedDonations
+  | VerifiedFoldedDonations
     -- ^ After the final traversal, guaranteed that it does not carry duplicate
     --   donors among all the other donations to its project.
       -- {{{
@@ -199,13 +200,13 @@ instance Eq QVFDatum where
   DonationAccumulationConcluded t0 d0 w0 k0 == DonationAccumulationConcluded t1 d1 w1 k1 = t0 == t1 && d0 == d1 && w0 == w1 && k0 == k1
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
   ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
-  DonationFoldingProgress t0 s0 i0 == DonationFoldingProgress t1 s1 i1 = t0 == t1 && s0 == s1 && i0 == i1
+  DonationFoldingProgress t0 s0 i0 l0 == DonationFoldingProgress t1 s1 i1 l1 = t0 == t1 && s0 == s1 && i0 == i1 && l0 == l1
   ConsolidationProgress t0 c0 l0 w0 == ConsolidationProgress t1 c1 l1 w1 = t0 == t1 && c0 == c1 && l0 == l1 && w0 == w1
   PrizeWeight w0 d0 == PrizeWeight w1 d1 = w0 == w1 && d0 == d1
   Donation p0 == Donation p1 = p0 == p1
   Donations m0 == Donations m1 = m0 == m1
-  UnvalidatedFoldedDonations i0 m0 t0 l0 == UnvalidatedFoldedDonations i1 m1 t1 l1 = i0 == i1 && m0 == m1 && t0 == t1 && l0 == l1
-  ValidatedFoldedDonations m0 == ValidatedFoldedDonations m1 = m0 == m1
+  UnverifiedFoldedDonations i0 m0 t0 l0 == UnverifiedFoldedDonations i1 m1 t1 l1 = i0 == i1 && m0 == m1 && t0 == t1 && l0 == l1
+  VerifiedFoldedDonations m0 == VerifiedFoldedDonations m1 = m0 == m1
   Escrow m0 == Escrow m1 = m0 == m1
   _ == _ = False
   -- }}}
@@ -222,8 +223,8 @@ PlutusTx.makeIsDataIndexed ''QVFDatum
   , ('PrizeWeight                  , 8)
   , ('Donation                     , 9)
   , ('Donations                    , 10)
-  , ('UnvalidatedFoldedDonations   , 11)
-  , ('ValidatedFoldedDonations     , 12)
+  , ('UnverifiedFoldedDonations    , 11)
+  , ('VerifiedFoldedDonations      , 12)
   , ('Escrow                       , 13)
   ]
 -- }}}

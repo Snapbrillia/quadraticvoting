@@ -231,7 +231,7 @@ validateGovUTxO :: Value
                 -> Bool
 validateGovUTxO govVal origAddr updatedDatum utxo =
   -- {{{
-  if utxoHasValue govVal utxo then
+  if txOutValue utxo == govVal then
     -- {{{
     if txOutAddress utxo == origAddr then
       if utxosDatumMatchesWith updatedDatum utxo then
@@ -347,7 +347,8 @@ addLovelacesTo lovelaces val =
 --   Lovelace count. It also counts the number of donations.
 --
 --   There is also no validation for assuring the UTxO is coming from the
---   script address (TODO?).
+--   script address, but it does check to see if all the UTxOs share the
+--   same address (TODO?).
 --
 --   Ignores UTxOs that don't have the specified donation asset, but raises
 --   exception if it finds the asset with a datum other than `Donation` or
@@ -363,65 +364,67 @@ foldDonationInputs :: CurrencySymbol
 foldDonationInputs donationSymbol donationTN inputs =
   -- {{{
   let
-    foldFn TxInInfo{txInInfoResolved = o} acc@(mAddr, count, total, dMap) =
-      -- {{{
-      case flattenValue (txOutValue o) of
-        [(sym', tn', amt'), (_, _, lovelaces)] ->
-          -- {{{
-          if sym' == donationSymbol && tn' == donationTN then
+    foldFn
+      TxInInfo{txInInfoResolved = o@TxOut{txOutValue = outVal}}
+      acc@(mAddr, count, total, dMap) =
+        -- {{{
+        case flattenValue outVal of
+          [(sym', tn', amt'), (_, _, lovelaces)] ->
             -- {{{
-            let
-              helperFn accMap =
-                -- {{{
-                ( case mAddr of
-                    Just prevAddr ->
-                      if prevAddr == txOutAddress o then
-                        mAddr
-                      else
-                        traceError "Tokens coming from different addresses."
-                    Nothing       ->
-                      txOutAddress o
-                , count + amt'
-                , total + lovelaces
-                , Map.unionWith addIntegerTuples accMap dMap
-                )
-                -- }}}
-            in
-            if amt' == 1 then
+            if sym' == donationSymbol && tn' == donationTN then
               -- {{{
-              case getInlineDatum o of
-                Donation donor  ->
+              let
+                helperFn accMap =
                   -- {{{
-                  helperFn $ Map.singleton donor (1, lovelaces)
+                  ( case mAddr of
+                      Just prevAddr ->
+                        if prevAddr == txOutAddress o then
+                          mAddr
+                        else
+                          traceError "Tokens coming from different addresses."
+                      Nothing       ->
+                        Just $ txOutAddress o
+                  , count + amt'
+                  , total + lovelaces
+                  , Map.unionWith addIntegerTuples accMap dMap
+                  )
                   -- }}}
-                _               ->
-                  -- {{{
-                  traceError "Unexpected UTxO encountered."
-                  -- }}}
+              in
+              if amt' == 1 then
+                -- {{{
+                case getInlineDatum o of
+                  Donation donor  ->
+                    -- {{{
+                    helperFn $ Map.singleton donor (1, lovelaces)
+                    -- }}}
+                  _               ->
+                    -- {{{
+                    traceError "Unexpected UTxO encountered."
+                    -- }}}
+                -- }}}
+              else
+                -- {{{
+                case getInlineDatum o of
+                  Donations soFar ->
+                    -- {{{
+                    helperFn soFar
+                    -- }}}
+                  _               ->
+                    -- {{{
+                    traceError "Unexpected UTxO encountered."
+                    -- }}}
+                -- }}}
               -- }}}
             else
               -- {{{
-              case getInlineDatum o of
-                Donations soFar ->
-                  -- {{{
-                  helperFn soFar
-                  -- }}}
-                _               ->
-                  -- {{{
-                  traceError "Unexpected UTxO encountered."
-                  -- }}}
+              acc
               -- }}}
             -- }}}
-          else
+          _                                      ->
             -- {{{
             acc
             -- }}}
-          -- }}}
-        _                                      ->
-          -- {{{
-          acc
-          -- }}}
-      -- }}}
+        -- }}}
   in
   foldr foldFn (Nothing, 0, 0, Map.empty) inputs
   -- }}}

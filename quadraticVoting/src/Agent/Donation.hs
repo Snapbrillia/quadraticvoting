@@ -42,6 +42,14 @@ data AgentRedeemer
   | Traverse BuiltinByteString -- ^ Project's ID
   | Dev
 
+instance Eq AgentRedeemer where
+  {-# INLINABLE (==) #-}
+  Fold b0     == Fold b1     = b0 == b1
+  Traverse b0 == Traverse b1 = b0 == b1
+  Dev         == Dev         = True
+  _           == _           = False
+
+
 PlutusTx.makeIsDataIndexed ''AgentRedeemer
   [ ('Fold    , 0)
   , ('Traverse, 1)
@@ -118,7 +126,7 @@ mkAgent donSym action ctx =
           out1@TxOut{txOutAddress = oAddr1} =
             -- {{{
             case (getInlineDatum in0, getInlineDatum in1) of
-              (UnvalidatedFoldedDonations ix0 iMap0 traversedSoFar0 lastIx0, UnvalidatedFoldedDonations ix1 iMap1 traversedSoFar1 lastIx1) ->
+              (UnverifiedFoldedDonations ix0 iMap0 traversedSoFar0 lastIx0, UnverifiedFoldedDonations ix1 iMap1 traversedSoFar1 lastIx1) ->
                 -- {{{
                 if ix1 == traversedSoFar0 + 1 then
                   -- {{{
@@ -173,13 +181,13 @@ mkAgent donSym action ctx =
                       if ix1 == lastIx0 then
                         -- {{{
                         case getInlineDatum out0 of
-                          ValidatedFoldedDonations oMap0 ->
+                          VerifiedFoldedDonations oMap0 ->
                             -- {{{
                             traceIfFalse
                               "Traversing map is not updated properly."
                               (oMap0 == oMap0')
                             -- }}}
-                          _                              ->
+                          _                             ->
                             -- {{{
                             traceError
                               "Invalid datum attached to the produced traversing UTxO."
@@ -188,7 +196,7 @@ mkAgent donSym action ctx =
                       else
                         -- {{{
                         case getInlineDatum out0 of
-                          UnvalidatedFoldedDonations ix0' oMap0 traversedSoFar0' lastIx0' ->
+                          UnverifiedFoldedDonations ix0' oMap0 traversedSoFar0' lastIx0' ->
                             -- {{{
                             traceIfFalse
                               "Traversing map is not updated properly."
@@ -198,7 +206,7 @@ mkAgent donSym action ctx =
                                 && lastIx0 == lastIx0'
                               )
                             -- }}}
-                          _                                                             ->
+                          _                                                              ->
                             -- {{{
                             traceError
                               "Invalid datum attached to the produced traversing UTxO."
@@ -210,7 +218,7 @@ mkAgent donSym action ctx =
                       traceIfFalse
                         "Invalid datum attached to the produced traversed UTxO."
                         ( utxosDatumMatchesWith
-                            ( UnvalidatedFoldedDonations
+                            ( UnverifiedFoldedDonations
                                 ix1
                                 oMap1'
                                 traversedSoFar1

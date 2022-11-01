@@ -71,6 +71,7 @@ import           Prelude                              ( Show
                                                       , show )
 import qualified Prelude                              as P
 
+import qualified Agent.Donation                       as DonAgent
 import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
@@ -148,6 +149,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}}
 
     -- | Checks for key holder's signature. Induced laziness.
+    --
+    --   Raises exception on @False@..
     signedByKeyHolder :: Bool
     signedByKeyHolder =
       -- {{{
@@ -233,6 +236,45 @@ mkQVFValidator QVFParams{..} datum action ctx =
           False
       -- }}}
 
+    -- | Looks at the redeemers map to find a specific redeemer value
+    --   attached to a @Minting@ script purpose key.
+    donAgentWithSpecificRedeemerIsPresent :: DonAgent.AgentRedeemer -> Bool
+    donAgentWithSpecificRedeemerIsPresent r =
+      -- {{{
+      let
+        purposeMap = txInfoRedeemers txInfo
+      in
+         mintIsPresent qvfDonationAgent emptyTokenName 0
+      && ( case Map.lookup (Minting qvfDonationAgent) purposeMap of
+             Just agentRedeemer ->
+               agentRedeemer == r
+             Nothing            ->
+               False
+         )
+      -- }}}
+
+    -- | Validation shared between `Donation` and `Donations` datums.
+    --
+    --   Raises exception on @False@.
+    checkIfProjectUTxOOrAgentIsPresentForFolding :: TokenName -> Bool
+    checkIfProjectUTxOOrAgentIsPresentForFolding tn@TokenName projID =
+      -- {{{
+      let
+        projUTxOPresent =
+            xInputWithSpecificDatumExists qvfProjectSymbol tn
+          $ \case
+              ReceivedDonationsCount _              -> True
+              DonationFoldingProgress tot soFar _ _ -> tot > soFar
+              _                                     -> False
+      in
+      if projUTxOPresent then
+        True
+      else
+        traceIfFalse
+          "Donation agent missing."
+          (donAgentWithSpecificRedeemerIsPresent (DonAgent.Fold projID))
+      -- }}}
+
     -- | Collection of validations for consuming a set number of donation
     --   UTxOs, along with the project's UTxO. Outputs are expected to be
     --   project's UTxO with an updated datum (given), ang also a single
@@ -274,6 +316,59 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- {{{
           traceError "Missing proper outputs for the first phase of folding donations."
           -- }}}
+      -- }}}
+
+    verifyFinalPhaseOfFolding :: TokenName
+                              -> QVFDatum
+                              -> Maybe Address
+                              -> Integer
+                              -> Integer
+                              -> QVFDatum
+                              -> Bool
+    verifyFinalPhaseOfFolding tn pDatum mOrigin dCount lCount vDatum =
+      -- {{{
+      case getContinuingOutputs ctx of
+        [p, v] ->
+          -- {{{
+             traceIfFalse
+               "The produced project UTxO doesn't have the correct value."
+               ( utxoHasOnlyXWithLovelaces
+                   qvfProjectSymbol
+                   tn
+                   1
+                   halfOfTheRegistrationFee
+                   p
+               )
+          && traceIfFalse
+               "The produced folded UTxO doesn't have the correct value."
+               ( utxoHasOnlyXWithLovelaces
+                   qvfDonationSymbol
+                   tn
+                   dCount
+                   lCount
+                   v
+               )
+          && traceIfFalse
+               "The produced folded UTxO doesn't have the correct datum."
+               (utxosDatumMatchesWith pDatum p)
+          && traceIfFalse
+               "The produced folded UTxO doesn't have the correct datum."
+               (utxosDatumMatchesWith vDatum v)
+          && ( case mOrigin of
+                 Just origin ->
+                   traceIfFalse
+                     "Donations must come from the script."
+                     (origin == ownAddr)
+                 Nothing     ->
+                   traceError "No donations found to fold."
+             )
+          -- }}}
+        _      ->
+          -- {{{
+          traceError
+            "There must be exactly 2 UTxOs produced at the script (first one being the project UTxO)."
+          -- }}}
+      
       -- }}}
 
     -- | Traverses transaction inputs and outputs to validate the proper
@@ -347,25 +442,25 @@ mkQVFValidator QVFParams{..} datum action ctx =
               let
                 lovelaces    = lovelacesSoFar + sumOfTheirLovelaces
                 w            = wSoFar + sumOfTheirWs
-                updatedDatum
+                updatedDatum =
                   -- {{{
-                  | inputPs < remaining  =
-                      -- {{{
-                      DonationAccumulationProgress
-                        totPs
-                        (psSoFar + inputPs)
-                        lovelaces
-                        w
-                      -- }}}
-                  | inputPs == remaining =
-                     -- {{{
-                     DonationAccumulationConcluded totPs lovelaces w False
-                     -- }}}
-                  | otherwise            =
-                      -- {{{
-                      traceError
-                        "Excessive number of prize weight inputs are provided."
-                      -- }}}
+                  if inputPs < remaining then
+                    -- {{{
+                    DonationAccumulationProgress
+                      totPs
+                      (psSoFar + inputPs)
+                      lovelaces
+                      w
+                    -- }}}
+                  else if inputPs == remaining then
+                    -- {{{
+                    DonationAccumulationConcluded totPs lovelaces w False
+                    -- }}}
+                  else
+                    -- {{{
+                    traceError
+                      "Excessive number of prize weight inputs are provided."
+                    -- }}}
                   -- }}}
                 isValid      =
                   -- {{{
@@ -551,87 +646,138 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     (Donation _                                   , FoldDonations          ) ->
       -- Folding Donations
-      -- To avoid excessive transaction fees, this endpoint delegates its
-      -- logic to the @P@ UTxO by checking that it is in fact being spent.
+      -- To avoid excessive transaction fees, this endpoint delegates its logic
+      -- to either the project UTxO, or the donation agent (if there is no
+      -- project UTxO with a specific datum getting spent).
       -- {{{ 
-      let
-        -- | Finds the token name of the current donation UTxO being spent.
-        --   Uses this value to check the presence of relevant project UTxO.
-        --
-        --   Raises exception upon failure.
-        tn = getCurrTokenName qvfDonationSymbol
-      in
-        traceIfFalse "The project UTxO must also be getting consumed."
-      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
-      $ \case
-          ReceivedDonationsCount _          -> True
-          DonationFoldingProgress tot soFar -> tot > soFar
-          _                                 -> False
+        checkIfProjectUTxOOrAgentIsPresentForFolding
+      $ getCurrTokenName qvfDonationSymbol
+      -- }}} 
+
+    (Donations _                                  , FoldDonations          ) ->
+      -- Folding Donations
+      -- Similar to `Donation`, this endpoint also delegates its logic..
+      -- {{{ 
+        checkIfProjectUTxOOrAgentIsPresentForFolding
+      $ getCurrTokenName qvfDonationSymbol
       -- }}} 
 
     (ReceivedDonationsCount tot                   , FoldDonations          ) ->
-      -- Folding Donations
-      -- {{{
-      if tot <= maxDonationInputsForPhaseTwo then
-        -- No need for a two phase folding.
-        let
-          tn = getCurrTokenName qvfProjectSymbol
-        in
-        -- foldDonationsPhaseTwo tot
-           traceIfFalse
-             "All donation assets must be burnt."
-             (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute
-        && signedByKeyHolder
-      else
-        -- Folding should happen in two phases.
-        foldDonationsPhaseOne
-          maxDonationInputsForPhaseOne -- The number of donation assets expected in inputs.
-          ( DonationFoldingProgress
-              tot                                  -- Total number of donations.
-              (tot - maxDonationInputsForPhaseOne) -- Donations folded so far.
-          )
-      -- }}}
-
-    (DonationFoldingProgress tot soFar            , FoldDonations          ) ->
-      -- Folding Donations
+      -- First Transaction from the Final Phase of Folding Donations
       -- {{{
       let
-        remaining = tot - soFar
+        tn                              = getCurrTokenName qvfProjectSymbol
+        (mOrigin, dCount, lCount, dMap) =
+          foldDonationInputs qvfDonationSymbol tn inputs
       in
-      if remaining == 0 then
-        let
-          tn = getCurrTokenName qvfProjectSymbol
+      if dCount < tot then
+        -- {{{
+        let 
+          -- | The last index is found based on the number of donations
+          --   consumed in this first transaction of the final folding phase.
+          --   It is in key holder's interest to consume the most UTxOs for
+          --   this and the rest of the folding transactions. The implicit
+          --   assumption here is that first, this transaction is consuming as
+          --   many folded donations UTxOs as possible, and second, that all
+          --   the subsequent folding transactions can consume as much as this
+          --   one.
+          lastIndex = (tot `divide` dCount) + 1
         in
-        -- foldDonationsPhaseTwo tot
-           traceIfFalse
-             "All donation assets must be burnt."
-             (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute
+           canFoldOrDistribute
         && signedByKeyHolder
+        && ( case getContinuingOutputs ctx of
+               [p, v] ->
+                 -- {{{
+                    traceIfFalse
+                      "The produced project UTxO doesn't have the correct value."
+                      ( utxoHasOnlyXWithLovelaces
+                          qvfProjectSymbol
+                          tn
+                          1
+                          halfOfTheRegistrationFee
+                          p
+                      )
+                 && traceIfFalse
+                      "The produced folded UTxO doesn't have the correct value."
+                      ( utxoHasOnlyXWithLovelaces
+                          qvfDonationSymbol
+                          tn
+                          dCount
+                          lCount
+                          v
+                      )
+                 && traceIfFalse
+                      "The produced folded UTxO doesn't have the correct datum."
+                      ( utxosDatumMatchesWith
+                          -- Indexing with 1 as the first index.
+                          (DonationFoldingProgress tot dCount 1 lastIndex)
+                          p
+                      )
+                 && traceIfFalse
+                      "The produced folded UTxO doesn't have the correct datum."
+                      ( utxosDatumMatchesWith
+                          -- By starting the indexing at 1, we can use 0 as the
+                          -- latest traversed index of the first
+                          -- `UnverifiedFoldedDonations` and avoid using
+                          -- negative values.
+                          (UnverifiedFoldedDonations 1 dMap 0 lastIndex)
+                          v
+                      )
+                 && ( case mOrigin of
+                        Just origin ->
+                          traceIfFalse
+                            "Donations must come from the script."
+                            (origin == ownAddr)
+                        Nothing     ->
+                          traceError "No donations found to fold."
+                    )
+                 -- }}}
+               _      ->
+                 -- {{{
+                 traceError "There must be exactly 2 UTxOs produced at the script (first one being the project UTxO)."
+                 -- }}}
+           )
+        -- }}}
       else
-        let
-          expected  = min remaining maxDonationInputsForPhaseOne
-        in
-        foldDonationsPhaseOne
-          expected
-          (DonationFoldingProgress tot (soFar + expected))
+        -- {{{
+        traceError "Too few donations."
+        -- }}}
       -- }}}
 
-    (Donations _                                  , FoldDonations          ) ->
-      -- Second Phase of Folding Donations
-      -- Similar to `Donation`, this endpoint also delegates its logic. This
-      -- time, specifically to `DonationFoldingProgress`.
+    (DonationFoldingProgress tot soFar latest last, FoldDonations          ) ->
+      -- Subsequent Transactions in the Final Phase of Folding Donations
+      -- {{{
+      let
+        tn                              = getCurrTokenName qvfProjectSymbol
+        (mOrigin, dCount, lCount, dMap) =
+          foldDonationInputs qvfDonationSymbol tn inputs
+        newSoFar                        = soFar + dCount
+        newLatest                       = latest + 1
+      in
+      if newSoFar < tot then
+        traceIfFalse
+          "The newly assigned index can not be greater than or equal to the last index while some donations remain unfolded."
+          (newLatest < last)
+      else
+        else
+      -- }}}
+
+    (UnverifiedFoldedDonations _ _ _ _            , AbsorbDuplicateDonors  ) ->
+      -- Traversing Folded Donations
+      -- Delegation of logic to the donation agent.
       -- {{{ 
       let
-        tn = getCurrTokenName qvfDonationSymbol
+        TokenName projID = getCurrTokenName qvfDonationSymbol
       in
-        traceIfFalse "The concluded folding project UTxO must also be getting consumed."
-      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
-      $ \case
-          DonationFoldingProgress tot soFar -> tot == soFar
-          _                                 -> False
+      traceIfFalse
+        "Donation agent missing."
+        (donAgentWithSpecificRedeemerIsPresent (DonAgent.Traverse projID))
       -- }}} 
+
+    (DonationFoldingProgress tot soFar latest last, ConsolidateDonations   ) ->
+      -- Consolidation Transaction
+      -- {{{
+      -- }}}
 
     (PrizeWeight _ False                          , AccumulateDonations    ) ->
       -- Accumulation of Donated Lovelaces

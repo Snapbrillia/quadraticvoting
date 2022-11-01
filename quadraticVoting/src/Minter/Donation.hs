@@ -203,7 +203,7 @@ mkDonationPolicy sym action ctx =
         (updatedDatum, outputLs) =
           -- {{{
           case getInlineDatum inputProjUTxO of
-            ReceivedDonationsCount dSoFar                     ->
+            ReceivedDonationsCount dSoFar                      ->
               -- {{{
               if dSoFar == ds then
                 ( PrizeWeight (inputsSumW * inputsSumW) False
@@ -212,9 +212,9 @@ mkDonationPolicy sym action ctx =
               else
                 traceError "There must be exactly an equal number of input donations for consolidation."
               -- }}}
-            DonationFoldingProgress totDs fSoFar _            ->
+            DonationFoldingProgress totDs fSoFar assigned last ->
               -- {{{
-              if fSoFar == totDs then
+              if fSoFar == totDs && assigned == last then
                 if totDs == ds then
                   ( PrizeWeight (inputsSumW * inputsSumW) False
                   , ls
@@ -226,7 +226,7 @@ mkDonationPolicy sym action ctx =
               else
                 traceError "All donations must be folded for consolidation."
               -- }}}
-            ConsolidationProgress totDs cSoFar lSoFar wsSoFar ->
+            ConsolidationProgress totDs cSoFar lSoFar wsSoFar  ->
               -- {{{
               let
                 newCSoFar = cSoFar + ds
@@ -246,7 +246,7 @@ mkDonationPolicy sym action ctx =
                 )
                 -- }}}
               -- }}}
-            _                                                 ->
+            _                                                  ->
               -- {{{
               traceError "Invalid datum attached to the project UTxO for consolidation."
               -- }}}
