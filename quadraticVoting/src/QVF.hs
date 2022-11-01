@@ -681,62 +681,21 @@ mkQVFValidator QVFParams{..} datum action ctx =
           --   many folded donations UTxOs as possible, and second, that all
           --   the subsequent folding transactions can consume as much as this
           --   one.
+          lastIndex :: Integer
           lastIndex = (tot `divide` dCount) + 1
+
+          -- | Indexing with 0 as the first index.
+          updatedP  :: QVFDatum
+          updatedP  = DonationFoldingProgress tot dCount 1 lastIndex
+
+          -- | Latest traversed index starts with a value equal to that of an
+          --   assigned index..
+          updatedV  :: QVFDatum
+          updatedV  = UnverifiedFoldedDonations 0 dMap 0 lastIndex
         in
            canFoldOrDistribute
         && signedByKeyHolder
-        && ( case getContinuingOutputs ctx of
-               [p, v] ->
-                 -- {{{
-                    traceIfFalse
-                      "The produced project UTxO doesn't have the correct value."
-                      ( utxoHasOnlyXWithLovelaces
-                          qvfProjectSymbol
-                          tn
-                          1
-                          halfOfTheRegistrationFee
-                          p
-                      )
-                 && traceIfFalse
-                      "The produced folded UTxO doesn't have the correct value."
-                      ( utxoHasOnlyXWithLovelaces
-                          qvfDonationSymbol
-                          tn
-                          dCount
-                          lCount
-                          v
-                      )
-                 && traceIfFalse
-                      "The produced folded UTxO doesn't have the correct datum."
-                      ( utxosDatumMatchesWith
-                          -- Indexing with 1 as the first index.
-                          (DonationFoldingProgress tot dCount 1 lastIndex)
-                          p
-                      )
-                 && traceIfFalse
-                      "The produced folded UTxO doesn't have the correct datum."
-                      ( utxosDatumMatchesWith
-                          -- By starting the indexing at 1, we can use 0 as the
-                          -- latest traversed index of the first
-                          -- `UnverifiedFoldedDonations` and avoid using
-                          -- negative values.
-                          (UnverifiedFoldedDonations 1 dMap 0 lastIndex)
-                          v
-                      )
-                 && ( case mOrigin of
-                        Just origin ->
-                          traceIfFalse
-                            "Donations must come from the script."
-                            (origin == ownAddr)
-                        Nothing     ->
-                          traceError "No donations found to fold."
-                    )
-                 -- }}}
-               _      ->
-                 -- {{{
-                 traceError "There must be exactly 2 UTxOs produced at the script (first one being the project UTxO)."
-                 -- }}}
-           )
+        && verifyFinalPhaseOfFolding tn updatedP mOrigin dCount lCount updatedV
         -- }}}
       else
         -- {{{
@@ -755,9 +714,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
         newLatest                       = latest + 1
       in
       if newSoFar < tot then
-        traceIfFalse
-          "The newly assigned index can not be greater than or equal to the last index while some donations remain unfolded."
-          (newLatest < last)
+        let
+          updatedP = DonationFoldingProgress tot newSoFar newLatest last
+          updatedV = UnverifiedFoldedDonations newLatest dMap newLatest lastIndex
+        in
+           traceIfFalse
+             "The newly assigned index can not be greater than or equal to the last index while some donations remain unfolded."
+             (newLatest < last)
+        && verifyFinalPhaseOfFolding tn updatedP mOrigin dCount lCount updatedV
       else
         else
       -- }}}
