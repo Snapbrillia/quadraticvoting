@@ -948,7 +948,7 @@ main =
                    "{\"lovelace\":\""
                 ++ show ls
                 ++ "\",\"mint\":\""
-                ++ show mint
+                ++ show (negate mint)
                 ++ "\"}"
             in
             case currDatum of

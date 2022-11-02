@@ -38,7 +38,7 @@ remove_quotes() {
 remove_back_slashes() {
   # {{{
   echo $1           \
-  | sed 's|['"\\"',]||g'
+  | sed 's|['"\\"']||g'
   # }}}
 }
 
