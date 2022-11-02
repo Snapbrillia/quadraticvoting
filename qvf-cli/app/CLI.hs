@@ -381,6 +381,17 @@ main =
         "{current-datum-json-value}"
         []
       -- }}}
+    projInfoHelp       :: String
+    projInfoHelp       =
+      -- {{{
+      makeHelpText
+        (    "Check whether a given data JSON decodes to a `ProjectInfo` datum\n"
+          ++ "\t(returns either \"True\" or \"False\"):"
+        )
+        "is-project-info"
+        "{current-datum-json-value}"
+        []
+      -- }}}
     dataToCBORHelp     :: String
     dataToCBORHelp     =
       -- {{{
@@ -426,6 +437,7 @@ main =
       ++ "\tqvf-cli donate-to-project --help\n"
       ++ "\tqvf-cli fold-donations    --help\n"
       ++ "\tqvf-cli pretty-datum      --help\n"
+      ++ "\tqvf-cli is-project-info   --help\n"
       ++ "\tqvf-cli data-to-cbor      --help\n"
       ++ "\tqvf-cli cbor-to-data      --help\n"
       ++ "\tqvf-cli string-to-hex     --help\n"
@@ -480,6 +492,8 @@ main =
           putStrLn foldingHelp
         "pretty-datum"         ->
           putStrLn prettyDatumHelp
+        "is-project-info"      ->
+          putStrLn projInfoHelp
         "data-to-cbor"         ->
           putStrLn dataToCBORHelp
         "cbor-to-data"         ->
@@ -1002,6 +1016,14 @@ main =
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
+      -- }}}
+    "is-project-info" : datumJSONStr : _                                ->
+      -- {{{
+      fromDatumValue (fromString datumJSONStr) $ \case
+        ProjectInfo _ ->
+          print True
+        _             ->
+          print False
       -- }}}
     "data-to-cbor" : dataJSONStr : _                                    ->
       -- {{{

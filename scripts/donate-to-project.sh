@@ -16,10 +16,7 @@ cappedSlot=$(cap_deadline_slot $deadlineSlot)
 projectAsset="$regSym.$projectTokenName"
 donAsset="$donSym.$projectTokenName"
 
-# Get the project UTxO. Since the first project UTxO produced at the
-# registration phase is the one carrying the static UTxO, index 1 is used to
-# get the UTxO with the "state" datum attached.
-projectUTxOObj="$(get_script_utxos_datums_values $qvfAddress $projectAsset | jq -c '.[1]')"
+projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
 projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
 projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
 echo "$projectCurrDatum" > $currentDatumFile

@@ -1,12 +1,12 @@
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
-export MAGIC='--testnet-magic 2'
-export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
+export MAGIC='--testnet-magic 1'
+export CARDANO_NODE_SOCKET_PATH="$HOME/preprod-testnet/node.socket"
 export REPO="$HOME/code/quadraticvoting"
 export cli="cardano-cli"
 export qvf="qvf-cli"
 # ========================================== #
 
-export preDir="$REPO/testnet"
+export preDir="$REPO/testnet2"
 mkdir -p $preDir
 
 # Removes the single quotes.
@@ -28,6 +28,17 @@ remove_quotes() {
   # {{{
   echo $1           \
   | sed 's|[",]||g'
+  # }}}
+}
+
+# Removes the backslashes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_back_slashes() {
+  # {{{
+  echo $1           \
+  | sed 's|['"\\"',]||g'
   # }}}
 }
 
@@ -645,6 +656,85 @@ get_total_lovelaces_from_json() {
   echo "$1" | jq 'map(.lovelace) | reduce .[] as $l (0; . + $l)'
   # }}}
 }
+
+
+### FUNCTIONS THAT ARE USABLE AFTER AT LEAST ONE PROJECT REGISTRATION ###
+# Takes no arguments.
+find_registered_projects_count() {
+  # {{{
+  wc -l $registeredProjectsFile | awk '{ print $1 }'
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The "number" of the project (first registered project is represented
+#      with 1, and so on). Clamps implicitly.
+project_number_to_token_name() {
+  # {{{
+  clamped=$1
+  min=0
+  max="$(find_registered_projects_count)"
+  if [ $clamped -lt $min ]; then
+    clamped=$min
+  elif [ $clamped -gt $max ]; then
+    clamped=$max
+  fi
+  sed "${clamped}q;d" $registeredProjectsFile
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. Project's ID (token name).
+get_projects_state_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  projectAsset="$(cat $regSymFile).$1"
+  projectUTxOs="$(get_script_utxos_datums_values $qvfAddress $projectAsset)"
+  projectUTxOObj=""
+  temp0="$(echo "$projectUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf is-project-info "$temp0")
+  if [ $isInfo == True ]; then
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[1]')"
+  else
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[0]')"
+  fi
+  echo $projectUTxOObj
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The "number" of the project (first registered project is represented
+#      with 1, and so on). Clamps implicitly.
+get_nth_projects_state_utxo() {
+  # {{{
+  get_projects_state_utxo $(project_number_to_token_name $1)
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. Project's ID (token name).
+get_projects_donation_utxos() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  donAsset="$(cat $donSymFile).$1"
+  get_script_utxos_datums_values $qvfAddress $donAsset
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The "number" of the project (first registered project is represented
+#      with 1, and so on). Clamps implicitly.
+get_nth_projects_donation_utxos() {
+  # {{{
+  get_projects_donation_utxos $(project_number_to_token_name $1)
+  # }}}
+}
+#########################################################################
 
 
 # Given a wallet, a script, and other arguments, this function constructs,
