@@ -928,7 +928,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     (_                                            , Dev                    ) ->
       -- For development. TODO: REMOVE.
-      True
+      signedByKeyHolder
     (_                                            , _                      ) ->
       traceError "Invalid transaction."
   -- }}}

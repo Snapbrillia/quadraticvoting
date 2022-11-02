@@ -47,12 +47,13 @@ PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
 -- POLICY SCRIPT
 -- {{{
 {-# INLINABLE mkRegistrationPolicy #-}
-mkRegistrationPolicy :: CurrencySymbol
+mkRegistrationPolicy :: PubKeyHash
+                     -> CurrencySymbol
                      -> TokenName
                      -> RegistrationRedeemer
                      -> ScriptContext
                      -> Bool
-mkRegistrationPolicy sym tn action ctx =
+mkRegistrationPolicy pkh sym tn action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -222,14 +223,14 @@ mkRegistrationPolicy sym tn action ctx =
       -- }}}
     -- TODO: REMOVE.
     Dev                                  ->
-      True
+      traceIfFalse "Unauthorized." $ txSignedBy info pkh
   -- }}}
 
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-registrationPolicy :: CurrencySymbol -> MintingPolicy
-registrationPolicy sym =
+registrationPolicy :: PubKeyHash -> CurrencySymbol -> MintingPolicy
+registrationPolicy pkh sym =
   -- {{{
   let
     wrap :: (RegistrationRedeemer -> ScriptContext -> Bool)
@@ -237,7 +238,9 @@ registrationPolicy sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \sym' tn' -> wrap $ mkRegistrationPolicy sym' tn' ||])
+    $$(PlutusTx.compile [|| \pkh' sym' tn' -> wrap $ mkRegistrationPolicy pkh' sym' tn' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
     `PlutusTx.applyCode`

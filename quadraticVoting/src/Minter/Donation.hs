@@ -44,11 +44,12 @@ PlutusTx.makeIsDataIndexed ''DonationRedeemer
 
 
 {-# INLINABLE mkDonationPolicy #-}
-mkDonationPolicy :: CurrencySymbol
+mkDonationPolicy :: PubKeyHash
+                 -> CurrencySymbol
                  -> DonationRedeemer
                  -> ScriptContext
                  -> Bool
-mkDonationPolicy sym action ctx =
+mkDonationPolicy pkh sym action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -210,14 +211,14 @@ mkDonationPolicy sym action ctx =
       -- }}}
     -- TODO: REMOVE.
     Dev                              ->
-      True
+      traceIfFalse "Unauthorized." $ txSignedBy info pkh
   -- }}}
 
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-donationPolicy :: CurrencySymbol -> MintingPolicy
-donationPolicy sym =
+donationPolicy :: PubKeyHash -> CurrencySymbol -> MintingPolicy
+donationPolicy pkh sym =
   -- {{{
   let
     wrap :: (DonationRedeemer -> ScriptContext -> Bool)
@@ -225,14 +226,12 @@ donationPolicy sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| wrap . mkDonationPolicy ||])
+    $$(PlutusTx.compile [|| \pkh' sym' -> wrap $ mkDonationPolicy pkh' sym' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
   -- }}}
-
-
--- donationSymbol :: CurrencySymbol -> CurrencySymbol
--- donationSymbol = scriptCurrencySymbol . donationPolicy
 -- }}}
 
 

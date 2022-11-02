@@ -358,7 +358,7 @@ main =
       makeHelpText
         (    "Read the current project datum from disk, and write the\n"
           ++ "\tupdated project datum from disk. Also prints a JSON\n"
-          ++ "\twith two fields of \"lovelaces\" and \"mint\" to help\n"
+          ++ "\twith two fields of \"lovelace\" and \"mint\" to help\n"
           ++ "\tthe bash script construct the `tx-out` argument.\n"
         )
         "fold-donations"
@@ -646,7 +646,8 @@ main =
       handleScriptGenerationArguments results $
         \txRef currSlot dl ocfn -> do
           -- {{{
-          let govOF     = getFileName ocfn ocfnGovernanceMinter
+          let pkh       = fromString pkhStr
+              govOF     = getFileName ocfn ocfnGovernanceMinter
               regOF     = getFileName ocfn ocfnRegistrationMinter
               donOF     = getFileName ocfn ocfnDonationMinter
               qvfOF     = getFileName ocfn ocfnQVFMainValidator
@@ -658,10 +659,10 @@ main =
               govPolicy = Gov.qvfPolicy txRef dl
               govSymbol = mintingPolicyToSymbol govPolicy
               --
-              regPolicy = Reg.registrationPolicy govSymbol
+              regPolicy = Reg.registrationPolicy pkh govSymbol
               regSymbol = mintingPolicyToSymbol regPolicy
               --
-              donPolicy = Don.donationPolicy regSymbol
+              donPolicy = Don.donationPolicy pkh regSymbol
               donSymbol = mintingPolicyToSymbol donPolicy
               --
               yellow    = "\ESC[38:5:220m"
@@ -688,7 +689,7 @@ main =
               -- {{{
               let qvfParams =
                     OC.QVFParams
-                      { OC.qvfKeyHolder      = fromString pkhStr
+                      { OC.qvfKeyHolder      = pkh
                       , OC.qvfSymbol         = govSymbol
                       , OC.qvfProjectSymbol  = regSymbol
                       , OC.qvfDonationSymbol = donSymbol
@@ -930,11 +931,11 @@ main =
               updatedDatumFile    :: FilePath
               updatedDatumFile    = getFileName ocfn ocfnUpdatedDatum
               jsonToPrint ls mint =
-                   "{\"lovelaces\":"
+                   "{\"lovelace\":\""
                 ++ show ls
-                ++ ",\"mint\":"
+                ++ "\",\"mint\":\""
                 ++ show mint
-                ++ "}"
+                ++ "\"}"
             in
             case currDatum of
               ReceivedDonationsCount soFar      ->
