@@ -798,7 +798,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "register-project"      : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _         ->
+    "register-project"       : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _        ->
       -- {{{
       case (readTxOutRef txRefStr, readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
         (Just utxo, Just reqFund, Just ocfn) ->
@@ -870,7 +870,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "donate-to-project"     : pkhStr : projIDStr : amtStr : fileNamesJSON : _                  ->
+    "donate-to-project"      : pkhStr : projIDStr : amtStr : fileNamesJSON : _                 ->
       -- {{{
       case (hexStringToByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
@@ -927,7 +927,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "fold-donations"        : restOfArgs                                                       ->
+    "fold-donations"         : restOfArgs                                                      ->
       -- {{{
       let
         go :: String
@@ -1065,7 +1065,7 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "accumulate-donations"  : restOfArgs                                                       ->
+    "accumulate-donations"   : restOfArgs                                                      ->
       -- {{{
       let
         go :: String
@@ -1095,7 +1095,7 @@ main =
             (Just projID, Just lovelaces, Just (PrizeWeight w False)) ->
               -- {{{
               Right
-                ( lovelaces + ls
+                ( lovelaces + ls - halfOfTheRegistrationFee
                 , ps + 1
                 , ws + w
                 , ds ++ [(projID, PrizeWeight w True)]
@@ -1160,10 +1160,7 @@ main =
                 writeJSON updatedDatumFile updatedDatum
                 forM_ ds $ \(projID, projDatum) ->
                   writeJSON (mkProjDatumFile projID) projDatum
-                print $
-                    inputLs
-                  - inputPs * halfOfTheRegistrationFee
-                  + governanceLovelaces
+                print $ inputLs + governanceLovelaces
                 -- }}}
               Left err           ->
                 -- {{{
@@ -1175,13 +1172,41 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "collect-key-holder-fee": _                                                                ->
+    "collect-key-holder-fee" : fileNamesJSON : _                                               ->
+      -- {{{
+      case A.decode $ fromString fileNamesJSON of
+        Just ocfn ->
+          -- {{{
+          actOnCurrentDatum @QVFAction ocfn PayKeyHolderFee Nothing $ \case
+            DonationAccumulationConcluded ps totalLovelaces sumP False ->
+              -- {{{
+              let
+                (khFee, updatedDatum) =
+                  OC.findDatumAfterPayingKeyHoldersFee ps totalLovelaces sumP
+
+                updatedDatumFile      :: FilePath
+                updatedDatumFile      = getFileName ocfn ocfnUpdatedDatum
+              in do
+              writeJSON updatedDatumFile updatedDatum
+              print khFee
+              -- }}}
+            _                             ->
+              -- {{{
+              putStrLn "FAILED: Provided current datum is incompatible."
+              -- }}}
+          -- }}}
+        _                                    ->
+          -- {{{
+          putStrLn $
+               "FAILED because of bad off-chain filenames JSON:\n"
+            ++ fileNamesJSON
+          -- }}}
+      -- }}}
+    "distribute-prize"       : _                                                               ->
       putStrLn "TODO."
-    "distribute-prize"      : _                                                                ->
+    "unlock-bounty-for"      : _                                                               ->
       putStrLn "TODO."
-    "unlock-bounty-for"     : _                                                                ->
-      putStrLn "TODO."
-    "withdraw-bounty"       : _                                                                ->
+    "withdraw-bounty"        : _                                                               ->
       putStrLn "TODO."
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{

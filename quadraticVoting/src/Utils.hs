@@ -434,7 +434,7 @@ maxTotalDonationCount =
   maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
 minKeyHolderFee :: Integer
-minKeyHolderFee = 10_000_000
+minKeyHolderFee = 1_000_000
 
 minDonationAmount :: Integer
 minDonationAmount = 2_000_000

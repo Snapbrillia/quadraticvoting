@@ -2,7 +2,7 @@
 
 . scripts/initiation.sh
 
-projectTokenName=$(project_number_to_token_name $1)
+projectTokenName=$(project_number_to_token_name "$1")
 
 qvfAddress=$(cat $scriptAddressFile)
 regSym=$(cat $regSymFile)
@@ -31,11 +31,12 @@ txInArg=$(remove_quotes "$txInArg")
 totalInAsset="$(echo "$allDonations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
 
 elemCount=$(echo "$allDonations" | jq length)
-initialDonationsArg="$(echo "$allDonations" | jq 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+initialDonationsArg="$(echo "$allDonations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+echo "$initialDonationsArg"
 donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
 
 resultJSON="$($qvf fold-donations $donationsArg "$(cat $fileNamesJSONFile)")"
-
+echo "$resultJSON"
 lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
 
 mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
@@ -52,14 +53,14 @@ if [ $mintCount -lt 0 ]; then
     --policy-id $donSym
   "
   outputProjectUTxO="$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset"
-  finished=True
+  finished="True"
 else
   extraArg="
     --tx-out \"$qvfAddress + $lovelaceCount lovelace + $totalInAsset $donAsset\"
     --tx-out-inline-datum-file $newDatumFile
   "
   outputProjectUTxO="$qvfAddress + 1500000 lovelace + 1 $projectAsset"
-  finished=False
+  finished="False"
 fi
 
 keyHoldersInUTxO=$(get_first_utxo_of $keyHolder)
@@ -86,6 +87,6 @@ rm -f $tempSh
 sign_and_submit_tx $preDir/$keyHolder.skey
 wait_for_new_slot
 
-if [ $finished == False ]; then
+if [ $finished == "False" ]; then
   . scripts/fold-donations.sh $1
 fi

@@ -60,6 +60,8 @@ initiate_fund() {
   done
   rm $registeredProjectsFile
   touch $registeredProjectsFile
+  rm -rf $projsPreDir
+  mkdir -p $projsPreDir
   echo "Getting the current slot..."
   currentSlot=$(get_newest_slot)
 

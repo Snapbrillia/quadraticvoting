@@ -66,6 +66,6 @@ wait_for_new_slot
 
 finished="$($qvf datum-is DonationAccumulationConcluded "$(cat $updatedDatumFile)")"
 
-if [ $finished == False ]; then
+if [ $finished == "False" ]; then
   . scripts/accumulate-donations.sh
 fi

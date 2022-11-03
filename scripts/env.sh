@@ -720,13 +720,13 @@ find_registered_projects_count() {
 #      with 1, and so on). Clamps implicitly.
 project_number_to_token_name() {
   # {{{
-  clamped=$1
+  clamped="$1"
   min=0
   max="$(find_registered_projects_count)"
-  if [ $clamped -lt $min ]; then
+  if [ "$clamped" -lt "$min" ]; then
     clamped=$min
-  elif [ $clamped -gt $max ]; then
-    clamped=$max
+  elif [ "$clamped" -gt "$max" ]; then
+    clamped="$max"
   fi
   sed "${clamped}q;d" $registeredProjectsFile
   # }}}
@@ -742,8 +742,8 @@ get_projects_state_utxo() {
   projectUTxOs="$(get_script_utxos_datums_values $qvfAddress $projectAsset)"
   projectUTxOObj=""
   temp0="$(echo "$projectUTxOs" | jq -c 'map(.datum) | .[0]')"
-  isInfo=$($qvf is-project-info "$temp0")
-  if [ $isInfo == True ]; then
+  isInfo=$($qvf datum-is ProjectInfo "$temp0")
+  if [ $isInfo == "True" ]; then
     projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[1]')"
   else
     projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[0]')"
