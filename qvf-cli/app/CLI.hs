@@ -381,7 +381,9 @@ main =
           ++ "\tupdated datum to disk. Also writes a dedicated file (labeled\n"
           ++ "\tthe same as the token name of the project with a `.datum`\n"
           ++ "\textension) where the updated datum of that project is stored.\n"
-          ++ "\tThe input Lovelace count is what gets printed.\n"
+          ++ "\tThe input Lovelace count, minus all the registration fees\n"
+          ++ "\t(as they are meant to be included in the inputs) is what gets\n"
+          ++ "\tprinted.\n"
         )
         "accumulate-donations"
         "<project-id-------------0>"
@@ -411,6 +413,7 @@ main =
           ++ "\t(returns either \"True\" or \"False\"). Supported keywords are:\n"
           ++ "\t\tDeadlineDatum\n"
           ++ "\t\tProjectInfo"
+          ++ "\t\tDonationAccumulationConcluded"
         )
         "datum-is"
         "<predicate-keyword>"
@@ -537,14 +540,18 @@ main =
     predicateKeyWordToPredicate kw =
       -- {{{
       case kw of
-        "ProjectInfo" ->
+        "ProjectInfo"                   ->
           Just $ \case
             ProjectInfo _ -> True
             _             -> False
-        "DeadlineDatum" ->
+        "DeadlineDatum"                 ->
           Just $ \case
             DeadlineDatum _ -> True
             _               -> False
+        "DonationAccumulationConcluded" ->
+          Just $ \case
+            DonationAccumulationConcluded {} -> True
+            _                                -> False
         _               ->
           Nothing
       -- }}}
@@ -1153,7 +1160,10 @@ main =
                 writeJSON updatedDatumFile updatedDatum
                 forM_ ds $ \(projID, projDatum) ->
                   writeJSON (mkProjDatumFile projID) projDatum
-                print inputLs
+                print $
+                    inputLs
+                  - inputPs * halfOfTheRegistrationFee
+                  + governanceLovelaces
                 -- }}}
               Left err           ->
                 -- {{{
@@ -1314,7 +1324,7 @@ getFileName ocfn handle =
 
 getProjectsDatumFile :: OffChainFileNames -> TokenName -> FilePath
 getProjectsDatumFile ocfn tn =
-  ocfnProjectsPreDir ocfn ++ "/" ++ unsafeTokenNameToHex tn ++ ".datum"
+  ocfnPreDir ocfn ++ "/" ++ ocfnProjectsPreDir ocfn ++ "/" ++ unsafeTokenNameToHex tn ++ ".datum"
 
 
 data ScriptGenerationArgumentsParseResults =

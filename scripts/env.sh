@@ -48,7 +48,7 @@ export fileNamesJSONFile="$preDir/fileNames.json"
 # {{{
 touch $fileNamesJSONFile
 echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
-echo ", \"ocfnProjectsPreDir\"      : \"$preDir/projects\""            >> $fileNamesJSONFile
+echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
 echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
 echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
@@ -660,15 +660,51 @@ get_total_lovelaces_from_json() {
 }
 
 
+# Given a string put together by `jq`, this function applies some modifications
+# to make the string usable by bash.
+#
+# Takes 2 arguments:
+#   1. A string returned by `jq`'s `map`,
+#   2. Initial array length.
+jq_to_bash_3() {
+  count=1
+  last=$(echo "$2" | jq '(3 * tonumber)')
+  if [ $last -eq 0 ]; then
+    return 1
+  fi
+  output=""
+  for i in $1; do
+    if [ $count -eq 1 ]; then
+      output="$(remove_quotes $i)"
+    elif [ $count -eq $last ]; then
+      lastCharRemoved=${i::-1}
+      output="$output $(remove_back_slashes $lastCharRemoved)"
+    else
+      output="$output $(remove_back_slashes $i)"
+    fi
+    count=$(expr $count + 1)
+  done
+  echo "$output"
+}
+
+
 ### FUNCTIONS THAT ARE USABLE AFTER AT LEAST ONE PROJECT REGISTRATION ###
 
 # Takes no arguments.
-get_all_project_utxos_datums_values() {
+get_all_projects_utxos_datums_values() {
   # {{{
   qvfAddress=$(cat $scriptAddressFile)
   regSym=$(cat $regSymFile)
   get_all_script_utxos_datums_values $qvfAddress | jq -c --arg regSym "$regSym" 'map(select(.asset | contains($regSym)))'
   # }}}
+}
+
+# CAUTION: The constructor index needs to match with that of the corresponding
+#          `QVFDatum` constructor.
+#
+# Takes no arguments.
+get_all_projects_state_utxos_datums_values() {
+  get_all_projects_utxos_datums_values | jq -c 'map(select((.datum .constructor) != 4))'
 }
 
 # Takes no arguments.
