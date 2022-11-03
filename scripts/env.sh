@@ -659,6 +659,16 @@ get_total_lovelaces_from_json() {
 
 
 ### FUNCTIONS THAT ARE USABLE AFTER AT LEAST ONE PROJECT REGISTRATION ###
+
+# Takes no arguments.
+get_all_project_utxos_datums_values() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  regSym=$(cat $regSymFile)
+  get_all_script_utxos_datums_values $qvfAddress | jq -c --arg regSym "$regSym" 'map(select(.asset | contains($regSym)))'
+  # }}}
+}
+
 # Takes no arguments.
 find_registered_projects_count() {
   # {{{

@@ -21,6 +21,7 @@ import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Short      as SBS
 import qualified Data.Char                  as Char
+import           Data.Foldable              ( forM_ )
 import qualified Data.List                  as List
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
@@ -944,6 +945,8 @@ main =
             let
               updatedDatumFile    :: FilePath
               updatedDatumFile    = getFileName ocfn ocfnUpdatedDatum
+              newDatumFile        :: FilePath
+              newDatumFile        = getFileName ocfn ocfnNewDatum
               jsonToPrint ls mint =
                    "{\"lovelace\":\""
                 ++ show ls
@@ -955,42 +958,52 @@ main =
               ReceivedDonationsCount soFar      ->
                 -- {{{
                 let
-                  (updatedDatum, ls, mintAmt) =
+                  (updatedDatum, ls, mintAmt, mNew) =
                     -- {{{
                     if inputDonations == soFar then
                       ( PrizeWeight (Don.foldDonationsMap foldedMap) False
                       , inputLovelaces + halfOfTheRegistrationFee
                       , soFar
+                      , Nothing
                       )
                     else
                       ( DonationFoldingProgress soFar inputDonations
                       , inputLovelaces
                       , 0
+                      , Just $ Donations foldedMap
                       )
                     -- }}}
                 in do
                 writeJSON updatedDatumFile updatedDatum
+                forM_ mNew (writeJSON newDatumFile)
                 putStrLn $ jsonToPrint ls mintAmt
                 -- }}}
               DonationFoldingProgress tot soFar ->
                 -- {{{
                 let
-                  newSoFar                    = soFar + inputDonations
-                  (updatedDatum, ls, mintAmt) =
+                  newSoFar                          =
+                    if soFar + inputDonations > tot then
+                      inputDonations
+                    else
+                      soFar + inputDonations
+                  (updatedDatum, ls, mintAmt, mNew) =
                     -- {{{
                     if newSoFar == tot then
                       ( PrizeWeight (Don.foldDonationsMap foldedMap) False
                       , inputLovelaces + halfOfTheRegistrationFee
                       , tot
+                      , Nothing
                       )
                     else
                       ( DonationFoldingProgress tot newSoFar
                       , inputLovelaces
                       , 0
+                      , Just $ Donations foldedMap
                       )
                     -- }}}
                 in do
                 writeJSON updatedDatumFile updatedDatum
+                forM_ mNew (writeJSON newDatumFile)
                 putStrLn $ jsonToPrint ls mintAmt
                 -- }}}
               _                                 ->
