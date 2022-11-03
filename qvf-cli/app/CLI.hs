@@ -358,7 +358,7 @@ main =
       -- {{{
       makeHelpText
         (    "Read the current project datum from disk, and write the\n"
-          ++ "\tupdated project datum from disk. Also prints a JSON\n"
+          ++ "\tupdated project datum to disk. Also prints a JSON\n"
           ++ "\twith two fields of \"lovelace\" and \"mint\" to help\n"
           ++ "\tthe bash script construct the `tx-out` argument.\n"
         )
@@ -369,6 +369,27 @@ main =
         , "<donation(s)-lovelace-count-1>"
         , "<donation-count-------------1>"
         , "{donation-datum-json--------1}"
+        , "<...etc...>"
+        , "{file-names-json}"
+        ]
+      -- }}}
+    accumulationHelp   :: String
+    accumulationHelp   =
+      -- {{{
+      makeHelpText
+        (    "Read the current governance datum from disk, and write the\n"
+          ++ "\tupdated datum to disk. Also writes a dedicated file (labeled\n"
+          ++ "\tthe same as the token name of the project with a `.datum`\n"
+          ++ "\textension) where the updated datum of that project is stored.\n"
+          ++ "\tThe input Lovelace count is what gets printed.\n"
+        )
+        "accumulate-donations"
+        "<project-id-------------0>"
+        [ "<project-lovelace-count-0>"
+        , "{project-datum-json-----0}"
+        , "<project-id-------------1>"
+        , "<project-lovelace-count-1>"
+        , "{project-datum-json-----1}"
         , "<...etc...>"
         , "{file-names-json}"
         ]
@@ -433,16 +454,17 @@ main =
       ++ "options are:\n\n"
 
       ++ "Utility:\n"
-      ++ "\tqvf-cli generate scripts  --help\n"
-      ++ "\tqvf-cli register-project  --help\n"
-      ++ "\tqvf-cli donate-to-project --help\n"
-      ++ "\tqvf-cli fold-donations    --help\n"
-      ++ "\tqvf-cli pretty-datum      --help\n"
-      ++ "\tqvf-cli is-project-info   --help\n"
-      ++ "\tqvf-cli data-to-cbor      --help\n"
-      ++ "\tqvf-cli cbor-to-data      --help\n"
-      ++ "\tqvf-cli string-to-hex     --help\n"
-      ++ "\tqvf-cli get-deadline-slot --help\n\n"
+      ++ "\tqvf-cli generate scripts     --help\n"
+      ++ "\tqvf-cli register-project     --help\n"
+      ++ "\tqvf-cli donate-to-project    --help\n"
+      ++ "\tqvf-cli fold-donations       --help\n"
+      ++ "\tqvf-cli accumulate-donations --help\n"
+      ++ "\tqvf-cli pretty-datum         --help\n"
+      ++ "\tqvf-cli is-project-info      --help\n"
+      ++ "\tqvf-cli data-to-cbor         --help\n"
+      ++ "\tqvf-cli cbor-to-data         --help\n"
+      ++ "\tqvf-cli string-to-hex        --help\n"
+      ++ "\tqvf-cli get-deadline-slot    --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
@@ -491,6 +513,8 @@ main =
           putStrLn donationHelp
         "fold-donations"       ->
           putStrLn foldingHelp
+        "accumulate-donations" ->
+          putStrLn accumulationHelp
         "pretty-datum"         ->
           putStrLn prettyDatumHelp
         "is-project-info"      ->
@@ -596,7 +620,7 @@ main =
     infArgHelper3 triArgFn initEith infArgs =
       -- {{{
       case (initEith, infArgs) of
-        (Right x   , [ocfnStr]                           ) ->
+        (Right x   , [ocfnStr]               ) ->
           -- {{{
           case A.decode (fromString ocfnStr) of
             Just ocfn ->
@@ -608,11 +632,11 @@ main =
           -- {{{
           infArgHelper3 triArgFn (triArgFn el0 el1 el2 x) rest
           -- }}}
-        (Left err  , _                                   ) ->
+        (Left err  , _                       ) ->
           -- {{{
           Left err
           -- }}}
-        (_         , _                                   ) ->
+        (_         , _                       ) ->
           -- {{{
           Left "Bad arguments."
           -- }}}
@@ -749,7 +773,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "register-project" : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _              ->
+    "register-project"      : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _         ->
       -- {{{
       case (readTxOutRef txRefStr, readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
         (Just utxo, Just reqFund, Just ocfn) ->
@@ -821,7 +845,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "donate-to-project" : pkhStr : projIDStr : amtStr : fileNamesJSON : _                      ->
+    "donate-to-project"     : pkhStr : projIDStr : amtStr : fileNamesJSON : _                  ->
       -- {{{
       case (hexStringToByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
@@ -878,7 +902,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "fold-donations" : restOfArgs                                                              ->
+    "fold-donations"        : restOfArgs                                                       ->
       -- {{{
       let
         go :: String
@@ -1016,15 +1040,126 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "accumulate-donations" : _                                                                 ->
-      putStrLn "TODO."
+    "accumulate-donations"  : restOfArgs                                                       ->
+      -- {{{
+      let
+        go :: String
+           -> String
+           -> String
+           -> (Integer, Integer, Integer, [(BuiltinByteString, QVFDatum)])
+           -> Either String (Integer, Integer, Integer, [(BuiltinByteString, QVFDatum)])
+        go tnStr lovelacesStr datumStr (ls, ps, ws, ds) =
+          -- {{{
+          let
+            mTN        :: Maybe BuiltinByteString
+            mTN        =
+              toBuiltin . LBS.toStrict <$> hexStringToByteString tnStr
+            mLovelaces :: Maybe Integer
+            mLovelaces = readMaybe lovelacesStr
+            mDatum     :: Maybe QVFDatum
+            mDatum     =
+              -- {{{
+              case parseJSONValue (fromString datumStr) of
+                Right d ->
+                  PlutusTx.fromData d
+                Left _  ->
+                  Nothing
+              -- }}}
+          in
+          case (mTN, mLovelaces, mDatum) of
+            (Just projID, Just lovelaces, Just (PrizeWeight w False)) ->
+              -- {{{
+              Right
+                ( lovelaces + ls
+                , ps + 1
+                , ws + w
+                , ds ++ [(projID, PrizeWeight w True)]
+                )
+              -- }}}
+            _                                                         ->
+              -- {{{
+              Left $ "Bad arguments:\n"
+                ++ tnStr ++ " " ++ lovelacesStr ++ " " ++ datumStr
+              -- }}}
+          -- }}}
+        eith = infArgHelper3 go (Right (0, 0, 0, [])) restOfArgs
+      in
+      case eith of
+        Right ((inputLs, inputPs, inputWs, ds), ocfn) ->
+          -- {{{
+          actOnCurrentDatum @QVFAction ocfn AccumulateDonations Nothing $ \currDatum ->
+            let
+              updatedDatumFile  :: FilePath
+              updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+
+              mkProjDatumFile   :: BuiltinByteString -> FilePath
+              mkProjDatumFile p =
+                -- {{{
+                   ocfnPreDir ocfn
+                ++ "/"
+                ++ unsafeTokenNameToHex (TokenName p)
+                ++ ".datum"
+                -- }}}
+
+              eithUpdatedDatum  :: Either String QVFDatum
+              eithUpdatedDatum  =
+                -- {{{
+                case currDatum of
+                  RegisteredProjectsCount totP                                 ->
+                    -- {{{
+                    if inputPs == totP then
+                      Right $ DonationAccumulationConcluded
+                        totP inputLs inputWs False
+                    else
+                      Right $ DonationAccumulationProgress
+                        totP
+                        inputPs
+                        inputLs
+                        inputWs
+                    -- }}}
+                  DonationAccumulationProgress totP psSoFar lsSoFar sumWsSoFar ->
+                    -- {{{
+                    if inputPs + psSoFar == totP then
+                      Right $ DonationAccumulationConcluded
+                        totP (lsSoFar + inputLs) (sumWsSoFar + inputWs) False
+                    else
+                      Right $ DonationAccumulationProgress
+                        totP
+                        (inputPs + psSoFar)
+                        (inputLs + lsSoFar)
+                        (inputWs + sumWsSoFar)
+                    -- }}}
+                  _                                                            ->
+                    -- {{{
+                    Left "Bad project UTxO provided."
+                    -- }}}
+                -- }}}
+            in
+            case eithUpdatedDatum of
+              Right updatedDatum -> do
+                -- {{{
+                writeJSON updatedDatumFile updatedDatum
+                forM_ ds $ \(projID, projDatum) ->
+                  writeJSON (mkProjDatumFile projID) projDatum
+                print inputLs
+                -- }}}
+              Left err           ->
+                -- {{{
+                putStrLn $ "FAILED: " ++ err
+                -- }}}
+          -- }}}
+        Left errMsg                                      ->
+          -- {{{
+          putStrLn $ "FAILED: " ++ errMsg
+          -- }}}
+      -- }}}
     "collect-key-holder-fee": _                                                                ->
       putStrLn "TODO."
-    "distribute-prize" : _                                                                     ->
+    "distribute-prize"      : _                                                                ->
       putStrLn "TODO."
-    "unlock-bounty-for" : _                                                                    ->
+    "unlock-bounty-for"     : _                                                                ->
       putStrLn "TODO."
-    "withdraw-bounty" : _                                                                      ->
+    "withdraw-bounty"       : _                                                                ->
       putStrLn "TODO."
     "pretty-datum" : datumJSONStr : _                                   ->
       -- {{{
