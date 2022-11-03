@@ -9,7 +9,7 @@
 module Main (main) where
 
 
-import Debug.Trace (trace)
+-- import Debug.Trace (trace)
 
 import           Cardano.Api
 import           Cardano.Api.Shelley        ( PlutusScript(..) )
@@ -403,16 +403,18 @@ main =
         "{current-datum-json-value}"
         []
       -- }}}
-    projInfoHelp       :: String
-    projInfoHelp       =
+    checkDatumHelp     :: String
+    checkDatumHelp     =
       -- {{{
       makeHelpText
-        (    "Check whether a given data JSON decodes to a `ProjectInfo` datum\n"
-          ++ "\t(returns either \"True\" or \"False\"):"
+        (    "Check whether a given data JSON decodes to a specific `QVFDatum`\n"
+          ++ "\t(returns either \"True\" or \"False\"). Supported keywords are:\n"
+          ++ "\t\tDeadlineDatum\n"
+          ++ "\t\tProjectInfo"
         )
-        "is-project-info"
-        "{current-datum-json-value}"
-        []
+        "datum-is"
+        "<predicate-keyword>"
+        ["{current-datum-json-value}"]
       -- }}}
     dataToCBORHelp     :: String
     dataToCBORHelp     =
@@ -460,7 +462,7 @@ main =
       ++ "\tqvf-cli fold-donations       --help\n"
       ++ "\tqvf-cli accumulate-donations --help\n"
       ++ "\tqvf-cli pretty-datum         --help\n"
-      ++ "\tqvf-cli is-project-info      --help\n"
+      ++ "\tqvf-cli datum-is             --help\n"
       ++ "\tqvf-cli data-to-cbor         --help\n"
       ++ "\tqvf-cli cbor-to-data         --help\n"
       ++ "\tqvf-cli string-to-hex        --help\n"
@@ -517,8 +519,8 @@ main =
           putStrLn accumulationHelp
         "pretty-datum"         ->
           putStrLn prettyDatumHelp
-        "is-project-info"      ->
-          putStrLn projInfoHelp
+        "datum-is"             ->
+          putStrLn checkDatumHelp
         "data-to-cbor"         ->
           putStrLn dataToCBORHelp
         "cbor-to-data"         ->
@@ -529,6 +531,22 @@ main =
           putStrLn deadlineToSlotHelp
         _                      ->
           printHelp
+      -- }}}
+
+    predicateKeyWordToPredicate :: String -> Maybe (QVFDatum -> Bool)
+    predicateKeyWordToPredicate kw =
+      -- {{{
+      case kw of
+        "ProjectInfo" ->
+          Just $ \case
+            ProjectInfo _ -> True
+            _             -> False
+        "DeadlineDatum" ->
+          Just $ \case
+            DeadlineDatum _ -> True
+            _               -> False
+        _               ->
+          Nothing
       -- }}}
 
     fromConcreteDataValue :: LBS.ByteString
@@ -1093,13 +1111,7 @@ main =
               updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
 
               mkProjDatumFile   :: BuiltinByteString -> FilePath
-              mkProjDatumFile p =
-                -- {{{
-                   ocfnPreDir ocfn
-                ++ "/"
-                ++ unsafeTokenNameToHex (TokenName p)
-                ++ ".datum"
-                -- }}}
+              mkProjDatumFile   = getProjectsDatumFile ocfn . TokenName
 
               eithUpdatedDatum  :: Either String QVFDatum
               eithUpdatedDatum  =
@@ -1165,13 +1177,18 @@ main =
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
       -- }}}
-    "is-project-info" : datumJSONStr : _                                ->
+    "datum-is" : predicateKeyWord : datumJSONStr : _                    ->
       -- {{{
-      fromDatumValue (fromString datumJSONStr) $ \case
-        ProjectInfo _ ->
-          print True
-        _             ->
-          print False
+      case predicateKeyWordToPredicate predicateKeyWord of
+        Just p  ->
+          -- {{{
+          fromDatumValue (fromString datumJSONStr) (print . p)
+          -- }}}
+        Nothing ->
+          -- {{{
+          print $
+            "FAILED: Unsupported datum predicate (" ++ predicateKeyWord ++ ")."
+          -- }}}
       -- }}}
     "data-to-cbor" : dataJSONStr : _                                    ->
       -- {{{
@@ -1272,6 +1289,7 @@ instance Show OutputPlutus where
 --
 data OffChainFileNames = OffChainFileNames
   { ocfnPreDir               :: String
+  , ocfnProjectsPreDir       :: String
   , ocfnDeadlineTokenNameHex :: String
   , ocfnGovernanceMinter     :: String
   , ocfnRegistrationMinter   :: String
@@ -1290,7 +1308,13 @@ data OffChainFileNames = OffChainFileNames
 
 
 getFileName :: OffChainFileNames -> (OffChainFileNames -> String) -> FilePath
-getFileName ocfn handle = ocfnPreDir ocfn ++ "/" ++ handle ocfn
+getFileName ocfn handle =
+  ocfnPreDir ocfn ++ "/" ++ handle ocfn
+
+
+getProjectsDatumFile :: OffChainFileNames -> TokenName -> FilePath
+getProjectsDatumFile ocfn tn =
+  ocfnProjectsPreDir ocfn ++ "/" ++ unsafeTokenNameToHex tn ++ ".datum"
 
 
 data ScriptGenerationArgumentsParseResults =

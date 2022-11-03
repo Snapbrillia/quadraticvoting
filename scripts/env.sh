@@ -48,6 +48,7 @@ export fileNamesJSONFile="$preDir/fileNames.json"
 # {{{
 touch $fileNamesJSONFile
 echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
+echo ", \"ocfnProjectsPreDir\"      : \"$preDir/projects\""            >> $fileNamesJSONFile
 echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
 echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
@@ -81,6 +82,7 @@ getFileName() {
 # Exporting variables for required file names:
 # {{{
 export queryJSONFile=$(getFileName ocfnQueryJSON)
+export projsPreDir=$(getFileName ocfnProjectsPreDir)
 
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)

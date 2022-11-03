@@ -44,9 +44,9 @@ handler GenerateScriptsParams{..} _ =
   where 
     governancePolicy   = Gov.qvfPolicy txRef deadline
     qvfSymbol          = mintingPolicyToSymbol governancePolicy 
-    registrationPolicy = Reg.registrationPolicy qvfSymbol
+    registrationPolicy = Reg.registrationPolicy keyHolderPubKeyHash qvfSymbol
     regSymbol          = mintingPolicyToSymbol registrationPolicy
-    donationPolicy     = Don.donationPolicy regSymbol
+    donationPolicy     = Don.donationPolicy keyHolderPubKeyHash regSymbol
     donSymbol          = mintingPolicyToSymbol donationPolicy
     qvfParams = OC.QVFParams
                  { OC.qvfKeyHolder      = keyHolderPubKeyHash
