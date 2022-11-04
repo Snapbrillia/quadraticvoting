@@ -396,6 +396,37 @@ main =
         , "{file-names-json}"
         ]
       -- }}}
+    khFeeHelp          :: String
+    khFeeHelp          =
+      -- {{{
+      makeHelpText
+        (    "The only required argument is the JSON of the filenames. The\n"
+          ++ "\tprinted value is the Lovelace count that should be paid to\n"
+          ++ "\tthe key holder."
+        )
+        "collect-key-holder-fee"
+        "{file-names-json}"
+        []
+      -- }}}
+    distributionHelp   :: String
+    distributionHelp   =
+      -- {{{
+      makeHelpText
+        (    "With the project's info datum and prize weight provided,\n"
+          ++ "\tthis endpoint reads the current governance datum from disk,\n"
+          ++ "\twrites the updated datum, and also writes the escrow datum\n"
+          ++ "\tinside the \"new datum\" file on disk.\n"
+          ++ "\tThe printed output is a JSON with two fields, \"owner\",\n"
+          ++ "\tholding the number of Lovelaces that should be sent to the\n"
+          ++ "\tproject owner, and \"escrow\" that holds the Lovelace count\n"
+          ++ "\tthat must be stored inside the produced escrow datum."
+        )
+        "distribute-prize"
+        "{project-info-datum-json}"
+        [ "{project-weight-datum-json}"
+        , "{file-names-json}"
+        ]
+      -- }}}
     prettyDatumHelp    :: String
     prettyDatumHelp    =
       -- {{{
@@ -459,17 +490,19 @@ main =
       ++ "options are:\n\n"
 
       ++ "Utility:\n"
-      ++ "\tqvf-cli generate scripts     --help\n"
-      ++ "\tqvf-cli register-project     --help\n"
-      ++ "\tqvf-cli donate-to-project    --help\n"
-      ++ "\tqvf-cli fold-donations       --help\n"
-      ++ "\tqvf-cli accumulate-donations --help\n"
-      ++ "\tqvf-cli pretty-datum         --help\n"
-      ++ "\tqvf-cli datum-is             --help\n"
-      ++ "\tqvf-cli data-to-cbor         --help\n"
-      ++ "\tqvf-cli cbor-to-data         --help\n"
-      ++ "\tqvf-cli string-to-hex        --help\n"
-      ++ "\tqvf-cli get-deadline-slot    --help\n\n"
+      ++ "\tqvf-cli generate scripts       --help\n"
+      ++ "\tqvf-cli register-project       --help\n"
+      ++ "\tqvf-cli donate-to-project      --help\n"
+      ++ "\tqvf-cli fold-donations         --help\n"
+      ++ "\tqvf-cli accumulate-donations   --help\n"
+      ++ "\tqvf-cli collect-key-holder-fee --help\n"
+      ++ "\tqvf-cli distribute-prize       --help\n"
+      ++ "\tqvf-cli pretty-datum           --help\n"
+      ++ "\tqvf-cli datum-is               --help\n"
+      ++ "\tqvf-cli data-to-cbor           --help\n"
+      ++ "\tqvf-cli cbor-to-data           --help\n"
+      ++ "\tqvf-cli string-to-hex          --help\n"
+      ++ "\tqvf-cli get-deadline-slot      --help\n\n"
 
       ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
       -- }}}
@@ -512,27 +545,31 @@ main =
     printActionHelp action =
       -- {{{
       case action of
-        "register-project"     ->
+        "register-project"       ->
           putStrLn registrationHelp
-        "donate-to-project"    ->
+        "donate-to-project"      ->
           putStrLn donationHelp
-        "fold-donations"       ->
+        "fold-donations"         ->
           putStrLn foldingHelp
-        "accumulate-donations" ->
+        "accumulate-donations"   ->
           putStrLn accumulationHelp
-        "pretty-datum"         ->
+        "collect-key-holder-fee" ->
+          putStrLn khFeeHelp
+        "distribute-prize"       ->
+          putStrLn distributionHelp
+        "pretty-datum"           ->
           putStrLn prettyDatumHelp
-        "datum-is"             ->
+        "datum-is"               ->
           putStrLn checkDatumHelp
-        "data-to-cbor"         ->
+        "data-to-cbor"           ->
           putStrLn dataToCBORHelp
-        "cbor-to-data"         ->
+        "cbor-to-data"           ->
           putStrLn cborToDataHelp
-        "string-to-hex"        ->
+        "string-to-hex"          ->
           putStrLn toHexHelp
-        "get-deadline-slot"    ->
+        "get-deadline-slot"      ->
           putStrLn deadlineToSlotHelp
-        _                      ->
+        _                        ->
           printHelp
       -- }}}
 
@@ -1202,8 +1239,85 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "distribute-prize"       : _                                                               ->
-      putStrLn "TODO."
+    "distribute-prize"       : infoJSONStr : prizeWeightJSONStr : fileNamesJSON : _            ->
+      -- {{{
+      fromDatumValue (fromString infoJSONStr) $ \case
+        ProjectInfo (ProjectDetails {..}) ->
+          -- {{{
+          fromDatumValue (fromString prizeWeightJSONStr) $ \case
+            PrizeWeight w True ->
+              -- {{{
+              case A.decode $ fromString fileNamesJSON of
+                Just ocfn ->
+                  -- {{{
+                  actOnCurrentDatum @QVFAction ocfn DistributePrizes Nothing $ \case
+                    DonationAccumulationConcluded remPs totLs den True ->
+                      -- {{{
+                      if remPs > 0 then
+                        -- {{{
+                        let
+                          portion          :: Integer
+                          portion          =
+                            OC.findProjectsWonLovelaces totLs den w
+
+                          prize            :: Integer
+                          prize            = min pdRequested portion
+
+                          escrowLovelaces  :: Integer
+                          escrowLovelaces  =
+                            OC.findEscrowLovelaces portion pdRequested
+
+                          updatedDatumFile :: FilePath
+                          updatedDatumFile = getFileName ocfn ocfnNewDatum
+
+                          updatedDatum     :: QVFDatum
+                          updatedDatum     =
+                            DonationAccumulationConcluded
+                              (remPs - 1)
+                              totLs
+                              den
+                              True
+
+                          newDatumFile     :: FilePath
+                          newDatumFile     = getFileName ocfn ocfnNewDatum
+
+                          newDatum         :: QVFDatum
+                          newDatum         = Escrow Map.empty
+                        in do
+                        writeJSON updatedDatumFile updatedDatum
+                        writeJSON newDatumFile newDatum
+                        putStrLn $
+                             "{\"owner\":\""  ++ show prize           ++ "\""
+                          ++ ",\"escrow\":\"" ++ show escrowLovelaces ++ "\""
+                          ++ "}"
+                        -- }}}
+                      else
+                        -- {{{
+                        putStrLn "FAILED: All prizes are distributed."
+                        -- }}}
+                      -- }}}
+                    _                                                  ->
+                      -- {{{
+                      putStrLn "FAILED: Invalid governance datum for distribution."
+                      -- }}}
+                  -- }}}
+                Nothing   ->
+                  -- {{{
+                  putStrLn $
+                       "FAILED because of bad off-chain filenames JSON:\n"
+                    ++ fileNamesJSON
+                  -- }}}
+              -- }}}
+            _                   ->
+              -- {{{
+              putStrLn "FAILED to parse the PrizeWeight datum."
+              -- }}}
+          -- }}}
+        _                                 ->
+          -- {{{
+          putStrLn "FAILED to parse the ProjectInfo datum."
+          -- }}}
+      -- }}}
     "unlock-bounty-for"      : _                                                               ->
       putStrLn "TODO."
     "withdraw-bounty"        : _                                                               ->

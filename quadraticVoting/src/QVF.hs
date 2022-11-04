@@ -728,11 +728,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
                       -- {{{
                       let
                         portion          = findProjectsWonLovelaces ds den w
+                        prize            = min pdRequested portion
                         paidAmount       =
                           -- {{{
                           lovelaceFromValue (valuePaidTo info pdPubKeyHash)
                           -- }}}
-                        prizeIsPaid      = paidAmount == portion
+                        prizeIsPaid      = paidAmount == prize
                         mEscrowOutput    =
                           -- {{{
                           find
@@ -747,10 +748,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
                                  traceIfFalse
                                    "Escrow must carry the excess reward."
                                    ( utxoHasLovelaces
-                                       ( max halfOfTheRegistrationFee $
-                                             halfOfTheRegistrationFee
-                                           + portion
-                                           - pdRequested
+                                       ( findEscrowLovelaces
+                                           portion
+                                           pdRequested
                                        )
                                        o
                                    )
@@ -765,7 +765,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                           -- }}}
                       in
                       if prizeIsPaid && escrowIsProduced then
-                        (accP + 1, accPaid + portion)
+                        (accP + 1, accPaid + prize)
                       else
                         traceError "Prize not paid."
                       -- }}}
@@ -994,6 +994,16 @@ findProjectsWonLovelaces pool sumW w =
   -- {{{
   (w * pool) `divide` sumW
   -- }}}
+
+
+{-# INLINABLE findEscrowLovelaces #-}
+findEscrowLovelaces :: Integer -> Integer -> Integer
+findEscrowLovelaces portion requested =
+  -- {{{
+  max halfOfTheRegistrationFee $
+    halfOfTheRegistrationFee + portion - requested
+  -- }}}
+ 
 -- }}}
 
 
