@@ -56,9 +56,9 @@ get_script_data_hash() {
 initiate_fund() {
   # {{{
   for proj in $(cat $registeredProjectsFile); do
-    rm $preDir/$proj
+    rm -f $preDir/$proj
   done
-  rm $registeredProjectsFile
+  rm -f $registeredProjectsFile
   touch $registeredProjectsFile
   rm -rf $projsPreDir
   mkdir -p $projsPreDir
