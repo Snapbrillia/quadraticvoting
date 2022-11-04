@@ -1268,7 +1268,7 @@ main =
                             OC.findEscrowLovelaces portion pdRequested
 
                           updatedDatumFile :: FilePath
-                          updatedDatumFile = getFileName ocfn ocfnNewDatum
+                          updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
 
                           updatedDatum     :: QVFDatum
                           updatedDatum     =
