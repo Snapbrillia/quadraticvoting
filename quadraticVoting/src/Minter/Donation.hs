@@ -237,6 +237,17 @@ donationPolicy pkh sym =
 
 -- UTILS
 -- {{{
+{-# INLINABLE sumSquareRoots #-}
+sumSquareRoots :: Map PubKeyHash Integer -> Integer
+sumSquareRoots dsMap =
+  -- {{{
+  let
+    ds          = Map.elems dsMap
+    foldFn ls w = takeSqrt ls + w
+  in
+  foldr foldFn 0 ds
+
+  -- }}}
 {-# INLINABLE foldDonationsMap #-}
 -- | Notating Lovelace contributions to each project as \(v\), this is the
 --   quadratic formula to represent individual prize weights (\(w_p\)):
@@ -247,9 +258,7 @@ foldDonationsMap :: Map PubKeyHash Integer -> Integer
 foldDonationsMap dsMap =
   -- {{{
   let
-    ds                      = Map.toList dsMap
-    foldFn (_, lovelaces) w = takeSqrt lovelaces + w
-    initW                   = foldr foldFn 0 ds
+    initW = sumSquareRoots dsMap
   in
   initW * initW
   -- }}}

@@ -1033,63 +1033,60 @@ main =
               updatedDatumFile    = getFileName ocfn ocfnUpdatedDatum
               newDatumFile        :: FilePath
               newDatumFile        = getFileName ocfn ocfnNewDatum
+              newDatum            :: QVFDatum
+              newDatum            = Donations foldedMap
               jsonToPrint ls mint =
-                   "{\"lovelace\":\""
-                ++ show ls
-                ++ "\",\"mint\":\""
-                ++ show (negate mint)
+                   "{\"lovelace\":\"" ++ show ls
+                ++ "\",\"mint\":\""   ++ show (negate mint)
                 ++ "\"}"
             in
             case currDatum of
               ReceivedDonationsCount soFar      ->
                 -- {{{
                 let
-                  (updatedDatum, ls, mintAmt, mNew) =
+                  (updatedDatum, ls, mintAmt) =
                     -- {{{
                     if inputDonations == soFar then
                       ( PrizeWeight (Don.foldDonationsMap foldedMap) False
                       , inputLovelaces + halfOfTheRegistrationFee
                       , soFar
-                      , Nothing
                       )
                     else
                       ( DonationFoldingProgress soFar inputDonations
                       , inputLovelaces
                       , 0
-                      , Just $ Donations foldedMap
                       )
                     -- }}}
                 in do
                 writeJSON updatedDatumFile updatedDatum
-                forM_ mNew (writeJSON newDatumFile)
+                writeJSON newDatumFile newDatum
+                -- forM_ mNew (writeJSON newDatumFile)
                 putStrLn $ jsonToPrint ls mintAmt
                 -- }}}
               DonationFoldingProgress tot soFar ->
                 -- {{{
                 let
-                  newSoFar                          =
+                  newSoFar                    =
                     if soFar + inputDonations > tot then
                       inputDonations
                     else
                       soFar + inputDonations
-                  (updatedDatum, ls, mintAmt, mNew) =
+                  (updatedDatum, ls, mintAmt) =
                     -- {{{
                     if newSoFar == tot then
                       ( PrizeWeight (Don.foldDonationsMap foldedMap) False
                       , inputLovelaces + halfOfTheRegistrationFee
                       , tot
-                      , Nothing
                       )
                     else
                       ( DonationFoldingProgress tot newSoFar
                       , inputLovelaces
                       , 0
-                      , Just $ Donations foldedMap
                       )
                     -- }}}
                 in do
                 writeJSON updatedDatumFile updatedDatum
-                forM_ mNew (writeJSON newDatumFile)
+                writeJSON newDatumFile newDatum
                 putStrLn $ jsonToPrint ls mintAmt
                 -- }}}
               _                                 ->
@@ -1098,6 +1095,121 @@ main =
                 -- }}}
           -- }}}
         Left errMsg                                               ->
+          -- {{{
+          putStrLn $ "FAILED: " ++ errMsg
+          -- }}}
+      -- }}}
+    "consolidate-donations"  : restOfArgs                                                      ->
+      -- {{{
+      let
+        go :: String
+           -> String
+           -> String
+           -> (Integer, Integer, Integer)
+           -> Either String (Integer, Integer, Integer)
+        go
+          lovelacesStr
+          donCountStr
+          datumStr
+          (lCountSoFar, dCountSoFar, wsSoFar) =
+            -- {{{
+            let
+              mLovelaces :: Maybe Integer
+              mLovelaces = readMaybe lovelacesStr
+              mDonCount  :: Maybe Integer
+              mDonCount  = readMaybe donCountStr
+              mDatum     :: Maybe QVFDatum
+              mDatum     =
+                -- {{{
+                case parseJSONValue (fromString datumStr) of
+                  Right d ->
+                    PlutusTx.fromData d
+                  Left _  ->
+                    Nothing
+                -- }}}
+            in
+            case (mLovelaces, mDonCount, mDatum) of
+              (Just lovelaces, Just donCount, Just donDatum) ->
+                -- {{{
+                case donDatum of
+                  Donations dMap' ->
+                    -- {{{
+                    Right
+                      ( lCountSoFar + lovelaces
+                      , dCountSoFar + donCount
+                      , wsSoFar     + Don.sumSquareRoots dMap'
+                      )
+                    -- }}}
+                  _               ->
+                    -- {{{
+                    Left "Invalid donation UTxO provided."
+                    -- }}}
+                -- }}}
+              _                                                                       ->
+                -- {{{
+                Left $ "Bad arguments for a donation(s) UTxO: "
+                  ++ lovelacesStr
+                  ++ " "
+                  ++ donCountStr
+                  ++ " "
+                  ++ datumStr
+                -- }}}
+            -- }}}
+        eith = infArgHelper3 go (Right (0, 0, 0)) restOfArgs
+      in
+      case eith of
+        Right ((inputLovelaces, inputDonations, inputWs), ocfn) ->
+          -- {{{
+          actOnCurrentDatum @QVFAction ocfn FoldDonations Nothing $ \currDatum ->
+            let
+              updatedDatumFile :: FilePath
+              updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+              mUpdatedDatum    :: Maybe QVFDatum
+              mUpdatedDatum    =
+                -- {{{
+                case currDatum of
+                  DonationFoldingProgress tot _       ->
+                    -- {{{
+                    if inputDonations == tot then
+                      Just $ PrizeWeight (inputWs * inputWs) False
+                    else
+                      Just $ PrizeWeightAccumulation tot inputDonations inputWs
+                    -- }}}
+                  PrizeWeightAccumulation tot done ws ->
+                    -- {{{
+                    let
+                      newDone = done + inputDonations
+                      newWs   = ws + inputWs
+                    in
+                    if newDone == tot then
+                      Just $ PrizeWeight (newWs * newWs) False
+                    else
+                      Just $ PrizeWeightAccumulation tot newDone newWs
+                    -- }}}
+                  _                             ->
+                    -- {{{
+                    Nothing
+                    -- }}}
+                -- }}}
+              jsonToPrint      =
+                -- {{{
+                   "{\"lovelace\":\"" ++ show inputLovelaces
+                ++ "\",\"mint\":\""   ++ show (negate inputDonations)
+                ++ "\"}"
+                -- }}}
+            in
+            case mUpdatedDatum of
+              Just ud -> do
+                -- {{{
+                writeJSON updatedDatumFile ud
+                putStrLn jsonToPrint
+                -- }}}
+              Nothing ->
+                -- {{{
+                putStrLn "FAILED: Invalid current datum."
+                -- }}}
+          -- }}}
+        Left errMsg                                             ->
           -- {{{
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
