@@ -766,10 +766,16 @@ main =
               donPolicy = Don.donationPolicy pkh regSymbol
               donSymbol = mintingPolicyToSymbol donPolicy
               --
-              yellow    = "\ESC[38:5:220m"
-              red       = "\ESC[38:5:160m"
-              green     = "\ESC[38:5:77m"
-              purple    = "\ESC[38:5:127m"
+              mkRGBColor :: Word8 -> Word8 -> Word8 -> String
+              mkRGBColor r g b =
+                "\ESC[38;2;"
+                ++ show r ++ ";"
+                ++ show g ++ ";"
+                ++ show b ++ "m"
+              yellow    = mkRGBColor 252 209 47
+              red       = mkRGBColor 239 76  40
+              green     = mkRGBColor 25  176 92
+              purple    = mkRGBColor 155 39  255
               noColor   = "\ESC[0m"
 
           putStrLn $ yellow ++ "\nGov. Symbol:"

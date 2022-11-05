@@ -87,7 +87,7 @@ mkDonationPolicy pkh sym action ctx =
               -- }}}
             _                            ->
               -- {{{
-              traceError "Invalid datum for donation count."
+              traceError "E029"
               -- }}}
           -- }}}
 
@@ -95,7 +95,7 @@ mkDonationPolicy pkh sym action ctx =
         outputSAndVAreValid s v =
           -- {{{
              traceIfFalse
-               "The first UTxO produced at the script address must be the updated project UTxO."
+               "E030"
                ( validateGovUTxO
                    (txOutValue inputProjUTxO)
                    (txOutAddress inputProjUTxO)
@@ -103,21 +103,21 @@ mkDonationPolicy pkh sym action ctx =
                    s
                )
           && traceIfFalse
-               "Invalid value for the donation UTxO."
+               "E031"
                (utxoHasOnlyXWithLovelaces ownSym tn diAmount v)
           && traceIfFalse
-               "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
+               "E032"
                (utxosDatumMatchesWith (Donation diDonor) v)
           -- }}}
       in 
          traceIfFalse
-           "Donation amount is too small"
+           "E033"
            (diAmount >= minDonationAmount)
       && traceIfFalse
-           "This project has reached the maximum number of donations."
+           "E034"
            (currDCount < maxTotalDonationCount)
       && traceIfFalse
-           "Donor's signature is required."
+           "E035"
            (txSignedBy info diDonor)
       && ( case outputs of
              [s, v]    ->
@@ -130,8 +130,7 @@ mkDonationPolicy pkh sym action ctx =
                -- }}}
              _              ->
                -- {{{
-               traceError
-                 "There should be exactly 1 project, and 1 donation UTxOs produced."
+               traceError "E036"
                -- }}}
          )
       -- }}}
@@ -155,7 +154,7 @@ mkDonationPolicy pkh sym action ctx =
             foldedOutputIsValid o =
               -- {{{
                  traceIfFalse
-                   "Invalid updated value for the project UTxO."
+                   "E037"
                    ( utxoHasOnlyXWithLovelaces
                        sym
                        tn
@@ -163,13 +162,13 @@ mkDonationPolicy pkh sym action ctx =
                        o
                    )
               && traceIfFalse
-                   "Invalid updated value for the project UTxO."
+                   "E038"
                    (utxosDatumMatchesWith updatedDatum o)
               && traceIfFalse
-                   "Folded UTxO must be produced at its originating address."
+                   "E039"
                    (txOutAddress o == txOutAddress inputProjUTxO)
               && traceIfFalse
-                   "All donations must be included in the final folding transaction."
+                   "E040"
                    (ds == requiredDonationCount)
               -- }}}
           in
@@ -184,7 +183,7 @@ mkDonationPolicy pkh sym action ctx =
               -- }}}
             _      ->
               -- {{{
-              traceError "Invalid outputs pattern."
+              traceError "E041"
               -- }}}
           -- }}}
       in
@@ -194,24 +193,23 @@ mkDonationPolicy pkh sym action ctx =
           if tot <= maxDonationInputsForPhaseTwo then
             foldDonationsPhaseTwo tot
           else
-            traceError "Donation count is too large for direct burning."
+            traceError "E042"
           -- }}}
         DonationFoldingProgress tot soFar ->
           -- {{{
           if tot == soFar then
             foldDonationsPhaseTwo tot
           else
-            traceError "All donation tokens must be folded before burning."
+            traceError "E043"
           -- }}}
         _                                 ->
           -- {{{
-          traceError
-            "Project UTxO must carry the proper datum to allow burning of its donation tokens."
+          traceError "E044"
           -- }}}
       -- }}}
     -- TODO: REMOVE.
     Dev                              ->
-      traceIfFalse "Unauthorized." $ txSignedBy info pkh
+      traceIfFalse "E045" $ txSignedBy info pkh
   -- }}}
 
 

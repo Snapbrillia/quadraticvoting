@@ -45,10 +45,13 @@ build_submit_wait() {
   
   sign_and_submit_tx $preDir/$keyHolder.skey
   wait_for_new_slot
+  store_current_slot
+  wait_for_new_slot
   # }}}
 }
 
 
+finished="False"
 phase=1
 while [ $phase -lt 4 ]; do
   b=8
@@ -71,7 +74,6 @@ while [ $phase -lt 4 ]; do
     projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
   
     allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
-    donUTxOCount=$(echo "$allDonations" | jq length)
     donations="$(echo "$allDonations" | jq -c --arg constr "$constr" --arg b "$b" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
     totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
     elemCount=$(echo "$donations" | jq length)
@@ -113,6 +115,51 @@ while [ $phase -lt 4 ]; do
   done
   phase=$(expr $phase + 1)
 done
+
+
+# If, at this point, $finished is "True", it means that all the donations have
+# consolidated already.
+
+if [ $finished == "False" ]; then
+  b=8
+  constr=10
+  allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+  donUTxOCount=$(echo "$allDonations" | jq length)
+  txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
+  txsDone=0
+  while [ $txsDone -lt $txsNeeded ]; do
+    projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+    projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+    projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
+    echo "$projectCurrDatum" > $currentDatumFile
+    projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+  
+    allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+    donations="$(echo "$allDonations" | jq -c --arg constr "$constr" --arg b "$b" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
+    totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
+    elemCount=$(echo "$donations" | jq length)
+    initialDonationsArg="$(echo "$donations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+    donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
+    resultJSON="$($qvf consolidate-donations $donationsArg "$(cat $fileNamesJSONFile)")"
+    lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
+    mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
+    txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+    txInArg=$(remove_quotes "$txInArg")
+    mintArg="
+      --mint \"$mintCount $donAsset\"
+      --mint-tx-in-reference $donRefUTxO
+      --mint-plutus-script-v2
+      --mint-reference-tx-in-redeemer-file $devRedeemer
+      --policy-id $donSym
+    "
+    projectInput="--tx-in $projectUTxO $txInConstant"
+    outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
+
+    build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
+
+    txsDone=$(expr $txsDone + 1)
+  done
+fi
 
 
 

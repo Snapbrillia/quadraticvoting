@@ -150,7 +150,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     signedByKeyHolder :: Bool
     signedByKeyHolder =
       -- {{{
-      traceIfFalse "Unauthorized." $ txSignedBy info qvfKeyHolder
+      traceIfFalse "E046" $ txSignedBy info qvfKeyHolder
       -- }}}
 
     -- | Checks if the UTxO currently being validated carries a single X asset.
@@ -188,7 +188,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
       case getTokenNameOfUTxO sym currUTxO of
         Just tn -> tn
-        Nothing -> traceError "Current UTxO is unauthentic."
+        Nothing -> traceError "E047"
       -- }}}
 
     -- | Looks inside the reference inputs and extracts the inline datum
@@ -205,7 +205,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
         Nothing   ->
           -- {{{
-          traceError "Missing reference input."
+          traceError "E048"
           -- }}}
       -- }}}
 
@@ -248,26 +248,26 @@ mkQVFValidator QVFParams{..} datum action ctx =
         (Just od, Just op) ->
           -- {{{
              traceIfFalse
-               "Incorrect number of donations included for the first phase of folding."
+               "E049"
                (ds == requiredDonationCount)
           && traceIfFalse
-               "Donations output must carry the folded donations."
+               "E050"
                (utxosDatumMatchesWith (Donations finalMap) od)
           && traceIfFalse
-               "Project output must be properly updated."
+               "E051"
                (utxosDatumMatchesWith psUpdatedDatum op)
           && traceIfFalse
-               "Donations output must carry all the donation Lovelaces."
+               "E052"
                (utxoHasLovelaces total od)
           && traceIfFalse
-               "Project output must preserve its Lovelaces."
+               "E053"
                (utxoHasLovelaces halfOfTheRegistrationFee op)
           && canFoldOrDistribute
           && signedByKeyHolder
           -- }}}
         _                  ->
           -- {{{
-          traceError "Missing proper outputs for the first phase of folding donations."
+          traceError "E054"
           -- }}}
       -- }}}
 
@@ -296,11 +296,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
                     , Map.insert tn w wMap
                     )
                   Nothing ->
-                    traceError "Project asset not found."
+                    traceError "E055"
                 -- }}}
               _                   ->
                 -- {{{
-                traceError "Unexpected UTxO encountered (expected a `PrizeWeight`."
+                traceError "E056"
                 -- }}}
             -- }}}
           else
@@ -327,12 +327,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
                     acc + 1
                   else
                     traceError
-                      "Invalid datum attached to depleted prize weight UTxO."
+                      "E057"
                   -- }}}
-                Nothing         ->
+                Nothing     ->
                   -- {{{
                   traceError
-                    "Invalid prize weight UTxO is being produced."
+                    "E058"
                   -- }}}
               -- }}}
             Nothing ->
@@ -367,17 +367,17 @@ mkQVFValidator QVFParams{..} datum action ctx =
                   else
                     -- {{{
                     traceError
-                      "Excessive number of prize weight inputs are provided."
+                      "E059"
                     -- }}}
                   -- }}}
                 isValid      =
                   -- {{{
                      utxoHasX qvfSymbol (Just qvfTokenName) o
                   && traceIfFalse
-                       "Main UTxO should carry all the donations."
+                       "E060"
                        (utxoHasLovelaces lovelaces o)
                   && traceIfFalse
-                       "Invalid datum attached to the produced main datum."
+                       "E061"
                        datumIsValid
                   -- }}}
               in
@@ -385,7 +385,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                 acc
               else
                 -- Failure in case of missing main authentication asset.
-                traceError "Invalid UTxO getting produced at the script."
+                traceError "E062"
               -- }}}
           -- }}}
         outputPs =
@@ -394,7 +394,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       in
       traceIfFalse
-        "Improper correspondence between input and output prize weights."
+        "E063"
         (inputPs == outputPs)
       -- }}}
 
@@ -407,9 +407,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
       case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
-          traceIfFalse "This funding round is over." $ deadlineNotReached dl
+          traceIfFalse "E064" $ deadlineNotReached dl
         _                ->
-          traceError "Invalid deadline datum."
+          traceError "E065"
       -- }}}
 
     -- | Looks for the deadline reference UTxO, and checks if the funding round
@@ -421,9 +421,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
       case getDatumFromRefX qvfSymbol deadlineTokenName of
         DeadlineDatum dl ->
-          traceIfFalse "This funding round is still in progress." $ deadlineReached dl
+          traceIfFalse "E066" $ deadlineReached dl
         _                ->
-          traceError "Invalid deadline datum."
+          traceError "E067"
       -- }}}
 
     -- | Checks whether project registrations and donations are still allowed.
@@ -455,13 +455,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
       case flattenValue (txInfoMint info) of
         [(sym', _, amt')] ->
              traceIfFalse
-               "Invalid asset is getting minted/burnt."
+               "E068"
                (sym' == qvfProjectSymbol)
           && traceIfFalse
-               "There should be exactly 2 project assets minted/burnt."
+               "E069"
                (if mint then amt' == 2 else amt' == negate 2)
         _                 ->
-          traceError "Only one project asset must be minted/burnt."
+          traceError "E070"
                -- (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
       -- }}}
 
@@ -476,7 +476,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         [o] ->
           -- {{{
              traceIfFalse
-               "Invalid Lovelace count at output."
+               "E071"
                ( case mExpectedLovelaces of
                    Just outputLovelaces ->
                      utxoHasLovelaces outputLovelaces o
@@ -484,7 +484,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                      True
                )
           && traceIfFalse
-               "Invalid output datum."
+               "E072"
                ( case mExpectedDatum of
                    Just updatedDatum ->
                      utxosDatumMatchesWith updatedDatum o
@@ -492,7 +492,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                      True
                )
           && traceIfFalse
-               "Unauthentic output UTxO."
+               "E073"
                ( case mExpectedAsset of
                    Just (sym, tn) ->
                      utxoHasX sym (Just tn) o
@@ -502,8 +502,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
         _   ->
           -- {{{
-          traceError
-            "There should be exactly 1 UTxO going back to the script."
+          traceError "E074"
           -- }}}
       -- }}}
   in
@@ -512,10 +511,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
          signedByKeyHolder
       && traceIfFalse
-           "New deadline has already passed."
+           "E075"
            (deadlineReached newDl)
       && traceIfFalse
-           "Missing authentication asset."
+           "E076"
            (currUTxOHasX qvfSymbol deadlineTokenName)
       && validateSingleOutput
            Nothing
@@ -533,7 +532,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Project Donation
       -- {{{
          traceIfFalse
-           "There should be exactly 1 donation asset minted."
+           "E077"
            (mintIsPresent qvfDonationSymbol (TokenName projId) 1)
       && canRegisterOrDonate
       -- }}}
@@ -550,7 +549,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         --   Raises exception upon failure.
         tn = getCurrTokenName qvfDonationSymbol
       in
-        traceIfFalse "The project UTxO must also be getting consumed."
+        traceIfFalse "E078"
       $ xInputWithSpecificDatumExists qvfProjectSymbol tn
       $ \case
           ReceivedDonationsCount _          -> True
@@ -568,7 +567,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         in
         -- foldDonationsPhaseTwo tot
            traceIfFalse
-             "All donation assets must be burnt."
+             "E079"
              (mintIsPresent qvfDonationSymbol tn (negate tot))
         && canFoldOrDistribute
         && signedByKeyHolder
@@ -594,7 +593,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         in
         -- foldDonationsPhaseTwo tot
            traceIfFalse
-             "All donation assets must be burnt."
+             "E080"
              (mintIsPresent qvfDonationSymbol tn (negate tot))
         && canFoldOrDistribute
         && signedByKeyHolder
@@ -615,7 +614,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       let
         tn = getCurrTokenName qvfDonationSymbol
       in
-        traceIfFalse "The concluded folding project UTxO must also be getting consumed."
+        traceIfFalse "E081"
       $ xInputWithSpecificDatumExists qvfProjectSymbol tn
       $ \case
           DonationFoldingProgress tot soFar -> tot == soFar
@@ -626,7 +625,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Accumulation of Donated Lovelaces
       -- (Delegation of logic to the main UTxO.)
       -- {{{ 
-        traceIfFalse "The main UTxO must also be getting consumed."
+        traceIfFalse "E082"
       $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
       $ \case
           RegisteredProjectsCount _                  -> True
@@ -655,7 +654,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           lovelaceFromValue (valuePaidTo info qvfKeyHolder) == khFee
       in
          traceIfFalse
-           "Unauthentic governance UTxO provided."
+           "E083"
            (currUTxOHasX qvfSymbol qvfTokenName)
       && ( case getContinuingOutputs ctx of
              [o] ->
@@ -665,19 +664,19 @@ mkQVFValidator QVFParams{..} datum action ctx =
                  desiredOutVal = inVal <> lovelaceValueOf (negate khFee)
                in
                   traceIfFalse
-                    "Invalid Lovelace count at the produced governance UTxO."
+                    "E084"
                     (utxoHasValue desiredOutVal o)
                && traceIfFalse
-                    "Governance datum not updated properly."
+                    "E085"
                     (utxosDatumMatchesWith updatedDatum o)
                -- }}}
              _   ->
                -- {{{
-               traceError "Governance UTxO not produced."
+               traceError "E086"
                -- }}}
          )
       && traceIfFalse
-           "Key holder fees must be paid accurately."
+           "E087"
            keyHolderImbursed
       -- }}}
 
@@ -700,7 +699,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                       ProjectInfo dets ->
                         Map.insert tn dets acc
                       _                ->
-                        traceError "Bad project info reference provided."
+                        traceError "E088"
                     -- }}}
                   Nothing ->
                     -- {{{
@@ -746,7 +745,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                             Just o  ->
                               -- {{{
                                  traceIfFalse
-                                   "Escrow must carry the excess reward."
+                                   "E089"
                                    ( utxoHasLovelaces
                                        ( findEscrowLovelaces
                                            portion
@@ -755,29 +754,29 @@ mkQVFValidator QVFParams{..} datum action ctx =
                                        o
                                    )
                               && traceIfFalse
-                                   "Escrow's inline datum is invalid."
+                                   "E090"
                                    (utxosDatumMatchesWith (Escrow Map.empty) o)
                               -- }}}
                             Nothing ->
                               -- {{{
-                              traceError "Escrow UTxO was not produced."
+                              traceError "E091"
                               -- }}}
                           -- }}}
                       in
                       if prizeIsPaid && escrowIsProduced then
                         (accP + 1, accPaid + prize)
                       else
-                        traceError "Prize not paid."
+                        traceError "E092"
                       -- }}}
                     _                  ->
                       -- {{{
-                      traceError "Bad datum attached to a project UTxO."
+                      traceError "E093"
                       -- }}}
                   -- }}}
                 Nothing                 ->
                   -- {{{
                   traceError
-                    "Couldn't find the corresponding input UTxO of a provided reference project UTxO."
+                    "E094"
                   -- }}}
               -- }}}
             Nothing ->
@@ -789,7 +788,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         (projectsAccountedFor, prizesPaid) = foldr foldFn (0, 0) inputs
       in
       if projectsAccountedFor > ps then -- TODO: Is this redundant?
-        traceError "The impossible happened."
+        traceError "E095"
       else
         case find (utxoHasX qvfSymbol (Just qvfTokenName)) scriptOutputs of
           Just o  ->
@@ -799,13 +798,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
               remainingLovelaces = currLovelaces - prizesPaid
             in
                traceIfFalse
-                 "Current UTxO is unauthentic."
+                 "E096"
                  (currUTxOHasX qvfSymbol qvfTokenName)
             && traceIfFalse
-                 "Impossible 2.0 happened." -- TODO: Is this necessary?
+                 "E097" -- TODO: Is this necessary?
                  (remainingLovelaces >= governanceLovelaces)
             && traceIfFalse
-                 "Governance UTxO is not getting updated properly."
+                 "E098"
                  ( utxosDatumMatchesWith
                      ( DonationAccumulationConcluded
                          (ps - projectsAccountedFor)
@@ -816,12 +815,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
                      o
                  )
             && traceIfFalse
-                 "Prize Lovelaces are not properly withdrawn."
+                 "E099"
                  (utxoHasLovelaces remainingLovelaces o)
             -- }}}
           Nothing ->
             -- {{{
-            traceError "Missing output governance UTxO."
+            traceError "E100"
             -- }}}
       -- }}}
 
@@ -832,7 +831,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       let
         tn = getCurrTokenName qvfProjectSymbol
       in
-        traceIfFalse "The project UTxO must also be getting consumed."
+        traceIfFalse "E101"
       $ xInputWithSpecificDatumExists qvfProjectSymbol tn
       $ \case
           DonationAccumulationConcluded _ _ _ True -> True
@@ -853,17 +852,17 @@ mkQVFValidator QVFParams{..} datum action ctx =
             ProjectInfo ProjectDetails{..} ->
               pdPubKeyHash
             _                              ->
-              traceError "Bad reference project datum provided."
+              traceError "E102"
           -- }}}
       in
          traceIfFalse
-           "Unauthentic escrow UTxO."
+           "E103"
            (currUTxOHasX qvfProjectSymbol tn)
       && traceIfFalse
-           "Insufficient funds."
+           "E104"
            (amt <= available)
       && traceIfFalse
-           "Missing project owner's signature."
+           "E105"
            (txSignedBy info projectOwner)
       && validateSingleOutput
            (Just currLovelaces)
@@ -890,10 +889,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
           if remainingBounty > halfOfTheRegistrationFee then
             -- {{{
                traceIfFalse
-                 "Unauthentic escrow UTxO."
+                 "E106"
                  (currUTxOHasX qvfProjectSymbol tn)
             && traceIfFalse
-                 "The bounty winner must be imbursed."
+                 "E107"
                  (lovelaceFromValue (valuePaidTo info winner) == bounty)
             && validateSingleOutput
                  (Just remainingBounty)
@@ -907,7 +906,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
         Nothing     ->
           -- {{{
-          traceError "Not eligible for bounty withdrawal."
+          traceError "E108"
           -- }}}
       -- }}}
 
@@ -915,7 +914,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
          traceIfFalse
-           "Can not conclude with withstanding beneficiaries."
+           "E109"
            (Map.null beneficiaries)
       && projectMintIsPresent False
       -- }}}
@@ -930,7 +929,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- For development. TODO: REMOVE.
       signedByKeyHolder
     (_                                            , _                      ) ->
-      traceError "Invalid transaction."
+      traceError "E110"
   -- }}}
 
 
