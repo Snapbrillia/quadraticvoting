@@ -26,6 +26,7 @@ import qualified Data.List                  as List
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import           Data.Time.Clock.POSIX      ( getPOSIXTime )
+import           Data.Word                  ( Word8 )
 import           GHC.Generics               ( Generic )
 import           Plutus.V1.Ledger.Api       ( fromBuiltin
                                             , toBuiltin

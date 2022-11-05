@@ -68,3 +68,5 @@ rm -f $tempSh
 
 sign_and_submit_tx $preDir/$1.skey $preDir/$keyHolder.skey
 wait_for_new_slot
+store_current_slot
+wait_for_new_slot

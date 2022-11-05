@@ -63,6 +63,8 @@ rm -f $tempSh
 
 sign_and_submit_tx $preDir/$keyHolder.skey
 wait_for_new_slot
+store_current_slot
+wait_for_new_slot
 
 finished="$($qvf datum-is DonationAccumulationConcluded "$(cat $updatedDatumFile)")"
 
