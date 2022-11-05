@@ -51,6 +51,29 @@ build_submit_wait() {
 }
 
 
+# Takes 3 arguments:
+#   1. Input count,
+#   2. Constructor index,
+#   3. `qvf-cli` endpoint.
+iteration_helper() {
+  # {{{
+  projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
+  echo "$projectCurrDatum" > $currentDatumFile
+  projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+  
+  allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+  donations="$(echo "$allDonations" | jq -c --arg b "$1" --arg constr "$2" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
+  totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
+  elemCount=$(echo "$donations" | jq length)
+  initialDonationsArg="$(echo "$donations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+  donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
+  $qvf "$3" $donationsArg "$(cat $fileNamesJSONFile)"
+  # }}}
+}
+
+
 finished="False"
 phase=1
 while [ $phase -lt 4 ]; do
@@ -67,19 +90,7 @@ while [ $phase -lt 4 ]; do
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
-    projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-    projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
-    projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
-    echo "$projectCurrDatum" > $currentDatumFile
-    projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
-  
-    allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
-    donations="$(echo "$allDonations" | jq -c --arg constr "$constr" --arg b "$b" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
-    totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
-    elemCount=$(echo "$donations" | jq length)
-    initialDonationsArg="$(echo "$donations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
-    donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
-    resultJSON="$($qvf fold-donations $donationsArg "$(cat $fileNamesJSONFile)")"
+    resultJSON="$(iteration_helper "$b" "$constr" "fold-donations")"
     lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
     mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
   
@@ -128,19 +139,7 @@ if [ $finished == "False" ]; then
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
-    projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-    projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
-    projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
-    echo "$projectCurrDatum" > $currentDatumFile
-    projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
-  
-    allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
-    donations="$(echo "$allDonations" | jq -c --arg constr "$constr" --arg b "$b" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
-    totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
-    elemCount=$(echo "$donations" | jq length)
-    initialDonationsArg="$(echo "$donations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
-    donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
-    resultJSON="$($qvf consolidate-donations $donationsArg "$(cat $fileNamesJSONFile)")"
+    resultJSON="$(iteration_helper "$b" "$constr" "consolidate-donations")"
     lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
     mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
     txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
@@ -160,6 +159,4 @@ if [ $finished == "False" ]; then
     txsDone=$(expr $txsDone + 1)
   done
 fi
-
-
 
