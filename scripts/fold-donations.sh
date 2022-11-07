@@ -18,6 +18,16 @@ deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadl
 
 txInConstant="--spending-tx-in-reference $qvfRefUTxO --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
 
+allDonations=""
+donations=""
+totalInAsset=0
+projectUTxO=""
+resultJSON=""
+lovelaceCount=0
+mintCount=0
+txInArg=""
+mintArg=""
+
 # Takes 4 arguments:
 #   1. Project's state input,
 #   2. Donation(s) inputs,
@@ -37,17 +47,27 @@ build_submit_wait() {
     ""$3"" ""$4""
     --change-address $keyHoldersAddress"
   
-  tempSh="$preDir/temp_buildTx.sh"
-  touch $tempSh
-  echo $buildTx > $tempSh
-  . $tempSh
-  rm -f $tempSh
+  echo $buildTx > $tempBashFile
+  . $tempBashFile
   
   sign_and_submit_tx $preDir/$keyHolder.skey
+  store_current_slot
   wait_for_new_slot
   store_current_slot
   wait_for_new_slot
   # }}}
+}
+
+
+# Takes no arguments.
+mkMintArg() {
+  mintArg="
+    --mint \"$mintCount $donAsset\"
+    --mint-tx-in-reference $donRefUTxO
+    --mint-plutus-script-v2
+    --mint-reference-tx-in-redeemer-file $devRedeemer
+    --policy-id $donSym
+  "
 }
 
 
@@ -61,15 +81,19 @@ iteration_helper() {
   projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
   projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
   echo "$projectCurrDatum" > $currentDatumFile
-  projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
   
-  allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donations="$(echo "$allDonations" | jq -c --arg b "$1" --arg constr "$2" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
+  echo $donations
+  allDonations="$(echo "$allDonations" | jq -c --arg b "$1" --arg constr "$2" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[($b|tonumber):]')"
   totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
   elemCount=$(echo "$donations" | jq length)
   initialDonationsArg="$(echo "$donations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
   donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
-  $qvf "$3" $donationsArg "$(cat $fileNamesJSONFile)"
+  resultJSON="$($qvf "$3" $donationsArg "$(cat $fileNamesJSONFile)")"
+  lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
+  mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
+  txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+  txInArg=$(remove_quotes "$txInArg")
   # }}}
 }
 
@@ -77,6 +101,7 @@ iteration_helper() {
 finished="False"
 phase=1
 while [ $phase -lt 4 ]; do
+  # {{{
   b=8
   if [ $phase -eq 3 ]; then
     b=2
@@ -87,27 +112,27 @@ while [ $phase -lt 4 ]; do
   fi
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
+  echo $donUTxOCount
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
+  echo $txsNeeded
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
-    resultJSON="$(iteration_helper "$b" "$constr" "fold-donations")"
-    lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
-    mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
-  
-    txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
-    txInArg=$(remove_quotes "$txInArg")
+    # {{{
+    iteration_helper "$b" "$constr" "fold-donations"
     extraArg=""
     projectInput=""
     outputProjectUTxO=""
     if [ $mintCount -lt 0 ]; then
       # In this case, the $lovelaceCount included half the registration fee.
-      extraArg="
-        --mint \"$mintCount $donAsset\"
-        --mint-tx-in-reference $donRefUTxO
-        --mint-plutus-script-v2
-        --mint-reference-tx-in-redeemer-file $devRedeemer
-        --policy-id $donSym
-      "
+      mkMintArg
+      extraArg="$mintArg"
+      # extraArg="
+      #   --mint \"$mintCount $donAsset\"
+      #   --mint-tx-in-reference $donRefUTxO
+      #   --mint-plutus-script-v2
+      #   --mint-reference-tx-in-redeemer-file $devRedeemer
+      #   --policy-id $donSym
+      # "
       finished="True"
       projectInput="--tx-in $projectUTxO $txInConstant"
       outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
@@ -123,8 +148,10 @@ while [ $phase -lt 4 ]; do
       break 2
     fi
     txsDone=$(expr $txsDone + 1)
+    # }}}
   done
   phase=$(expr $phase + 1)
+  # }}}
 done
 
 
@@ -132,6 +159,7 @@ done
 # consolidated already.
 
 if [ $finished == "False" ]; then
+  # {{{
   b=8
   constr=10
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
@@ -139,18 +167,15 @@ if [ $finished == "False" ]; then
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
-    resultJSON="$(iteration_helper "$b" "$constr" "consolidate-donations")"
-    lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
-    mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
-    txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
-    txInArg=$(remove_quotes "$txInArg")
-    mintArg="
-      --mint \"$mintCount $donAsset\"
-      --mint-tx-in-reference $donRefUTxO
-      --mint-plutus-script-v2
-      --mint-reference-tx-in-redeemer-file $devRedeemer
-      --policy-id $donSym
-    "
+    iteration_helper "$b" "$constr" "consolidate-donations"
+    mkMintArg
+    # mintArg="
+    #   --mint \"$mintCount $donAsset\"
+    #   --mint-tx-in-reference $donRefUTxO
+    #   --mint-plutus-script-v2
+    #   --mint-reference-tx-in-redeemer-file $devRedeemer
+    #   --policy-id $donSym
+    # "
     projectInput="--tx-in $projectUTxO $txInConstant"
     outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
 
@@ -158,5 +183,6 @@ if [ $finished == "False" ]; then
 
     txsDone=$(expr $txsDone + 1)
   done
+  # }}}
 fi
 

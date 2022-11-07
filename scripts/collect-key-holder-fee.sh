@@ -12,6 +12,7 @@ echo "$govCurrDatum" > $currentDatumFile
 govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 
 keyHolderFee=$($qvf collect-key-holder-fee "$(cat $fileNamesJSONFile)")
+echo $keyHolderFee
 
 govOutput="$qvfAddress + $(expr $govLovelaces - $keyHolderFee) lovelace + 1 $govAsset"
 qvfRefUTxO=$(cat $qvfRefUTxOFile)

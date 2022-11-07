@@ -55,11 +55,8 @@ buildTx="$cli $BUILD_TX_CONST_ARGS               \
   $projsOuts --change-address $keyHoldersAddress
   "
 
-tempSh="$preDir/temp_buildTx.sh"
-touch $tempSh
-echo $buildTx > $tempSh
-. $tempSh
-rm -f $tempSh
+echo $buildTx > $tempBashFile
+. $tempBashFile
 
 sign_and_submit_tx $preDir/$keyHolder.skey
 wait_for_new_slot

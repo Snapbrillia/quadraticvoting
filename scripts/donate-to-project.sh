@@ -2,10 +2,6 @@
 
 . scripts/initiation.sh
 
-donorWalletLabel=$1
-projectTokenName=$2
-donationAmount=$3
-
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
@@ -13,6 +9,110 @@ donSym=$(cat $donSymFile)
 deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
+
+# Takes 1 argument:
+#   1. Donation count.
+mkProjectDatum() {
+  echo "{\"constructor\":5,\"fields\":[{\"int\":$1}]}"
+}
+
+# Takes 1 argument:
+#   1. Donor's public key hash.
+mkDonationDatum() {
+  echo "{\"constructor\":9,\"fields\":[{\"bytes\":\"$1\"}]}"
+}
+
+
+# Takes 4 arguments:
+#   1. Target project's number,
+#   2. Starting donor wallet number,
+#   3. Ending donor wallet number,
+#   4. Max donor count per transaction.
+dev() {
+  devDonDir="$preDir/dev_donations"
+  mkdir -p $devDonDir
+  projectTokenName=$(project_number_to_token_name $1)
+  projectAsset="$regSym.$projectTokenName"
+  donAsset="$donSym.$projectTokenName"
+
+  # Addition of 1 is because of inclusivity of the `seq` command.
+  givenDonorCount=$(expr $3 - $2 + 1)
+  lastTxIndex=$(echo "$givenDonorCount" | jq --arg den "$4" 'tonumber | (. / ($den|tonumber)) | ceil | (. - 1)')
+
+  listFile="$preDir/donors.json"
+  rm -f $listFile
+  touch $listFile
+  echo -n "[" > $listFile
+  donorCount=1
+  for i in $(seq $2 $3); do
+    pkh=$(cat $preDir/$i.pkh)
+    if [ $donorCount -eq 1 ]; then
+      echo -n   $(mkDonationDatum $pkh)  >> $listFile
+    else
+      echo -n ",$(mkDonationDatum $pkh)" >> $listFile
+    fi
+    donorCount=$(expr $donorCount + 1)
+  done
+  donorCount=$(expr $donorCount - 1)
+  echo -n "]" >> $listFile
+  allDatums=$(cat $listFile | jq -c)
+
+  for i in $(seq 0 $lastTxIndex); do
+    donationDatums=$(echo "$allDatums" | jq -c --arg i "$i" --arg d "$4" '(($i|tonumber) * ($d|tonumber)) as $j | .[$j:($j + ($d|tonumber))]')
+    donAssetCount=$(echo "$donationDatums" | jq length)
+    txOutArg=""
+    for j in $(seq 0 $(expr $donAssetCount - 1)); do
+      donationUTxO="$qvfAddress + 10000000 lovelace + 1 $donAsset"
+      echo "$donationDatums" | jq --arg j "$j" '.[($j|tonumber)]' > $devDonDir/$j.datum
+      txOutArg="$txOutArg --tx-out \"$donationUTxO\" --tx-out-inline-datum-file $devDonDir/$j.datum"
+    done
+    inUTxO="$(get_first_utxo_of $keyHolder)"
+    txInArg="--tx-in $inUTxO --tx-in-collateral $inUTxO"
+    if [ $i -eq $lastTxIndex ]; then
+      projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+      projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+      projectUpdatedDatum=$(mkProjectDatum $donorCount)
+      echo "$projectUpdatedDatum" > $updatedDatumFile
+      projectOutput="$qvfAddress + 1500000 lovelace + 1 $projectAsset"
+      txInArg="$txInArg --tx-in $projectUTxO
+        --spending-tx-in-reference $qvfRefUTxO
+        --spending-plutus-script-v2
+        --spending-reference-tx-in-inline-datum-present
+        --spending-reference-tx-in-redeemer-file $devRedeemer
+      "
+      txOutArg="$txOutArg --tx-out \"$projectOutput\" --tx-out-inline-datum-file $updatedDatumFile"
+    fi
+    buildTx="$cli $BUILD_TX_CONST_ARGS
+      --required-signer-hash $keyHoldersPubKeyHash $txInArg $txOutArg
+      --mint \"$donAssetCount $donAsset\"
+      --mint-tx-in-reference $donRefUTxO
+      --mint-plutus-script-v2
+      --mint-reference-tx-in-redeemer-file $devRedeemer
+      --policy-id $donSym
+      --change-address $keyHoldersAddress
+    "
+    echo $buildTx > $tempBashFile
+    . $tempBashFile
+    
+    sign_and_submit_tx $preDir/$keyHolder.skey
+    store_current_slot
+    wait_for_new_slot
+    store_current_slot
+    wait_for_new_slot
+  done
+}
+
+
+if [ "$1" == "dev" ]; then
+  dev $2 $3 $4 $5
+  return 0
+fi
+
+
+donorWalletLabel=$1
+projectTokenName=$2
+donationAmount=$3
+
 projectAsset="$regSym.$projectTokenName"
 donAsset="$donSym.$projectTokenName"
 

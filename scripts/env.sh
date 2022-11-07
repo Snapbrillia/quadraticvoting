@@ -83,6 +83,8 @@ getFileName() {
 # {{{
 export queryJSONFile=$(getFileName ocfnQueryJSON)
 export projsPreDir=$(getFileName ocfnProjectsPreDir)
+export tempBashFile="$preDir/temp.sh"
+touch $tempBashFile
 
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
@@ -660,6 +662,15 @@ get_total_lovelaces_from_json() {
 }
 
 
+# Takes 1 argument:
+#   1. A JSON.
+jq_zip() {
+  # {{{
+  echo "$1" | jq -c '.[1:] as $a | .[:-1] as $b | [$b,$a] | transpose'
+  # }}}
+}
+
+
 # Given a string put together by `jq`, this function applies some modifications
 # to make the string usable by bash.
 #
@@ -667,6 +678,7 @@ get_total_lovelaces_from_json() {
 #   1. A string returned by `jq`'s `map`,
 #   2. Initial array length.
 jq_to_bash_3() {
+  # {{{
   count=1
   last=$(echo "$2" | jq '(3 * tonumber)')
   if [ $last -eq 0 ]; then
@@ -685,6 +697,7 @@ jq_to_bash_3() {
     count=$(expr $count + 1)
   done
   echo "$output"
+  # }}}
 }
 
 

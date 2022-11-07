@@ -60,11 +60,8 @@ buildTx="$cli $BUILD_TX_CONST_ARGS
   --change-address $ownerAddr
   "
 
-tempSh="$preDir/temp_buildTx.sh"
-touch $tempSh
-echo $buildTx > $tempSh
-. $tempSh
-rm -f $tempSh
+echo $buildTx > $tempBashFile
+. $tempBashFile
 
 sign_and_submit_tx $preDir/$1.skey $preDir/$keyHolder.skey
 wait_for_new_slot
