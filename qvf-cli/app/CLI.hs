@@ -9,6 +9,8 @@
 module Main (main) where
 
 
+-- IMPORTS
+-- {{{
 -- import Debug.Trace (trace)
 
 import           Cardano.Api
@@ -51,6 +53,8 @@ import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
 import qualified Minter.Registration        as Reg
 import           Utils
+-- }}}
+
 
 -- UTILS
 -- {{{
@@ -103,6 +107,17 @@ parseJSONValue bs =
           Left $ show err
     Nothing ->
       Left "Invalid JSON."
+  -- }}}
+
+
+readDatum :: String -> Maybe QVFDatum
+readDatum datStr =
+  -- {{{
+  case parseJSONValue (fromString datStr) of
+    Right d ->
+      PlutusTx.fromData d
+    Left _  ->
+      Nothing
   -- }}}
 
 
@@ -991,14 +1006,7 @@ main =
               mDonCount  :: Maybe Integer
               mDonCount  = readMaybe donCountStr
               mDatum     :: Maybe QVFDatum
-              mDatum     =
-                -- {{{
-                case parseJSONValue (fromString datumStr) of
-                  Right d ->
-                    PlutusTx.fromData d
-                  Left _  ->
-                    Nothing
-                -- }}}
+              mDatum     = readDatum datumStr
             in
             case (mLovelaces, mDonCount, mDatum) of
               (Just lovelaces, Just donCount, Just donDatum) ->
@@ -1126,14 +1134,7 @@ main =
               mDonCount  :: Maybe Integer
               mDonCount  = readMaybe donCountStr
               mDatum     :: Maybe QVFDatum
-              mDatum     =
-                -- {{{
-                case parseJSONValue (fromString datumStr) of
-                  Right d ->
-                    PlutusTx.fromData d
-                  Left _  ->
-                    Nothing
-                -- }}}
+              mDatum     = readDatum datumStr
             in
             case (mLovelaces, mDonCount, mDatum) of
               (Just lovelaces, Just donCount, Just donDatum) ->
@@ -1193,7 +1194,7 @@ main =
                     else
                       Just $ PrizeWeightAccumulation tot newDone newWs
                     -- }}}
-                  _                             ->
+                  _                                   ->
                     -- {{{
                     Nothing
                     -- }}}
@@ -1221,6 +1222,86 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
+    "traverse-donations"     : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _     ->
+      -- {{{
+      case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
+        (Just l0, Just (Donations map0), Just l1, Just (Donations map1), Just ocfn) ->
+          -- {{{
+          let
+            pairs0             = Map.toList map0
+            go :: [(Ledger.PubKeyHash, Integer)]
+               -> ( Map Ledger.PubKeyHash Integer
+                  , Map Ledger.PubKeyHash Integer
+                  , Integer
+                  )
+               -> ( Map Ledger.PubKeyHash Integer
+                  , Map Ledger.PubKeyHash Integer
+                  , Integer
+                  )
+            go lst acc         =
+              -- {{{
+              case (lst, acc) of
+                ([], _)                     ->
+                  -- {{{
+                  acc
+                  -- }}}
+                ((k, _) : ps, (m0, m1, ls)) ->
+                  -- {{{
+                  -- The resulting product is:
+                  --   - `m0` is the updated map for the traversing
+                  --     UTxO,
+                  --   - `m1` is the updated map for the traversed
+                  --     UTxO,
+                  --   - `ls` is the number of Lovelaces to be
+                  --     transferred,
+                  case Map.lookup k m1 of
+                    Just lovelaces ->
+                      go
+                        ps
+                        ( Map.unionWith (+) m0 $ Map.singleton k lovelaces
+                        , Map.delete k m1
+                        , ls + lovelaces
+                        )
+                    Nothing        ->
+                      go ps (m0, m1, ls)
+                  -- }}}
+              -- }}}
+            (m0', m1', ls1to0) = go pairs0 (map0, map1, 0)
+          in
+          if map0 == m0' && map1 == m1' then
+            putStrLn "Nothing"
+          else
+            let
+              updatedDatumFile :: FilePath
+              updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+              newDatumFile     :: FilePath
+              newDatumFile     = getFileName ocfn ocfnNewDatum
+              updatedDatum     = Donations m0'
+              newDatum         = Donations m1'
+            in do
+            writeJSON updatedDatumFile updatedDatum
+            writeJSON newDatumFile newDatum
+            putStrLn $
+                 "{\"lovelace0\":"
+              ++ "\"" ++ show (l0 + ls1to0) ++ "\""
+              ++ ",\"lovelace1\":"
+              ++ "\"" ++ show (l1 - ls1to0) ++ "\""
+              ++ "\"}"
+          -- }}}
+        _                                          ->
+          -- {{{
+          putStrLn $ "FAILED: Bad arguments: "
+            ++ loveStr0
+            ++ " "
+            ++ datStr0
+            ++ " "
+            ++ loveStr1
+            ++ " "
+            ++ datStr1
+            ++ " "
+            ++ fileNamesJSON
+          -- }}}
+      -- }}}
     "accumulate-donations"   : restOfArgs                                                      ->
       -- {{{
       let
@@ -1238,14 +1319,7 @@ main =
             mLovelaces :: Maybe Integer
             mLovelaces = readMaybe lovelacesStr
             mDatum     :: Maybe QVFDatum
-            mDatum     =
-              -- {{{
-              case parseJSONValue (fromString datumStr) of
-                Right d ->
-                  PlutusTx.fromData d
-                Left _  ->
-                  Nothing
-              -- }}}
+            mDatum     = readDatum datumStr
           in
           case (mTN, mLovelaces, mDatum) of
             (Just projID, Just lovelaces, Just (PrizeWeight w False)) ->
@@ -1441,11 +1515,11 @@ main =
       putStrLn "TODO."
     "withdraw-bounty"        : _                                                               ->
       putStrLn "TODO."
-    "pretty-datum" : datumJSONStr : _                                   ->
+    "pretty-datum"       : datumJSONStr : _                             ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
       -- }}}
-    "datum-is" : predicateKeyWord : datumJSONStr : _                    ->
+    "datum-is"           : predicateKeyWord : datumJSONStr : _          ->
       -- {{{
       case predicateKeyWordToPredicate predicateKeyWord of
         Just p  ->
@@ -1458,7 +1532,7 @@ main =
             "FAILED: Unsupported datum predicate (" ++ predicateKeyWord ++ ")."
           -- }}}
       -- }}}
-    "data-to-cbor" : dataJSONStr : _                                    ->
+    "data-to-cbor"       : dataJSONStr : _                              ->
       -- {{{
       fromConcreteDataValue
         (fromString dataJSONStr)
@@ -1471,7 +1545,7 @@ main =
           . encode
         )
         -- }}}
-    "cbor-to-data" : cborStr : _                                        ->
+    "cbor-to-data"       : cborStr : _                                  ->
       -- {{{
       let
         mScriptData :: Maybe ScriptData
@@ -1492,11 +1566,11 @@ main =
         Nothing -> do
           putStrLn "FAILED to decode CBOR."
       -- }}}
-    "string-to-hex" : tn : outFile : _                                  ->
+    "string-to-hex"      : tn : outFile : _                             ->
       -- {{{
       andPrintSuccess outFile $ writeTokenNameHex outFile $ fromString tn
       -- }}}
-    "get-deadline-slot" : currSlotStr : datumJSON : _                   -> do
+    "get-deadline-slot"  : currSlotStr : datumJSON : _                  -> do
       -- {{{
       case readMaybe currSlotStr of
         Just currSlot -> do

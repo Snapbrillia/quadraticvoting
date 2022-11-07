@@ -1,5 +1,7 @@
 #!/bin/bash
 
+MAX_SPENDABLE_UTXOS=8
+
 . scripts/initiation.sh
 
 projectTokenName=$(project_number_to_token_name "$1")
@@ -27,6 +29,7 @@ lovelaceCount=0
 mintCount=0
 txInArg=""
 mintArg=""
+
 
 # Takes 4 arguments:
 #   1. Project's state input,
@@ -61,6 +64,7 @@ build_submit_wait() {
 
 # Takes no arguments.
 mkMintArg() {
+  # {{{
   mintArg="
     --mint \"$mintCount $donAsset\"
     --mint-tx-in-reference $donRefUTxO
@@ -68,6 +72,7 @@ mkMintArg() {
     --mint-reference-tx-in-redeemer-file $devRedeemer
     --policy-id $donSym
   "
+  # }}}
 }
 
 
@@ -102,7 +107,7 @@ finished="False"
 phase=1
 while [ $phase -lt 4 ]; do
   # {{{
-  b=8
+  b=$MAX_SPENDABLE_UTXOS
   if [ $phase -eq 3 ]; then
     b=2
   fi
@@ -112,9 +117,7 @@ while [ $phase -lt 4 ]; do
   fi
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
-  echo $donUTxOCount
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
-  echo $txsNeeded
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
     # {{{
@@ -157,16 +160,93 @@ done
 
 # If, at this point, $finished is "True", it means that all the donations have
 # consolidated already.
+#
+# Otherwise, the folded donations need to be "traversed" and "consolidated."
 
+b=$MAX_SPENDABLE_UTXOS
 if [ $finished == "False" ]; then
   # {{{
-  b=8
+  # The first step is to go over all the folded donations, and check if there
+  # are any duplicates. If a pair is found, a transaction is submitted to merge
+  # the duplicate into the first donation map.
+  allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+  allDonationsCount=$(echo "$allDonations" | jq length)
+  if [ $allDonationsCount -le $b ]; then
+    echo "No need for traversal. Re-folding to trigger the consolidation."
+    . scripts/fold-donations.sh $1
+  fi
+  for i in $(seq 0 $(expr $allDonationsCount - 1)); do
+    # {{{
+    donationPairs="$(echo "$allDonations" | jq -c '.[0] as $l | .[1:] | map([$l,.])')"
+    allDonations="$(echo "$allDonations" | jq -c '.[1:]')"
+    pairCount="$(echo "$donationPairs" | jq length)"
+    for j in $(seq 0 $(expr $pairCount - 1)); do
+      # {{{
+      thePair="$(echo "$donationPairs" | jq -c --arg j "$j" '.[($j|tonumber)]')"
+      utxo0="$(echo "$thePair" | jq -c '.[0]')"
+      utxo1="$(echo "$thePair" | jq -c '.[1]')"
+      l0="$(echo "$utxo0" | jq .lovelace)"
+      v0="$(echo "$utxo0" | jq .assetCount)"
+      d0="$(echo "$utxo0" | jq .datum)"
+      u0="$(echo "$utxo0" | jq .utxo)"
+      l1="$(echo "$utxo1" | jq .lovelace)"
+      v1="$(echo "$utxo1" | jq .assetCount)"
+      d1="$(echo "$utxo1" | jq .datum)"
+      u1="$(echo "$utxo1" | jq .utxo)"
+      result="$($qvf traverse-donations "$l0" "$d0" "$l1" "$d1" "$(cat $fileNamesJSONFile)")"
+      if [ "$result" == "Nothing" ]; then
+        # {{{
+        continue
+        # }}}
+      else
+        # {{{
+        outL0="$(echo "$result" | jq .lovelace0)"
+        outL1="$(echo "$result" | jq .lovelace1)"
+        in0="--tx-in $u0 $txInConstant"
+        in1="--tx-in $u1 $txInConstant"
+        out0="
+          --tx-out \"$qvfAddress + $outL0 lovelace + $v0 $donAsset\"
+          --tx-out-inline-datum-file $updatedDatumFile
+        "
+        out1="
+          --tx-out \"$qvfAddress + $outL1 lovelace + $v1 $donAsset\"
+          --tx-out-inline-datum-file $newDatumFile
+        "
+
+        keyHoldersInUTxO=$(get_first_utxo_of $keyHolder)
+        
+        generate_protocol_params
+        
+        buildTx="$cli $BUILD_TX_CONST_ARGS
+          --required-signer-hash $keyHoldersPubKeyHash
+          --tx-in $keyHoldersInUTxO
+          --tx-in-collateral $keyHoldersInUTxO
+          $in0 $in1 $out0 $out1
+          --change-address $keyHoldersAddress"
+        
+        echo $buildTx > $tempBashFile
+        . $tempBashFile
+        
+        sign_and_submit_tx $preDir/$keyHolder.skey
+        store_current_slot
+        wait_for_new_slot
+        store_current_slot
+        wait_for_new_slot
+        # }}}
+      fi
+      # }}}
+    done
+    # }}}
+  done
+  # At this point, there shouldn't be any duplicate donations. Therefore, the
+  # consolidation stage can commence.
   constr=10
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
+    # {{{
     iteration_helper "$b" "$constr" "consolidate-donations"
     mkMintArg
     # mintArg="
@@ -182,6 +262,7 @@ if [ $finished == "False" ]; then
     build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
 
     txsDone=$(expr $txsDone + 1)
+    # }}}
   done
   # }}}
 fi
