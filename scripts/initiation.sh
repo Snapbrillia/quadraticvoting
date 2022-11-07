@@ -1,12 +1,12 @@
 #!/bin/bash
 
-. scripts/env.sh
+. $HOME/quadraticVoting/scripts/env.sh
 
 startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-export deadline=1667642400000
+export deadline=1670284800000
 
 govSym=""
 
