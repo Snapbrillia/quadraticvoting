@@ -5,6 +5,7 @@ MAX_SPENDABLE_UTXOS=8
 . scripts/initiation.sh
 
 projectTokenName=$(project_number_to_token_name "$1")
+startingPhase=$2
 
 qvfAddress=$(cat $scriptAddressFile)
 regSym=$(cat $regSymFile)
@@ -104,7 +105,7 @@ iteration_helper() {
 
 
 finished="False"
-phase=1
+phase=$startingPhase
 while [ $phase -lt 4 ]; do
   # {{{
   b=$MAX_SPENDABLE_UTXOS
@@ -173,7 +174,7 @@ if [ $finished == "False" ]; then
   allDonationsCount=$(echo "$allDonations" | jq length)
   if [ $allDonationsCount -le $b ]; then
     echo "No need for traversal. Re-folding to trigger the consolidation."
-    . scripts/fold-donations.sh $1
+    . scripts/fold-donations.sh $1 2
   fi
   for i in $(seq 0 $(expr $allDonationsCount - 1)); do
     # {{{
