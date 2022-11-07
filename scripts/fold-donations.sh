@@ -176,8 +176,10 @@ if [ $finished == "False" ]; then
     echo "No need for traversal. Re-folding to trigger the consolidation."
     . scripts/fold-donations.sh $1 2
   fi
-  for i in $(seq 0 $(expr $allDonationsCount - 1)); do
+  i=0
+  while [ $i -lt $allDonationsCount ]; do
     # {{{
+    i=$(expr $i + 1)
     donationPairs="$(echo "$allDonations" | jq -c '.[0] as $l | .[1:] | map([$l,.])')"
     allDonations="$(echo "$allDonations" | jq -c '.[1:]')"
     pairCount="$(echo "$donationPairs" | jq length)"
@@ -233,6 +235,10 @@ if [ $finished == "False" ]; then
         wait_for_new_slot
         store_current_slot
         wait_for_new_slot
+        allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+        allDonationsCount=$(echo "$allDonations" | jq length)
+        i=0
+        break
         # }}}
       fi
       # }}}
