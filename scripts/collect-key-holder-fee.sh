@@ -16,12 +16,18 @@ fee=$(qvf-cli collect-key-holder-fee "$(cat $fileNamesJSONFile)")
 # Should be easy and straightforward to implement, below
 fee=$fee
 
+qvfLovelaces=$(remove_quotes $(echo $qvfUTxOObj | jq -c .lovelace))
+firstUTxO="$qvfAddress + $qvfLovelaces lovelace + 1 $govAsset"
+
+
 generate_protocol_params
 
 $cli $BUILD_TX_CONST_ARGS                               \
   --tx-in $qvfInUTxO                                    \
   --tx-in-collateral $(get_first_utxo_of $keyHolder)    \
   --tx-out "$keyHolder"+"$fee"                          \
+  --tx-out-inline-datum-file $updatedDatumFile          \
+  --tx-out "$firstUTxO"                                 \
   --tx-out-inline-datum-file $updatedDatumFile          \
   --change-address $qvfAddress
 sign_and_submit_tx $preDir/$keyHolder.skey
