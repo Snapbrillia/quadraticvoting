@@ -6,7 +6,7 @@ startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-export deadline=1667642400000
+export deadline=1670284800000
 
 govSym=""
 
@@ -56,10 +56,12 @@ get_script_data_hash() {
 initiate_fund() {
   # {{{
   for proj in $(cat $registeredProjectsFile); do
-    rm $preDir/$proj
+    rm -f $preDir/$proj
   done
-  rm $registeredProjectsFile
+  rm -f $registeredProjectsFile
   touch $registeredProjectsFile
+  rm -rf $projsPreDir
+  mkdir -p $projsPreDir
   echo "Getting the current slot..."
   currentSlot=$(get_newest_slot)
 
@@ -201,6 +203,8 @@ initiate_fund() {
 }
 
 
+# Takes 1 argument:
+#   1. The number of the target project.
 dev_depletion() {
   # {{{
   collateral=$(get_first_utxo_of $keyHolder)
@@ -211,44 +215,45 @@ dev_depletion() {
   donRefUTxO=$(cat $donRefUTxOFile)
   donSym=$(cat $donSymFile)
   scriptAddr=$(cat $scriptAddressFile)
-  mintArg=$(get_all_script_utxos_datums_values $scriptAddr | jq 'map("-" + (.assetCount | tostring) + " " + .asset) | reduce .[] as $a (""; if . == "" then $a else (. + " + " + $a) end)')
+  # allUTxOs=$(get_nth_projects_donation_utxos $1 | jq '.[0:8]')
+  # allUTxOs=$(get_all_projects_utxos_datums_values | jq '.[0:8]')
+  allUTxOs=$(get_all_script_utxos_datums_values $scriptAddr | jq '.[0:8]')
+  const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
+  txInArg=$(echo "$allUTxOs" | jq --arg const "$const" 'map("--tx-in " + .utxo + " " + $const) | reduce .[] as $a (""; if . == "" then $a else (. + " " + $a) end)')
+  txInArg=$(remove_quotes "$txInArg")
+  mintArg=$(echo "$allUTxOs" | jq 'map("-" + (.assetCount | tostring) + " " + .asset) | reduce .[] as $a (""; if . == "" then $a else (. + " + " + $a) end)')
   mintArg=$(remove_quotes "$mintArg")
 
-  txIn=""
-  # {{{ LOOP TO FIND $txIn 
-  # Creating the complete input list to consume every UTxO sitting at the
-  # script address.
-  #
-  # Since `get_all_input_utxos_at` returns all the UTxOs such that each of them
-  # are prefixed with "--tx-in ", we are using an extra variable ($count), to
-  # handle the intermittent whitespaces.
-  count=0
-  const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
-  for i in $(get_all_input_utxos_at $scriptLabel); do
-    if [ $count -eq 0 ]; then
-      txIn="$txIn$i "
-      count=1
-    else
-      txIn="$txIn$i $const "
-      count=0
-    fi
-  done
-  # }}}
-  $cli $BUILD_TX_CONST_ARGS                           \
-    --tx-in-collateral $collateral                    \
-    $txIn                                             \
-    --mint "$mintArg"                                 \
-    --mint-script-file $govScriptFile                 \
-    --mint-redeemer-file $devRedeemer                 \
-    --mint-tx-in-reference $regRefUTxO                \
-    --mint-plutus-script-v2                           \
-    --mint-reference-tx-in-redeemer-file $devRedeemer \
-    --policy-id $regSym                               \
-    --mint-tx-in-reference $donRefUTxO                \
-    --mint-plutus-script-v2                           \
-    --mint-reference-tx-in-redeemer-file $devRedeemer \
-    --policy-id $donSym                               \
+  buildTx="$cli $BUILD_TX_CONST_ARGS
+    --required-signer-hash $(cat $preDir/$keyHolder.pkh)
+    --tx-in-collateral $collateral
+    $txInArg
+    --mint \"$mintArg\"
+    --mint-script-file $govScriptFile
+    --mint-redeemer-file $devRedeemer
+    --mint-tx-in-reference $regRefUTxO
+    --mint-plutus-script-v2
+    --mint-reference-tx-in-redeemer-file $devRedeemer
+    --policy-id $(cat $regSymFile)
     --change-address $(cat testnet/$keyHolder.addr)
+  "
+  ## buildTx="$cli $BUILD_TX_CONST_ARGS
+  ##   --required-signer-hash $(cat $preDir/$keyHolder.pkh)
+  ##   --tx-in-collateral $collateral
+  ##   $txInArg
+  ##   --mint \"$mintArg\"
+  ##   --mint-tx-in-reference $regRefUTxO
+  ##   --mint-plutus-script-v2
+  ##   --mint-reference-tx-in-redeemer-file $devRedeemer
+  ##   --policy-id $(cat $regSymFile)
+  ##   --change-address $(cat testnet/$keyHolder.addr)
+  ## "
+  ###### --mint-tx-in-reference $donRefUTxO
+  ###### --mint-plutus-script-v2
+  ###### --mint-reference-tx-in-redeemer-file $devRedeemer
+  ###### --policy-id $(cat $donSymFile)
+  echo $buildTx > $tempBashFile
+  . $tempBashFile
   sign_and_submit_tx $preDir/$keyHolder.skey
   wait_for_new_slot
   show_utxo_tables $scriptLabel

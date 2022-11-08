@@ -47,12 +47,13 @@ PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
 -- POLICY SCRIPT
 -- {{{
 {-# INLINABLE mkRegistrationPolicy #-}
-mkRegistrationPolicy :: CurrencySymbol
+mkRegistrationPolicy :: PubKeyHash
+                     -> CurrencySymbol
                      -> TokenName
                      -> RegistrationRedeemer
                      -> ScriptContext
                      -> Bool
-mkRegistrationPolicy sym tn action ctx =
+mkRegistrationPolicy pkh sym tn action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -90,7 +91,7 @@ mkRegistrationPolicy sym tn action ctx =
               -- }}}
             _                             ->
               -- {{{
-              traceError "Invalid datum for project registration."
+              traceError "E013"
               -- }}}
           -- }}}
 
@@ -107,7 +108,7 @@ mkRegistrationPolicy sym tn action ctx =
         outputSAndPsAreValid s p0 p1 =
           -- {{{
              traceIfFalse
-               "The produced governance UTxO must have untouched value."
+               "E014"
                ( validateGovUTxO
                    (txOutValue inputGovUTxO)
                    (txOutAddress inputGovUTxO)
@@ -115,7 +116,7 @@ mkRegistrationPolicy sym tn action ctx =
                    s
                )
           && traceIfFalse
-               "Invalid value for project's reference UTxO."
+               "E015"
                ( utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
@@ -123,7 +124,7 @@ mkRegistrationPolicy sym tn action ctx =
                    p0
                )
           && traceIfFalse
-               "Invalid value for project's main UTxO."
+               "E016"
                ( utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
@@ -131,18 +132,18 @@ mkRegistrationPolicy sym tn action ctx =
                    p1
                )
           && traceIfFalse
-               "First project output must carry its static info."
+               "E017"
                (utxosDatumMatchesWith (ProjectInfo riProjectDetails) p0)
           && traceIfFalse
-               "Second project output must carry its record of donations."
+               "E018"
                (utxosDatumMatchesWith (ReceivedDonationsCount 0) p1)
           -- }}}
       in
          traceIfFalse
-           "Specified UTxO must be consumed."
+           "E019"
            (utxoIsGettingSpent inputs riTxOutRef)
       && traceIfFalse
-           "Project owner's signature is required."
+           "E020"
            (txSignedBy info $ pdPubKeyHash riProjectDetails)
       && ( case outputs of
              [s, p0, p1]    ->
@@ -155,8 +156,7 @@ mkRegistrationPolicy sym tn action ctx =
                -- }}}
              _              ->
                -- {{{
-               traceError
-                 "There should be exactly 1 governance, and 2 project UTxOs produced."
+               traceError "E021"
                -- }}}
          )
       -- }}}
@@ -176,7 +176,7 @@ mkRegistrationPolicy sym tn action ctx =
                 Escrow _                                 ->
                   -- {{{
                      traceIfFalse
-                       "Invalid project info UTxO provided."
+                       "E022"
                        ( utxoHasOnlyXWithLovelaces
                            ownSym
                            currTN
@@ -184,7 +184,7 @@ mkRegistrationPolicy sym tn action ctx =
                            p0
                        )
                   && traceIfFalse
-                       "Escrow must be depleted before refunding the registration fee."
+                       "E023"
                        ( utxoHasOnlyXWithLovelaces
                            ownSym
                            currTN
@@ -192,17 +192,17 @@ mkRegistrationPolicy sym tn action ctx =
                            p1
                        )
                   && traceIfFalse
-                       "Transaction must be signed by the project owner."
+                       "E024"
                        (txSignedBy info pdPubKeyHash)
                   -- }}}
                 _                                        ->
                   -- {{{
-                  traceError "Invalid datum for the second project input."
+                  traceError "E025"
                   -- }}}
               -- }}}
             _                              ->
               -- {{{
-              traceError "First project input must be the info UTxO."
+              traceError "E026"
               -- }}}
           -- }}}
       in
@@ -217,19 +217,19 @@ mkRegistrationPolicy sym tn action ctx =
           -- }}}
         _                                         ->
           -- {{{
-          traceError "Exactly 2 project inputs are expected."
+          traceError "E027"
           -- }}}
       -- }}}
     -- TODO: REMOVE.
     Dev                                  ->
-      True
+      traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-registrationPolicy :: CurrencySymbol -> MintingPolicy
-registrationPolicy sym =
+registrationPolicy :: PubKeyHash -> CurrencySymbol -> MintingPolicy
+registrationPolicy pkh sym =
   -- {{{
   let
     wrap :: (RegistrationRedeemer -> ScriptContext -> Bool)
@@ -237,7 +237,9 @@ registrationPolicy sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \sym' tn' -> wrap $ mkRegistrationPolicy sym' tn' ||])
+    $$(PlutusTx.compile [|| \pkh' sym' tn' -> wrap $ mkRegistrationPolicy pkh' sym' tn' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
     `PlutusTx.applyCode`

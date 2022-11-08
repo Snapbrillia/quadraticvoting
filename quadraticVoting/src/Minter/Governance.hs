@@ -99,46 +99,41 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
             [(_, dlTN', dlAmt'), (_, tn', amt')] ->
               -- {{{
                  traceIfFalse
-                   "Bad deadline token name."
+                   "E000"
                    (dlTN' == dlTN)
               && traceIfFalse
-                   "Bad main token name."
+                   "E001"
                    (tn' == tn)
               && traceIfFalse
-                   "Exactly 1 deadline token must be minted."
+                   "E002"
                    (dlAmt' == 1)
               && traceIfFalse
-                   "Exactly 1 main token must be minted"
+                   "E003"
                    (amt' == 1)
               -- }}}
             _              ->
               -- {{{
-              traceError "Exactly 2 type of assets must be minted."
+              traceError "E004"
               -- }}}
           -- }}}
 
         validateTwoOutputs o0 o1 =
           -- {{{
              traceIfFalse
-               "Invalid value for the deadline UTxO."
+               "E005"
                (utxoHasOnlyXWithLovelaces ownSym dlTN governanceLovelaces o0)
           && traceIfFalse
-               "Invalid value for the main UTxO."
+               "E006"
                (utxoHasOnlyXWithLovelaces ownSym tn governanceLovelaces o1)
           && ( case (getInlineDatum o0, getInlineDatum o1) of
                  (DeadlineDatum dl, RegisteredProjectsCount count) ->
                    -- {{{
-                      traceIfFalse
-                        "Deadline must match with the provided parameter."
-                        (dl == deadline)
-                   && traceIfFalse
-                        "Funding round must start with 0 registered projects."
-                        (count == 0)
+                      traceIfFalse "E007" (dl == deadline)
+                   && traceIfFalse "E008" (count == 0)
                    -- }}}
                  _                                                 ->
                    -- {{{
-                   traceError
-                     "Either invalid datums produced, or produced in wrong order."
+                   traceError "E009"
                    -- }}}
              )
           -- }}}
@@ -157,70 +152,12 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
               -- }}}
             _           ->
               -- {{{
-              traceError "The 2 minted tokens must be split among 2 UTxOs."
+              traceError "E010"
               -- }}}
           -- }}}
-
-        -- validDeadlineOutput :: Bool
-        -- validMainOutput     :: Bool
-        -- (validDeadlineOutput, validMainOutput) =
-        --   -- {{{
-        --   let
-        --     go []            acc                     = acc
-        --     go (utxo : rest) acc@(dlFound, rpcFound) =
-        --       if utxoHasX ownSym (Just tn) utxo then
-        --         -- {{{
-        --         if dlFound then
-        --           -- {{{
-        --           case getInlineDatum utxo of
-        --             RegisteredProjectsCount count ->
-        --               -- {{{
-        --               ( dlFound
-        --               ,    traceIfFalse
-        --                      "Funding round must start with 0 registered projects."
-        --                      (count == 0)
-        --                 && traceIfFalse
-        --                      "Governance UTxO must carry the required Lovelaces."
-        --                      (utxoHasLovelaces governanceLovelaces utxo)
-        --               )
-        --               -- }}}
-        --             _                             ->
-        --               -- {{{
-        --               traceError "Invalid datum for the second UTxO."
-        --               -- }}}
-        --           -- }}}
-        --         else
-        --           -- {{{
-        --           case getInlineDatum utxo of
-        --             DeadlineDatum dl ->
-        --               -- {{{
-        --               let
-        --                 cond =
-        --                      traceIfFalse
-        --                        "Deadline must match with the provided parameter."
-        --                        (dl == deadline)
-        --                   && traceIfFalse
-        --                        "Deadline UTxO must carry the required Lovelaces."
-        --                        (utxoHasLovelaces governanceLovelaces utxo)
-        --               in
-        --               go rest (cond, rpcFound)
-        --               -- }}}
-        --             _                ->
-        --               -- {{{
-        --               traceError "Deadline UTxO must be produced first."
-        --               -- }}}
-        --           -- }}}
-        --         -- }}}
-        --       else
-        --         -- {{{
-        --         go rest acc
-        --         -- }}}
-        --   in
-        --   go (txInfoOutputs info) (False, False)
-        --   -- }}}
       in
-         traceIfFalse "UTxO not consumed." hasUTxO
-      && traceIfFalse "Deadline has passed." deadlineIsValid
+         traceIfFalse "E011" hasUTxO
+      && traceIfFalse "E012" deadlineIsValid
       && checkMintedAmount
       && validOutputsPresent
   -- }}}
