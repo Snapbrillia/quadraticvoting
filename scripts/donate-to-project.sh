@@ -166,7 +166,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --change-address $donorAddress                            \
   --cddl-format
 
-<<<<<<< HEAD
+
 store_current_slot
 
 JSON_STRING=$( jq -n \
@@ -174,10 +174,5 @@ JSON_STRING=$( jq -n \
                   '{transaction: $bn }' )
 
 echo "---$JSON_STRING"
-=======
-sign_and_submit_tx $preDir/$donorWalletLabel.skey
-wait_for_new_slot
-store_current_slot
-wait_for_new_slot
->>>>>>> main
+
 # }}}
