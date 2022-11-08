@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. scripts/initiation.sh
+. $HOME/quadraticVoting/scripts/initiation.sh
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -108,10 +108,13 @@ if [ "$1" == "dev" ]; then
   return 0
 fi
 
-
-donorWalletLabel=$1
-projectTokenName=$2
-donationAmount=$3
+projectTokenName=$1
+donationAmount=$2
+donorPKH=$3
+donorAddress=$4
+txInUTxO=$5
+txInCollateralUTxO=$6
+txOutUTxO=$7
 
 projectAsset="$regSym.$projectTokenName"
 donAsset="$donSym.$projectTokenName"
@@ -124,9 +127,6 @@ projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
 deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
 
-donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
-donorPKH=$(cat $preDir/$donorWalletLabel.pkh)
-donorAddress=$(cat $preDir/$donorWalletLabel.addr)
 
 $qvf donate-to-project        \
   $donorPKH                   \
@@ -150,8 +150,9 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --spending-plutus-script-v2                               \
   --spending-reference-tx-in-inline-datum-present           \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  --tx-in $donorInUTxO                                      \
-  --tx-in-collateral $donorInUTxO                           \
+  $txInUTxO                                                 \
+  $txInCollateralUTxO                                       \
+  $txOutUTxO                                                \
   --tx-out "$outputProjectUTxO"                             \
   --tx-out-inline-datum-file $updatedDatumFile              \
   --tx-out "$donationUTxO"                                  \
@@ -162,10 +163,16 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
   --policy-id $donSym                                       \
-  --change-address $donorAddress
+  --change-address $donorAddress                            \
+  --cddl-format
 
-sign_and_submit_tx $preDir/$donorWalletLabel.skey
-wait_for_new_slot
+
 store_current_slot
-wait_for_new_slot
+
+JSON_STRING=$( jq -n \
+                  --arg bn "$(cat $txBody | jq -r .cborHex)" \
+                  '{transaction: $bn }' )
+
+echo "---$JSON_STRING"
+
 # }}}

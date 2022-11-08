@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. scripts/env.sh
+. $HOME/quadraticVoting/scripts/env.sh
 
 startingWallet=1
 endingWallet=20
