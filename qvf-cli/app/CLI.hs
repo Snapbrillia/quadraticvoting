@@ -1175,13 +1175,23 @@ main =
               mUpdatedDatum    :: Maybe QVFDatum
               mUpdatedDatum    =
                 -- {{{
-                case currDatum of
-                  DonationFoldingProgress tot _       ->
+                let
+                  fromTotal tot =
                     -- {{{
                     if inputDonations == tot then
                       Just $ PrizeWeight (inputWs * inputWs) False
                     else
                       Just $ PrizeWeightAccumulation tot inputDonations inputWs
+                    -- }}}
+                in
+                case currDatum of
+                  ReceivedDonationsCount tot          ->
+                    -- {{{
+                    fromTotal tot
+                    -- }}}
+                  DonationFoldingProgress tot _       ->
+                    -- {{{
+                    fromTotal tot
                     -- }}}
                   PrizeWeightAccumulation tot done ws ->
                     -- {{{
@@ -1286,7 +1296,7 @@ main =
               ++ "\"" ++ show (l0 + ls1to0) ++ "\""
               ++ ",\"lovelace1\":"
               ++ "\"" ++ show (l1 - ls1to0) ++ "\""
-              ++ "\"}"
+              ++ "}"
           -- }}}
         _                                          ->
           -- {{{

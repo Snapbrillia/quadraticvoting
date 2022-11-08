@@ -25,6 +25,7 @@ allDonations=""
 donations=""
 totalInAsset=0
 projectUTxO=""
+projectInLovelace=0
 resultJSON=""
 lovelaceCount=0
 mintCount=0
@@ -86,16 +87,17 @@ iteration_helper() {
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
   projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
   projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
+  projectInLovelace="$(echo $projectUTxOObj | jq -c .lovelace)"
   echo "$projectCurrDatum" > $currentDatumFile
   
   donations="$(echo "$allDonations" | jq -c --arg b "$1" --arg constr "$2" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[0:($b|tonumber)]')"
-  echo $donations
   allDonations="$(echo "$allDonations" | jq -c --arg b "$1" --arg constr "$2" 'map(select((.datum .constructor) == ($constr|tonumber))) | .[($b|tonumber):]')"
   totalInAsset="$(echo "$donations" | jq 'map(.assetCount) | reduce .[] as $l (0; . + $l)')"
   elemCount=$(echo "$donations" | jq length)
   initialDonationsArg="$(echo "$donations" | jq -c 'map((.lovelace|tostring) + " " + (.assetCount|tostring) + " " + (.datum | tostring)) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
   donationsArg="$(jq_to_bash_3 "$initialDonationsArg" "$elemCount")"
   resultJSON="$($qvf "$3" $donationsArg "$(cat $fileNamesJSONFile)")"
+  echo $resultJSON
   lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
   mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
   txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
@@ -105,58 +107,58 @@ iteration_helper() {
 
 
 finished="False"
-phase=$startingPhase
-while [ $phase -lt 4 ]; do
-  # {{{
-  b=$MAX_SPENDABLE_UTXOS
-  if [ $phase -eq 3 ]; then
-    b=2
-  fi
-  constr=9
-  if [ $phase -gt 1 ]; then
-    constr=10
-  fi
-  allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
-  donUTxOCount=$(echo "$allDonations" | jq length)
-  txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
-  txsDone=0
-  while [ $txsDone -lt $txsNeeded ]; do
-    # {{{
-    iteration_helper "$b" "$constr" "fold-donations"
-    extraArg=""
-    projectInput=""
-    outputProjectUTxO=""
-    if [ $mintCount -lt 0 ]; then
-      # In this case, the $lovelaceCount included half the registration fee.
-      mkMintArg
-      extraArg="$mintArg"
-      # extraArg="
-      #   --mint \"$mintCount $donAsset\"
-      #   --mint-tx-in-reference $donRefUTxO
-      #   --mint-plutus-script-v2
-      #   --mint-reference-tx-in-redeemer-file $devRedeemer
-      #   --policy-id $donSym
-      # "
-      finished="True"
-      projectInput="--tx-in $projectUTxO $txInConstant"
-      outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
-    else
-      extraArg="
-        --tx-out \"$qvfAddress + $lovelaceCount lovelace + $totalInAsset $donAsset\"
-        --tx-out-inline-datum-file $newDatumFile
-      "
-      finished="False"
-    fi
-    build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
-    if [ $finished == "True" ]; then
-      break 2
-    fi
-    txsDone=$(expr $txsDone + 1)
-    # }}}
-  done
-  phase=$(expr $phase + 1)
-  # }}}
-done
+# phase="$startingPhase"
+# while [ $phase -lt 4 ]; do
+#   # {{{
+#   b=$MAX_SPENDABLE_UTXOS
+#   if [ $phase -eq 3 ]; then
+#     b=2
+#   fi
+#   constr=9
+#   if [ $phase -gt 1 ]; then
+#     constr=10
+#   fi
+#   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+#   donUTxOCount=$(echo "$allDonations" | jq length)
+#   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
+#   txsDone=0
+#   while [ $txsDone -lt $txsNeeded ]; do
+#     # {{{
+#     iteration_helper "$b" "$constr" "fold-donations"
+#     extraArg=""
+#     projectInput=""
+#     outputProjectUTxO=""
+#     if [ $mintCount -lt 0 ]; then
+#       # In this case, the $lovelaceCount included half the registration fee.
+#       mkMintArg
+#       extraArg="$mintArg"
+#       # extraArg="
+#       #   --mint \"$mintCount $donAsset\"
+#       #   --mint-tx-in-reference $donRefUTxO
+#       #   --mint-plutus-script-v2
+#       #   --mint-reference-tx-in-redeemer-file $devRedeemer
+#       #   --policy-id $donSym
+#       # "
+#       finished="True"
+#       projectInput="--tx-in $projectUTxO $txInConstant"
+#       outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
+#     else
+#       extraArg="
+#         --tx-out \"$qvfAddress + $lovelaceCount lovelace + $totalInAsset $donAsset\"
+#         --tx-out-inline-datum-file $newDatumFile
+#       "
+#       finished="False"
+#     fi
+#     build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
+#     if [ $finished == "True" ]; then
+#       break 2
+#     fi
+#     txsDone=$(expr $txsDone + 1)
+#     # }}}
+#   done
+#   phase=$(expr $phase + 1)
+#   # }}}
+# done
 
 
 # If, at this point, $finished is "True", it means that all the donations have
@@ -164,7 +166,7 @@ done
 #
 # Otherwise, the folded donations need to be "traversed" and "consolidated."
 
-b=$MAX_SPENDABLE_UTXOS
+b=$(expr $MAX_SPENDABLE_UTXOS - 2)
 if [ $finished == "False" ]; then
   # {{{
   # The first step is to go over all the folded donations, and check if there
@@ -177,6 +179,7 @@ if [ $finished == "False" ]; then
     . scripts/fold-donations.sh $1 2
   fi
   i=0
+  echo "Traversing folded donations..."
   while [ $i -lt $allDonationsCount ]; do
     # {{{
     i=$(expr $i + 1)
@@ -199,10 +202,13 @@ if [ $finished == "False" ]; then
       result="$($qvf traverse-donations "$l0" "$d0" "$l1" "$d1" "$(cat $fileNamesJSONFile)")"
       if [ "$result" == "Nothing" ]; then
         # {{{
+        echo "No duplicates found between $u0 and $u1"
         continue
         # }}}
       else
         # {{{
+        echo "Duplicate(s) found between $u0 and $u1"
+        echo $result
         outL0="$(echo "$result" | jq .lovelace0)"
         outL1="$(echo "$result" | jq .lovelace1)"
         in0="--tx-in $u0 $txInConstant"
@@ -250,23 +256,20 @@ if [ $finished == "False" ]; then
   constr=10
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
-  txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
+  txsNeeded=$(echo $donUTxOCount | jq --arg b "$(expr $b - 1)" '(. / ($b|tonumber)) | ceil')
+  echo "Transactions needed to consolidate donations: $txsNeeded"
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do
     # {{{
     iteration_helper "$b" "$constr" "consolidate-donations"
     mkMintArg
-    # mintArg="
-    #   --mint \"$mintCount $donAsset\"
-    #   --mint-tx-in-reference $donRefUTxO
-    #   --mint-plutus-script-v2
-    #   --mint-reference-tx-in-redeemer-file $devRedeemer
-    #   --policy-id $donSym
-    # "
     projectInput="--tx-in $projectUTxO $txInConstant"
-    outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
+    outputProjectUTxO="
+      --tx-out \"$qvfAddress + $(expr $projectInLovelace + $lovelaceCount) lovelace + 1 $projectAsset\"
+      --tx-out-inline-datum-file $updatedDatumFile
+    "
 
-    build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
+    build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$mintArg"
 
     txsDone=$(expr $txsDone + 1)
     # }}}
