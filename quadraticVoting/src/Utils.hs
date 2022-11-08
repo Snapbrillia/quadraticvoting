@@ -183,9 +183,9 @@ getInlineDatum utxo =
         Just qvfDatum ->
           qvfDatum
         Nothing       ->
-          traceError "Provided datum didn't have a supported structure."
+          traceError "E111"
     _                     ->
-      traceError "Bad inline datum."
+      traceError "E112"
   -- }}}
 
 
@@ -206,8 +206,7 @@ getInputGovernanceUTxOFrom sym tn inputs =
       -- }}}
     _      ->
       -- {{{
-      traceError
-        "Governance asset missing."
+      traceError "E113"
       -- }}}
   -- }}}
 
@@ -230,10 +229,10 @@ validateGovUTxO govVal origAddr updatedDatum utxo =
         True
       else
         traceError
-          "Output governance UTxO must have a properly updated datum."
+          "E114"
     else
       traceError
-        "Governance token must be sent back to the same address from which it's getting consumed."
+        "E115"
     -- }}}
   else
     -- {{{
@@ -398,7 +397,7 @@ foldDonationInputs donationSymbol donationTN inputs =
             -- }}}
           _               ->
             -- {{{
-            traceError "Unexpected UTxO encountered."
+            traceError "E116"
             -- }}}
         -- }}}
       else
@@ -434,8 +433,142 @@ maxTotalDonationCount =
   maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
 minKeyHolderFee :: Integer
-minKeyHolderFee = 10_000_000
+minKeyHolderFee = 1_000_000
 
 minDonationAmount :: Integer
 minDonationAmount = 2_000_000
 -- }}}
+
+
+-- ERROR CODES
+--
+-- E000: Bad deadline token name.
+-- E001: Bad main token name.
+-- E002: Exactly 1 deadline token must be minted.
+-- E003: Exactly 1 main token must be minted.
+-- E004: Exactly 2 type of assets must be minted.
+-- E005: Invalid value for the deadline UTxO.
+-- E006: Invalid value for the main UTxO.
+-- E007: Deadline must match with the provided parameter.
+-- E008: Funding round must start with 0 registered projects.
+-- E009: Either invalid datums produced, or produced in wrong order.
+-- E010: The 2 minted tokens must be split among 2 UTxOs.
+-- E011: UTxO not consumed.
+-- E012: Deadline has passed.
+-- E013: Invalid datum for project registration.
+-- E014: The produced governance UTxO must have untouched value.
+-- E015: Invalid value for project's reference UTxO.
+-- E016: Invalid value for project's main UTxO.
+-- E017: First project output must carry its static info.
+-- E018: Second project output must carry its record of donations.
+-- E019: Specified UTxO must be consumed.
+-- E020: Project owner's signature is required.
+-- E021: There should be exactly 1 governance, and 2 project UTxOs produced.
+-- E022: Invalid project info UTxO provided.
+-- E023: Escrow must be depleted before refunding the registration fee.
+-- E024: Transaction must be signed by the project owner.
+-- E025: Invalid datum for the second project input.
+-- E026: First project input must be the info UTxO.
+-- E027: Exactly 2 project inputs are expected.
+-- E028: Unauthorized.
+-- E029: Invalid datum for donation count.
+-- E030: The first UTxO produced at the script address must be the updated project UTxO.
+-- E031: Invalid value for the donation UTxO.
+-- E032: Produced donation UTxO must carry donor's public key hash as an inlinde datum.
+-- E033: Donation amount is too small.
+-- E034: This project has reached the maximum number of donations.
+-- E035: Donor's signature is required.
+-- E036: There should be exactly 1 project, and 1 donation UTxOs produced.
+-- E037: Invalid updated value for the project UTxO.
+-- E038: Invalid updated value for the project UTxO.
+-- E039: Folded UTxO must be produced at its originating address.
+-- E040: All donations must be included in the final folding transaction.
+-- E041: Invalid outputs pattern.
+-- E042: Donation count is too large for direct burning.
+-- E043: All donation tokens must be folded before burning.
+-- E044: Project UTxO must carry the proper datum to allow burning of its donation tokens.
+-- E045: Unauthorized.
+-- E046: Unauthorized.
+-- E047: Current UTxO is unauthentic.
+-- E048: Missing reference input.
+-- E049: Incorrect number of donations included for the first phase of folding.
+-- E050: Donations output must carry the folded donations.
+-- E051: Project output must be properly updated.
+-- E052: Donations output must carry all the donation Lovelaces.
+-- E053: Project output must preserve its Lovelaces.
+-- E054: Missing proper outputs for the first phase of folding donations.
+-- E055: Project asset not found.
+-- E056: Unexpected UTxO encountered (expected a `PrizeWeight`.
+-- E057: Invalid datum attached to depleted prize weight UTxO.
+-- E058: Invalid prize weight UTxO is being produced.
+-- E059: Excessive number of prize weight inputs are provided.
+-- E060: Main UTxO should carry all the donations.
+-- E061: Invalid datum attached to the produced main datum.
+-- E062: Invalid UTxO getting produced at the script.
+-- E063: Improper correspondence between input and output prize weights.
+-- E064: This funding round is over.
+-- E065: Invalid deadline datum.
+-- E066: This funding round is still in progress.
+-- E067: Invalid deadline datum.
+-- E068: Invalid asset is getting minted/burnt.
+-- E069: There should be exactly 2 project assets minted/burnt.
+-- E070: Only one project asset must be minted/burnt.
+-- E071: Invalid Lovelace count at output.
+-- E072: Invalid output datum.
+-- E073: Unauthentic output UTxO.
+-- E074: There should be exactly 1 UTxO going back to the script.
+-- E075: New deadline has already passed.
+-- E076: Missing authentication asset.
+-- E077: There should be exactly 1 donation asset minted.
+-- E078: The project UTxO must also be getting consumed.
+-- E079: All donation assets must be burnt.
+-- E080: All donation assets must be burnt.
+-- E081: The concluded folding project UTxO must also be getting consumed.
+-- E082: The main UTxO must also be getting consumed.
+-- E083: Unauthentic governance UTxO provided.
+-- E084: Invalid Lovelace count at the produced governance UTxO.
+-- E085: Governance datum not updated properly.
+-- E086: Governance UTxO not produced.
+-- E087: Key holder fees must be paid accurately.
+-- E088: Bad project info reference provided.
+-- E089: Escrow must carry the excess reward.
+-- E090: Escrow's inline datum is invalid.
+-- E091: Escrow UTxO was not produced.
+-- E092: Prize not paid.
+-- E093: Bad datum attached to a project UTxO.
+-- E094: Couldn't find the corresponding input UTxO of a provided reference project UTxO.
+-- E095: The impossible happened.
+-- E096: Current UTxO is unauthentic.
+-- E097: Impossible 2.0 happened.
+-- E098: Governance UTxO is not getting updated properly.
+-- E099: Prize Lovelaces are not properly withdrawn.
+-- E100: Missing output governance UTxO.
+-- E101: The project UTxO must also be getting consumed.
+-- E102: Bad reference project datum provided.
+-- E103: Unauthentic escrow UTxO.
+-- E104: Insufficient funds.
+-- E105: Missing project owner's signature.
+-- E106: Unauthentic escrow UTxO.
+-- E107: The bounty winner must be imbursed.
+-- E108: Not eligible for bounty withdrawal.
+-- E109: Can not conclude with withstanding beneficiaries.
+-- E110: Invalid transaction.
+-- E111: Provided datum didn't have a supported structure.
+-- E112: Bad inline datum.
+-- E113: Governance asset missing.
+-- E114: Output governance UTxO must have a properly updated datum.
+-- E115: Governance token must be sent back to the same address from which it's getting consumed.
+-- E116: Unexpected UTxO encountered.
+-- E117: 
+-- E118: 
+-- E119: 
+-- E120: 
+-- E121: 
+-- E122: 
+-- E123: 
+-- E124: 
+-- E125: 
+-- E126: 
+-- E127: 
+-- E128: 
+-- E129: 

@@ -1,12 +1,12 @@
 # === CHANGE THESE VARIABLES ACCORDINGLY === #
-export MAGIC='--testnet-magic 2'
-export CARDANO_NODE_SOCKET_PATH="$HOME/preview-testnet/node.socket"
+export MAGIC='--testnet-magic 1'
+export CARDANO_NODE_SOCKET_PATH="$HOME/preprod-testnet/node.socket"
 export REPO="$HOME/code/quadraticvoting"
 export cli="cardano-cli"
 export qvf="qvf-cli"
 # ========================================== #
 
-export preDir="$REPO/testnet"
+export preDir="$REPO/testnet2"
 mkdir -p $preDir
 
 # Removes the single quotes.
@@ -31,12 +31,24 @@ remove_quotes() {
   # }}}
 }
 
+# Removes the backslashes.
+#
+# Takes 1 argument:
+#   1. Target string.
+remove_back_slashes() {
+  # {{{
+  echo $1           \
+  | sed 's|['"\\"']||g'
+  # }}}
+}
+
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 # Creating the $fileNamesJSONFile:
 # {{{
 touch $fileNamesJSONFile
 echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
+echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
 echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
 echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
 echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
@@ -70,6 +82,9 @@ getFileName() {
 # Exporting variables for required file names:
 # {{{
 export queryJSONFile=$(getFileName ocfnQueryJSON)
+export projsPreDir=$(getFileName ocfnProjectsPreDir)
+export tempBashFile="$preDir/temp.sh"
+touch $tempBashFile
 
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
@@ -645,6 +660,142 @@ get_total_lovelaces_from_json() {
   echo "$1" | jq 'map(.lovelace) | reduce .[] as $l (0; . + $l)'
   # }}}
 }
+
+
+# Takes 1 argument:
+#   1. A JSON.
+jq_zip() {
+  # {{{
+  echo "$1" | jq -c '.[1:] as $a | .[:-1] as $b | [$b,$a] | transpose'
+  # }}}
+}
+
+
+# Given a string put together by `jq`, this function applies some modifications
+# to make the string usable by bash.
+#
+# Takes 2 arguments:
+#   1. A string returned by `jq`'s `map`,
+#   2. Initial array length.
+jq_to_bash_3() {
+  # {{{
+  count=1
+  last=$(echo "$2" | jq '(3 * tonumber)')
+  if [ $last -eq 0 ]; then
+    return 1
+  fi
+  output=""
+  for i in $1; do
+    if [ $count -eq 1 ]; then
+      output="$(remove_quotes $i)"
+    elif [ $count -eq $last ]; then
+      lastCharRemoved=${i::-1}
+      output="$output $(remove_back_slashes $lastCharRemoved)"
+    else
+      output="$output $(remove_back_slashes $i)"
+    fi
+    count=$(expr $count + 1)
+  done
+  echo "$output"
+  # }}}
+}
+
+
+### FUNCTIONS THAT ARE USABLE AFTER AT LEAST ONE PROJECT REGISTRATION ###
+
+# Takes no arguments.
+get_all_projects_utxos_datums_values() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  regSym=$(cat $regSymFile)
+  get_all_script_utxos_datums_values $qvfAddress | jq -c --arg regSym "$regSym" 'map(select(.asset | contains($regSym)))'
+  # }}}
+}
+
+# CAUTION: The constructor index needs to match with that of the corresponding
+#          `QVFDatum` constructor.
+#
+# Takes no arguments.
+get_all_projects_state_utxos_datums_values() {
+  get_all_projects_utxos_datums_values | jq -c 'map(select((.datum .constructor) != 4))'
+}
+
+# Takes no arguments.
+find_registered_projects_count() {
+  # {{{
+  wc -l $registeredProjectsFile | awk '{ print $1 }'
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The "number" of the project (first registered project is represented
+#      with 1, and so on). Clamps implicitly.
+project_number_to_token_name() {
+  # {{{
+  clamped="$1"
+  min=0
+  max="$(find_registered_projects_count)"
+  if [ "$clamped" -lt "$min" ]; then
+    clamped=$min
+  elif [ "$clamped" -gt "$max" ]; then
+    clamped="$max"
+  fi
+  sed "${clamped}q;d" $registeredProjectsFile
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. Project's ID (token name).
+get_projects_state_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  projectAsset="$(cat $regSymFile).$1"
+  projectUTxOs="$(get_script_utxos_datums_values $qvfAddress $projectAsset)"
+  projectUTxOObj=""
+  temp0="$(echo "$projectUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is ProjectInfo "$temp0")
+  if [ $isInfo == "True" ]; then
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[1]')"
+  else
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[0]')"
+  fi
+  echo $projectUTxOObj
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The "number" of the project (first registered project is represented
+#      with 1, and so on). Clamps implicitly.
+get_nth_projects_state_utxo() {
+  # {{{
+  get_projects_state_utxo $(project_number_to_token_name $1)
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. Project's ID (token name).
+get_projects_donation_utxos() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  donAsset="$(cat $donSymFile).$1"
+  get_script_utxos_datums_values $qvfAddress $donAsset
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The "number" of the project (first registered project is represented
+#      with 1, and so on). Clamps implicitly.
+get_nth_projects_donation_utxos() {
+  # {{{
+  get_projects_donation_utxos $(project_number_to_token_name $1)
+  # }}}
+}
+#########################################################################
 
 
 # Given a wallet, a script, and other arguments, this function constructs,

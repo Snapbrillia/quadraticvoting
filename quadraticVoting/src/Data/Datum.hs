@@ -121,6 +121,14 @@ data QVFDatum
       Integer -- ^ Folded so far.
       -- }}}
 
+  | PrizeWeightAccumulation
+    -- ^ Progress of summing of the donation square roots.
+      -- {{{
+      Integer -- ^ Total donation count.
+      Integer -- ^ Accumulated so far.
+      Integer -- ^ Sum of weights so far.
+      -- }}}
+
   | PrizeWeight
     -- ^ Result of folding all donations.
       -- {{{
@@ -159,6 +167,7 @@ instance Eq QVFDatum where
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
   ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
   DonationFoldingProgress t0 s0 == DonationFoldingProgress t1 s1 = t0 == t1 && s0 == s1
+  PrizeWeightAccumulation t0 s0 w0 == PrizeWeightAccumulation t1 s1 w1 = t0 == t1 && s0 == s1 && w0 == w1
   PrizeWeight w0 d0 == PrizeWeight w1 d1 = w0 == w1 && d0 == d1
   Donation p0 == Donation p1 = p0 == p1
   Donations m0 == Donations m1 = m0 == m1
@@ -174,9 +183,10 @@ PlutusTx.makeIsDataIndexed ''QVFDatum
   , ('ProjectInfo                  , 4)
   , ('ReceivedDonationsCount       , 5)
   , ('DonationFoldingProgress      , 6)
-  , ('PrizeWeight                  , 7)
-  , ('Donation                     , 8)
-  , ('Donations                    , 9)
-  , ('Escrow                       , 10)
+  , ('PrizeWeightAccumulation      , 7)
+  , ('PrizeWeight                  , 8)
+  , ('Donation                     , 9)
+  , ('Donations                    , 10)
+  , ('Escrow                       , 11)
   ]
 -- }}}
