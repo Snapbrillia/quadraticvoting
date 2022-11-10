@@ -107,58 +107,58 @@ iteration_helper() {
 
 
 finished="False"
-# phase="$startingPhase"
-# while [ $phase -lt 4 ]; do
-#   # {{{
-#   b=$MAX_SPENDABLE_UTXOS
-#   if [ $phase -eq 3 ]; then
-#     b=2
-#   fi
-#   constr=9
-#   if [ $phase -gt 1 ]; then
-#     constr=10
-#   fi
-#   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
-#   donUTxOCount=$(echo "$allDonations" | jq length)
-#   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
-#   txsDone=0
-#   while [ $txsDone -lt $txsNeeded ]; do
-#     # {{{
-#     iteration_helper "$b" "$constr" "fold-donations"
-#     extraArg=""
-#     projectInput=""
-#     outputProjectUTxO=""
-#     if [ $mintCount -lt 0 ]; then
-#       # In this case, the $lovelaceCount included half the registration fee.
-#       mkMintArg
-#       extraArg="$mintArg"
-#       # extraArg="
-#       #   --mint \"$mintCount $donAsset\"
-#       #   --mint-tx-in-reference $donRefUTxO
-#       #   --mint-plutus-script-v2
-#       #   --mint-reference-tx-in-redeemer-file $devRedeemer
-#       #   --policy-id $donSym
-#       # "
-#       finished="True"
-#       projectInput="--tx-in $projectUTxO $txInConstant"
-#       outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
-#     else
-#       extraArg="
-#         --tx-out \"$qvfAddress + $lovelaceCount lovelace + $totalInAsset $donAsset\"
-#         --tx-out-inline-datum-file $newDatumFile
-#       "
-#       finished="False"
-#     fi
-#     build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
-#     if [ $finished == "True" ]; then
-#       break 2
-#     fi
-#     txsDone=$(expr $txsDone + 1)
-#     # }}}
-#   done
-#   phase=$(expr $phase + 1)
-#   # }}}
-# done
+phase="$startingPhase"
+while [ $phase -lt 4 ]; do
+  # {{{
+  b=$MAX_SPENDABLE_UTXOS
+  if [ $phase -eq 3 ]; then
+    b=2
+  fi
+  constr=9
+  if [ $phase -gt 1 ]; then
+    constr=10
+  fi
+  allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
+  donUTxOCount=$(echo "$allDonations" | jq length)
+  txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
+  txsDone=0
+  while [ $txsDone -lt $txsNeeded ]; do
+    # {{{
+    iteration_helper "$b" "$constr" "fold-donations"
+    extraArg=""
+    projectInput=""
+    outputProjectUTxO=""
+    if [ $mintCount -lt 0 ]; then
+      # In this case, the $lovelaceCount included half the registration fee.
+      mkMintArg
+      extraArg="$mintArg"
+      # extraArg="
+      #   --mint \"$mintCount $donAsset\"
+      #   --mint-tx-in-reference $donRefUTxO
+      #   --mint-plutus-script-v2
+      #   --mint-reference-tx-in-redeemer-file $devRedeemer
+      #   --policy-id $donSym
+      # "
+      finished="True"
+      projectInput="--tx-in $projectUTxO $txInConstant"
+      outputProjectUTxO="--tx-out \"$qvfAddress + $lovelaceCount lovelace + 1 $projectAsset\" --tx-out-inline-datum-file $updatedDatumFile"
+    else
+      extraArg="
+        --tx-out \"$qvfAddress + $lovelaceCount lovelace + $totalInAsset $donAsset\"
+        --tx-out-inline-datum-file $newDatumFile
+      "
+      finished="False"
+    fi
+    build_submit_wait "$projectInput" "$txInArg" "$outputProjectUTxO" "$extraArg"
+    if [ $finished == "True" ]; then
+      break 2
+    fi
+    txsDone=$(expr $txsDone + 1)
+    # }}}
+  done
+  phase=$(expr $phase + 1)
+  # }}}
+done
 
 
 # If, at this point, $finished is "True", it means that all the donations have

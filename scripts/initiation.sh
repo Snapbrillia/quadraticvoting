@@ -237,21 +237,17 @@ dev_depletion() {
     --policy-id $(cat $regSymFile)
     --change-address $(cat testnet/$keyHolder.addr)
   "
-  ## buildTx="$cli $BUILD_TX_CONST_ARGS
-  ##   --required-signer-hash $(cat $preDir/$keyHolder.pkh)
-  ##   --tx-in-collateral $collateral
-  ##   $txInArg
-  ##   --mint \"$mintArg\"
-  ##   --mint-tx-in-reference $regRefUTxO
-  ##   --mint-plutus-script-v2
-  ##   --mint-reference-tx-in-redeemer-file $devRedeemer
-  ##   --policy-id $(cat $regSymFile)
-  ##   --change-address $(cat testnet/$keyHolder.addr)
-  ## "
-  ###### --mint-tx-in-reference $donRefUTxO
-  ###### --mint-plutus-script-v2
-  ###### --mint-reference-tx-in-redeemer-file $devRedeemer
-  ###### --policy-id $(cat $donSymFile)
+  # buildTx="$cli $BUILD_TX_CONST_ARGS
+  #   --required-signer-hash $(cat $preDir/$keyHolder.pkh)
+  #   --tx-in-collateral $collateral
+  #   $txInArg
+  #   --mint \"$mintArg\"
+  #   --mint-tx-in-reference $donRefUTxO
+  #   --mint-plutus-script-v2
+  #   --mint-reference-tx-in-redeemer-file $devRedeemer
+  #   --policy-id $(cat $donSymFile)
+  #   --change-address $(cat testnet/$keyHolder.addr)
+  # "
   echo $buildTx > $tempBashFile
   . $tempBashFile
   sign_and_submit_tx $preDir/$keyHolder.skey
