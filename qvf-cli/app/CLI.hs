@@ -389,6 +389,48 @@ main =
         , "{file-names-json}"
         ]
       -- }}}
+    consolidationHelp  :: String
+    consolidationHelp  =
+      -- {{{
+      makeHelpText
+        (    "Read the current project datum from disk, and write the\n"
+          ++ "\tupdated project datum to disk. Also prints a JSON\n"
+          ++ "\twith two fields of \"lovelace\" and \"mint\" to help\n"
+          ++ "\tthe bash script construct the `tx-out` argument.\n"
+          ++ "\tThe value in the \"lovelace\" field is the amound that\n"
+          ++ "\tshould be added to the input main UTxO.\n"
+        )
+        "consolidate-donations"
+        "<donation(s)-lovelace-count-0>"
+        [ "<donation-count-------------0>"
+        , "{folded-donation-datum-json-0}"
+        , "<donation(s)-lovelace-count-1>"
+        , "<donation-count-------------1>"
+        , "{folded-donation-datum-json-1}"
+        , "<...etc...>"
+        , "{file-names-json}"
+        ]
+      -- }}}
+    traversalHelp      :: String
+    traversalHelp      =
+      -- {{{
+      makeHelpText
+        (    "Takes information of two input fully folded donation UTxOs,\n"
+          ++ "\tcompares their donations, and if duplicates where found,\n"
+          ++ "\tit'll return a JSON object with \"lovelace0\" and \"lovelace1\"\n"
+          ++ "\tfields (as resolving the duplication requires exchange of\n"
+          ++ "\tsome Lovelaces). Reallocation of donation assets doesn't\n"
+          ++ "\tseem necessary at this point.\n"
+          ++ "\tIf there are no overlaps, the \"Nothing\" string is returned.\n"
+        )
+        "traverse-donations"
+        "<donations-lovelace-count-0>"
+        [ "{donations-datum-json-----0}"
+        , "<donations-lovelace-count-1>"
+        , "{donations-datum-json-----1}"
+        , "{file-names-json}"
+        ]
+      -- }}}
     accumulationHelp   :: String
     accumulationHelp   =
       -- {{{
@@ -510,6 +552,8 @@ main =
       ++ "\tqvf-cli register-project       --help\n"
       ++ "\tqvf-cli donate-to-project      --help\n"
       ++ "\tqvf-cli fold-donations         --help\n"
+      ++ "\tqvf-cli consolidate-donations  --help\n"
+      ++ "\tqvf-cli traverse-donations     --help\n"
       ++ "\tqvf-cli accumulate-donations   --help\n"
       ++ "\tqvf-cli collect-key-holder-fee --help\n"
       ++ "\tqvf-cli distribute-prize       --help\n"
@@ -567,6 +611,10 @@ main =
           putStrLn donationHelp
         "fold-donations"         ->
           putStrLn foldingHelp
+        "consolidate-donations"  ->
+          putStrLn consolidationHelp
+        "traverse-donations"     ->
+          putStrLn traversalHelp
         "accumulate-donations"   ->
           putStrLn accumulationHelp
         "collect-key-holder-fee" ->
