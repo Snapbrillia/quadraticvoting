@@ -399,7 +399,8 @@ donationHelp       =
     )
     "donate-to-project"
     "<donors-pub-key-hash>"
-    [ "<donation-amount>"
+    [ "<target-project-id>"
+    , "<donation-amount>"
     , "{file-names-json}"
     ]
   -- }}}
