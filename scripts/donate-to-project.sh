@@ -13,13 +13,15 @@ cappedSlot=$(cap_deadline_slot $deadlineSlot)
 # Takes 1 argument:
 #   1. Donation count.
 mkProjectDatum() {
-  echo "{\"constructor\":5,\"fields\":[{\"int\":$1}]}"
+  constr=$($qvf get-constr-index ReceivedDonationsCount)
+  echo "{\"constructor\":$constr,\"fields\":[{\"int\":$1}]}"
 }
 
 # Takes 1 argument:
 #   1. Donor's public key hash.
 mkDonationDatum() {
-  echo "{\"constructor\":9,\"fields\":[{\"bytes\":\"$1\"}]}"
+  constr=$($qvf get-constr-index Donation)
+  echo "{\"constructor\":$constr,\"fields\":[{\"bytes\":\"$1\"}]}"
 }
 
 

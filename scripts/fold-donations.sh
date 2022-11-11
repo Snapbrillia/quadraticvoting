@@ -114,9 +114,9 @@ while [ $phase -lt 4 ]; do
   if [ $phase -eq 3 ]; then
     b=2
   fi
-  constr=9
+  constr=$($qvf get-constr-index Donation)
   if [ $phase -gt 1 ]; then
-    constr=10
+    constr=$($qvf get-constr-index Donations)
   fi
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
@@ -253,7 +253,7 @@ if [ $finished == "False" ]; then
   done
   # At this point, there shouldn't be any duplicate donations. Therefore, the
   # consolidation stage can commence.
-  constr=10
+  constr=$($qvf get-constr-index Donations)
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$(expr $b - 1)" '(. / ($b|tonumber)) | ceil')
