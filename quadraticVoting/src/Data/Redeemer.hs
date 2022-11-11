@@ -56,7 +56,7 @@ import           Data.DonationInfo
 data QVFAction
   = UpdateDeadline        POSIXTime
   | RegisterProject
-  | DonateToProject       BuiltinByteString
+  | DonateToProject
   | FoldDonations
   | AccumulateDonations
   | PayKeyHolderFee

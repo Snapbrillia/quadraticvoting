@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
@@ -36,7 +34,6 @@ import           Text.Read                  ( readMaybe )
 import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
-import           Data.RegistrationInfo
 
 import           CLI.Utils
 import qualified QVF                        as OC
@@ -170,10 +167,10 @@ main = do
               -- }}}
           -- }}}
       -- }}}
-    "register-project"       : txRefStr : pkhStr : lbl : reqFundStr : fileNamesJSON : _        ->
+    "register-project"       : pkhStr : lbl : reqFundStr : fileNamesJSON : _                   ->
       -- {{{
-      case (readTxOutRef txRefStr, readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
-        (Just utxo, Just reqFund, Just ocfn) ->
+      case (readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
+        (Just reqFund, Just ocfn) ->
           -- {{{
           let
             govRedeemer :: QVFAction
@@ -184,8 +181,7 @@ main = do
               ProjectDetails (fromString pkhStr) (fromString lbl) reqFund
 
             regRedeemer :: Reg.RegistrationRedeemer
-            regRedeemer =
-              Reg.RegisterProject $ RegistrationInfo utxo projDetails
+            regRedeemer = Reg.RegisterProject projDetails
           in
           actOnCurrentDatum ocfn govRedeemer (Just regRedeemer) $ \case
             RegisteredProjectsCount soFar ->
@@ -202,7 +198,7 @@ main = do
                 newDatumFile      = getFileName ocfn ocfnNewDatum
 
                 projTokenName     :: TokenName
-                projTokenName     = orefToTokenName utxo
+                projTokenName     = indexToTokenName soFar
                 projTokenNameFile :: FilePath
                 projTokenNameFile = getFileName ocfn ocfnProjectTokenName
 
@@ -228,11 +224,9 @@ main = do
               putStrLn "FAILED: Provided current datum is incompatible."
               -- }}}
           -- }}}
-        _                                    ->
+        _                         ->
           -- {{{
           putStrLn $ "FAILED with bad arguments: "
-            ++ txRefStr
-            ++ " "
             ++ pkhStr
             ++ " "
             ++ lbl
@@ -252,7 +246,7 @@ main = do
             projID'     = toBuiltin $ LBS.toStrict projID
 
             govRedeemer :: QVFAction
-            govRedeemer = DonateToProject projID'
+            govRedeemer = DonateToProject
 
             donorPKH    :: Ledger.PubKeyHash
             donorPKH    = fromString pkhStr
@@ -267,15 +261,15 @@ main = do
             ReceivedDonationsCount soFar ->
               -- {{{
               let
-                updatedDatum      :: QVFDatum
-                updatedDatum      = ReceivedDonationsCount $ soFar + 1
-                updatedDatumFile  :: FilePath
-                updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+                updatedDatum     :: QVFDatum
+                updatedDatum     = ReceivedDonationsCount $ soFar + 1
+                updatedDatumFile :: FilePath
+                updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
 
-                newDatum          :: QVFDatum
-                newDatum          = Donation donorPKH
-                newDatumFile      :: FilePath
-                newDatumFile      = getFileName ocfn ocfnNewDatum
+                newDatum         :: QVFDatum
+                newDatum         = Donation donorPKH
+                newDatumFile     :: FilePath
+                newDatumFile     = getFileName ocfn ocfnNewDatum
               in do
               andPrintSuccess updatedDatumFile $
                 writeJSON updatedDatumFile updatedDatum
@@ -290,9 +284,9 @@ main = do
         _                                  ->
           -- {{{
           putStrLn $ "FAILED with bad arguments: "
-            ++ pkhStr
-            ++ " "
             ++ projIDStr
+            ++ " "
+            ++ pkhStr
             ++ " "
             ++ amtStr
             ++ " "

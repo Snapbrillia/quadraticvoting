@@ -12,7 +12,7 @@ initiate_fund
 
 . scripts/register-project.sh 4 ProjectD 10000000000
 
-. scripts/donate-to-project.sh dev 1 6 805 50
+. scripts/donate-to-project.sh dev 1 6 105 50
 
 proj1=$(project_number_to_token_name 1)
 . scripts/donate-to-project.sh 6   $proj1 10000000

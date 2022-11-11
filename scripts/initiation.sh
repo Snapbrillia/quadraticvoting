@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. $HOME/quadraticVoting/scripts/env.sh
+# . $HOME/quadraticVoting/scripts/env.sh
+. scripts/env.sh
 
 startingWallet=1
 endingWallet=20
@@ -215,9 +216,10 @@ dev_depletion() {
   donRefUTxO=$(cat $donRefUTxOFile)
   donSym=$(cat $donSymFile)
   scriptAddr=$(cat $scriptAddressFile)
-  # allUTxOs=$(get_nth_projects_donation_utxos $1 | jq '.[0:8]')
-  # allUTxOs=$(get_all_projects_utxos_datums_values | jq '.[0:8]')
+  # allUTxOs=$(get_nth_projects_donation_utxos $1 | jq '.[0:9]')
+  # allUTxOs=$(get_all_projects_utxos_datums_values | jq '.[0:9]')
   allUTxOs=$(get_all_script_utxos_datums_values $scriptAddr | jq '.[0:8]')
+  echo "$allUTxOs" | jq 'map(.asset)'
   const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
   txInArg=$(echo "$allUTxOs" | jq --arg const "$const" 'map("--tx-in " + .utxo + " " + $const) | reduce .[] as $a (""; if . == "" then $a else (. + " " + $a) end)')
   txInArg=$(remove_quotes "$txInArg")
@@ -237,11 +239,17 @@ dev_depletion() {
     --policy-id $(cat $regSymFile)
     --change-address $(cat testnet/$keyHolder.addr)
   "
+  #   --mint-tx-in-reference $donRefUTxO
+  #   --mint-plutus-script-v2
+  #   --mint-reference-tx-in-redeemer-file $devRedeemer
+  #   --policy-id $(cat $donSymFile)
   # buildTx="$cli $BUILD_TX_CONST_ARGS
   #   --required-signer-hash $(cat $preDir/$keyHolder.pkh)
   #   --tx-in-collateral $collateral
   #   $txInArg
   #   --mint \"$mintArg\"
+  #   --mint-script-file $govScriptFile
+  #   --mint-redeemer-file $devRedeemer
   #   --mint-tx-in-reference $donRefUTxO
   #   --mint-plutus-script-v2
   #   --mint-reference-tx-in-redeemer-file $devRedeemer

@@ -162,12 +162,9 @@ utxoIsGettingSpent inputs oref =
   -- }}}
 
 
-{-# INLINABLE orefToTokenName #-}
-orefToTokenName :: TxOutRef -> TokenName
-orefToTokenName TxOutRef{txOutRefId = TxId txHash, txOutRefIdx = txIndex} =
-  -- {{{
-  TokenName $ sha2_256 $ consByteString txIndex txHash
-  -- }}}
+{-# INLINABLE indexToTokenName #-}
+indexToTokenName :: Integer -> TokenName
+indexToTokenName i = TokenName $ consByteString i mempty
 
 
 {-# INLINABLE getInlineDatum #-}

@@ -66,7 +66,7 @@ mkDonationPolicy pkh sym action ctx =
       -- {{{
       let
         tn :: TokenName
-        tn = TokenName diProjectId
+        tn = TokenName diProjectID
 
         -- Raises exception upon failure.
         inputProjUTxO :: TxOut
@@ -134,11 +134,11 @@ mkDonationPolicy pkh sym action ctx =
                -- }}}
          )
       -- }}}
-    FoldDonations projectId          ->
+    FoldDonations projectID          ->
       -- {{{
       let
         tn :: TokenName
-        tn = TokenName projectId
+        tn = TokenName projectID
 
         -- Raises exception upon failure.
         inputProjUTxO :: TxOut

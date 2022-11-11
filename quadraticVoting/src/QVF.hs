@@ -528,12 +528,16 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
-    (ReceivedDonationsCount _                     , DonateToProject projId ) ->
+    (ReceivedDonationsCount _                     , DonateToProject        ) ->
       -- Project Donation
       -- {{{
          traceIfFalse
            "E077"
-           (mintIsPresent qvfDonationSymbol (TokenName projId) 1)
+           ( mintIsPresent
+               qvfDonationSymbol
+               (getCurrTokenName qvfProjectSymbol)
+               1
+           )
       && canRegisterOrDonate
       -- }}}
 

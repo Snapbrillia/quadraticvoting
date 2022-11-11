@@ -41,7 +41,7 @@ for i in $(tail -n 1 $registeredProjectsFile); do
 done
 
 for i in $(seq 1 5); do
-  . scripts/fold-donations.sh $i
+  . scripts/fold-donations.sh $i 1
 done
 
 . scripts/accumulate-donations.sh

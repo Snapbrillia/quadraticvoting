@@ -20,37 +20,22 @@ import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.ByteString.Short      as SBS
-import qualified Data.Char                  as Char
-import           Data.Foldable              ( forM_ )
 import qualified Data.List                  as List
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import           Data.Time.Clock.POSIX      ( getPOSIXTime )
-import           Data.Word                  ( Word8 )
 import           GHC.Generics               ( Generic )
 import           Plutus.V1.Ledger.Api       ( fromBuiltin
-                                            , toBuiltin
                                             , BuiltinByteString )
 import           Plutus.V1.Ledger.Value     ( TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
 import           PlutusTx                   ( Data (..) )
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap          as Map
-import           PlutusTx.AssocMap          ( Map )
 import           PlutusTx.Prelude           ( lengthOfByteString )
-import           System.Environment         ( getArgs )
-import           Text.Read                  ( readMaybe )
 
 import           Data.Datum
-import           Data.DonationInfo
 import           Data.Redeemer
-import           Data.RegistrationInfo
-
-import qualified QVF                        as OC
-import qualified Minter.Donation            as Don
-import qualified Minter.Governance          as Gov
-import qualified Minter.Registration        as Reg
-import           Utils
 -- }}}
 
 
@@ -396,9 +381,8 @@ registrationHelp   =
       ++ "\t\t- Redeemer for the registration policy."
     )
     "register-project"
-    "<txID>#<output-index>"
-    [ "<project-owner-pub-key-hash>"
-    , "<project-name>"
+    "<project-owner-pub-key-hash>"
+    [ "<project-name>"
     , "<project-requested-fund>"
     , "{file-names-json}"
     ]
@@ -415,8 +399,7 @@ donationHelp       =
     )
     "donate-to-project"
     "<donors-pub-key-hash>"
-    [ "<target-project-id>"
-    , "<donation-amount>"
+    [ "<donation-amount>"
     , "{file-names-json}"
     ]
   -- }}}

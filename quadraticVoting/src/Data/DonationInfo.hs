@@ -43,7 +43,7 @@ import           PlutusTx.Prelude
 
 
 data DonationInfo = DonationInfo
-  { diProjectId :: BuiltinByteString
+  { diProjectID :: BuiltinByteString
   , diDonor     :: PubKeyHash
   , diAmount    :: Integer
   } deriving (Show, Generic, FromJSON, ToJSON)
