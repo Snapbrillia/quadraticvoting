@@ -75,7 +75,6 @@ import qualified Prelude                              as P
 import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
-import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
 import           Minter.Governance                    ( qvfTokenName
                                                       , deadlineTokenName )

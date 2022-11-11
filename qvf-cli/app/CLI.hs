@@ -284,9 +284,9 @@ main = do
         _                                  ->
           -- {{{
           putStrLn $ "FAILED with bad arguments: "
-            ++ projIDStr
-            ++ " "
             ++ pkhStr
+            ++ " "
+            ++ projIDStr
             ++ " "
             ++ amtStr
             ++ " "
