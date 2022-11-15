@@ -54,14 +54,14 @@ import           Data.DonationInfo
 -- QVF ACTION
 -- {{{
 data QVFAction
-  = UpdateDeadline        POSIXTime
+  = UpdateDeadline  POSIXTime
   | RegisterProject
   | DonateToProject
   | FoldDonations
   | AccumulatePrizeWeights
-  | DistributePrize
-  | UnlockEscrowFor       PubKeyHash Integer
-  | WithdrawBounty        PubKeyHash
+  | DistributePrizes
+  | UnlockEscrowFor PubKeyHash Integer
+  | WithdrawBounty  PubKeyHash
   | ConcludeProject
   | Dev
 
@@ -71,7 +71,7 @@ PlutusTx.makeIsDataIndexed ''QVFAction
   , ('DonateToProject       , 2 )
   , ('FoldDonations         , 3 )
   , ('AccumulatePrizeWeights, 4 )
-  , ('DistributePrize       , 5 )
+  , ('DistributePrizes      , 5 )
   , ('UnlockEscrowFor       , 6 )
   , ('WithdrawBounty        , 7 )
   , ('ConcludeProject       , 8 )

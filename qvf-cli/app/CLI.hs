@@ -173,7 +173,7 @@ main = do
         (Just reqFund, Just ocfn) ->
           -- {{{
           let
-            govRedeemer :: QVFAction
+            govRedeemer :: QVFRedeemer
             govRedeemer = RegisterProject
 
             projDetails :: ProjectDetails
@@ -245,7 +245,7 @@ main = do
             projID'     :: BuiltinByteString
             projID'     = toBuiltin $ LBS.toStrict projID
 
-            govRedeemer :: QVFAction
+            govRedeemer :: QVFRedeemer
             govRedeemer = DonateToProject
 
             donorPKH    :: Ledger.PubKeyHash
@@ -349,7 +349,7 @@ main = do
       case eith of
         Right ((inputLovelaces, inputDonations, foldedMap), ocfn) ->
           -- {{{
-          actOnCurrentDatum @QVFAction ocfn FoldDonations Nothing $ \currDatum ->
+          actOnCurrentDatum @QVFRedeemer ocfn FoldDonations Nothing $ \currDatum ->
             let
               updatedDatumFile    :: FilePath
               updatedDatumFile    = getFileName ocfn ocfnUpdatedDatum
@@ -475,7 +475,7 @@ main = do
       case eith of
         Right ((inputLovelaces, inputDonations, inputWs), ocfn) ->
           -- {{{
-          actOnCurrentDatum @QVFAction ocfn FoldDonations Nothing $ \currDatum ->
+          actOnCurrentDatum @QVFRedeemer ocfn FoldDonations Nothing $ \currDatum ->
             let
               updatedDatumFile :: FilePath
               updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
@@ -659,7 +659,7 @@ main = do
       case eith of
         Right ((inputLs, inputPs, inputWs, ds), ocfn) ->
           -- {{{
-          actOnCurrentDatum @QVFAction ocfn AccumulateDonations Nothing $ \currDatum ->
+          actOnCurrentDatum @QVFRedeemer ocfn AccumulateDonations Nothing $ \currDatum ->
             let
               updatedDatumFile  :: FilePath
               updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
@@ -724,7 +724,7 @@ main = do
       case A.decode $ fromString fileNamesJSON of
         Just ocfn ->
           -- {{{
-          actOnCurrentDatum @QVFAction ocfn PayKeyHolderFee Nothing $ \case
+          actOnCurrentDatum @QVFRedeemer ocfn PayKeyHolderFee Nothing $ \case
             DonationAccumulationConcluded ps totalLovelaces sumP False ->
               -- {{{
               let
@@ -760,7 +760,7 @@ main = do
               case A.decode $ fromString fileNamesJSON of
                 Just ocfn ->
                   -- {{{
-                  actOnCurrentDatum @QVFAction ocfn DistributePrizes Nothing $ \case
+                  actOnCurrentDatum @QVFRedeemer ocfn DistributePrizes Nothing $ \case
                     DonationAccumulationConcluded remPs totLs den True ->
                       -- {{{
                       if remPs > 0 then

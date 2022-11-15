@@ -110,7 +110,7 @@ PlutusTx.makeLift ''QVFParams
 {-# INLINABLE mkQVFValidator #-}
 mkQVFValidator :: QVFParams
                -> QVFDatum
-               -> QVFAction
+               -> QVFRedeemer
                -> ScriptContext
                -> Bool
 mkQVFValidator QVFParams{..} datum action ctx =
@@ -278,7 +278,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     -- | Traverses transaction inputs, reference inputs, and outputs to
     --   validate the proper correspondence between input `PrizeWeight` datums
-    --   and their depleted couterparts. And also to validate the updated
+    --   and their "processed" couterparts. And also to validate the updated
     --   datum.
     --
     --   Raises exception upon failure.
@@ -288,7 +288,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --         the weights list is not traversed in this function.
     traversePrizeWeights :: Integer
                          -> Integer
-                         -> Map BuiltinByteString (Integer, Integer)
+                         -> Map BuiltinByteString (Integer, Integer, Integer)
                          -> Bool
     traversePrizeWeights matchPool totPs wsSoFar =
       -- {{{
@@ -365,7 +365,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
                         rs
                         os
                         ( c + 1
-                        , Map.insert projID (pdRequested, w) wMap
+                        , Map.insert
+                            projID
+                            ( pdRequested
+                            ,   lovelaceFromValue inVal
+                              - halfOfTheRegistrationFee
+                            , w
+                            )
+                            wMap
                         )
                     else
                       traceError "E057"
@@ -528,172 +535,30 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
-    (ReceivedDonationsCount _                     , DonateToProject        ) ->
-      -- Project Donation
-      -- {{{
-         traceIfFalse
-           "E077"
-           ( mintIsPresent
-               qvfDonationSymbol
-               (getCurrTokenName qvfProjectSymbol)
-               1
-           )
-      && canRegisterOrDonate
-      -- }}}
-
-    (Donation _                                   , FoldDonations          ) ->
-      -- Folding Donations
-      -- To avoid excessive transaction fees, this endpoint delegates its
-      -- logic to the @P@ UTxO by checking that it is in fact being spent.
-      -- {{{ 
-      let
-        -- | Finds the token name of the current donation UTxO being spent.
-        --   Uses this value to check the presence of relevant project UTxO.
-        --
-        --   Raises exception upon failure.
-        tn = getCurrTokenName qvfDonationSymbol
-      in
-        traceIfFalse "E078"
-      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
-      $ \case
-          ReceivedDonationsCount _          -> True
-          DonationFoldingProgress tot soFar -> tot > soFar
-          _                                 -> False
-      -- }}} 
-
-    (ReceivedDonationsCount tot                   , FoldDonations          ) ->
-      -- Folding Donations
-      -- {{{
-      if tot <= maxDonationInputsForPhaseTwo then
-        -- No need for a two phase folding.
-        let
-          tn = getCurrTokenName qvfProjectSymbol
-        in
-        -- foldDonationsPhaseTwo tot
-           traceIfFalse
-             "E079"
-             (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute
-        && signedByKeyHolder
-      else
-        -- Folding should happen in two phases.
-        foldDonationsPhaseOne
-          maxDonationInputsForPhaseOne -- The number of donation assets expected in inputs.
-          ( DonationFoldingProgress
-              tot                                  -- Total number of donations.
-              (tot - maxDonationInputsForPhaseOne) -- Donations folded so far.
-          )
-      -- }}}
-
-    (DonationFoldingProgress tot soFar            , FoldDonations          ) ->
-      -- Folding Donations
-      -- {{{
-      let
-        remaining = tot - soFar
-      in
-      if remaining == 0 then
-        let
-          tn = getCurrTokenName qvfProjectSymbol
-        in
-        -- foldDonationsPhaseTwo tot
-           traceIfFalse
-             "E080"
-             (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute
-        && signedByKeyHolder
-      else
-        let
-          expected  = min remaining maxDonationInputsForPhaseOne
-        in
-        foldDonationsPhaseOne
-          expected
-          (DonationFoldingProgress tot (soFar + expected))
-      -- }}}
-
-    (Donations _                                  , FoldDonations          ) ->
-      -- Second Phase of Folding Donations
-      -- Similar to `Donation`, this endpoint also delegates its logic. This
-      -- time, specifically to `DonationFoldingProgress`.
-      -- {{{ 
-      let
-        tn = getCurrTokenName qvfDonationSymbol
-      in
-        traceIfFalse "E081"
-      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
-      $ \case
-          DonationFoldingProgress tot soFar -> tot == soFar
-          _                                 -> False
-      -- }}} 
-
-    (PrizeWeight _ False                          , AccumulateDonations    ) ->
-      -- Accumulation of Donated Lovelaces
-      -- (Delegation of logic to the main UTxO.)
-      -- {{{ 
-        traceIfFalse "E082"
-      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
-      $ \case
-          RegisteredProjectsCount _                ->
-            True
-          DonationAccumulationProgress tot soFar _ ->
-            tot > length (Map.toList soFar)
-          _                                        ->
-            False
-      -- }}} 
-
-    (RegisteredProjectsCount tot                  , AccumulateDonations    ) ->
-      -- First Accumulation of Donations
+    (RegisteredProjectsCount tot                  , AccumulatePrizeWeights ) ->
+      -- Formation of the Prize Weight Map
       -- {{{ 
       let
         currVal = lovelaceFromValue $ txOutValue currUTxO
         mp      = currVal - governanceLovelaces
       in
-      -- Note that the last argument *does include* the governance Lovelaces.
       traversePrizeWeights mp tot Map.empty currVal
       -- }}} 
 
-    (DonationAccumulationProgress mp tot ws       , AccumulateDonations    ) ->
-      -- Accumulation of Donated Lovelaces
+    (PrizeWeightAccumulation mp tot ws            , AccumulatePrizeWeights ) ->
+      -- Accumulation of Computed Prize Weights
       -- {{{ 
       traversePrizeWeights mp tot ws (lovelaceFromValue $ txOutValue currUTxO)
       -- }}} 
 
-    (ProjectEliminationProgress mp ws             , PayKeyHolderFee        ) ->
-      -- Key Holder Fee Collection
+    (ProjectEliminationProgress wMap              , EliminateOrDistribute  ) ->
+      -- Elimination of Non-Eligible Projects
       -- {{{
-      let
-        (khFee, updatedDatum) = findDatumAfterPayingKeyHoldersFee ps ds den
-        keyHolderImbursed     =
-          lovelaceFromValue (valuePaidTo info qvfKeyHolder) == khFee
-      in
-         traceIfFalse
-           "E083"
-           (currUTxOHasX qvfSymbol qvfTokenName)
-      && ( case getContinuingOutputs ctx of
-             [o] ->
-               -- {{{
-               let
-                 inVal         = txOutValue currUTxO
-                 desiredOutVal = inVal <> lovelaceValueOf (negate khFee)
-               in
-                  traceIfFalse
-                    "E084"
-                    (utxoHasValue desiredOutVal o)
-               && traceIfFalse
-                    "E085"
-                    (utxosDatumMatchesWith updatedDatum o)
-               -- }}}
-             _   ->
-               -- {{{
-               traceError "E086"
-               -- }}}
-         )
-      && traceIfFalse
-           "E087"
-           keyHolderImbursed
+      traceError "TODO."
       -- }}}
 
-    (ProjectEliminationProgress mp ws             , DistributePrizes       ) ->
-      -- Depending on the Prize Distribution
+    (DistributionProgress mp remaining den        , EliminateOrDistribute  ) ->
+      -- Handing Out Prizes
       -- {{{
       let
         scriptOutputs    = getContinuingOutputs ctx
@@ -836,7 +701,154 @@ mkQVFValidator QVFParams{..} datum action ctx =
             -- }}}
       -- }}}
 
-    (PrizeWeight _ True                           , DistributePrizes       ) ->
+    (ReceivedDonationsCount _                     , DonateToProject        ) ->
+      -- Project Donation
+      -- {{{
+         traceIfFalse
+           "E077"
+           ( mintIsPresent
+               qvfDonationSymbol
+               (getCurrTokenName qvfProjectSymbol)
+               1
+           )
+      && canRegisterOrDonate
+      -- }}}
+
+    (Donation _                                   , FoldDonations          ) ->
+      -- Folding Donations
+      -- To avoid excessive transaction fees, this endpoint delegates its
+      -- logic to the @P@ UTxO by checking that it is in fact being spent.
+      -- {{{ 
+      let
+        -- | Finds the token name of the current donation UTxO being spent.
+        --   Uses this value to check the presence of relevant project UTxO.
+        --
+        --   Raises exception upon failure.
+        tn = getCurrTokenName qvfDonationSymbol
+      in
+        traceIfFalse "E078"
+      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
+      $ \case
+          ReceivedDonationsCount _          -> True
+          DonationFoldingProgress tot soFar -> tot > soFar
+          _                                 -> False
+      -- }}} 
+
+    (ReceivedDonationsCount tot                   , FoldDonations          ) ->
+      -- Folding Donations
+      -- {{{
+      if tot <= maxDonationInputsForPhaseTwo then
+        -- No need for a two phase folding.
+        let
+          tn = getCurrTokenName qvfProjectSymbol
+        in
+        -- foldDonationsPhaseTwo tot
+           traceIfFalse
+             "E079"
+             (mintIsPresent qvfDonationSymbol tn (negate tot))
+        && canFoldOrDistribute
+        && signedByKeyHolder
+      else
+        -- Folding should happen in two phases.
+        foldDonationsPhaseOne
+          maxDonationInputsForPhaseOne -- The number of donation assets expected in inputs.
+          ( DonationFoldingProgress
+              tot                                  -- Total number of donations.
+              (tot - maxDonationInputsForPhaseOne) -- Donations folded so far.
+          )
+      -- }}}
+
+    (DonationFoldingProgress tot soFar            , FoldDonations          ) ->
+      -- Folding Donations
+      -- {{{
+      let
+        remaining = tot - soFar
+      in
+      if remaining == 0 then
+        let
+          tn = getCurrTokenName qvfProjectSymbol
+        in
+        -- foldDonationsPhaseTwo tot
+           traceIfFalse
+             "E080"
+             (mintIsPresent qvfDonationSymbol tn (negate tot))
+        && canFoldOrDistribute
+        && signedByKeyHolder
+      else
+        let
+          expected  = min remaining maxDonationInputsForPhaseOne
+        in
+        foldDonationsPhaseOne
+          expected
+          (DonationFoldingProgress tot (soFar + expected))
+      -- }}}
+
+    (Donations _                                  , FoldDonations          ) ->
+      -- Second Phase of Folding Donations
+      -- Similar to `Donation`, this endpoint also delegates its logic. This
+      -- time, specifically to `DonationFoldingProgress`.
+      -- {{{ 
+      let
+        tn = getCurrTokenName qvfDonationSymbol
+      in
+        traceIfFalse "E081"
+      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
+      $ \case
+          DonationFoldingProgress tot soFar -> tot == soFar
+          _                                 -> False
+      -- }}} 
+
+    (PrizeWeight _ False                          , AccumulateDonations    ) ->
+      -- Accumulation of Donated Lovelaces
+      -- (Delegation of logic to the main UTxO.)
+      -- {{{ 
+        traceIfFalse "E082"
+      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
+      $ \case
+          RegisteredProjectsCount _                ->
+            True
+          DonationAccumulationProgress tot soFar _ ->
+            tot > length (Map.toList soFar)
+          _                                        ->
+            False
+      -- }}} 
+
+    (ProjectEliminationProgress mp ws             , PayKeyHolderFee        ) ->
+      -- Key Holder Fee Collection
+      -- {{{
+      let
+        (khFee, updatedDatum) = findDatumAfterPayingKeyHoldersFee ps ds den
+        keyHolderImbursed     =
+          lovelaceFromValue (valuePaidTo info qvfKeyHolder) == khFee
+      in
+         traceIfFalse
+           "E083"
+           (currUTxOHasX qvfSymbol qvfTokenName)
+      && ( case getContinuingOutputs ctx of
+             [o] ->
+               -- {{{
+               let
+                 inVal         = txOutValue currUTxO
+                 desiredOutVal = inVal <> lovelaceValueOf (negate khFee)
+               in
+                  traceIfFalse
+                    "E084"
+                    (utxoHasValue desiredOutVal o)
+               && traceIfFalse
+                    "E085"
+                    (utxosDatumMatchesWith updatedDatum o)
+               -- }}}
+             _   ->
+               -- {{{
+               traceError "E086"
+               -- }}}
+         )
+      && traceIfFalse
+           "E087"
+           keyHolderImbursed
+      -- }}}
+
+    (PrizeWeight _ True                           , EliminateOrDistribute  ) ->
       -- Prize Distribution
       -- (Delegation of logic to the project's UTxO.)
       -- {{{ 
@@ -950,13 +962,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
 data QVF
 instance Scripts.ValidatorTypes QVF where
   type DatumType    QVF = QVFDatum
-  type RedeemerType QVF = QVFAction
+  type RedeemerType QVF = QVFRedeemer
 
 
 typedQVFValidator :: QVFParams -> PSU.V2.TypedValidator QVF
 typedQVFValidator =
   let
-    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFAction
+    wrap = PSU.V2.mkUntypedValidator @QVFDatum @QVFRedeemer
   in
   PSU.V2.mkTypedValidatorParam @QVF
     $$(PlutusTx.compile [|| mkQVFValidator ||])
