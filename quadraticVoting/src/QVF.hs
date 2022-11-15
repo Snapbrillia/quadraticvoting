@@ -116,9 +116,11 @@ mkQVFValidator :: QVFParams
 mkQVFValidator QVFParams{..} datum action ctx =
   -- {{{
   let
+    -- {{{
     info   = scriptContextTxInfo ctx
 
     inputs = txInfoInputs info
+    refs   = txInfoRedeemers info
 
     -- | The UTxO currently being validated.
     currUTxO :: TxOut
@@ -126,7 +128,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
       case findOwnInput ctx of
         Nothing ->
-          traceError "Couldn't find UTxO."
+          traceError "E117"
         Just i  ->
           txInInfoResolved i
       -- }}}
@@ -197,7 +199,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     getDatumFromRefX :: CurrencySymbol -> TokenName -> QVFDatum
     getDatumFromRefX sym tn =
       -- {{{
-      case find (utxoHasX sym (Just tn) . txInInfoResolved) (txInfoReferenceInputs info) of
+      case find (utxoHasX sym (Just tn) . txInInfoResolved) refs of
         Just txIn ->
           -- {{{
           getInlineDatum (txInInfoResolved txIn)
@@ -219,12 +221,16 @@ mkQVFValidator QVFParams{..} datum action ctx =
       let
         predicate TxInInfo{txInInfoResolved = txOut} =
           -- {{{
-             utxoHasX sym (Just tn) txOut
+             utxoHasOnlyX sym tn txOut
           && utxoSitsAtScript txOut
           && datumPred (getInlineDatum txOut)
           -- }}}
       in
-      isJust $ find predicate inputs
+      case inputs of
+        txIn : _ ->
+          predicate txIn
+        _        ->
+          False
       -- }}}
 
     -- | Collection of validations for consuming a set number of donation
@@ -270,126 +276,119 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       -- }}}
 
-    -- | Traverses transaction inputs and outputs to validate the proper
-    --   correspondence between input `PrizeWeight` datums and their
-    --   depleted couterparts.
+    -- | Traverses transaction inputs, reference inputs, and outputs to
+    --   validate the proper correspondence between input `PrizeWeight` datums
+    --   and their depleted couterparts. And also to validate the updated
+    --   datum.
     --
     --   Raises exception upon failure.
-    traversePrizeWeights :: Integer -> Integer -> Integer -> Integer -> Bool
-    traversePrizeWeights totPs psSoFar lovelacesSoFar wSoFar =
+    --
+    --   TODO: A potential optimization is to store the number of processed
+    --         projects as another argument of the datum constructor so that
+    --         the weights list is not traversed in this function.
+    traversePrizeWeights :: Integer
+                         -> Integer
+                         -> Map BuiltinByteString (Integer, Integer)
+                         -> Bool
+    traversePrizeWeights matchPool totPs wsSoFar =
       -- {{{
       let
-        remaining = totPs - psSoFar
-        inputFoldFn TxInInfo{txInInfoResolved = o} acc@(pCount, sumL, sumW, wMap) =
+        psSoFar           = length $ Map.toList wsSoFar
+        remaining         = totPs - psSoFar
+        go
+          []
+          []
+          [o]
+          acc@(c, wMap)   =
+          -- TODO
           -- {{{
-          if utxoHasX qvfProjectSymbol Nothing o then
-            -- {{{
-            case getInlineDatum o of
-              PrizeWeight w False ->
-                -- {{{
-                case getTokenNameOfUTxO qvfProjectSymbol o of
-                  Just tn ->
-                    ( pCount + 1
-                    , sumL + lovelaceFromValue (txOutValue o)
-                    , sumW + w
-                    , Map.insert tn w wMap
-                    )
-                  Nothing ->
-                    traceError "E055"
-                -- }}}
-              _                   ->
-                -- {{{
-                traceError "E056"
-                -- }}}
-            -- }}}
-          else
-            -- {{{
-            acc
-            -- }}}
-          -- }}}
-        (inputPs, sumOfTheirLovelaces, sumOfTheirWs, mapFromTNsToWs) =
-          foldr inputFoldFn (0, 0, 0, Map.empty) inputs
-        outputFoldFn o acc =
-          -- {{{
-          case getTokenNameOfUTxO qvfProjectSymbol o of
-            Just tn ->
+          let
+            ws           = Map.unionWith const wsSoFar wMap
+            updatedDatum =
               -- {{{
-              case Map.lookup tn mapFromTNsToWs of
-                Just validW ->
-                  -- {{{
-                  let
-                    isValid =
-                         utxosDatumMatchesWith (PrizeWeight validW True) o
-                      && utxoHasLovelaces halfOfTheRegistrationFee o
-                  in
-                  if isValid then
-                    acc + 1
-                  else
-                    traceError
-                      "E057"
-                  -- }}}
-                Nothing     ->
-                  -- {{{
-                  traceError
-                    "E058"
-                  -- }}}
-              -- }}}
-            Nothing ->
-              -- {{{
-              let
-                lovelaces    = lovelacesSoFar + sumOfTheirLovelaces
-                w            = wSoFar + sumOfTheirWs
-                datumIsValid =
-                  -- {{{
-                  if inputPs < remaining then
-                    -- {{{
-                    utxosDatumMatchesWith
-                      ( DonationAccumulationProgress
-                          totPs
-                          (psSoFar + inputPs)
-                          lovelaces
-                          w
-                      )
-                      o
-                    -- }}}
-                  else if inputPs == remaining then
-                    -- {{{
-                    utxosDatumMatchesWith
-                      ( DonationAccumulationConcluded
-                          totPs
-                          lovelaces
-                          w
-                          False
-                      )
-                      o
-                    -- }}}
-                  else
-                    -- {{{
-                    traceError
-                      "E059"
-                    -- }}}
-                  -- }}}
-                isValid      =
-                  -- {{{
-                     utxoHasX qvfSymbol (Just qvfTokenName) o
-                  && traceIfFalse
-                       "E060"
-                       (utxoHasLovelaces lovelaces o)
-                  && traceIfFalse
-                       "E061"
-                       datumIsValid
-                  -- }}}
-              in
-              if isValid then
-                acc
+              if c < remaining then
+                -- {{{
+                DonationAccumulationProgress mp totPs ws
+                -- }}}
+              else if c == remaining then
+                -- {{{
+                ProjectEliminationProgress mp ws
+                -- }}}
               else
-                -- Failure in case of missing main authentication asset.
-                traceError "E062"
+                -- {{{
+                traceError "E059"
+                -- }}}
+              -- }}}
+            isValid      =
+              -- {{{
+                 traceIfFalse
+                   "E060"
+                   ( utxoHasOnlyXWithLovelaces
+                       qvfSymbol
+                       qvfTokenName
+                       (lovelaces + governanceLovelaces)
+                       o
+                   )
+              && traceIfFalse
+                   "E061"
+                   (utxosDatumMatchesWith updatedDatum o)
+              -- }}}
+          in
+          if isValid then
+            acc
+          else
+            -- Failure in case of missing main authentication asset.
+            traceError "E062"
+          -- }}}
+        go
+          (TxInInfo{txInInfoResolved = i@TxOut{txOutValue = inVal}} : ins)
+          (TxInInfo{txInInfoResolved = r} : rs)
+          (o : os)
+          acc@(c, wMap)   =
+          -- {{{
+          case (getTokenNameOfUTxO qvfProjectSymbol i, getTokenNameOfUTxO qvfProjectSymbol r) of
+            (Just iTN@TokenName projID, Just rTN) ->
+              -- {{{
+              if iTN == rTN then
+                -- {{{
+                case (getInlineDatum i, getInlineDatum r) of
+                  (PrizeWeight w False, ProjectInfo (ProjectDetails{..})) ->
+                    -- {{{
+                    let
+                      oIsValid =
+                           utxoHasValue inVal o
+                        && utxosDatumMatchesWith (PrizeWeight w True) o
+                    in
+                    if oIsValid then
+                      go
+                        ins
+                        rs
+                        os
+                        ( c + 1
+                        , Map.insert projID (pdRequested, w) wMap
+                        )
+                    else
+                      traceError "E057"
+                    -- }}}
+                  _                                                       ->
+                    -- {{{
+                    traceError "E056"
+                    -- }}}
+                -- }}}
+              else
+                -- {{{
+                traceError "E120"
+                -- }}}
+              -- }}}
+            Nothing                               ->
+              -- {{{
+              traceError "E121"
               -- }}}
           -- }}}
-        outputPs =
+        go _ _ _ _        = traceError "E122"
+        (outputPs, _)     =
           -- {{{
-          foldr outputFoldFn 0 $ getContinuingOutputs ctx
+          outputGo (getContinuingOutputs ctx) (0, wsSoFar)
           -- }}}
       in
       traceIfFalse
@@ -443,9 +442,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
     mintIsPresent :: CurrencySymbol -> TokenName -> Integer -> Bool
     mintIsPresent sym tn amt =
       -- {{{
-      any
-        (\(sym', tn', amt') -> sym' == sym && tn' == tn && amt' == amt)
-        (flattenValue $ txInfoMint info)
+      case flattenValue (txInfoMint info) of
+        [(sym', tn', amt')] ->
+          sym' == sym && tn' == tn && amt' == amt
+        _                   ->
+          False
       -- }}}
 
     projectMintIsPresent :: Bool -> Bool
@@ -461,7 +462,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
                (if mint then amt' == 2 else amt' == negate 2)
         _                 ->
           traceError "E070"
-               -- (mintIsPresent qvfProjectSymbol tn $ if mint then 2 else negate 2)
       -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.
@@ -504,6 +504,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           traceError "E074"
           -- }}}
       -- }}}
+    -- }}}
   in
   case (datum, action) of
     (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
@@ -631,24 +632,32 @@ mkQVFValidator QVFParams{..} datum action ctx =
         traceIfFalse "E082"
       $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
       $ \case
-          RegisteredProjectsCount _                  -> True
-          DonationAccumulationProgress tot soFar _ _ -> tot > soFar
-          _                                          -> False
+          RegisteredProjectsCount _                ->
+            True
+          DonationAccumulationProgress tot soFar _ ->
+            tot > length (Map.toList soFar)
+          _                                        ->
+            False
       -- }}} 
 
     (RegisteredProjectsCount tot                  , AccumulateDonations    ) ->
       -- First Accumulation of Donations
       -- {{{ 
-      traversePrizeWeights tot 0 0 0
+      let
+        currVal = lovelaceFromValue $ txOutValue currUTxO
+        mp      = currVal - governanceLovelaces
+      in
+      -- Note that the last argument *does include* the governance Lovelaces.
+      traversePrizeWeights mp tot Map.empty currVal
       -- }}} 
 
-    (DonationAccumulationProgress tot ps ds ws    , AccumulateDonations    ) ->
+    (DonationAccumulationProgress mp tot ws       , AccumulateDonations    ) ->
       -- Accumulation of Donated Lovelaces
       -- {{{ 
-      traversePrizeWeights tot ps ds ws
+      traversePrizeWeights mp tot ws (lovelaceFromValue $ txOutValue currUTxO)
       -- }}} 
 
-    (DonationAccumulationConcluded ps ds den False, PayKeyHolderFee        ) ->
+    (ProjectEliminationProgress mp ws             , PayKeyHolderFee        ) ->
       -- Key Holder Fee Collection
       -- {{{
       let
@@ -683,8 +692,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
            keyHolderImbursed
       -- }}}
 
-    (DonationAccumulationConcluded ps ds den True , DistributePrizes       ) ->
-      -- Prize Distribution
+    (ProjectEliminationProgress mp ws             , DistributePrizes       ) ->
+      -- Depending on the Prize Distribution
       -- {{{
       let
         scriptOutputs    = getContinuingOutputs ctx
@@ -710,7 +719,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                     -- }}}
             )
             Map.empty
-            (txInfoReferenceInputs info)
+            refs
           -- }}}
 
         -- | Folding function to go over all the input UTxOs. For each project

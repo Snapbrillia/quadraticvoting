@@ -142,7 +142,7 @@ touch $tempRedeemer
 echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
 devRedeemer="$preDir/dev.redeemer"
 touch $devRedeemer
-echo "{\"constructor\":10,\"fields\":[]}" > $devRedeemer
+echo "{\"constructor\":20,\"fields\":[]}" > $devRedeemer
 # =========================
 
 

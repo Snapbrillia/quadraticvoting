@@ -32,13 +32,13 @@ import           Utils
 -- {{{
 data RegistrationRedeemer
   = RegisterProject ProjectDetails
-  | ConcludeAndRefund Integer
+  | ConcludeAndRefund BuiltinByteString
   | Dev
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
   , ('ConcludeAndRefund, 1)
-  , ('Dev              , 10)
+  , ('Dev              , 20)
   ]
 -- }}}
 
@@ -160,14 +160,10 @@ mkRegistrationPolicy pkh sym tn action ctx =
                -- }}}
          )
       -- }}}
-    ConcludeAndRefund projectIx ->
+    ConcludeAndRefund projectID ->
       -- {{{
-      let
-        currTN :: TokenName
-        currTN = indexToTokenName projectIx
-
-        validateInputs :: TxInInfo -> TxInInfo -> Bool
-        validateInputs TxInInfo{txInInfoResolved = p0} TxInInfo{txInInfoResolved = p1} =
+      case inputs of
+        TxInInfo{txInInfoResolved = p0} : TxInInfo{txInInfoResolved = p1} : rest ->
           -- {{{
           case getInlineDatum p0 of
             ProjectInfo ProjectDetails{..} ->
@@ -175,6 +171,11 @@ mkRegistrationPolicy pkh sym tn action ctx =
               case getInlineDatum p1 of
                 Escrow _                                 ->
                   -- {{{
+                  let
+                    currTN = TokenName projectID
+                    addr0  = txOutAddress p0
+                    addr1  = txOutAddress p1
+                  in
                      traceIfFalse
                        "E022"
                        ( utxoHasOnlyXWithLovelaces
@@ -194,6 +195,14 @@ mkRegistrationPolicy pkh sym tn action ctx =
                   && traceIfFalse
                        "E024"
                        (txSignedBy info pdPubKeyHash)
+                  && traceIfFalse
+                       "E118"
+                       (addr0 == addr1)
+                  && ( if any ((== addr0) . txOutAddress . txInInfoResolved) rest then
+                         traceError "E119"
+                       else
+                         True
+                     )
                   -- }}}
                 _                                        ->
                   -- {{{
@@ -205,21 +214,7 @@ mkRegistrationPolicy pkh sym tn action ctx =
               traceError "E026"
               -- }}}
           -- }}}
-      in
-      case inputs of
-        [i0, i1]       ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        [_, i0, i1]    ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        [_, _, i0, i1] ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        _              ->
+        _                                                                        ->
           -- {{{
           traceError "E027"
           -- }}}

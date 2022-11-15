@@ -42,7 +42,7 @@ import           PlutusTx.AssocMap      ( Map )
 import           Prelude                ( Show
                                         , show )
 import qualified PlutusTx
-import           PlutusTx.Prelude       ( Bool(False)
+import           PlutusTx.Prelude       ( Bool(..)
                                         , Integer
                                         , BuiltinByteString
                                         , Eq(..)
@@ -72,6 +72,7 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 -- {{{
 data QVFDatum
   -- {{{
+  -- {{{ GOVERNANCE UTXOs (YELLOW) 
   = DeadlineDatum
     -- ^ The datum attached to a reference UTxO for reading the deadline of the fund.
       -- {{{
@@ -84,24 +85,29 @@ data QVFDatum
       Integer
       -- }}}
 
-  | DonationAccumulationProgress
-    -- ^ For keeping track of the folded projects traversed.
+  | PrizeWeightAccumulation
+    -- ^ Progress of forming the complete map of prize weights.
       -- {{{
-      Integer -- ^ Total project count.
-      Integer -- ^ Projects traversed so far.
-      Integer -- ^ Total Lovelaces so far.
-      Integer -- ^ Sum of prize weights so far.
+      Integer                                             -- ^ Total donation count.
+      (Map BuiltinByteString (Integer, Integer, Integer)) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
-  | DonationAccumulationConcluded
-    -- ^ Datum after collecting all donations.
+  | ProjectEliminationProgress
+    -- ^ Progress of eliminating non-eligible projects.
       -- {{{
-      Integer -- ^ Remaining projects to distribute their prizes.
-      Integer -- ^ Total Lovelaces.
-      Integer -- ^ Sum of prize weights.
-      Bool    -- ^ Key holder fee collected or not.
+      (Map BuiltinByteString (Integer, Integer, Integer)) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
+  | DistributionProgress
+    -- ^ All non-eligible projects are eliminated at this point.
+      -- {{{
+      Integer -- ^ Starting match pool.
+      Integer -- ^ Remaining projects to collect their prizes.
+      Integer -- ^ Sum of the prize weights (i.e. the denominator).
+      -- }}}
+  -- }}}
+
+  -- {{{ PROJECT UTXOs (RED) 
   | ProjectInfo
     -- ^ To store static info in a reference UTxO.
       -- {{{
@@ -121,21 +127,28 @@ data QVFDatum
       Integer -- ^ Folded so far.
       -- }}}
 
-  | PrizeWeightAccumulation
-    -- ^ Progress of summing of the donation square roots.
+  | ConsolidationProgress
+    -- ^ Progress of summing the donation square roots.
       -- {{{
-      Integer -- ^ Total donation count.
-      Integer -- ^ Accumulated so far.
-      Integer -- ^ Sum of weights so far.
+      Integer -- ^ Remaining donations to be consolidated.
+      Integer -- ^ Sum of square roots so far.
       -- }}}
 
   | PrizeWeight
-    -- ^ Result of folding all donations.
+    -- ^ Result of folding all donations. Carries the donations.
       -- {{{
       Integer -- ^ Prize weight.
-      Bool    -- ^ Whether depleted or not.
+      Bool    -- ^ Whether processed or not.
       -- }}}
 
+  | Escrow
+    -- ^ For UTxOs that store the excess reward won by projects.
+      -- {{{
+      (Map PubKeyHash Integer)
+      -- }}}
+  -- }}}
+
+  -- {{{ DONATION UTXOs (GREEN) 
   | Donation
     -- ^ For a single donation UTxO.
       -- {{{
@@ -147,46 +160,47 @@ data QVFDatum
       -- {{{
       (Map PubKeyHash Integer)
       -- }}}
-
-  | Escrow
-    -- ^ For UTxOs that store the excess reward won by projects.
-      -- {{{
-      (Map PubKeyHash Integer)
-      -- }}}
-
-  deriving (Show, Generic, FromJSON, ToJSON)
   -- }}}
+  -- }}}
+  deriving (Show, Generic, FromJSON, ToJSON)
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   -- {{{
   DeadlineDatum pt0 == DeadlineDatum pt1 = pt0 == pt1
   RegisteredProjectsCount c0 == RegisteredProjectsCount c1 = c0  == c1
-  DonationAccumulationProgress t0 s0 d0 w0 == DonationAccumulationProgress t1 s1 d1 w1 = t0 == t1 && s0 == s1 && d0 == d1 && w0 == w1
-  DonationAccumulationConcluded t0 d0 w0 k0 == DonationAccumulationConcluded t1 d1 w1 k1 = t0 == t1 && d0 == d1 && w0 == w1 && k0 == k1
+  PrizeWeightAccumulation t0 w0 == PrizeWeightAccumulation t1 w1 = t0 == t1 && w0 == w1
+  ProjectEliminationProgress w0 == ProjectEliminationProgress w1 = w0 == w1
+  DistributionProgress m0 p0 w0 == DistributionProgress m1 p1 w1 = m0 == m1 && p0 == p1 && w0 == w1
+  --
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
   ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
   DonationFoldingProgress t0 s0 == DonationFoldingProgress t1 s1 = t0 == t1 && s0 == s1
-  PrizeWeightAccumulation t0 s0 w0 == PrizeWeightAccumulation t1 s1 w1 = t0 == t1 && s0 == s1 && w0 == w1
-  PrizeWeight w0 d0 == PrizeWeight w1 d1 = w0 == w1 && d0 == d1
+  ConsolidationProgress r0 w0 == ConsolidationProgress r1 w1 = r0 == r1 && w0 == w1
+  PrizeWeight w0 b0 == PrizeWeight w1 b1 = w0 == w1 && b0 == b1
+  Escrow m0 == Escrow m1 = m0 == m1
+  --
   Donation p0 == Donation p1 = p0 == p1
   Donations m0 == Donations m1 = m0 == m1
-  Escrow m0 == Escrow m1 = m0 == m1
+  --
   _ == _ = False
   -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('DeadlineDatum                , 0)
-  , ('RegisteredProjectsCount      , 1)
-  , ('DonationAccumulationProgress , 2)
-  , ('DonationAccumulationConcluded, 3)
-  , ('ProjectInfo                  , 4)
-  , ('ReceivedDonationsCount       , 5)
-  , ('DonationFoldingProgress      , 6)
-  , ('PrizeWeightAccumulation      , 7)
-  , ('PrizeWeight                  , 8)
-  , ('Donation                     , 9)
-  , ('Donations                    , 10)
-  , ('Escrow                       , 11)
+  [ ('DeadlineDatum             , 0 )
+  , ('RegisteredProjectsCount   , 1 )
+  , ('PrizeWeightAccumulation   , 2 )
+  , ('ProjectEliminationProgress, 3 )
+  , ('DistributionProgress      , 4 )
+  --
+  , ('ProjectInfo               , 5 )
+  , ('ReceivedDonationsCount    , 6 )
+  , ('DonationFoldingProgress   , 7 )
+  , ('ConsolidationProgress     , 8 )
+  , ('PrizeWeight               , 9 )
+  , ('Escrow                    , 10)
+  --
+  , ('Donation                  , 11)
+  , ('Donations                 , 12)
   ]
 -- }}}

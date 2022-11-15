@@ -58,26 +58,24 @@ data QVFAction
   | RegisterProject
   | DonateToProject
   | FoldDonations
-  | AccumulateDonations
-  | PayKeyHolderFee
-  | DistributePrizes
+  | AccumulatePrizeWeights
+  | DistributePrize
   | UnlockEscrowFor       PubKeyHash Integer
   | WithdrawBounty        PubKeyHash
   | ConcludeProject
   | Dev
 
 PlutusTx.makeIsDataIndexed ''QVFAction
-  [ ('UpdateDeadline     , 0)
-  , ('RegisterProject    , 1)
-  , ('DonateToProject    , 2)
-  , ('FoldDonations      , 3)
-  , ('AccumulateDonations, 4)
-  , ('PayKeyHolderFee    , 5)
-  , ('DistributePrizes   , 6)
-  , ('UnlockEscrowFor    , 7)
-  , ('WithdrawBounty     , 8)
-  , ('ConcludeProject    , 9)
-  , ('Dev                , 10)
+  [ ('UpdateDeadline        , 0 )
+  , ('RegisterProject       , 1 )
+  , ('DonateToProject       , 2 )
+  , ('FoldDonations         , 3 )
+  , ('AccumulatePrizeWeights, 4 )
+  , ('DistributePrize       , 5 )
+  , ('UnlockEscrowFor       , 6 )
+  , ('WithdrawBounty        , 7 )
+  , ('ConcludeProject       , 8 )
+  , ('Dev                   , 20)
   ]
 -- }}}
 

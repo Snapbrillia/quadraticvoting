@@ -116,7 +116,7 @@ readQVFDatum str =
       -- }}}
     "DonationAccumulationProgress"  ->
       -- {{{
-      Just $ DonationAccumulationProgress 0 0 0 0
+      Just $ DonationAccumulationProgress 0 Map.empty 0
       -- }}}
     "DonationAccumulationConcluded" ->
       -- {{{

@@ -438,7 +438,7 @@ minDonationAmount = 2_000_000
 
 
 -- ERROR CODES
---
+-- {{{
 -- E000: Bad deadline token name.
 -- E001: Bad main token name.
 -- E002: Exactly 1 deadline token must be minted.
@@ -495,11 +495,11 @@ minDonationAmount = 2_000_000
 -- E053: Project output must preserve its Lovelaces.
 -- E054: Missing proper outputs for the first phase of folding donations.
 -- E055: Project asset not found.
--- E056: Unexpected UTxO encountered (expected a `PrizeWeight`.
--- E057: Invalid datum attached to depleted prize weight UTxO.
+-- E056: Unexpected UTxO encountered (expected a `PrizeWeight` and `ProjectInfo`).
+-- E057: Invalid datum attached to the processed prize weight UTxO, or its value is improper.
 -- E058: Invalid prize weight UTxO is being produced.
 -- E059: Excessive number of prize weight inputs are provided.
--- E060: Main UTxO should carry all the donations.
+-- E060: Main UTxO must carry all the donations.
 -- E061: Invalid datum attached to the produced main datum.
 -- E062: Invalid UTxO getting produced at the script.
 -- E063: Improper correspondence between input and output prize weights.
@@ -556,12 +556,12 @@ minDonationAmount = 2_000_000
 -- E114: Output governance UTxO must have a properly updated datum.
 -- E115: Governance token must be sent back to the same address from which it's getting consumed.
 -- E116: Unexpected UTxO encountered.
--- E117: 
--- E118: 
--- E119: 
--- E120: 
--- E121: 
--- E122: 
+-- E117: Couldn't find UTxO.
+-- E118: Mismatch of input project UTxO addresses.
+-- E119: No Other UTxOs from the contract can be spent.
+-- E120: Input project and reference project UTxOs don't match up.
+-- E121: Invalid order of the inputs compared to the reference inputs.
+-- E122: Could not find the produced governance UTxO.
 -- E123: 
 -- E124: 
 -- E125: 
@@ -569,3 +569,4 @@ minDonationAmount = 2_000_000
 -- E127: 
 -- E128: 
 -- E129: 
+-- }}}

@@ -53,7 +53,7 @@ data TempRedeemer
 
 PlutusTx.makeIsDataIndexed ''TempRedeemer
   [ ('Validate, 11)
-  , ('Dev     , 10)
+  , ('Dev     , 20)
   ]
 
 
@@ -142,15 +142,19 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            [o0, o1]    ->
+            [o0, o1]       ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
-            [_, o0, o1] ->
+            [_, o0, o1]    ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
-            _           ->
+            [_, _, o0, o1] ->
+              -- {{{
+              validateTwoOutputs o0 o1
+              -- }}}
+            _              ->
               -- {{{
               traceError "E010"
               -- }}}
