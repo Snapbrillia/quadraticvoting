@@ -94,7 +94,11 @@ data QVFDatum
 
   | ProjectEliminationProgress
     -- ^ Progress of eliminating non-eligible projects.
+    -- The match pool is needed to be stored because the key holder fee will
+    -- remain inside this UTxO after elimination of each project, and therefore
+    -- the Lovelace count won't continue to represent the match pool.
       -- {{{
+      Integer                                             -- ^ Match pool.
       (Map BuiltinByteString (Integer, Integer, Integer)) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
@@ -170,7 +174,7 @@ instance Eq QVFDatum where
   DeadlineDatum pt0 == DeadlineDatum pt1 = pt0 == pt1
   RegisteredProjectsCount c0 == RegisteredProjectsCount c1 = c0  == c1
   PrizeWeightAccumulation t0 w0 == PrizeWeightAccumulation t1 w1 = t0 == t1 && w0 == w1
-  ProjectEliminationProgress w0 == ProjectEliminationProgress w1 = w0 == w1
+  ProjectEliminationProgress m0 w0 == ProjectEliminationProgress m1 w1 = m0 == m1 && w0 == w1
   DistributionProgress m0 p0 w0 == DistributionProgress m1 p1 w1 = m0 == m1 && p0 == p1 && w0 == w1
   --
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1

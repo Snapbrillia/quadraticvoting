@@ -300,9 +300,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --         projects as another argument of the datum constructor so that
     --         the weights list is not traversed in this function.
     traversePrizeWeights :: Integer
+                         -> Integer
                          -> Map BuiltinByteString (Integer, Integer, Integer)
                          -> Bool
-    traversePrizeWeights totPs wsSoFar =
+    traversePrizeWeights mp totPs wsSoFar =
       -- {{{
       let
         psSoFar           = length $ Map.toList wsSoFar
@@ -324,7 +325,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                 -- }}}
               else if c == remaining then
                 -- {{{
-                ProjectEliminationProgress ws
+                ProjectEliminationProgress mp ws
                 -- }}}
               else
                 -- {{{
@@ -538,21 +539,99 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount tot                  , AccumulatePrizeWeights ) ->
       -- Formation of the Prize Weight Map
       -- {{{ 
-      traversePrizeWeights tot Map.empty
+      traversePrizeWeights
+        (lovelaceFromValue currVal - governanceLovelaces)
+        tot
+        Map.empty
       -- }}} 
 
     (PrizeWeightAccumulation tot ws               , AccumulatePrizeWeights ) ->
       -- Accumulation of Computed Prize Weights
       -- {{{ 
-      traversePrizeWeights tot ws
+      traversePrizeWeights
+        (lovelaceFromValue currVal - governanceLovelaces)
+        tot
+        ws
       -- }}} 
 
-    (ProjectEliminationProgress wMap              , EliminateOrDistribute  ) ->
+    (ProjectEliminationProgress mp wMap           , EliminateOrDistribute  ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
       case eliminateOneProject wMap of
         Right (newMap, removedProjID) ->
+          -- {{{
+          let
+            projTN = TokenName removedProjID
+          in
+          case filter (utxoHasOnlyX qvfProjectSymbol projTN . txInInfoResolved) inputs of
+            [TxInInfo{txInInfoResolved = inP@TxOut{txOutValue = pVal}}] ->
+              -- {{{
+              case filter (utxoHasOnlyX qvfProjectSymbol projTN . txInInfoResolved) refs of
+                [TxInInfo{txInInfoResolved = infoUTxO}] ->
+                  -- {{{
+                  case (getInlineDatum inP, getInlineDatum infoUTxO) of
+                    (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
+                      -- {{{
+                      case getContinuingOutputs ctx of
+                        [s, p] ->
+                          -- {{{
+                          let
+                            raised     = pVal - halfOfTheRegistrationFee
+                            khFee      =
+                              keyHolderFeePercentage * raise `divide` 100
+                            belonging  = raised - khFee
+                            paidAmount =
+                              lovelaceFromValue (valuePaidTo info pdPubKeyHash)
+                          in
+                             traceIfFalse
+                               "E129"
+                               ( utxoHasValue
+                                   (currVal <> Ada.lovelaceOf khFee)
+                                   s
+                               )
+                          && traceIfFalse
+                               "E130"
+                               ( utxosDatumMatchesWith
+                                   (ProjectEliminationProgress mp newMap)
+                                   p
+                               )
+                          && traceIfFalse
+                               "E131"
+                               (paidAmount == belonging)
+                          && traceIfFalse
+                               "E132"
+                               ( utxoHasOnlyXWithLovelaces
+                                   qvfProjectSymbol
+                                   projTN
+                                   halfOfTheRegistrationFee
+                                   p
+                               )
+                          && traceIfFalse
+                               "E133"
+                               (utxosDatumMatchesWith (Escrow Map.empty) p)
+                          -- }}}
+                        _      ->
+                          -- {{{
+                          traceError "E128"
+                          -- }}}
+                      -- }}}
+                    _                                                    ->
+                      -- {{{
+                      traceError "E127"
+                      -- }}}
+                  -- }}}
+                _                                       ->
+                  -- {{{
+                  traceError "E126"
+                  -- }}}
+              -- }}}
+            _                                                           ->
+              -- {{{
+              traceError "E125"
+              -- }}}
+          -- }}}
         Left (pCount, denominator)    ->
+          -- {{{
           case getContinuingOutputs ctx of
             [o] ->
               -- {{{
@@ -574,6 +653,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
               -- {{{
               traceError "E124"
               -- }}}
+          -- }}}
       -- }}}
 
     (DistributionProgress mp remaining den        , EliminateOrDistribute  ) ->

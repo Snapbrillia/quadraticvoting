@@ -506,8 +506,8 @@ maxTotalDonationCount :: Integer
 maxTotalDonationCount =
   maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
-minKeyHolderFee :: Integer
-minKeyHolderFee = 1_000_000
+keyHolderFeeComplimentaryPercentage :: Integer
+keyHolderFeeComplimentaryPercentage = 95
 
 minDonationAmount :: Integer
 minDonationAmount = 2_000_000
@@ -647,9 +647,29 @@ minRequestable = 5_000_000
 -- E122: Output governance UTxO must carry the match pool and the authentication token.
 -- E123: Output governance UTxO must have a proper `DistributionProgress` datum.
 -- E124: Exactly 1 UTxO must be produced at the script.
--- E125: 
--- E126: 
--- E127: 
--- E128: 
--- E129: 
+-- E125: Exactly 1 project UTxO must be getting spent.
+-- E126: Could not find the project's information UTxO referenced.
+-- E127: Invalid input datums.
+-- E128: Exactly two UTxOs must be produced at the script.
+-- E129: Produced governance UTxO must carry the key holder fee.
+-- E130: Invalid datum attached to the produced governance UTxO.
+-- E131: Project owner not paid properly.
+-- E132: Produced project UTxO must carry its asset with half of the registration fee.
+-- E133: Produced project UTxO must have a locked `Escrow` datum attached.
+-- E134: 
+-- E135: 
+-- E136: 
+-- E137: 
+-- E138: 
+-- E139: 
+-- E140: 
+-- E141: 
+-- E142: 
+-- E143: 
+-- E144: 
+-- E145: 
+-- E146: 
+-- E147: 
+-- E148: 
+-- E149: 
 -- }}}
