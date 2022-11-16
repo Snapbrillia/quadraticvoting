@@ -506,8 +506,8 @@ maxTotalDonationCount :: Integer
 maxTotalDonationCount =
   maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
-keyHolderFeeComplimentaryPercentage :: Integer
-keyHolderFeeComplimentaryPercentage = 95
+keyHolderFeePercentage :: Integer
+keyHolderFeePercentage = 5
 
 minDonationAmount :: Integer
 minDonationAmount = 2_000_000

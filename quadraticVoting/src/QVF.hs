@@ -578,7 +578,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                           let
                             raised     = pVal - halfOfTheRegistrationFee
                             khFee      =
-                              keyHolderFeePercentage * raise `divide` 100
+                              keyHolderFeePercentage * raised `divide` 100
                             belonging  = raised - khFee
                             paidAmount =
                               lovelaceFromValue (valuePaidTo info pdPubKeyHash)
