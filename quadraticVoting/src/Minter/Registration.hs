@@ -107,6 +107,9 @@ mkRegistrationPolicy pkh sym tn action ctx =
         outputSAndPsAreValid s p0 p1 =
           -- {{{
              traceIfFalse
+               "E2"
+               (pdRequested pd > minRequestable)
+          && traceIfFalse
                "E014"
                ( validateGovUTxO
                    (txOutValue inputGovUTxO)

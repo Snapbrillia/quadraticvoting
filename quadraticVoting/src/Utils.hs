@@ -405,6 +405,83 @@ foldDonationInputs donationSymbol donationTN inputs =
   in
   foldr foldFn (0, 0, Map.empty) inputs
   -- }}}
+
+
+{-# INLINABLE findProjectsWonLovelaces #-}
+findProjectsWonPortion :: Integer -> Integer -> Integer -> Integer
+findProjectsWonPortion matchPool sumW w =
+  -- {{{
+  (w * matchPool) `divide` sumW
+  -- }}}
+
+
+{-# INLINABLE findQVFDenominator #-}
+findQVFDenominator :: [(BuiltinByteString, (Integer, Integer, Integer))]
+                   -> Integer
+findQVFDenominator =
+  -- {{{
+  foldr (\acc (_, (_, _, w)) -> acc + w) 0
+  -- }}}
+
+
+-- | Finds the summation of all the prize weights, and also finds how far each
+--   project is from their funding goal, and the project (if any) which has
+--   achieved the smallest percentage (less than 100%, including the raised
+--   donations), is removed from the map and the updated map along with the
+--   eliminated project are returned.
+--
+--   If, however, no such project is found (i.e. all projects have either
+--   reached or exceeded their funding goals), the project count, along with
+--   the computed "denominator" is returned—as the subsequent updated datum has
+--   to carry this value and this approach prevents a re-calculation.
+{-# INLINABLE eliminateOneProject #-}
+eliminateOneProject :: Integer
+                    -> Map BuiltinByteString (Integer, Integer, Integer)
+                    -> Either
+                         (Integer, Integer)
+                         ( Map BuiltinByteString (Integer, Integer, Integer)
+                         , BuiltinByteString
+                         )
+eliminateOneProject matchPool ws =
+  -- {{{
+  let
+    kvs                                        = Map.toList ws
+    den                                        = findQVFDenominator kvs
+    helper (req, dons, w)                      =
+      -- {{{
+      let
+        won = (1_000_000_000 * matchPool * w) `divide` den + dons
+      in
+      won `divide` req
+      -- }}}
+    foldFn (count, p, minSoFar) (projID, info) =
+      -- {{{
+      let
+        ratio = helper info
+      in
+      if ratio < minSoFar then
+        (count + 1, projID, ratio   )
+      else
+        (count + 1, p     , minSoFar)
+      -- }}}
+  in
+  case kvs of
+    (p, t) : rest ->
+      -- {{{
+      let
+        (pCount, toBeEliminated, ratio) = foldr foldFn (1, p, helper t) rest
+      in
+      if ratio < 1_000_000_000 then
+        Right (Map.delete toBeEliminated ws, toBeEliminated)
+      else
+        Left (pCount, den)
+      -- }}}
+    _             ->
+      -- {{{
+      -- TODO.
+      traceError "E1"
+      -- }}}
+  -- }}}
 -- }}}
 
 
@@ -434,11 +511,17 @@ minKeyHolderFee = 1_000_000
 
 minDonationAmount :: Integer
 minDonationAmount = 2_000_000
+
+minRequestable :: Integer
+minRequestable = 5_000_000
 -- }}}
 
 
 -- ERROR CODES
 -- {{{
+-- E0  : Negative value passed to square root.
+-- E1  : No projects found.
+-- E2  : Can not request 0 or less Lovelaces.
 -- E000: Bad deadline token name.
 -- E001: Bad main token name.
 -- E002: Exactly 1 deadline token must be minted.
@@ -496,13 +579,13 @@ minDonationAmount = 2_000_000
 -- E054: Missing proper outputs for the first phase of folding donations.
 -- E055: Project asset not found.
 -- E056: Unexpected UTxO encountered (expected a `PrizeWeight` and `ProjectInfo`).
--- E057: Invalid datum attached to the processed prize weight UTxO, or its value is improper.
+-- E057: Either an invalid datum attached to the processed prize weight UTxO, or its value is improper, or the corresponding input/reference UTxO is not coming from the script address.
 -- E058: Invalid prize weight UTxO is being produced.
 -- E059: Excessive number of prize weight inputs are provided.
--- E060: Main UTxO must carry all the donations.
--- E061: Invalid datum attached to the produced main datum.
--- E062: Invalid UTxO getting produced at the script.
--- E063: Improper correspondence between input and output prize weights.
+-- E060: Updated governance UTxO must carry the same value as its consumed counterpart.
+-- E061: Invalid datum attached to the produced governance datum.
+-- E062: Expected consumed governance UTxO must come from this script address.
+-- E063: Improper correspondence between input and output prize weights, and projects' info reference inputs.
 -- E064: This funding round is over.
 -- E065: Invalid deadline datum.
 -- E066: This funding round is still in progress.
@@ -561,9 +644,9 @@ minDonationAmount = 2_000_000
 -- E119: No Other UTxOs from the contract can be spent.
 -- E120: Input project and reference project UTxOs don't match up.
 -- E121: Invalid order of the inputs compared to the reference inputs.
--- E122: Could not find the produced governance UTxO.
--- E123: 
--- E124: 
+-- E122: Output governance UTxO must carry the match pool and the authentication token.
+-- E123: Output governance UTxO must have a proper `DistributionProgress` datum.
+-- E124: Exactly 1 UTxO must be produced at the script.
 -- E125: 
 -- E126: 
 -- E127: 

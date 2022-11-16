@@ -123,8 +123,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
     refs   = txInfoRedeemers info
 
     -- | The UTxO currently being validated.
-    currUTxO :: TxOut
-    currUTxO =
+    currUTxO                             :: TxOut
+    currUTxO@TxOut{txOutValue = currVal} =
       -- {{{
       case findOwnInput ctx of
         Nothing ->
@@ -281,26 +281,38 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --   and their "processed" couterparts. And also to validate the updated
     --   datum.
     --
+    --   Note that the inputs are expected to be "aligned" with the reference
+    --   and output UTxOs. And the governance input/output is expected to be at
+    --   the ends of respective lists:
+    --       inputs:          [i0, i1, ..., in, iGov, rest of inputs]
+    --       references:      [r0, r1, ..., rn]
+    --       cont. outputs:   [o0, o1, ..., on, oGov]
+    --
+    --   The output @Map@ maps project IDs to triplet values, each consisting
+    --   of (in order):
+    --     1. Requested fund
+    --     2. Raised donations (i.e. excludes the half of the registration fee)
+    --     3. Prize weight (i.e. sum of the square roots of donations, squared)
+    --
     --   Raises exception upon failure.
     --
     --   TODO: A potential optimization is to store the number of processed
     --         projects as another argument of the datum constructor so that
     --         the weights list is not traversed in this function.
     traversePrizeWeights :: Integer
-                         -> Integer
                          -> Map BuiltinByteString (Integer, Integer, Integer)
                          -> Bool
-    traversePrizeWeights matchPool totPs wsSoFar =
+    traversePrizeWeights totPs wsSoFar =
       -- {{{
       let
         psSoFar           = length $ Map.toList wsSoFar
         remaining         = totPs - psSoFar
+        contOuts          = getContinuingOutputs ctx
         go
-          []
+          (TxInInfo{txInInfoResolved = i@TxOut{txOutValue = inVal}} : _)
           []
           [o]
           acc@(c, wMap)   =
-          -- TODO
           -- {{{
           let
             ws           = Map.unionWith const wsSoFar wMap
@@ -308,11 +320,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
               -- {{{
               if c < remaining then
                 -- {{{
-                DonationAccumulationProgress mp totPs ws
+                PrizeWeightAccumulation totPs ws
                 -- }}}
               else if c == remaining then
                 -- {{{
-                ProjectEliminationProgress mp ws
+                ProjectEliminationProgress ws
                 -- }}}
               else
                 -- {{{
@@ -321,23 +333,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
               -- }}}
             isValid      =
               -- {{{
-                 traceIfFalse
-                   "E060"
-                   ( utxoHasOnlyXWithLovelaces
-                       qvfSymbol
-                       qvfTokenName
-                       (lovelaces + governanceLovelaces)
-                       o
-                   )
-              && traceIfFalse
-                   "E061"
-                   (utxosDatumMatchesWith updatedDatum o)
+                 traceIfFalse "E060" (utxoHasValue inVal o)
+              && traceIfFalse "E061" (utxosDatumMatchesWith updatedDatum o)
+              && (txOutAddress i == ownAddr)
               -- }}}
           in
           if isValid then
             acc
           else
-            -- Failure in case of missing main authentication asset.
             traceError "E062"
           -- }}}
         go
@@ -358,6 +361,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                       oIsValid =
                            utxoHasValue inVal o
                         && utxosDatumMatchesWith (PrizeWeight w True) o
+                        && txOutAddress i == ownAddr
                     in
                     if oIsValid then
                       go
@@ -392,15 +396,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
               traceError "E121"
               -- }}}
           -- }}}
-        go _ _ _ _        = traceError "E122"
-        (outputPs, _)     =
-          -- {{{
-          outputGo (getContinuingOutputs ctx) (0, wsSoFar)
-          -- }}}
+        go _ _ _ _        = traceError "E063"
       in
-      traceIfFalse
-        "E063"
-        (inputPs == outputPs)
+      -- TODO: Is this evaluation enforcements redundant?
+      case go inputs refs contOuts (0, Map.empty) of
+        (_, _) -> True
       -- }}}
 
     -- | Looks for the deadline reference UTxO, and checks if the funding round
@@ -538,23 +538,42 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount tot                  , AccumulatePrizeWeights ) ->
       -- Formation of the Prize Weight Map
       -- {{{ 
-      let
-        currVal = lovelaceFromValue $ txOutValue currUTxO
-        mp      = currVal - governanceLovelaces
-      in
-      traversePrizeWeights mp tot Map.empty currVal
+      traversePrizeWeights tot Map.empty
       -- }}} 
 
-    (PrizeWeightAccumulation mp tot ws            , AccumulatePrizeWeights ) ->
+    (PrizeWeightAccumulation tot ws               , AccumulatePrizeWeights ) ->
       -- Accumulation of Computed Prize Weights
       -- {{{ 
-      traversePrizeWeights mp tot ws (lovelaceFromValue $ txOutValue currUTxO)
+      traversePrizeWeights tot ws
       -- }}} 
 
     (ProjectEliminationProgress wMap              , EliminateOrDistribute  ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
-      traceError "TODO."
+      case eliminateOneProject wMap of
+        Right (newMap, removedProjID) ->
+        Left (pCount, denominator)    ->
+          case getContinuingOutputs ctx of
+            [o] ->
+              -- {{{
+                 traceIfFalse
+                   "E122"
+                   (utxoHasValue currVal o)
+              && traceIfFalse
+                   "E123"
+                   ( utxosDatumMatchesWith
+                       ( DistributionProgress
+                           (lovelaceFromValue currVal - governanceLovelaces)
+                           pCount
+                           denominator
+                       )
+                       o
+                   )
+              -- }}}
+            _   ->
+              -- {{{
+              traceError "E124"
+              -- }}}
       -- }}}
 
     (DistributionProgress mp remaining den        , EliminateOrDistribute  ) ->
@@ -1008,14 +1027,6 @@ findDatumAfterPayingKeyHoldersFee ps totalLovelaces denominator =
   ( forKH
   , DonationAccumulationConcluded ps (totalLovelaces - forKH) denominator True
   )
-  -- }}}
-
-
-{-# INLINABLE findProjectsWonLovelaces #-}
-findProjectsWonLovelaces :: Integer -> Integer -> Integer -> Integer
-findProjectsWonLovelaces pool sumW w =
-  -- {{{
-  (w * pool) `divide` sumW
   -- }}}
 
 
