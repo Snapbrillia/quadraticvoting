@@ -287,11 +287,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --       references:      [r0, r1, ..., rn]
     --       cont. outputs:   [o0, o1, ..., on, oGov]
     --
-    --   The output @Map@ maps project IDs to triplet values, each consisting
-    --   of (in order):
-    --     1. Requested fund
-    --     2. Raised donations (i.e. excludes the half of the registration fee)
-    --     3. Prize weight (i.e. sum of the square roots of donations, squared)
+    --   The output @Map@ maps project IDs to @EliminationInfo@.
     --
     --   Raises exception upon failure.
     --
@@ -300,7 +296,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --         the weights list is not traversed in this function.
     traversePrizeWeights :: Integer
                          -> Integer
-                         -> Map BuiltinByteString (Integer, Integer, Integer)
+                         -> Map BuiltinByteString EliminationInfo
                          -> Bool
     traversePrizeWeights mp totPs wsSoFar =
       -- {{{
@@ -371,10 +367,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
                         ( c + 1
                         , Map.insert
                             projID
-                            ( pdRequested
-                            ,   lovelaceFromValue inVal
-                              - halfOfTheRegistrationFee
-                            , w
+                            ( EliminationInfo
+                                pdRequested
+                                (   lovelaceFromValue inVal
+                                  - halfOfTheRegistrationFee
+                                )
+                                w
                             )
                             wMap
                         )

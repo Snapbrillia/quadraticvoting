@@ -68,6 +68,24 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 -- }}}
 
 
+-- PROJECT ELIMINATION INFO
+-- {{{
+data EliminationInfo = EliminationInfo
+  { eiRequested :: Integer
+  , eiRaised    :: Integer
+  , eiWeight    :: Integer
+  } deriving (Show, Generic, FromJSON, ToJSON)
+instance Eq EliminationInfo where
+  {-# INLINABLE (==) #-}
+  EliminationInfo p0 n0 r0 == EliminationInfo p1 n1 r1 =
+    -- {{{
+    p0 == p1 && n0 == n1 && r0 == r1
+    -- }}}
+
+PlutusTx.unstableMakeIsData ''EliminationInfo
+-- }}}
+
+
 -- QVF DATUM
 -- {{{
 data QVFDatum
@@ -88,8 +106,8 @@ data QVFDatum
   | PrizeWeightAccumulation
     -- ^ Progress of forming the complete map of prize weights.
       -- {{{
-      Integer                                             -- ^ Total donation count.
-      (Map BuiltinByteString (Integer, Integer, Integer)) -- ^ Requested funds, raised donations, and prize weights of each project.
+      Integer                                 -- ^ Total donation count.
+      (Map BuiltinByteString EliminationInfo) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
   | ProjectEliminationProgress
@@ -98,8 +116,8 @@ data QVFDatum
     -- remain inside this UTxO after elimination of each project, and therefore
     -- the Lovelace count won't continue to represent the match pool.
       -- {{{
-      Integer                                             -- ^ Match pool.
-      (Map BuiltinByteString (Integer, Integer, Integer)) -- ^ Requested funds, raised donations, and prize weights of each project.
+      Integer                                 -- ^ Match pool.
+      (Map BuiltinByteString EliminationInfo) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
   | DistributionProgress
