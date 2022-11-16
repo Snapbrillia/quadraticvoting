@@ -7,15 +7,14 @@ govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
 
-deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
-deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
+deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 donRefUTxO=$(cat $donRefUTxOFile)
 
 mkdir -p $projsPreDir
 
-govUTxOObj="$(get_script_utxos_datums_values $qvfAddress $govAsset | jq -c '.[0]')"
+govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile

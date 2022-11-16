@@ -5,7 +5,7 @@
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
-govUTxOObj="$(get_script_utxos_datums_values $qvfAddress $govAsset | jq -c '.[0]')"
+govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile

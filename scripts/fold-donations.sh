@@ -10,14 +10,13 @@ startingPhase=$2
 qvfAddress=$(cat $scriptAddressFile)
 regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
-deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
 projectAsset="$regSym.$projectTokenName"
 donAsset="$donSym.$projectTokenName"
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 donRefUTxO=$(cat $donRefUTxOFile)
 
-deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
+deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
 txInConstant="--spending-tx-in-reference $qvfRefUTxO --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
 
