@@ -81,6 +81,7 @@ main = do
               dlDatOF   = getFileName ocfn ocfnDeadlineDatum
               initDatOF = getFileName ocfn ocfnInitialGovDatum
               dlSlotOF  = getFileName ocfn ocfnDeadlineSlot
+              redOF     = getFileName ocfn ocfnMinterRedeemer
               --
               govPolicy = Gov.qvfPolicy pkh txRef dl
               govSymbol = mintingPolicyToSymbol govPolicy
@@ -152,6 +153,7 @@ main = do
                     (LBS.writeFile dlSlotOF $ encode dlSlot)
                   andPrintSuccess dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
                   andPrintSuccess initDatOF $ writeJSON initDatOF initialGovDatum
+                  andPrintSuccess redOF $ writeJSON redOF Gov.Initiate
                   -- }}}
                 Left _  ->
                   -- {{{

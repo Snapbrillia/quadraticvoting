@@ -346,7 +346,6 @@ scriptHelp         =
     (    "Generate the compiled Plutus validation and minting scripts.\n\n"
 
       ++ "\tThe JSON for file names should have these fields:\n\n"
-      ++ "\t\t{ ocfnDeadlineTokenNameHex :: String\n"
       ++ "\t\t, ocfnGovernanceMinter     :: String\n"
       ++ "\t\t, ocfnRegistrationMinter   :: String\n"
       ++ "\t\t, ocfnDonationMinter       :: String\n"
@@ -759,7 +758,7 @@ fromDatumValue datVal =
 -- | Implicitly, and silently, writes the redeemer value(s) to disk.
 actOnCurrentDatum :: PlutusTx.ToData a 
                   => OffChainFileNames
-                  -> QVFAction
+                  -> QVFRedeemer
                   -> Maybe a
                   -> (QVFDatum -> IO ())
                   -> IO ()
@@ -875,7 +874,6 @@ instance Show OutputPlutus where
 --           dlDatOF   = getFileName ocfn @"ocfnDeadlineDatum"
 --           initDatOF = getFileName ocfn @"ocfnInitialGovDatum"
 --           dlSlotOF  = getFileName ocfn @"ocfnDeadlineSlot"
---           dlTNOF    = getFileName ocfn @"ocfnDeadlineTokenNameHex"
 --       ```
 --
 --       Another solution could be a custom `FromJSON` instance.
@@ -883,7 +881,6 @@ instance Show OutputPlutus where
 data OffChainFileNames = OffChainFileNames
   { ocfnPreDir               :: String
   , ocfnProjectsPreDir       :: String
-  , ocfnDeadlineTokenNameHex :: String
   , ocfnGovernanceMinter     :: String
   , ocfnRegistrationMinter   :: String
   , ocfnDonationMinter       :: String

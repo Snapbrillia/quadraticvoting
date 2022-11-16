@@ -118,7 +118,7 @@ initiate_fund() {
     --invalid-hereafter $cappedSlot           \
     --mint "2 $govAsset"                      \
     --mint-script-file $govScriptFile         \
-    --mint-redeemer-file $tempRedeemer        \
+    --mint-redeemer-file $minterRedeemerFile  \
     --change-address $keyHoldersAddress
   
   sign_and_submit_tx $keyHoldersSigningKeyFile

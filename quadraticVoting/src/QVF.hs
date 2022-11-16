@@ -295,12 +295,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
     --         projects as another argument of the datum constructor so that
     --         the weights list is not traversed in this function.
     traversePrizeWeights :: Integer
-                         -> Integer
                          -> Map BuiltinByteString EliminationInfo
                          -> Bool
-    traversePrizeWeights mp totPs wsSoFar =
+    traversePrizeWeights totPs wsSoFar =
       -- {{{
       let
+        mp                = lovelaceFromValue currVal - governanceLovelaces
         psSoFar           = length $ Map.toList wsSoFar
         remaining         = totPs - psSoFar
         contOuts          = getContinuingOutputs ctx
@@ -567,19 +567,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount tot                  , AccumulatePrizeWeights ) ->
       -- Formation of the Prize Weight Map
       -- {{{ 
-      traversePrizeWeights
-        (lovelaceFromValue currVal - governanceLovelaces)
-        tot
-        Map.empty
+      traversePrizeWeights tot Map.empty
       -- }}} 
 
     (PrizeWeightAccumulation tot ws               , AccumulatePrizeWeights ) ->
       -- Accumulation of Computed Prize Weights
       -- {{{ 
-      traversePrizeWeights
-        (lovelaceFromValue currVal - governanceLovelaces)
-        tot
-        ws
+      traversePrizeWeights tot ws
       -- }}} 
 
     (ProjectEliminationProgress mp wMap           , EliminateProject       ) ->
