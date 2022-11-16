@@ -522,11 +522,11 @@ minRequestable = 5_000_000
 -- E0  : Negative value passed to square root.
 -- E1  : No projects found.
 -- E2  : Can not request 0 or less Lovelaces.
--- E000: Bad deadline token name.
--- E001: Bad main token name.
--- E002: Exactly 1 deadline token must be minted.
--- E003: Exactly 1 main token must be minted.
--- E004: Exactly 2 type of assets must be minted.
+-- E000: Exactly 2 governance tokens must be minted.
+-- E001: Bad token name.
+-- E002: Exactly 2 governance tokens must be getting burnt.
+-- E003: All prizes must be sent out before concluding a funding round.
+-- E004: Exactly 1 type of asset must be minted.
 -- E005: Invalid value for the deadline UTxO.
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
@@ -610,19 +610,19 @@ minRequestable = 5_000_000
 -- E085: Governance datum not updated properly.
 -- E086: Governance UTxO not produced.
 -- E087: Key holder fees must be paid accurately.
--- E088: Bad project info reference provided.
--- E089: Escrow must carry the excess reward.
--- E090: Escrow's inline datum is invalid.
--- E091: Escrow UTxO was not produced.
--- E092: Prize not paid.
--- E093: Bad datum attached to a project UTxO.
--- E094: Couldn't find the corresponding input UTxO of a provided reference project UTxO.
--- E095: The impossible happened.
--- E096: Current UTxO is unauthentic.
--- E097: Impossible 2.0 happened.
--- E098: Governance UTxO is not getting updated properly.
--- E099: Prize Lovelaces are not properly withdrawn.
--- E100: Missing output governance UTxO.
+-- E088: Invalid input datums.
+-- E089: Exactly two UTxOs must be produced at the script.
+-- E090: Value of the governance datum must be properly updated.
+-- E091: Datum of the governance datum must be properly updated.
+-- E092: Produced project UTxO must be carry half of the registration fee plus the excess.
+-- E093: Produced project UTxO must have a fully locked `Escrow` datum.
+-- E094: Project owner must be paid accurately.
+-- E095: Both governance UTxOs must be getting spent.
+-- E096: Invalid governance UTxOs are getting spent.
+-- E097: 
+-- E098: 
+-- E099: 
+-- E100: 
 -- E101: The project UTxO must also be getting consumed.
 -- E102: Bad reference project datum provided.
 -- E103: Unauthentic escrow UTxO.
@@ -672,4 +672,14 @@ minRequestable = 5_000_000
 -- E147: 
 -- E148: 
 -- E149: 
+-- E150: 
+-- E151: 
+-- E152: 
+-- E153: 
+-- E154: 
+-- E155: 
+-- E156: 
+-- E157: 
+-- E158: 
+-- E159: 
 -- }}}

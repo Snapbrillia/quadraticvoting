@@ -6,7 +6,6 @@ qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
-deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
@@ -123,7 +122,7 @@ projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
 echo "$projectCurrDatum" > $currentDatumFile
 projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
-deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
+deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
 donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
 donorPKH=$(cat $preDir/$donorWalletLabel.pkh)

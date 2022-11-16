@@ -64,6 +64,7 @@ data QVFRedeemer
   | UnlockEscrowFor PubKeyHash Integer
   | WithdrawBounty  PubKeyHash
   | ConcludeProject
+  | ConcludeFundingRound
   | Dev
 
 PlutusTx.makeIsDataIndexed ''QVFRedeemer
@@ -77,6 +78,7 @@ PlutusTx.makeIsDataIndexed ''QVFRedeemer
   , ('UnlockEscrowFor       , 7 )
   , ('WithdrawBounty        , 8 )
   , ('ConcludeProject       , 9 )
+  , ('ConcludeFundingRound  , 10)
   , ('Dev                   , 20)
   ]
 -- }}}

@@ -81,9 +81,8 @@ main = do
               dlDatOF   = getFileName ocfn ocfnDeadlineDatum
               initDatOF = getFileName ocfn ocfnInitialGovDatum
               dlSlotOF  = getFileName ocfn ocfnDeadlineSlot
-              dlTNOF    = getFileName ocfn ocfnDeadlineTokenNameHex
               --
-              govPolicy = Gov.qvfPolicy txRef dl
+              govPolicy = Gov.qvfPolicy pkh txRef dl
               govSymbol = mintingPolicyToSymbol govPolicy
               --
               regPolicy = Reg.registrationPolicy pkh govSymbol
@@ -110,8 +109,6 @@ main = do
           print regSymbol
           putStrLn $ green ++ "\nDon. Symbol:"
           print donSymbol
-
-          writeTokenNameHex dlTNOF Gov.deadlineTokenName
 
           dlSlot <- getDeadlineSlot currSlot dl
           govRes <- writeMintingPolicy govOF govPolicy

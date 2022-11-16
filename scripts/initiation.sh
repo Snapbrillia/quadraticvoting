@@ -45,10 +45,6 @@ get_gov_asset() {
   echo $govSym
 }
 
-get_deadline_asset() {
-  echo $(cat $govSymFile).$(cat $deadlineTokenNameHexFile)
-}
-
 get_script_data_hash() {
   $cli transaction hash-script-data --script-data-file $1
 }
@@ -98,7 +94,6 @@ initiate_fund() {
   govDatumFile=$(getFileName ocfnInitialGovDatum)
   # NOTE: The order of these 2 assignments matters.
   govAsset=$(get_gov_asset)
-  deadlineAsset=$(get_deadline_asset)
   # -----------------------------------------------
   regSym=$($cli transaction policyid --script-file $regScriptFile)
   echo $regSym > $regSymFile
@@ -106,8 +101,7 @@ initiate_fund() {
   echo $donSym > $donSymFile
 
   govLovelaces=1500000 #  1.5 ADA
-  firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
-  secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
+  outUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
 
   generate_protocol_params
 
@@ -117,12 +111,12 @@ initiate_fund() {
   $cli $BUILD_TX_CONST_ARGS                   \
     --tx-in $genesisUTxO                      \
     --tx-in-collateral $genesisUTxO           \
-    --tx-out "$firstUTxO"                     \
+    --tx-out "$outUTxO"                       \
     --tx-out-inline-datum-file $deadlineDatum \
-    --tx-out "$secondUTxO"                    \
+    --tx-out "$outUTxO"                       \
     --tx-out-inline-datum-file $govDatumFile  \
     --invalid-hereafter $cappedSlot           \
-    --mint "1 $deadlineAsset + 1 $govAsset"   \
+    --mint "2 $govAsset"                      \
     --mint-script-file $govScriptFile         \
     --mint-redeemer-file $tempRedeemer        \
     --change-address $keyHoldersAddress
@@ -209,7 +203,6 @@ initiate_fund() {
 dev_depletion() {
   # {{{
   collateral=$(get_first_utxo_of $keyHolder)
-  deadlineAsset=$(get_deadline_asset)
   govAsset=$(get_gov_asset)
   regRefUTxO=$(cat $regRefUTxOFile)
   regSym=$(cat $regSymFile)

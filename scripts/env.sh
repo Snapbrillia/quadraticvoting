@@ -105,8 +105,6 @@ export newDatumFile=$(getFileName ocfnNewDatum)
 export qvfRedeemerFile=$(getFileName ocfnQVFRedeemer)
 export minterRedeemerFile=$(getFileName ocfnMinterRedeemer)
  
-export deadlineTokenNameHexFile=$(getFileName ocfnDeadlineTokenNameHex)
-touch $deadlineTokenNameHexFile
 export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
 touch $projectTokenNameFile
 export registeredProjectsFile=$(getFileName ocfnRegisteredProjects)
@@ -137,9 +135,9 @@ export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGI
 
 
 # REQUIRED FOR DEVELOPMENT:
-tempRedeemer="$preDir/temp.redeemer"
-touch $tempRedeemer
-echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
+###### tempRedeemer="$preDir/temp.redeemer"
+###### touch $tempRedeemer
+###### echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
 devRedeemer="$preDir/dev.redeemer"
 touch $devRedeemer
 echo "{\"constructor\":20,\"fields\":[]}" > $devRedeemer
@@ -648,6 +646,42 @@ get_all_script_utxos_datums_values() {
 get_script_utxos_datums_values() {
   # {{{
   get_all_script_utxos_datums_values $1 | jq -c --arg authAsset "$2" 'map(select(.asset == $authAsset))'
+  # }}}
+}
+
+
+get_governance_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  govAsset="$(cat $govSymFile)"
+  govUTxOs="$(get_script_utxos_datums_values $qvfAddress $govAsset)"
+  govUTxOObj=""
+  temp0="$(echo "$govUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is DeadlineDatum "$temp0")
+  if [ $isInfo == "True" ]; then
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[1]')"
+  else
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[0]')"
+  fi
+  echo $govUTxOObj
+  # }}}
+}
+
+
+get_deadline_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  govAsset="$(cat $govSymFile)"
+  govUTxOs="$(get_script_utxos_datums_values $qvfAddress $govAsset)"
+  govUTxOObj=""
+  temp0="$(echo "$govUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is DeadlineDatum "$temp0")
+  if [ $isInfo == "True" ]; then
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[0]')"
+  else
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[1]')"
+  fi
+  echo $govUTxOObj
   # }}}
 }
 
