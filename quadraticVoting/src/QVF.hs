@@ -554,7 +554,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         ws
       -- }}} 
 
-    (ProjectEliminationProgress mp wMap           , EliminateOrDistribute  ) ->
+    (ProjectEliminationProgress mp wMap           , EliminateProject       ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
       case eliminateOneProject wMap of
@@ -656,7 +656,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       -- }}}
 
-    (DistributionProgress mp remaining den        , EliminateOrDistribute  ) ->
+    (DistributionProgress mp remaining den        , DistributePrize projID ) ->
       -- Handing Out Prizes
       -- {{{
       let
@@ -947,7 +947,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            keyHolderImbursed
       -- }}}
 
-    (PrizeWeight _ True                           , EliminateOrDistribute  ) ->
+    (PrizeWeight _ True                           , EliminateProject       ) ->
       -- Prize Distribution
       -- (Delegation of logic to the project's UTxO.)
       -- {{{ 
