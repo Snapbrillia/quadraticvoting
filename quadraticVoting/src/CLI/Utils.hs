@@ -114,13 +114,17 @@ readQVFDatum str =
       -- {{{
       Just $ RegisteredProjectsCount 0
       -- }}}
-    "DonationAccumulationProgress"  ->
+    "PrizeWeightAccumulation"       ->
       -- {{{
-      Just $ DonationAccumulationProgress 0 Map.empty 0
+      Just $ PrizeWeightAccumulation 0 Map.empty
       -- }}}
-    "DonationAccumulationConcluded" ->
+    "ProjectEliminationProgress"    ->
       -- {{{
-      Just $ DonationAccumulationConcluded 0 0 0 False
+      Just $ ProjectEliminationProgress 0 Map.empty
+      -- }}}
+    "DistributionProgress"          ->
+      -- {{{
+      Just $ DistributionProgress 0 0 0
       -- }}}
     "ProjectInfo"                   ->
       -- {{{
@@ -137,13 +141,17 @@ readQVFDatum str =
       -- {{{
       Just $ DonationFoldingProgress 0 0
       -- }}}
-    "PrizeWeightAccumulation"       ->
+    "ConsolidationProgress"         ->
       -- {{{
-      Just $ PrizeWeightAccumulation 0 0 0
+      Just $ ConsolidationProgress 0 0
       -- }}}
     "PrizeWeight"                   ->
       -- {{{
       Just $ PrizeWeight 0 False
+      -- }}}
+    "Escrow"                        ->
+      -- {{{
+      Just $ Escrow Map.empty
       -- }}}
     "Donation"                      ->
       -- {{{
@@ -153,10 +161,6 @@ readQVFDatum str =
     "Donations"                     ->
       -- {{{
       Just $ Donations Map.empty
-      -- }}}
-    "Escrow"                        ->
-      -- {{{
-      Just $ Escrow Map.empty
       -- }}}
     _                               ->
       -- {{{
@@ -701,10 +705,6 @@ predicateKeyWordToPredicate kw =
       Just $ \case
         DeadlineDatum _ -> True
         _               -> False
-    "DonationAccumulationConcluded" ->
-      Just $ \case
-        DonationAccumulationConcluded {} -> True
-        _                                -> False
     _               ->
       Nothing
   -- }}}

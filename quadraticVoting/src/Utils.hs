@@ -407,7 +407,7 @@ foldDonationInputs donationSymbol donationTN inputs =
   -- }}}
 
 
-{-# INLINABLE findProjectsWonLovelaces #-}
+{-# INLINABLE findProjectsWonPortion #-}
 findProjectsWonPortion :: Integer -> Integer -> Integer -> Integer
 findProjectsWonPortion matchPool sumW w =
   -- {{{
@@ -416,11 +416,11 @@ findProjectsWonPortion matchPool sumW w =
 
 
 {-# INLINABLE findQVFDenominator #-}
-findQVFDenominator :: [(BuiltinByteString, (Integer, Integer, Integer))]
+findQVFDenominator :: [(BuiltinByteString, EliminationInfo)]
                    -> Integer
 findQVFDenominator =
   -- {{{
-  foldr (\acc (_, (_, _, w)) -> acc + w) 0
+  foldr (\(_, EliminationInfo _ _ w) acc -> acc + w) 0
   -- }}}
 
 
@@ -436,10 +436,10 @@ findQVFDenominator =
 --   to carry this value and this approach prevents a re-calculation.
 {-# INLINABLE eliminateOneProject #-}
 eliminateOneProject :: Integer
-                    -> Map BuiltinByteString (Integer, Integer, Integer)
+                    -> Map BuiltinByteString EliminationInfo
                     -> Either
                          (Integer, Integer)
-                         ( Map BuiltinByteString (Integer, Integer, Integer)
+                         ( Map BuiltinByteString EliminationInfo
                          , BuiltinByteString
                          )
 eliminateOneProject matchPool ws =
@@ -447,20 +447,20 @@ eliminateOneProject matchPool ws =
   let
     kvs                                        = Map.toList ws
     den                                        = findQVFDenominator kvs
-    helper (req, dons, w)                      =
+    helper (EliminationInfo req dons w)        =
       -- {{{
       let
         won = (1_000_000_000 * matchPool * w) `divide` den + dons
       in
       won `divide` req
       -- }}}
-    foldFn (count, p, minSoFar) (projID, info) =
+    foldFn (projID, info) (count, p, minSoFar) =
       -- {{{
       let
-        ratio = helper info
+        theRatio = helper info
       in
-      if ratio < minSoFar then
-        (count + 1, projID, ratio   )
+      if theRatio < minSoFar then
+        (count + 1, projID, theRatio)
       else
         (count + 1, p     , minSoFar)
       -- }}}
@@ -469,9 +469,9 @@ eliminateOneProject matchPool ws =
     (p, t) : rest ->
       -- {{{
       let
-        (pCount, toBeEliminated, ratio) = foldr foldFn (1, p, helper t) rest
+        (pCount, toBeEliminated, r) = foldr foldFn (1, p, helper t) rest
       in
-      if ratio < 1_000_000_000 then
+      if r < 1_000_000_000 then
         Right (Map.delete toBeEliminated ws, toBeEliminated)
       else
         Left (pCount, den)
@@ -605,11 +605,11 @@ minRequestable = 5_000_000
 -- E080: All donation assets must be burnt.
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
--- E083: Unauthentic governance UTxO provided.
--- E084: Invalid Lovelace count at the produced governance UTxO.
--- E085: Governance datum not updated properly.
--- E086: Governance UTxO not produced.
--- E087: Key holder fees must be paid accurately.
+-- E083: 
+-- E084: 
+-- E085: 
+-- E086: 
+-- E087: 
 -- E088: Invalid input datums.
 -- E089: Exactly two UTxOs must be produced at the script.
 -- E090: Value of the governance datum must be properly updated.
@@ -622,7 +622,7 @@ minRequestable = 5_000_000
 -- E097: 
 -- E098: 
 -- E099: 
--- E100: 
+-- E100: The project UTxO must also be getting consumed.
 -- E101: The project UTxO must also be getting consumed.
 -- E102: Bad reference project datum provided.
 -- E103: Unauthentic escrow UTxO.
