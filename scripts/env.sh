@@ -599,8 +599,7 @@ get_wallet_lovelace_utxos() {
 get_all_script_utxos_datums_values() {
   # {{{
   $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
-  jq -c \
-    'to_entries
+  init=$(cat $queryJSONFile | jq -c 'to_entries
     | map(select((.value | .value | to_entries | length) == 2))
     | map
         ( ( .value
@@ -625,7 +624,9 @@ get_all_script_utxos_datums_values() {
               | .[0]
               )
           }
-        )' $queryJSONFile
+        )')
+  datumCBOR=$($qvf data-to-cbor "$(echo $init | jq -c .datum)")
+  echo "$init" | jq -c --arg cbor "$datumCBOR" '. += {"datumCBOR": ($cbor | tostring)}'
   # }}}
 }
 

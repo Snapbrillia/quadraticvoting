@@ -166,7 +166,7 @@ main = do
               -- }}}
           -- }}}
       -- }}}
-    "register-project"       : pkhStr : lbl : reqFundStr : fileNamesJSON : _                   ->
+    "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                 ->
       -- {{{
       case (readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
         (Just reqFund, Just ocfn) ->
@@ -235,15 +235,12 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "donate-to-project"      : pkhStr : projIDStr : amtStr : fileNamesJSON : _                 ->
+    "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _               ->
       -- {{{
-      case (hexStringToByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
+      case (hexStringToBuiltinByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
           -- {{{
           let
-            projID'     :: BuiltinByteString
-            projID'     = toBuiltin $ LBS.toStrict projID
-
             govRedeemer :: QVFRedeemer
             govRedeemer = DonateToProject
 
@@ -251,7 +248,7 @@ main = do
             donorPKH    = fromString pkhStr
 
             donInfo     :: DonationInfo
-            donInfo     = DonationInfo projID' donorPKH amt
+            donInfo     = DonationInfo projID donorPKH amt
 
             donRedeemer :: Don.DonationRedeemer
             donRedeemer = Don.DonateToProject donInfo
@@ -292,7 +289,7 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "fold-donations"         : restOfArgs                                                      ->
+    "fold-donations"           : restOfArgs                                                    ->
       -- {{{
       let
         go :: String
@@ -420,7 +417,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "consolidate-donations"  : restOfArgs                                                      ->
+    "consolidate-donations"    : restOfArgs                                                    ->
       -- {{{
       let
         go :: String
@@ -538,7 +535,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "traverse-donations"     : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _     ->
+    "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _   ->
       -- {{{
       case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
         (Just l0, Just (Donations map0), Just l1, Just (Donations map1), Just ocfn) ->
@@ -618,7 +615,7 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "accumulate-donations"   : restOfArgs                                                      ->
+    "accumulate-prize-weights" : restOfArgs                                                    ->
       -- {{{
       let
         go :: String
@@ -718,7 +715,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "collect-key-holder-fee" : fileNamesJSON : _                                               ->
+    "collect-key-holder-fee"   : fileNamesJSON : _                                             ->
       -- {{{
       case A.decode $ fromString fileNamesJSON of
         Just ocfn ->
@@ -748,7 +745,7 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "distribute-prize"       : infoJSONStr : prizeWeightJSONStr : fileNamesJSON : _            ->
+    "distribute-prize"         : infoJSONStr : prizeWeightJSONStr : fileNamesJSON : _          ->
       -- {{{
       fromDatumValue (fromString infoJSONStr) $ \case
         ProjectInfo (ProjectDetails {..}) ->
@@ -827,9 +824,9 @@ main = do
           putStrLn "FAILED to parse the ProjectInfo datum."
           -- }}}
       -- }}}
-    "unlock-bounty-for"      : _                                                               ->
+    "unlock-bounty-for"        : _                                                             ->
       putStrLn "TODO."
-    "withdraw-bounty"        : _                                                               ->
+    "withdraw-bounty"          : _                                                             ->
       putStrLn "TODO."
     "pretty-datum"       : datumJSONStr : _                             ->
       -- {{{
@@ -877,22 +874,9 @@ main = do
         -- }}}
     "cbor-to-data"       : cborStr : _                                  ->
       -- {{{
-      let
-        mScriptData :: Maybe ScriptData
-        mScriptData = do
-          -- {{{
-          bs  <- hexStringToByteString cborStr
-          let bs8 = BS8.pack $ Char.chr . fromIntegral <$> LBS.unpack bs
-          case deserialiseFromCBOR AsScriptData bs8 of
-            Right sd ->
-              Just sd
-            Left _   ->
-              Nothing
-          -- }}}
-      in
-      case mScriptData of
-        Just sd ->
-          print $ encode $ scriptDataToJson ScriptDataJsonDetailedSchema sd
+      case cborStringToData cborStr of
+        Just d  ->
+          print d
         Nothing -> do
           putStrLn "FAILED to decode CBOR."
       -- }}}

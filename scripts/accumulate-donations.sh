@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. scripts/initiation.sh
+. $REPO/scripts/initiation.sh
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)

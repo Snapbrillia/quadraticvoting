@@ -15,6 +15,7 @@ import           Cardano.Api
 import           Cardano.Api.Shelley        ( PlutusScript(..) )
 import           Codec.Serialise            ( Serialise
                                             , serialise )
+import qualified Control.Monad.Fail         as M
 import qualified Data.Aeson                 as A
 import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
@@ -27,7 +28,8 @@ import           Data.Time.Clock.POSIX      ( getPOSIXTime )
 import           GHC.Generics               ( Generic )
 import           Plutus.V1.Ledger.Api       ( fromBuiltin
                                             , BuiltinByteString )
-import           Plutus.V1.Ledger.Value     ( TokenName(..) )
+import           Plutus.V1.Ledger.Value     ( CurrencySymbol(..)
+                                            , TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
 import           PlutusTx                   ( Data (..) )
 import qualified PlutusTx
@@ -256,6 +258,34 @@ hexStringToByteString str =
           -- }}}
   in
   go str (Nothing, [])
+  -- }}}
+
+
+hexStringToBuiltinByteString :: String -> Maybe BuiltinByteString
+hexStringToBuiltinByteString =
+  -- {{{
+  toBuiltin . LBS.toStrict . hexStringToByteString
+  -- }}}
+
+
+cborStringToData :: String -> Maybe Data
+cborStringToData cborStr ->
+  -- {{{
+  let
+    mScriptData :: Maybe ScriptData
+    mScriptData = do
+      -- {{{
+      bs  <- hexStringToByteString cborStr
+      let bs8 = BS8.pack $ Char.chr . fromIntegral <$> LBS.unpack bs
+      case deserialiseFromCBOR AsScriptData bs8 of
+        Right sd ->
+          Just sd
+        Left _   ->
+          Nothing
+      -- }}}
+  in do
+  sd <- mScriptData
+  return $ encode $ scriptDataToJson ScriptDataJsonDetailedSchema sd
   -- }}}
 
 
@@ -792,6 +822,36 @@ actOnData datumJSON datumToIO = do
   -- }}}
 
 
+infArgHelper :: (String -> a -> Either String a)
+             -> Either String a
+             -> [String]
+             -> Either String (a, OffChainFileNames)
+infArgHelper argFn initEith infArgs =
+  -- {{{
+  case (initEith, infArgs) of
+    (Right x   , [ocfnStr]   ) ->
+      -- {{{
+      case A.decode (fromString ocfnStr) of
+        Just ocfn ->
+          Right (x, ocfn)
+        Nothing   ->
+          Left "Could not parse file names JSON."
+      -- }}}
+    (Right x   , el0 : rest  ) ->
+      -- {{{
+      infArgHelper argFn (argFn el0 x) rest
+      -- }}}
+    (Left err  , _           ) ->
+      -- {{{
+      Left err
+      -- }}}
+    (_         , _           ) ->
+      -- {{{
+      Left "Bad arguments."
+      -- }}}
+  -- }}}
+
+
 infArgHelper3 :: (    String
                    -> String
                    -> String
@@ -981,3 +1041,75 @@ handleScriptGenerationArguments results handler =
   -- }}}
 -- }}}
 
+data Asset = Asset
+  { assetSymbol    :: CurrencySymbol
+  , assetTokenName :: TokenName
+  }
+
+readAsset :: String -> Maybe Asset
+readAsset a =
+  -- {{{
+  case span (/= '.') a of
+    (sym, [])     -> do
+      bbs <- hexStringToBuiltinByteString sym
+      return $ Asset (CurrencySymbol bbs) emptyTokenName
+    (sym, _ : tn) ->
+      symBBS <- hexStringToBuiltinByteString sym
+      tnBBS  <- hexStringToBuiltinByteString tn
+      return $ Asset (CurrencySymbol symBBS) (TokenName tnBBS)
+  -- }}}
+
+
+data QVFUTxO = QVFUTxO
+  { qvfUTxO       :: TxOutRef
+  , qvfLovelace   :: Integer
+  , qvfAsset      :: Asset
+  , qvfAssetCount :: Integer
+  , qvfDatum      :: QVFDatum
+  }
+
+utxoParser :: Text -> A.Parser TxOutRef
+utxoParser txt =
+  -- {{{
+  case readTxOutRef (Text.unpack txt) of
+    Just utxo ->
+      return utxo
+    Nothing   ->
+      M.fail "Invalid TxOutRef."
+  -- }}}
+
+assetParser :: Text -> A.Parser Asset
+assetParser txt =
+  -- {{{
+  case readAsset (Text.unpack txt) of
+    Just a  ->
+      return a
+    Nothing ->
+      M.fail "Invalid Asset."
+  -- }}}
+
+qvfDatumParser :: Text -> A.Parser QVFDatum
+qvfDatumParser txt =
+  -- {{{
+  case cborStringToData (Text.unpack txt) of
+    Just d  ->
+      case PlutusTx.fromData d of
+        Just qvfD ->
+          return qvfD
+        Nothing   ->
+          M.fail "Can't convert Data to QVFDatum"
+    Nothing ->
+      M.fail "Invalid Data."
+  -- }}}
+
+instance FromJSON QVFUTxO where
+  -- parseJSON :: Value -> Parser QVFUTxO
+  A.parseJSON v =
+    -- {{{
+        QVFUTxO
+    <$> (A.withText "utxo" utxoParser v)
+    <*> (v .: "lovelace")
+    <*> (A.withText "asset" assetParser v)
+    <*> (v .: "assetCount")
+    <*> (A.withText "datumCBOR" qvfDatumParser v)
+    -- }}}
