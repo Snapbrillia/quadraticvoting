@@ -1,13 +1,3 @@
-# === CHANGE THESE VARIABLES ACCORDINGLY === #
-export MAGIC='--testnet-magic 1'
-export CARDANO_NODE_SOCKET_PATH="$HOME/preprod-testnet/node.socket"
-export REPO="$HOME/code/quadraticvoting"
-export cli="cardano-cli"
-export qvf="qvf-cli"
-# ========================================== #
-
-export preDir="$REPO/testnet2"
-mkdir -p $preDir
 
 # Removes the single quotes.
 #
@@ -131,7 +121,7 @@ export txSigned="$preDir/tx.signed"
 
 # Convenient variable to replace the constant arguemnts for constructing a
 # transaction.
-export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
+export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody --cddl-format"
 
 
 # REQUIRED FOR DEVELOPMENT:

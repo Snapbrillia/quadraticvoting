@@ -1,11 +1,27 @@
 #!/bin/bash
 
-. scripts/initiation.sh
+. $REPO/scripts/initiation.sh
 
-projectOwnerWalletLabel=$1
-projectName=$2
-projectRequestedFund=$3
-projectOwnerAddress=$(cat $preDir/$projectOwnerWalletLabel.addr)
+
+if [ $TEST -eq 1 ]; then
+  projectOwnerWalletLabel=$2
+  projectName=$3
+  projectRequestedFund=$4
+  projectOwnerAddress=$(cat $preDir/$projectOwnerWalletLabel.addr)
+  projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)
+  ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
+  txInUTxO="--tx-in $ownerInputUTxO"
+  txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
+  txOutUTxO=""
+else
+  projectName=$1
+  projectRequestedFund=$2
+  projectOwnerAddress=$3
+  projectOwnerPKH=$4
+  txInUTxO=$5
+  txInCollateralUTxO=$6
+  txOutUTxO=$7
+fi
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -20,9 +36,6 @@ govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
 govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
-
-ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
-projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)
 
 $qvf register-project         \
   $projectOwnerPKH            \
@@ -54,8 +67,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --spending-plutus-script-v2                               \
   --spending-reference-tx-in-inline-datum-present           \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  --tx-in $ownerInputUTxO                                   \
-  --tx-in-collateral $ownerInputUTxO                        \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
   --tx-out "$firstUTxO"                                     \
   --tx-out-inline-datum-file $updatedDatumFile              \
   --tx-out "$projUTxO"                                      \
@@ -70,6 +82,15 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --policy-id $regSym                                       \
   --change-address $projectOwnerAddress
 
-sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey
-wait_for_new_slot
+if [ "$ENV" == "dev" ]; then
+  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey
+  wait_for_new_slot
+else
+  store_current_slot
+  JSON_STRING=$( jq -n                         \
+    --arg bn "$(cat $txBody | jq -r .cborHex)" \
+    --arg on "$(cat $projectTokenNameFile)"    \
+    '{transaction: $bn, projectTokenName: $on}' )
+  echo "---$JSON_STRING"
+fi
 # }}}

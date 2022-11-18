@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. scripts/initiation.sh
+. $REPO/scripts/initiation.sh
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -30,6 +30,7 @@ mkDonationDatum() {
 #   3. Ending donor wallet number,
 #   4. Max donor count per transaction.
 dev() {
+  # {{{
   devDonDir="$preDir/dev_donations"
   mkdir -p $devDonDir
   projectTokenName=$(project_number_to_token_name $1)
@@ -101,6 +102,7 @@ dev() {
     store_current_slot
     wait_for_new_slot
   done
+  # }}}
 }
 
 
@@ -109,9 +111,25 @@ if [ "$1" == "dev" ]; then
   return 0
 fi
 
-donorWalletLabel=$1
-projectTokenName=$2
-donationAmount=$3
+if [ "$ENV" == "dev" ]; then
+  donorWalletLabel=$1
+  projectTokenName=$2
+  donationAmount=$3
+  donorPKH=$(cat $preDir/$donorWalletLabel.pkh)
+  donorAddress=$(cat $preDir/$donorWalletLabel.addr)
+  donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
+  txInUTxO="--tx-in $donorInUTxO"
+  txInCollateralUTxO="--tx-in-collateral $donorInUTxO"
+  txOutUTxO=""
+else
+  projectTokenName=$1
+  donationAmount=$2
+  donorPKH=$3
+  donorAddress=$4
+  txInUTxO=$5
+  txInCollateralUTxO=$6
+  txOutUTxO=$7
+fi
 
 projectAsset="$regSym.$projectTokenName"
 donAsset="$donSym.$projectTokenName"
@@ -123,10 +141,6 @@ echo "$projectCurrDatum" > $currentDatumFile
 projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
 deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
-
-donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
-donorPKH=$(cat $preDir/$donorWalletLabel.pkh)
-donorAddress=$(cat $preDir/$donorWalletLabel.addr)
 
 $qvf donate-to-project        \
   $donorPKH                   \
@@ -150,8 +164,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --spending-plutus-script-v2                               \
   --spending-reference-tx-in-inline-datum-present           \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  --tx-in $donorInUTxO                                      \
-  --tx-in-collateral $donorInUTxO                           \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
   --tx-out "$outputProjectUTxO"                             \
   --tx-out-inline-datum-file $updatedDatumFile              \
   --tx-out "$donationUTxO"                                  \
@@ -164,9 +177,17 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --policy-id $donSym                                       \
   --change-address $donorAddress
 
-sign_and_submit_tx $preDir/$donorWalletLabel.skey
-wait_for_new_slot
-store_current_slot
-wait_for_new_slot
+if [ "$ENV" == "dev" ]; then
+  sign_and_submit_tx $preDir/$donorWalletLabel.skey
+  wait_for_new_slot
+  store_current_slot
+  wait_for_new_slot
+else
+  store_current_slot
+  JSON_STRING=$( jq -n                         \
+    --arg bn "$(cat $txBody | jq -r .cborHex)" \
+    '{transaction: $bn }' )
+  echo "---$JSON_STRING"
+fi
 # }}}
 
