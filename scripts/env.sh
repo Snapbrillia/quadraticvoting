@@ -1,3 +1,9 @@
+if [ -z "$MAGIC" ] || [ -z "$CARDANO_NODE_SOCKET_PATH" ] || [ -z "$REPO" ] || [ -z "$cli" ] || [ -z "$qvf" ] || [ -z "$preDir" ] || [ -z "$ENV" ]; then
+  echo "Unassigned envrionment variables detected. Please modify your"
+  echo "\`scripts/local-env.sh\` file and source it to bring the required"
+  echo "variables into scope."
+  return 1
+fi
 
 # Removes the single quotes.
 #

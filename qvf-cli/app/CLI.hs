@@ -19,6 +19,7 @@ import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.Char                  as Char
 import           Data.Foldable              ( forM_ )
 import           Data.String                ( fromString )
+import qualified Data.Text                  as T
 import           Data.Word                  ( Word8 )
 import           Plutus.V1.Ledger.Api       ( toBuiltin
                                             , BuiltinByteString )
@@ -417,6 +418,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
+{-
     "consolidate-donations"    : restOfArgs                                                    ->
       -- {{{
       let
@@ -535,6 +537,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
+-}
     "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _   ->
       -- {{{
       case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
@@ -615,104 +618,123 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "accumulate-prize-weights" : restOfArgs                                                    ->
+    "test" : addrStr : _                                                                       ->
+      print (tryReadAddress $ T.pack addrStr)
+{-
+    "accumulate-prize-weights" : govUTxOStr : restOfArgs                                       ->
       -- {{{
-      let
-        go :: String
-           -> String
-           -> String
-           -> (Integer, Integer, Integer, [(BuiltinByteString, QVFDatum)])
-           -> Either String (Integer, Integer, Integer, [(BuiltinByteString, QVFDatum)])
-        go tnStr lovelacesStr datumStr (ls, ps, ws, ds) =
+      case A.decode (fromString govUTxOStr) of
+        Just govUtxO ->
           -- {{{
           let
-            mTN        :: Maybe BuiltinByteString
-            mTN        =
-              toBuiltin . LBS.toStrict <$> hexStringToByteString tnStr
-            mLovelaces :: Maybe Integer
-            mLovelaces = readMaybe lovelacesStr
-            mDatum     :: Maybe QVFDatum
-            mDatum     = readDatum datumStr
+            go :: String
+               -> String
+               -> [OutputUTxO]
+               -> Either String [OutputUTxO]
+            go infoUTxOStr projUTxOStr outputs =
+              -- {{{
+              case (A.decode (fromString infoUTxOStr), A.decode (fromString projUTxOStr)) of
+                (Just infoUTxO, Just projUTxO) ->
+                  -- {{{
+                  let
+                    TokenName projID  = assetTokenName $ suAsset infoUTxO
+                    TokenName projID' = assetTokenName $ suAsset projUTxO
+                  in
+                  if projID == projID' then
+                    -- {{{
+                    case (suDatum projUTxO, suDatum infoUTxO) of
+                      (PrizeWeight w False, ProjectInfo (ProjectDetails{..})) ->
+                        -- {{{
+                        Right
+                          ( suLovelace + ls - halfOfTheRegistrationFee
+                          , ps + 1
+                          , ws + w
+                          , ds ++ [(projID, PrizeWeight w True)]
+                          )
+                        -- }}}
+                      _                                                       ->
+                        -- {{{
+                        Left "Invalid project datum."
+                        -- }}}
+                    -- }}}
+                  else
+                    -- {{{
+                    Left "Provided info UTxO and state UTxO don't belong to the same project."
+                    -- }}}
+                  -- }}}
+                Nothing                        ->
+                  -- {{{
+                  Left "Bad script UTxO JSON encountered."
+                  -- }}}
+              -- }}}
+            eith = infArgHelper2 go (govUTxO, []) restOfArgs
           in
-          case (mTN, mLovelaces, mDatum) of
-            (Just projID, Just lovelaces, Just (PrizeWeight w False)) ->
+          case eith of
+            Right ((updatedDatum,), ocfn) ->
               -- {{{
-              Right
-                ( lovelaces + ls - halfOfTheRegistrationFee
-                , ps + 1
-                , ws + w
-                , ds ++ [(projID, PrizeWeight w True)]
-                )
+              actOnCurrentDatum @QVFRedeemer ocfn AccumulatePrizeWeights Nothing $ \currDatum ->
+                let
+                  updatedDatumFile  :: FilePath
+                  updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+
+                  mkProjDatumFile   :: BuiltinByteString -> FilePath
+                  mkProjDatumFile   = getProjectsDatumFile ocfn . TokenName
+
+                  eithUpdatedDatum  :: Either String QVFDatum
+                  eithUpdatedDatum  =
+                    -- {{{
+                    case currDatum of
+                      RegisteredProjectsCount totP
+                        -- {{{
+                        if inputPs == totP then
+                          Right $ ProjectEliminationProgress mp ws
+                            totP inputLs inputWs False
+                        else
+                          Right $ DonationAccumulationProgress
+                            totP
+                            inputPs
+                            inputLs
+                            inputWs
+                        -- }}}
+                      DonationAccumulationProgress totP psSoFar lsSoFar sumWsSoFar ->
+                        -- {{{
+                        if inputPs + psSoFar == totP then
+                          Right $ DonationAccumulationConcluded
+                            totP (lsSoFar + inputLs) (sumWsSoFar + inputWs) False
+                        else
+                          Right $ DonationAccumulationProgress
+                            totP
+                            (inputPs + psSoFar)
+                            (inputLs + lsSoFar)
+                            (inputWs + sumWsSoFar)
+                        -- }}}
+                      _                                                            ->
+                        -- {{{
+                        Left "Bad project UTxO provided."
+                        -- }}}
+                    -- }}}
+                in
+                case eithUpdatedDatum of
+                  Right updatedDatum -> do
+                    -- {{{
+                    writeJSON updatedDatumFile updatedDatum
+                    forM_ ds $ \(projID, projDatum) ->
+                      writeJSON (mkProjDatumFile projID) projDatum
+                    print $ inputLs + governanceLovelaces
+                    -- }}}
+                  Left err           ->
+                    -- {{{
+                    putStrLn $ "FAILED: " ++ err
+                    -- }}}
               -- }}}
-            _                                                         ->
+            Left errMsg                                      ->
               -- {{{
-              Left $ "Bad arguments:\n"
-                ++ tnStr ++ " " ++ lovelacesStr ++ " " ++ datumStr
+              putStrLn $ "FAILED: " ++ errMsg
               -- }}}
           -- }}}
-        eith = infArgHelper3 go (Right (0, 0, 0, [])) restOfArgs
-      in
-      case eith of
-        Right ((inputLs, inputPs, inputWs, ds), ocfn) ->
+        Nothing      ->
           -- {{{
-          actOnCurrentDatum @QVFRedeemer ocfn AccumulateDonations Nothing $ \currDatum ->
-            let
-              updatedDatumFile  :: FilePath
-              updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
-
-              mkProjDatumFile   :: BuiltinByteString -> FilePath
-              mkProjDatumFile   = getProjectsDatumFile ocfn . TokenName
-
-              eithUpdatedDatum  :: Either String QVFDatum
-              eithUpdatedDatum  =
-                -- {{{
-                case currDatum of
-                  RegisteredProjectsCount totP                                 ->
-                    -- {{{
-                    if inputPs == totP then
-                      Right $ DonationAccumulationConcluded
-                        totP inputLs inputWs False
-                    else
-                      Right $ DonationAccumulationProgress
-                        totP
-                        inputPs
-                        inputLs
-                        inputWs
-                    -- }}}
-                  DonationAccumulationProgress totP psSoFar lsSoFar sumWsSoFar ->
-                    -- {{{
-                    if inputPs + psSoFar == totP then
-                      Right $ DonationAccumulationConcluded
-                        totP (lsSoFar + inputLs) (sumWsSoFar + inputWs) False
-                    else
-                      Right $ DonationAccumulationProgress
-                        totP
-                        (inputPs + psSoFar)
-                        (inputLs + lsSoFar)
-                        (inputWs + sumWsSoFar)
-                    -- }}}
-                  _                                                            ->
-                    -- {{{
-                    Left "Bad project UTxO provided."
-                    -- }}}
-                -- }}}
-            in
-            case eithUpdatedDatum of
-              Right updatedDatum -> do
-                -- {{{
-                writeJSON updatedDatumFile updatedDatum
-                forM_ ds $ \(projID, projDatum) ->
-                  writeJSON (mkProjDatumFile projID) projDatum
-                print $ inputLs + governanceLovelaces
-                -- }}}
-              Left err           ->
-                -- {{{
-                putStrLn $ "FAILED: " ++ err
-                -- }}}
-          -- }}}
-        Left errMsg                                      ->
-          -- {{{
-          putStrLn $ "FAILED: " ++ errMsg
+          putStrLn "FAILED: Could not parse the given governance UTxO JSON."
           -- }}}
       -- }}}
     "collect-key-holder-fee"   : fileNamesJSON : _                                             ->
@@ -824,6 +846,7 @@ main = do
           putStrLn "FAILED to parse the ProjectInfo datum."
           -- }}}
       -- }}}
+-}
     "unlock-bounty-for"        : _                                                             ->
       putStrLn "TODO."
     "withdraw-bounty"          : _                                                             ->

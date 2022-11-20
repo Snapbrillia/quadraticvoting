@@ -4,6 +4,7 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE GADTs             #-}
 
 
 module CLI.Utils where
@@ -12,32 +13,50 @@ module CLI.Utils where
 -- IMPORTS
 -- {{{
 import           Cardano.Api
-import           Cardano.Api.Shelley        ( PlutusScript(..) )
-import           Codec.Serialise            ( Serialise
-                                            , serialise )
-import qualified Control.Monad.Fail         as M
-import qualified Data.Aeson                 as A
-import           Data.Aeson                 ( encode )
-import qualified Data.ByteString.Char8      as BS8
-import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.ByteString.Short      as SBS
-import qualified Data.List                  as List
-import           Data.Maybe                 ( fromJust )
-import           Data.String                ( fromString )
-import           Data.Time.Clock.POSIX      ( getPOSIXTime )
-import           GHC.Generics               ( Generic )
-import           Plutus.V1.Ledger.Api       ( fromBuiltin
-                                            , BuiltinByteString )
-import           Plutus.V1.Ledger.Value     ( CurrencySymbol(..)
-                                            , TokenName(..) )
-import qualified Plutus.V2.Ledger.Api       as Ledger
-import           PlutusTx                   ( Data (..) )
+import           Cardano.Api.Shelley         ( Address(..)
+                                             , PlutusScript(..) )
+import           Cardano.Crypto.Hash.Class   ( hashToBytes )
+import           Cardano.Ledger.BaseTypes    ( certIxToInt
+                                             , txIxToInt )
+import           Cardano.Ledger.Credential   as CLedger
+import           Cardano.Ledger.Crypto       ( StandardCrypto )
+import           Cardano.Ledger.Hashes       ( ScriptHash(..) )
+import           Cardano.Ledger.Keys         ( KeyHash(..) )
+import           Codec.Serialise             ( Serialise
+                                             , serialise )
+import qualified Control.Monad.Fail          as M
+import qualified Data.Aeson                  as A
+import           Data.Aeson                  ( encode
+                                             , FromJSON(..) )
+import           Data.Aeson.Types            ( Parser )
+import qualified Data.ByteString.Char8       as BS8
+import qualified Data.ByteString.Lazy        as LBS
+import qualified Data.ByteString.Short       as SBS
+import qualified Data.Char                   as Char
+import qualified Data.List                   as List
+import           Data.Maybe                  ( fromJust )
+import           Data.String                 ( fromString )
+import           Data.Text                   ( Text )
+import qualified Data.Text                   as Text
+import           Data.Time.Clock.POSIX       ( getPOSIXTime )
+import           GHC.Generics                ( Generic )
+import           Plutus.V1.Ledger.Api        ( fromBuiltin
+                                             , toBuiltin
+                                             , BuiltinByteString )
+import qualified Plutus.V1.Ledger.Credential as Plutus
+import qualified Plutus.V1.Ledger.Crypto     as Plutus
+import           Plutus.V1.Ledger.Value      ( CurrencySymbol(..)
+                                             , TokenName(..) )
+import           Plutus.V2.Ledger.Api        ( TxOutRef(..) )
+import qualified Plutus.V2.Ledger.Api        as Ledger
+import           PlutusTx                    ( Data (..) )
 import qualified PlutusTx
-import qualified PlutusTx.AssocMap          as Map
-import           PlutusTx.Prelude           ( lengthOfByteString )
+import qualified PlutusTx.AssocMap           as Map
+import           PlutusTx.Prelude            ( lengthOfByteString )
 
 import           Data.Datum
 import           Data.Redeemer
+import           Utils
 -- }}}
 
 
@@ -64,6 +83,42 @@ scriptDataToData (ScriptDataNumber n)         =
 scriptDataToData (ScriptDataBytes bs)         =
   B bs
   -- }}}
+
+
+credentialLedgerToPlutus :: CLedger.Credential a StandardCrypto
+                         -> Plutus.Credential
+credentialLedgerToPlutus (ScriptHashObj (ScriptHash h)) =
+  Plutus.ScriptCredential $ Ledger.ValidatorHash $ toBuiltin $ hashToBytes h
+credentialLedgerToPlutus (KeyHashObj (KeyHash h))       =
+  Plutus.PubKeyCredential $ Plutus.PubKeyHash $ toBuiltin $ hashToBytes h
+
+
+stakeReferenceLedgerToPlutus :: CLedger.StakeReference StandardCrypto
+                             -> Maybe Plutus.StakingCredential
+stakeReferenceLedgerToPlutus (CLedger.StakeRefBase x)                   =
+  Just $ Ledger.StakingHash $ credentialLedgerToPlutus x
+stakeReferenceLedgerToPlutus (CLedger.StakeRefPtr (CLedger.Ptr (SlotNo x) y z)) =
+  Just $
+    Ledger.StakingPtr
+      (fromIntegral x)
+      (fromIntegral $ txIxToInt y)
+      (fromIntegral $ certIxToInt z)
+stakeReferenceLedgerToPlutus CLedger.StakeRefNull                       =
+  Nothing
+
+
+tryReadAddress :: Text -> Maybe Ledger.Address
+tryReadAddress x =
+  case deserialiseAddress AsAddressAny x of
+    Nothing                                      ->
+      Nothing
+    Just (AddressByron _)                        ->
+      Nothing
+    Just (AddressShelley (ShelleyAddress _ p s)) ->
+      Just Ledger.Address
+        { Ledger.addressCredential        = credentialLedgerToPlutus p
+        , Ledger.addressStakingCredential = stakeReferenceLedgerToPlutus s
+        }
 
 
 writeJSON :: PlutusTx.ToData a => FilePath -> a -> IO ()
@@ -264,12 +319,12 @@ hexStringToByteString str =
 hexStringToBuiltinByteString :: String -> Maybe BuiltinByteString
 hexStringToBuiltinByteString =
   -- {{{
-  toBuiltin . LBS.toStrict . hexStringToByteString
+  fmap (toBuiltin . LBS.toStrict) . hexStringToByteString
   -- }}}
 
 
 cborStringToData :: String -> Maybe Data
-cborStringToData cborStr ->
+cborStringToData cborStr =
   -- {{{
   let
     mScriptData :: Maybe ScriptData
@@ -285,17 +340,18 @@ cborStringToData cborStr ->
       -- }}}
   in do
   sd <- mScriptData
-  return $ encode $ scriptDataToJson ScriptDataJsonDetailedSchema sd
+  -- return $ encode $ scriptDataToJson ScriptDataJsonDetailedSchema sd
+  return $ scriptDataToData sd
   -- }}}
 
 
-readTxOutRef :: String -> Maybe Ledger.TxOutRef
+readTxOutRef :: String -> Maybe TxOutRef
 readTxOutRef s =
   -- {{{
   case span (/= '#') s of
     (x, _ : y) ->
       -- {{{
-      Just $ Ledger.TxOutRef
+      Just $ TxOutRef
         { Ledger.txOutRefId  = fromString x
         , Ledger.txOutRefIdx = read y
         }
@@ -829,7 +885,7 @@ infArgHelper :: (String -> a -> Either String a)
 infArgHelper argFn initEith infArgs =
   -- {{{
   case (initEith, infArgs) of
-    (Right x   , [ocfnStr]   ) ->
+    (Right x   , [ocfnStr] ) ->
       -- {{{
       case A.decode (fromString ocfnStr) of
         Just ocfn ->
@@ -837,15 +893,45 @@ infArgHelper argFn initEith infArgs =
         Nothing   ->
           Left "Could not parse file names JSON."
       -- }}}
-    (Right x   , el0 : rest  ) ->
+    (Right x   , el0 : rest) ->
       -- {{{
       infArgHelper argFn (argFn el0 x) rest
       -- }}}
-    (Left err  , _           ) ->
+    (Left err  , _         ) ->
       -- {{{
       Left err
       -- }}}
-    (_         , _           ) ->
+    (_         , _         ) ->
+      -- {{{
+      Left "Bad arguments."
+      -- }}}
+  -- }}}
+
+
+infArgHelper2 :: (String -> String -> a -> Either String a)
+              -> Either String a
+              -> [String]
+              -> Either String (a, OffChainFileNames)
+infArgHelper2 argFn initEith infArgs =
+  -- {{{
+  case (initEith, infArgs) of
+    (Right x   , [ocfnStr]       ) ->
+      -- {{{
+      case A.decode (fromString ocfnStr) of
+        Just ocfn ->
+          Right (x, ocfn)
+        Nothing   ->
+          Left "Could not parse file names JSON."
+      -- }}}
+    (Right x   , el0 : el1 : rest) ->
+      -- {{{
+      infArgHelper2 argFn (argFn el0 el1 x) rest
+      -- }}}
+    (Left err  , _               ) ->
+      -- {{{
+      Left err
+      -- }}}
+    (_         , _               ) ->
       -- {{{
       Left "Bad arguments."
       -- }}}
@@ -969,7 +1055,7 @@ getProjectsDatumFile ocfn tn =
 
 data ScriptGenerationArgumentsParseResults =
   ScriptGenerationArgumentsParseResults
-    { sgUTxO      :: Maybe Ledger.TxOutRef
+    { sgUTxO      :: Maybe TxOutRef
     , sgSlot      :: Maybe Integer
     , sgDeadline  :: Maybe Ledger.POSIXTime
     , sgFileNames :: Maybe OffChainFileNames
@@ -977,7 +1063,7 @@ data ScriptGenerationArgumentsParseResults =
 
 
 unwrapScriptGenerationArgs :: ScriptGenerationArgumentsParseResults
-                           -> Either String ( Ledger.TxOutRef
+                           -> Either String ( TxOutRef
                                             , Integer
                                             , Ledger.POSIXTime
                                             , OffChainFileNames
@@ -1029,7 +1115,7 @@ unwrapScriptGenerationArgs ScriptGenerationArgumentsParseResults{..} =
 
 
 handleScriptGenerationArguments :: ScriptGenerationArgumentsParseResults
-                                -> (Ledger.TxOutRef -> Integer -> Ledger.POSIXTime -> OffChainFileNames -> IO ())
+                                -> (TxOutRef -> Integer -> Ledger.POSIXTime -> OffChainFileNames -> IO ())
                                 -> IO ()
 handleScriptGenerationArguments results handler =
   -- {{{
@@ -1053,22 +1139,22 @@ readAsset a =
     (sym, [])     -> do
       bbs <- hexStringToBuiltinByteString sym
       return $ Asset (CurrencySymbol bbs) emptyTokenName
-    (sym, _ : tn) ->
+    (sym, _ : tn) -> do
       symBBS <- hexStringToBuiltinByteString sym
       tnBBS  <- hexStringToBuiltinByteString tn
       return $ Asset (CurrencySymbol symBBS) (TokenName tnBBS)
   -- }}}
 
 
-data QVFUTxO = QVFUTxO
-  { qvfUTxO       :: TxOutRef
-  , qvfLovelace   :: Integer
-  , qvfAsset      :: Asset
-  , qvfAssetCount :: Integer
-  , qvfDatum      :: QVFDatum
+data ScriptUTxO = ScriptUTxO
+  { suUTxO       :: TxOutRef
+  , suLovelace   :: Integer
+  , suAsset      :: Asset
+  , suAssetCount :: Integer
+  , suDatum      :: QVFDatum
   }
 
-utxoParser :: Text -> A.Parser TxOutRef
+utxoParser :: Text -> Parser TxOutRef
 utxoParser txt =
   -- {{{
   case readTxOutRef (Text.unpack txt) of
@@ -1078,7 +1164,7 @@ utxoParser txt =
       M.fail "Invalid TxOutRef."
   -- }}}
 
-assetParser :: Text -> A.Parser Asset
+assetParser :: Text -> Parser Asset
 assetParser txt =
   -- {{{
   case readAsset (Text.unpack txt) of
@@ -1088,7 +1174,7 @@ assetParser txt =
       M.fail "Invalid Asset."
   -- }}}
 
-qvfDatumParser :: Text -> A.Parser QVFDatum
+qvfDatumParser :: Text -> Parser QVFDatum
 qvfDatumParser txt =
   -- {{{
   case cborStringToData (Text.unpack txt) of
@@ -1102,14 +1188,14 @@ qvfDatumParser txt =
       M.fail "Invalid Data."
   -- }}}
 
-instance FromJSON QVFUTxO where
-  -- parseJSON :: Value -> Parser QVFUTxO
-  A.parseJSON v =
+instance FromJSON ScriptUTxO where
+  -- parseJSON :: Value -> Parser ScriptUTxO
+  parseJSON v =
     -- {{{
-        QVFUTxO
-    <$> (A.withText "utxo" utxoParser v)
-    <*> (v .: "lovelace")
-    <*> (A.withText "asset" assetParser v)
-    <*> (v .: "assetCount")
-    <*> (A.withText "datumCBOR" qvfDatumParser v)
+        ScriptUTxO
+    <$> A.withText "utxo" utxoParser v
+    <*> A.withScientific "lovelace" (return . round) v
+    <*> A.withText "asset" assetParser v
+    <*> A.withScientific "assetCount" (return . round) v
+    <*> A.withText "datumCBOR" qvfDatumParser v
     -- }}}

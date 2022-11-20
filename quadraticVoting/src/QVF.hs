@@ -307,6 +307,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
         psSoFar         = length $ Map.toList wsSoFar
         remaining       = totPs - psSoFar
         contOuts        = getContinuingOutputs ctx
+        -- TODO: Can this filtered version be averted?
+        projRefs        = filter (utxoHasX qvfProjectSymbol Nothing . txInInfoResolved) refs
         go
           (TxInInfo{txInInfoResolved = i@TxOut{txOutValue = inVal}} : _)
           []
@@ -400,7 +402,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         go _ _ _ _      = traceError "E063"
       in
       -- TODO: Is this evaluation enforcements redundant?
-      case go inputs refs contOuts (0, Map.empty) of
+      case go inputs projRefs contOuts (0, Map.empty) of
         (_, _) -> True
       -- }}}
 
