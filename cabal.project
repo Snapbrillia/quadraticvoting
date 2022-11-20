@@ -120,6 +120,8 @@ source-repository-package
   --sha256: 020fwimsm24yblr1fmnwx240wj8r3x715p89cpjgnnd8axwf32p0
   subdir:
     cardano-api
+    cardano-git-rev
+    cardano-cli
 
 -- Should follow cardano-node
 source-repository-package
