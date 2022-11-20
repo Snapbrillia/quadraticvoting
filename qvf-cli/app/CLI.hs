@@ -618,8 +618,12 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "test" : addrStr : _                                                                       ->
-      print (tryReadAddress $ T.pack addrStr)
+    "test" : utxosStr : _                                                                      ->
+      let
+        mUTxOs :: Either String [ScriptUTxO]
+        mUTxOs = A.eitherDecode $ fromString utxosStr
+      in
+      print mUTxOs
 {-
     "accumulate-prize-weights" : govUTxOStr : restOfArgs                                       ->
       -- {{{

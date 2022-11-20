@@ -605,7 +605,7 @@ get_wallet_lovelace_utxos() {
 get_all_script_utxos_datums_values() {
   # {{{
   $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
-  init=$(cat $queryJSONFile | jq -c 'to_entries
+  utxos=$(cat $queryJSONFile | jq -c 'to_entries
     | map(select((.value | .value | to_entries | length) == 2))
     | map
         ( ( .value
@@ -614,6 +614,7 @@ get_all_script_utxos_datums_values() {
           | map(select(.key != "lovelace"))
           ) as $notLovelace
         | { utxo: .key
+          , address: (.value | .address)
           , datum: (.value | .inlineDatum)
           , lovelace: (.value | .value | .lovelace)
           , asset:
@@ -631,8 +632,14 @@ get_all_script_utxos_datums_values() {
               )
           }
         )')
-  datumCBOR=$($qvf data-to-cbor "$(echo $init | jq -c .datum)")
-  echo "$init" | jq -c --arg cbor "$datumCBOR" '. += {"datumCBOR": ($cbor | tostring)}'
+  datums="$(echo "$utxos" | jq -c 'map(.datum) | .[]')"
+  count=0
+  for d in $datums; do
+    datumCBOR=$($qvf data-to-cbor "$d")
+    utxos="$(echo "$utxos" | jq -c --arg cbor "$datumCBOR" --argjson i "$count" '.[$i] |= (. += {"datumCBOR": ($cbor | tostring)})')"
+    count=$(expr $count + 1)
+  done
+  echo $utxos
   # }}}
 }
 

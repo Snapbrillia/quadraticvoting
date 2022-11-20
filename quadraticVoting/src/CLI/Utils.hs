@@ -27,7 +27,8 @@ import           Codec.Serialise             ( Serialise
 import qualified Control.Monad.Fail          as M
 import qualified Data.Aeson                  as A
 import           Data.Aeson                  ( encode
-                                             , FromJSON(..) )
+                                             , FromJSON(..)
+                                             , (.:) )
 import           Data.Aeson.Types            ( Parser )
 import qualified Data.ByteString.Char8       as BS8
 import qualified Data.ByteString.Lazy        as LBS
@@ -53,6 +54,7 @@ import           PlutusTx                    ( Data (..) )
 import qualified PlutusTx
 import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.Prelude            ( lengthOfByteString )
+import           Prelude
 
 import           Data.Datum
 import           Data.Redeemer
@@ -1132,6 +1134,16 @@ data Asset = Asset
   , assetTokenName :: TokenName
   }
 
+instance Show Asset where
+  -- {{{
+  show a =
+    let
+      CurrencySymbol sym = assetSymbol a
+      TokenName      tn  = assetTokenName a
+    in
+    builtinByteStringToString sym ++ "." ++ builtinByteStringToString tn
+  -- }}}
+
 readAsset :: String -> Maybe Asset
 readAsset a =
   -- {{{
@@ -1148,11 +1160,12 @@ readAsset a =
 
 data ScriptUTxO = ScriptUTxO
   { suUTxO       :: TxOutRef
+  , suAddress    :: Ledger.Address
   , suLovelace   :: Integer
   , suAsset      :: Asset
   , suAssetCount :: Integer
   , suDatum      :: QVFDatum
-  }
+  } deriving (Show)
 
 utxoParser :: Text -> Parser TxOutRef
 utxoParser txt =
@@ -1174,6 +1187,16 @@ assetParser txt =
       M.fail "Invalid Asset."
   -- }}}
 
+addressParser :: Text -> Parser Ledger.Address
+addressParser txt =
+  -- {{{
+  case tryReadAddress txt of
+    Just addr ->
+      return addr
+    Nothing   ->
+      M.fail "Invalid Address."
+  -- }}}
+
 qvfDatumParser :: Text -> Parser QVFDatum
 qvfDatumParser txt =
   -- {{{
@@ -1190,12 +1213,49 @@ qvfDatumParser txt =
 
 instance FromJSON ScriptUTxO where
   -- parseJSON :: Value -> Parser ScriptUTxO
-  parseJSON v =
+  parseJSON = A.withObject "ScriptUTxO" $ \v -> do
     -- {{{
-        ScriptUTxO
-    <$> A.withText "utxo" utxoParser v
-    <*> A.withScientific "lovelace" (return . round) v
-    <*> A.withText "asset" assetParser v
-    <*> A.withScientific "assetCount" (return . round) v
-    <*> A.withText "datumCBOR" qvfDatumParser v
+    initUTxO   <- v .: "utxo"
+    initAddr   <- v .: "address"
+    initAsset  <- v .: "asset"
+    initCBOR   <- v .: "datumCBOR"
+    case initUTxO of
+      A.String utxo ->
+        -- {{{
+        case initAddr of
+          A.String addr ->
+            -- {{{
+            case initAsset of
+              A.String asset ->
+                -- {{{
+                case initCBOR of
+                  A.String cbor ->
+                    -- {{{
+                        ScriptUTxO
+                    <$> utxoParser utxo
+                    <*> addressParser addr
+                    <*> v .: "lovelace"
+                    <*> assetParser asset
+                    <*> v .: "assetCount"
+                    <*> qvfDatumParser cbor
+                    -- }}}
+                  _             ->
+                    -- {{{
+                    M.fail "Invalid datum CBOR."
+                    -- }}}
+                -- }}}
+              _              ->
+                -- {{{
+                M.fail "Invalid asset."
+                -- }}}
+            -- }}}
+          _             ->
+            -- {{{
+            M.fail "Invalid address."
+            -- }}}
+        -- }}}
+      _             ->
+        -- {{{
+        M.fail "Invalid UTxO."
+        -- }}}
     -- }}}
