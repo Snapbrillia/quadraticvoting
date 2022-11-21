@@ -1141,7 +1141,8 @@ instance Show Asset where
       CurrencySymbol sym = assetSymbol a
       TokenName      tn  = assetTokenName a
     in
-    builtinByteStringToString sym ++ "." ++ builtinByteStringToString tn
+    builtinByteStringToString sym ++
+      (if tn == "" then "" else "." ++ builtinByteStringToString tn)
   -- }}}
 
 readAsset :: String -> Maybe Asset
@@ -1161,11 +1162,31 @@ readAsset a =
 data ScriptUTxO = ScriptUTxO
   { suUTxO       :: TxOutRef
   , suAddress    :: Ledger.Address
+  , suAddressStr :: String
   , suLovelace   :: Integer
   , suAsset      :: Asset
   , suAssetCount :: Integer
   , suDatum      :: QVFDatum
-  } deriving (Show)
+  }
+
+instance Show ScriptUTxO where
+  show ScriptUTxO{..} =
+    -- {{{
+       "{\"utxo\":"       ++ "\"" ++ showTxOutRef suUTxO ++ "\""
+    ++ ",\"address\":"    ++ "\"" ++ suAddressStr        ++ "\""
+    ++ ",\"lovelace\":"   ++         show suLovelace
+    ++ ",\"asset\":"      ++ "\"" ++ show suAsset        ++ "\""
+    ++ ",\"assetCount\":" ++         show suAssetCount
+    ++ "}"
+    -- }}}
+
+showTxOutRef :: TxOutRef -> String
+showTxOutRef TxOutRef{..} =
+  -- {{{
+     builtinByteStringToString (Ledger.getTxId txOutRefId)
+  ++ "#"
+  ++ show txOutRefIdx
+  -- }}}
 
 utxoParser :: Text -> Parser TxOutRef
 utxoParser txt =
@@ -1234,6 +1255,7 @@ instance FromJSON ScriptUTxO where
                         ScriptUTxO
                     <$> utxoParser utxo
                     <*> addressParser addr
+                    <*> v .: "address"
                     <*> v .: "lovelace"
                     <*> assetParser asset
                     <*> v .: "assetCount"
@@ -1259,3 +1281,9 @@ instance FromJSON ScriptUTxO where
         M.fail "Invalid UTxO."
         -- }}}
     -- }}}
+
+
+
+
+
+

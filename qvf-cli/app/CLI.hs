@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE LambdaCase        #-}
 
@@ -12,6 +11,7 @@ module Main (main) where
 -- import Debug.Trace (trace)
 
 import           Cardano.Api
+import           Codec.Serialise            ( serialise )
 import qualified Data.Aeson                 as A
 import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Char8      as BS8
@@ -620,10 +620,14 @@ main = do
       -- }}}
     "test" : utxosStr : _                                                                      ->
       let
-        mUTxOs :: Either String [ScriptUTxO]
-        mUTxOs = A.eitherDecode $ fromString utxosStr
+        mUTxOs :: Maybe [ScriptUTxO]
+        mUTxOs = A.decode $ fromString utxosStr
       in
-      print mUTxOs
+      case mUTxOs of
+        Just utxos ->
+          print utxos
+        Nothing    ->
+          putStrLn "FAILED"
 {-
     "accumulate-prize-weights" : govUTxOStr : restOfArgs                                       ->
       -- {{{
