@@ -25,6 +25,7 @@ library
                      , Data.Datum
                      , Data.DonationInfo
                      , Data.Redeemer
+                     , Data.ScriptUTxO
                      , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration

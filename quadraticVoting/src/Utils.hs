@@ -605,9 +605,9 @@ minRequestable = 5_000_000
 -- E080: All donation assets must be burnt.
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
--- E083: 
--- E084: 
--- E085: 
+-- E083: Invalid value in the prodced governance UTxO.
+-- E084: Invalid datum attached to the produced governance UTxO.
+-- E085: Only one UTxO must be produced at the script address.
 -- E086: 
 -- E087: 
 -- E088: Invalid input datums.

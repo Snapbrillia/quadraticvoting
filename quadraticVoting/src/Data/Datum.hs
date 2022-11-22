@@ -39,9 +39,13 @@ import           Plutus.V2.Ledger.Api   ( PubKeyHash
                                         , BuiltinByteString )
 import qualified PlutusTx.AssocMap      as Map
 import           PlutusTx.AssocMap      ( Map )
+import qualified Prelude                as P
 import           Prelude                ( Show
-                                        , show )
+                                        , show
+                                        , Ord
+                                        , compare )
 import qualified PlutusTx
+import qualified PlutusTx.Ord           as PlutusOrd
 import           PlutusTx.Prelude       ( Bool(..)
                                         , Integer
                                         , BuiltinByteString
@@ -56,7 +60,7 @@ data ProjectDetails = ProjectDetails
   { pdPubKeyHash :: PubKeyHash
   , pdName       :: BuiltinByteString
   , pdRequested  :: Integer
-  } deriving (Show, Generic, FromJSON, ToJSON)
+  } deriving (Show, Generic, FromJSON, ToJSON, P.Eq, P.Ord)
 instance Eq ProjectDetails where
   {-# INLINABLE (==) #-}
   ProjectDetails p0 n0 r0 == ProjectDetails p1 n1 r1 =
@@ -74,7 +78,7 @@ data EliminationInfo = EliminationInfo
   { eiRequested :: Integer
   , eiRaised    :: Integer
   , eiWeight    :: Integer
-  } deriving (Show, Generic, FromJSON, ToJSON)
+  } deriving (Show, Generic, FromJSON, ToJSON, P.Eq, P.Ord)
 instance Eq EliminationInfo where
   {-# INLINABLE (==) #-}
   EliminationInfo p0 n0 r0 == EliminationInfo p1 n1 r1 =
@@ -184,7 +188,7 @@ data QVFDatum
       -- }}}
   -- }}}
   -- }}}
-  deriving (Show, Generic, FromJSON, ToJSON)
+  deriving (Show, Generic, FromJSON, ToJSON, P.Eq, PlutusOrd.Ord)
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
@@ -207,6 +211,9 @@ instance Eq QVFDatum where
   --
   _ == _ = False
   -- }}}
+
+instance Ord QVFDatum where
+  compare = PlutusOrd.compare
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
   [ ('DeadlineDatum             , 0 )

@@ -56,6 +56,7 @@ import           Data.DonationInfo
 data QVFRedeemer
   = UpdateDeadline  POSIXTime
   | RegisterProject
+  | Contribute      Integer
   | DonateToProject
   | FoldDonations
   | AccumulatePrizeWeights
@@ -70,15 +71,16 @@ data QVFRedeemer
 PlutusTx.makeIsDataIndexed ''QVFRedeemer
   [ ('UpdateDeadline        , 0 )
   , ('RegisterProject       , 1 )
-  , ('DonateToProject       , 2 )
-  , ('FoldDonations         , 3 )
-  , ('AccumulatePrizeWeights, 4 )
-  , ('EliminateProject      , 5 )
-  , ('DistributePrize       , 6 )
-  , ('UnlockEscrowFor       , 7 )
-  , ('WithdrawBounty        , 8 )
-  , ('ConcludeProject       , 9 )
-  , ('ConcludeFundingRound  , 10)
+  , ('Contribute            , 2 )
+  , ('DonateToProject       , 3 )
+  , ('FoldDonations         , 4 )
+  , ('AccumulatePrizeWeights, 5 )
+  , ('EliminateProject      , 6 )
+  , ('DistributePrize       , 7 )
+  , ('UnlockEscrowFor       , 8 )
+  , ('WithdrawBounty        , 9 )
+  , ('ConcludeProject       , 10 )
+  , ('ConcludeFundingRound  , 11)
   , ('Dev                   , 20)
   ]
 -- }}}

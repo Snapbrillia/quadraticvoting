@@ -35,6 +35,7 @@ import           Text.Read                  ( readMaybe )
 import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
+import           Data.ScriptUTxO
 
 import           CLI.Utils
 import qualified QVF                        as OC
@@ -628,21 +629,17 @@ main = do
           print utxos
         Nothing    ->
           putStrLn "FAILED"
-{-
     "accumulate-prize-weights" : govUTxOStr : restOfArgs                                       ->
       -- {{{
       case A.decode (fromString govUTxOStr) of
         Just govUtxO ->
           -- {{{
           let
-            go :: String
-               -> String
-               -> [OutputUTxO]
-               -> Either String [OutputUTxO]
-            go infoUTxOStr projUTxOStr outputs =
+            go :: String -> [ScriptUTxO] -> Either String [ScriptUTxO]
+            go projUTxOsStr outputs =
               -- {{{
-              case (A.decode (fromString infoUTxOStr), A.decode (fromString projUTxOStr)) of
-                (Just infoUTxO, Just projUTxO) ->
+              case sort <$> (A.decode $ fromString projUTxOsStr) of
+                Just [infoUTxO, projUTxO] ->
                   -- {{{
                   let
                     TokenName projID  = assetTokenName $ suAsset infoUTxO
@@ -653,12 +650,9 @@ main = do
                     case (suDatum projUTxO, suDatum infoUTxO) of
                       (PrizeWeight w False, ProjectInfo (ProjectDetails{..})) ->
                         -- {{{
-                        Right
-                          ( suLovelace + ls - halfOfTheRegistrationFee
-                          , ps + 1
-                          , ws + w
-                          , ds ++ [(projID, PrizeWeight w True)]
-                          )
+                        Right $
+                             outputs
+                          ++ [projUTxO {suDatum = PrizeWeight w True}]
                         -- }}}
                       _                                                       ->
                         -- {{{
@@ -670,12 +664,12 @@ main = do
                     Left "Provided info UTxO and state UTxO don't belong to the same project."
                     -- }}}
                   -- }}}
-                Nothing                        ->
+                Nothing       ->
                   -- {{{
                   Left "Bad script UTxO JSON encountered."
                   -- }}}
               -- }}}
-            eith = infArgHelper2 go (govUTxO, []) restOfArgs
+            eith = infArgHelper go [] restOfArgs
           in
           case eith of
             Right ((updatedDatum,), ocfn) ->
@@ -745,6 +739,7 @@ main = do
           putStrLn "FAILED: Could not parse the given governance UTxO JSON."
           -- }}}
       -- }}}
+{-
     "collect-key-holder-fee"   : fileNamesJSON : _                                             ->
       -- {{{
       case A.decode $ fromString fileNamesJSON of

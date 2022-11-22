@@ -564,6 +564,30 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && traceIfFalse "E002" (mintIsPresent qvfSymbol qvfTokenName (negate 2))
       -- }}}
 
+    (RegisteredProjectsCount _                    , Contribute contribution) ->
+      -- Match Pool Contribution
+      -- {{{
+      case getContinuingOutputs ctx of
+        [o] ->
+          -- {{{
+             traceIfFalse
+               "E083"
+               ( utxoHasOnlyXWithLovelaces
+                   qvfSymbol
+                   emptyTokenName
+                   (lovelaceFromValue currVal + contribution)
+                   o
+               )
+          && traceIfFalse
+               "E084"
+               (utxosDatumMatchesWith datum o)
+          -- }}}
+        _   ->
+          -- {{{
+          traceError "E085"
+          -- }}}
+      -- }}}
+
     (RegisteredProjectsCount _                    , RegisterProject        ) ->
       -- Project Registration
       -- {{{
