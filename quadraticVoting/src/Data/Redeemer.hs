@@ -79,7 +79,7 @@ PlutusTx.makeIsDataIndexed ''QVFRedeemer
   , ('DistributePrize       , 7 )
   , ('UnlockEscrowFor       , 8 )
   , ('WithdrawBounty        , 9 )
-  , ('ConcludeProject       , 10 )
+  , ('ConcludeProject       , 10)
   , ('ConcludeFundingRound  , 11)
   , ('Dev                   , 20)
   ]

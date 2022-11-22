@@ -198,10 +198,11 @@ toTxInInfo ScriptUTxO{..} =
   -- {{{
   TxInInfo suUTxO $ TxOut
     suAddress
-    ( Value.singleton
-        (assetSymbol suAsset)
-        (assetTokenName suAsset)
-        suAssetCount
+    (    Ada.lovelaceOf suLovelace
+      <> Value.singleton
+           (assetSymbol suAsset)
+           (assetTokenName suAsset)
+           suAssetCount
     )
     (Ledger.OutputDatum $ Ledger.Datum $ Ledger.toBuiltinData suDatum)
     Nothing
