@@ -21,11 +21,11 @@ library
   default-language:    Haskell2010
 
   exposed-modules:     CLI.Utils
+                     , CLI.Tx
                      , QVF
                      , Data.Datum
                      , Data.DonationInfo
                      , Data.Redeemer
-                     , Data.ScriptUTxO
                      , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration

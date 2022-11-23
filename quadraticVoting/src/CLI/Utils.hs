@@ -47,7 +47,8 @@ import qualified Plutus.V1.Ledger.Credential as Plutus
 import qualified Plutus.V1.Ledger.Crypto     as Plutus
 import           Plutus.V1.Ledger.Value      ( CurrencySymbol(..)
                                              , TokenName(..) )
-import           Plutus.V2.Ledger.Api        ( TxOutRef(..) )
+import           Plutus.V2.Ledger.Api        ( TxOutRef(..)
+                                             , ToData(..) )
 import qualified Plutus.V2.Ledger.Api        as Ledger
 import           PlutusTx                    ( Data (..) )
 import qualified PlutusTx
@@ -146,6 +147,23 @@ parseJSONValue bs =
           Left $ show err
     Nothing ->
       Left "Invalid JSON."
+  -- }}}
+
+
+dataToCBOR :: Data -> String
+dataToCBOR =
+  -- {{{
+    filter (\c -> c /= '"' && c /= '\\') -- "
+  . show
+  . encode
+  -- }}}
+
+untypedToCBOR :: ToData a => a -> String
+untypedToCBOR =
+  -- {{{
+    dataToCBOR
+  . PlutusTx.toData
+  . toBuiltinData
   -- }}}
 
 
@@ -992,6 +1010,9 @@ getDeadlineSlot currSlot (Ledger.POSIXTime deadline) = do
   return $ diff `div` slotLength + currSlot
   -- }}}
 
+
+decodeFromString :: FromJSON a => String -> Maybe a
+decodeFromString = A.decode . fromString
 
 -- EXTRA
 -- {{{

@@ -3,10 +3,10 @@
 . $REPO/scripts/initiation.sh
 
 
-if [ $TEST -eq 1 ]; then
-  projectOwnerWalletLabel=$2
-  projectName=$3
-  projectRequestedFund=$4
+if [ "$ENV" == "dev" ]; then
+  projectOwnerWalletLabel=$1
+  projectName=$2
+  projectRequestedFund=$3
   projectOwnerAddress=$(cat $preDir/$projectOwnerWalletLabel.addr)
   projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)
   ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)

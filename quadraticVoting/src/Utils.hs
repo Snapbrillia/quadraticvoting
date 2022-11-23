@@ -249,6 +249,32 @@ utxosDatumMatchesWith newDatum =
   -- }}}
 
 
+{-# INLINABLE qvfDatumToDatum #-}
+qvfDatumToDatum :: QVFDatum -> Datum
+qvfDatumToDatum = Datum . toBuiltinData
+
+
+{-# INLINABLE getTokenNameOfUTxO #-}
+-- | Tries to find a singular asset with a given symbol inside the given
+--   UTxO, and returns its token name.
+getTokenNameOfUTxO :: CurrencySymbol -> TxOut -> Maybe TokenName
+getTokenNameOfUTxO sym utxo =
+  -- {{{
+  case flattenValue (txOutValue utxo) of
+    [(sym', tn', amt'), _] ->
+      -- {{{
+      if sym' == sym && amt' == 1 then
+        Just tn'
+      else
+        Nothing
+      -- }}}
+    _                      ->
+      -- {{{
+      Nothing
+      -- }}}
+  -- }}}
+
+
 {-# INLINABLE utxoXCount #-}
 -- | Finds how much X asset is present in the given UTxO.
 utxoXCount :: CurrencySymbol -> TokenName -> TxOut -> Integer
@@ -579,12 +605,12 @@ minRequestable = 5_000_000
 -- E054: Missing proper outputs for the first phase of folding donations.
 -- E055: Project asset not found.
 -- E056: Unexpected UTxO encountered (expected a `PrizeWeight` and `ProjectInfo`).
--- E057: Either an invalid datum attached to the processed prize weight UTxO, or its value is improper, or the corresponding input/reference UTxO is not coming from the script address.
+-- E057: Unauthentic governance UTxO provided.
 -- E058: Invalid prize weight UTxO is being produced.
--- E059: Excessive number of prize weight inputs are provided.
--- E060: Updated governance UTxO must carry the same value as its consumed counterpart.
--- E061: Invalid datum attached to the produced governance datum.
--- E062: Expected consumed governance UTxO must come from this script address.
+-- E059: Provided governance UTxO has invalid value.
+-- E060: Input governance UTxO has an improper datum.
+-- E061: Excessive number of prize weight inputs are provided.
+-- E062: Invalid pattern between inputs and references.
 -- E063: Improper correspondence between input and output prize weights, and projects' info reference inputs.
 -- E064: This funding round is over.
 -- E065: Invalid deadline datum.
@@ -608,8 +634,8 @@ minRequestable = 5_000_000
 -- E083: Invalid value in the prodced governance UTxO.
 -- E084: Invalid datum attached to the produced governance UTxO.
 -- E085: Only one UTxO must be produced at the script address.
--- E086: 
--- E087: 
+-- E086: Invalid script outputs.
+-- E087: Invalid script outputs.
 -- E088: Invalid input datums.
 -- E089: Exactly two UTxOs must be produced at the script.
 -- E090: Value of the governance datum must be properly updated.
@@ -642,7 +668,7 @@ minRequestable = 5_000_000
 -- E117: Couldn't find UTxO.
 -- E118: Mismatch of input project UTxO addresses.
 -- E119: No Other UTxOs from the contract can be spent.
--- E120: Input project and reference project UTxOs don't match up.
+-- E120: Input project and reference project UTxOs don't belong to the same project, or are not coming from the same address as the governance UTxO.
 -- E121: Invalid order of the inputs compared to the reference inputs.
 -- E122: Output governance UTxO must carry the match pool and the authentication token.
 -- E123: Output governance UTxO must have a proper `DistributionProgress` datum.

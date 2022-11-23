@@ -750,12 +750,13 @@ get_all_projects_utxos_datums_values() {
   # }}}
 }
 
-# CAUTION: The constructor index needs to match with that of the corresponding
-#          `QVFDatum` constructor.
-#
-# Takes no arguments.
+get_all_projects_info_utxos_datums_values() {
+  constr=$($qvf get-constr-index ProjectInfo)
+  get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) == ($constr | tonumber)))'
+}
 get_all_projects_state_utxos_datums_values() {
-  get_all_projects_utxos_datums_values | jq -c 'map(select((.datum .constructor) != 4))'
+  constr=$($qvf get-constr-index ProjectInfo)
+  get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) != ($constr | tonumber)))'
 }
 
 # Takes no arguments.

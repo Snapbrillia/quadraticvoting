@@ -31,13 +31,18 @@ import qualified PlutusTx.AssocMap          as Map
 import           PlutusTx.AssocMap          ( Map )
 import           System.Environment         ( getArgs )
 import           Text.Read                  ( readMaybe )
-
+--
 import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
-import           Data.ScriptUTxO
-
+--
 import           CLI.Utils
+import qualified CLI.Tx                     as CLI
+import           CLI.Tx                     ( ScriptInput(..)
+                                            , ScriptOutput(..)
+                                            , Asset(..)
+                                            , scriptInputToTxInInfo
+                                            , txOutToScriptOutput )
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
@@ -621,122 +626,50 @@ main = do
       -- }}}
     "test" : utxosStr : _                                                                      ->
       let
-        mUTxOs :: Maybe [ScriptUTxO]
+        mUTxOs :: Maybe [ScriptInput]
         mUTxOs = A.decode $ fromString utxosStr
       in
       case mUTxOs of
         Just utxos ->
-          print utxos
+          print $ siResolved <$> utxos
         Nothing    ->
           putStrLn "FAILED"
-    "accumulate-prize-weights" : govUTxOStr : restOfArgs                                       ->
+    "accumulate-prize-weights" : govInputStr : infoInputsStr : projInputsStr : _               ->
       -- {{{
-      case A.decode (fromString govUTxOStr) of
-        Just govUtxO ->
+      let
+        mGov   = decodeFromString @ScriptInput   govInputStr
+        mInfos = decodeFromString @[ScriptInput] infoInputsStr
+        mProjs = decodeFromString @[ScriptInput] projInputsStr
+      in
+      case (mGov, mInfos, mProjs) of
+        (Just govInput, Just infoInputs, Just projInputs@(p0 : _)) ->
           -- {{{
           let
-            go :: String -> [ScriptUTxO] -> Either String [ScriptUTxO]
-            go projUTxOsStr outputs =
-              -- {{{
-              case sort <$> (A.decode $ fromString projUTxOsStr) of
-                Just [infoUTxO, projUTxO] ->
-                  -- {{{
-                  let
-                    TokenName projID  = assetTokenName $ suAsset infoUTxO
-                    TokenName projID' = assetTokenName $ suAsset projUTxO
-                  in
-                  if projID == projID' then
-                    -- {{{
-                    case (suDatum projUTxO, suDatum infoUTxO) of
-                      (PrizeWeight w False, ProjectInfo (ProjectDetails{..})) ->
-                        -- {{{
-                        Right $
-                             outputs
-                          ++ [projUTxO {suDatum = PrizeWeight w True}]
-                        -- }}}
-                      _                                                       ->
-                        -- {{{
-                        Left "Invalid project datum."
-                        -- }}}
-                    -- }}}
-                  else
-                    -- {{{
-                    Left "Provided info UTxO and state UTxO don't belong to the same project."
-                    -- }}}
-                  -- }}}
-                Nothing       ->
-                  -- {{{
-                  Left "Bad script UTxO JSON encountered."
-                  -- }}}
-              -- }}}
-            eith = infArgHelper go [] restOfArgs
+            govSO   = siResolved govInput
+            outputs =
+              OC.accumulatePrizeWeights
+                (soAddress govSO)
+                (assetSymbol $ soAsset govSO)
+                (assetSymbol $ soAsset $ siResolved p0)
+                (scriptInputToTxInInfo <$> (projInputs ++ [govInput]))
+                (scriptInputToTxInInfo <$> infoInputs)
+            mScriptOutputs =
+              traverse (txOutToScriptOutput $ soAddressStr govSO) outputs
           in
-          case eith of
-            Right ((updatedDatum,), ocfn) ->
-              -- {{{
-              actOnCurrentDatum @QVFRedeemer ocfn AccumulatePrizeWeights Nothing $ \currDatum ->
-                let
-                  updatedDatumFile  :: FilePath
-                  updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
-
-                  mkProjDatumFile   :: BuiltinByteString -> FilePath
-                  mkProjDatumFile   = getProjectsDatumFile ocfn . TokenName
-
-                  eithUpdatedDatum  :: Either String QVFDatum
-                  eithUpdatedDatum  =
-                    -- {{{
-                    case currDatum of
-                      RegisteredProjectsCount totP
-                        -- {{{
-                        if inputPs == totP then
-                          Right $ ProjectEliminationProgress mp ws
-                            totP inputLs inputWs False
-                        else
-                          Right $ DonationAccumulationProgress
-                            totP
-                            inputPs
-                            inputLs
-                            inputWs
-                        -- }}}
-                      DonationAccumulationProgress totP psSoFar lsSoFar sumWsSoFar ->
-                        -- {{{
-                        if inputPs + psSoFar == totP then
-                          Right $ DonationAccumulationConcluded
-                            totP (lsSoFar + inputLs) (sumWsSoFar + inputWs) False
-                        else
-                          Right $ DonationAccumulationProgress
-                            totP
-                            (inputPs + psSoFar)
-                            (inputLs + lsSoFar)
-                            (inputWs + sumWsSoFar)
-                        -- }}}
-                      _                                                            ->
-                        -- {{{
-                        Left "Bad project UTxO provided."
-                        -- }}}
-                    -- }}}
-                in
-                case eithUpdatedDatum of
-                  Right updatedDatum -> do
-                    -- {{{
-                    writeJSON updatedDatumFile updatedDatum
-                    forM_ ds $ \(projID, projDatum) ->
-                      writeJSON (mkProjDatumFile projID) projDatum
-                    print $ inputLs + governanceLovelaces
-                    -- }}}
-                  Left err           ->
-                    -- {{{
-                    putStrLn $ "FAILED: " ++ err
-                    -- }}}
-              -- }}}
-            Left errMsg                                      ->
-              -- {{{
-              putStrLn $ "FAILED: " ++ errMsg
-              -- }}}
+          case mScriptOutputs of
+            Just scriptOutputs ->
+              print $ show <$> scriptOutputs
+            Nothing            ->
+              putStrLn
+                "FAILED: Couldn't convert `TxOut` values to `ScriptOutput` values."
           -- }}}
-        Nothing      ->
+        _                                                          ->
           -- {{{
-          putStrLn "FAILED: Could not parse the given governance UTxO JSON."
+          putStrLn $
+               "FAILED with bad arguments:"
+            ++ "\n\t" ++ govInputStr 
+            ++ "\n\t" ++ infoInputsStr 
+            ++ "\n\t" ++ projInputsStr 
           -- }}}
       -- }}}
 {-
@@ -889,14 +822,8 @@ main = do
       -- {{{
       fromConcreteDataValue
         (fromString dataJSONStr)
-        ( \parseError ->
-            putStrLn $ "FAILED to parse data JSON: " ++ parseError
-        )
-        ( putStrLn
-          . filter (\c -> c /= '"' && c /= '\\') -- "
-          . show
-          . encode
-        )
+        (\parseError -> putStrLn $ "FAILED to parse data JSON: " ++ parseError)
+        (putStrLn . dataToCBOR)
         -- }}}
     "cbor-to-data"       : cborStr : _                                  ->
       -- {{{
