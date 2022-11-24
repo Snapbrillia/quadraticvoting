@@ -611,7 +611,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       traceIfFalse "E087" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
 
-    (ProjectEliminationProgress mp wMap           , EliminateProject       ) ->
+    (ProjectEliminationProgress mp wMap           , EliminateOneProject    ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
       case eliminateOneProject mp wMap of
@@ -859,7 +859,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                              -> False
       -- }}} 
 
-    (PrizeWeight _ True                           , EliminateProject       ) ->
+    (PrizeWeight _ True                           , EliminateOneProject    ) ->
       -- Elimination of Non-Eligible Projects
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
@@ -1192,7 +1192,6 @@ accumulatePrizeWeights scriptAddr qvfSym pSym inputs refs =
   in
   go inputs refs (0, Map.empty, [])
   -- }}}
- 
 -- }}}
 
 

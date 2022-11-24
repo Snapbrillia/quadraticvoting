@@ -77,7 +77,7 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 data EliminationInfo = EliminationInfo
   { eiRequested :: Integer
   , eiRaised    :: Integer
-  , eiWeight    :: Integer
+  , eiWeight    :: Integer -- TODO: remove?
   } deriving (Show, Generic, FromJSON, ToJSON, P.Eq, P.Ord)
 instance Eq EliminationInfo where
   {-# INLINABLE (==) #-}
@@ -110,7 +110,7 @@ data QVFDatum
   | PrizeWeightAccumulation
     -- ^ Progress of forming the complete map of prize weights.
       -- {{{
-      Integer                                 -- ^ Total donation count.
+      Integer                                 -- ^ Total registered projects count.
       (Map BuiltinByteString EliminationInfo) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 

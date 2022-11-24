@@ -424,7 +424,6 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-{-
     "consolidate-donations"    : restOfArgs                                                    ->
       -- {{{
       let
@@ -464,14 +463,12 @@ main = do
                     Left "Invalid donation UTxO provided."
                     -- }}}
                 -- }}}
-              _                                                                       ->
+              _                                              ->
                 -- {{{
-                Left $ "Bad arguments for a donation(s) UTxO: "
-                  ++ lovelacesStr
-                  ++ " "
-                  ++ donCountStr
-                  ++ " "
-                  ++ datumStr
+                Left $ "Bad arguments for a donation(s) UTxO:"
+                  ++ "\n\t" ++ lovelacesStr
+                  ++ "\n\t" ++ donCountStr
+                  ++ "\n\t" ++ datumStr
                 -- }}}
             -- }}}
         eith = infArgHelper3 go (Right (0, 0, 0)) restOfArgs
@@ -487,35 +484,34 @@ main = do
               mUpdatedDatum    =
                 -- {{{
                 let
-                  fromTotal tot =
+                  fromRemainingAndPrevWs remaining prevWs =
                     -- {{{
-                    if inputDonations == tot then
-                      Just $ PrizeWeight (inputWs * inputWs) False
+                    let
+                      finalWs = prevWs + inputWs
+                    in
+                    if inputDonations == remaining then
+                      Just $ PrizeWeight (finalWs * finalWs) False
                     else
-                      Just $ PrizeWeightAccumulation tot inputDonations inputWs
+                      Just $ ConsolidationProgress (remaining - inputDonations) finalWs
                     -- }}}
                 in
                 case currDatum of
-                  ReceivedDonationsCount tot          ->
+                  ReceivedDonationsCount tot         ->
                     -- {{{
-                    fromTotal tot
+                    fromRemainingAndPrevWs tot 0
                     -- }}}
-                  DonationFoldingProgress tot _       ->
+                  DonationFoldingProgress tot folded ->
                     -- {{{
-                    fromTotal tot
-                    -- }}}
-                  PrizeWeightAccumulation tot done ws ->
-                    -- {{{
-                    let
-                      newDone = done + inputDonations
-                      newWs   = ws + inputWs
-                    in
-                    if newDone == tot then
-                      Just $ PrizeWeight (newWs * newWs) False
+                    if tot == folded then
+                      fromRemainingAndPrevWs tot 0
                     else
-                      Just $ PrizeWeightAccumulation tot newDone newWs
+                      Nothing
                     -- }}}
-                  _                                   ->
+                  ConsolidationProgress remaining ws ->
+                    -- {{{
+                    fromRemainingAndPrevWs remaining ws
+                    -- }}}
+                  _                                  ->
                     -- {{{
                     Nothing
                     -- }}}
@@ -543,7 +539,6 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
--}
     "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _   ->
       -- {{{
       case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
@@ -624,16 +619,6 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "test" : utxosStr : _                                                                      ->
-      let
-        mUTxOs :: Maybe [ScriptInput]
-        mUTxOs = A.decode $ fromString utxosStr
-      in
-      case mUTxOs of
-        Just utxos ->
-          print $ siResolved <$> utxos
-        Nothing    ->
-          putStrLn "FAILED"
     "accumulate-prize-weights" : govInputStr : infoInputsStr : projInputsStr : _               ->
       -- {{{
       let
@@ -672,37 +657,10 @@ main = do
             ++ "\n\t" ++ projInputsStr 
           -- }}}
       -- }}}
-{-
-    "collect-key-holder-fee"   : fileNamesJSON : _                                             ->
+    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : _               ->
       -- {{{
-      case A.decode $ fromString fileNamesJSON of
-        Just ocfn ->
-          -- {{{
-          actOnCurrentDatum @QVFRedeemer ocfn PayKeyHolderFee Nothing $ \case
-            DonationAccumulationConcluded ps totalLovelaces sumP False ->
-              -- {{{
-              let
-                (khFee, updatedDatum) =
-                  OC.findDatumAfterPayingKeyHoldersFee ps totalLovelaces sumP
-
-                updatedDatumFile      :: FilePath
-                updatedDatumFile      = getFileName ocfn ocfnUpdatedDatum
-              in do
-              writeJSON updatedDatumFile updatedDatum
-              print khFee
-              -- }}}
-            _                             ->
-              -- {{{
-              putStrLn "FAILED: Provided current datum is incompatible."
-              -- }}}
-          -- }}}
-        _                                    ->
-          -- {{{
-          putStrLn $
-               "FAILED because of bad off-chain filenames JSON:\n"
-            ++ fileNamesJSON
-          -- }}}
       -- }}}
+{-
     "distribute-prize"         : infoJSONStr : prizeWeightJSONStr : fileNamesJSON : _          ->
       -- {{{
       fromDatumValue (fromString infoJSONStr) $ \case
@@ -858,6 +816,16 @@ main = do
           putStrLn "FAILED: Couldn't parse current slot number."
           -- }}}
       -- }}}
+    "test" : utxosStr : _                                               ->
+      let
+        mUTxOs :: Maybe [ScriptInput]
+        mUTxOs = A.decode $ fromString utxosStr
+      in
+      case mUTxOs of
+        Just utxos ->
+          print $ siResolved <$> utxos
+        Nothing    ->
+          putStrLn "FAILED"
     _                                                                   ->
       putStrLn "FAILED: Invalid arguments for QVF-CLI."
 -- }}}

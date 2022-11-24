@@ -60,7 +60,7 @@ data QVFRedeemer
   | DonateToProject
   | FoldDonations
   | AccumulatePrizeWeights
-  | EliminateProject
+  | EliminateOneProject
   | DistributePrize BuiltinByteString
   | UnlockEscrowFor PubKeyHash Integer
   | WithdrawBounty  PubKeyHash
@@ -75,7 +75,7 @@ PlutusTx.makeIsDataIndexed ''QVFRedeemer
   , ('DonateToProject       , 3 )
   , ('FoldDonations         , 4 )
   , ('AccumulatePrizeWeights, 5 )
-  , ('EliminateProject      , 6 )
+  , ('EliminateOneProject   , 6 )
   , ('DistributePrize       , 7 )
   , ('UnlockEscrowFor       , 8 )
   , ('WithdrawBounty        , 9 )
