@@ -186,6 +186,28 @@ getInlineDatum utxo =
   -- }}}
 
 
+{-# INLINABLE valuePaidToFromOutputs #-}
+-- | Similar to `valuePaidTo` from Plutus, but takes in a list of outputs
+--   rather than the whole transaction info.
+--
+--   Looking at the source code for `valuePaidTo`, this implementation seems to
+--   traverse the output list one less time. Github link:
+--   https://github.com/input-output-hk/plutus/blob/master/plutus-ledger-api/src/PlutusLedgerApi/V2/Contexts.hs
+valuePaidToFromOutputs :: [TxOut] -> PubKeyHash -> Value
+valuePaidToFromOutputs outputs pkh =
+  -- {{{
+  let
+    foldFn acc txOut =
+      case txOut of
+        TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue} ->
+          if pkh == pkh' then acc <> txOutValue else acc
+        _                                                                   ->
+          acc
+  in
+  foldr foldFn mempty outputs
+  -- }}}
+
+
 {-# INLINABLE getInputGovernanceUTxOFrom #-}
 -- | Abstraction to find a given "governance" UTxO.
 --
@@ -249,9 +271,21 @@ utxosDatumMatchesWith newDatum =
   -- }}}
 
 
-{-# INLINABLE qvfDatumToDatum #-}
-qvfDatumToDatum :: QVFDatum -> Datum
-qvfDatumToDatum = Datum . toBuiltinData
+{-# INLINABLE qvfDatumToInlineDatum #-}
+qvfDatumToInlineDatum :: QVFDatum -> OutputDatum
+qvfDatumToInlineDatum = OutputDatum . Datum . toBuiltinData
+
+
+{-# INLINABLE makeAuthenticValue #-}
+makeAuthenticValue :: Integer
+                   -> CurrencySymbol
+                   -> TokenName
+                   -> Integer
+                   -> Value
+makeAuthenticValue lovelaceCount sym tn amt =
+  -- {{{
+  Ada.lovelaceValueOf lovelaceCount <> Value.singletong sym tn amt
+  -- }}}
 
 
 {-# INLINABLE getTokenNameOfUTxO #-}
@@ -433,6 +467,9 @@ foldDonationInputs donationSymbol donationTN inputs =
   -- }}}
 
 
+-- | Given the match pool's Lovelace count, sum of all the prize weights, and
+--   a project's prize weight, this function finds the portion of the match
+--   pool won by the project.
 {-# INLINABLE findProjectsWonPortion #-}
 findProjectsWonPortion :: Integer -> Integer -> Integer -> Integer
 findProjectsWonPortion matchPool sumW w =
@@ -441,6 +478,8 @@ findProjectsWonPortion matchPool sumW w =
   -- }}}
 
 
+-- | Returns the sum of all the prize weights included in the `EliminationInfo`
+--   values.
 {-# INLINABLE findQVFDenominator #-}
 findQVFDenominator :: [(BuiltinByteString, EliminationInfo)]
                    -> Integer
@@ -450,62 +489,40 @@ findQVFDenominator =
   -- }}}
 
 
--- | Finds the summation of all the prize weights, and also finds how far each
---   project is from their funding goal, and the project (if any) which has
---   achieved the smallest percentage (less than 100%, including the raised
---   donations), is removed from the map and the updated map along with the
---   eliminated project are returned.
+-- | Checks that there are both UTxOs of a specific project present in inputs
+--   and reference inputs. If they are found, the provided function is applied
+--   to find the proper transaction outputs, along with the information for
+--   paying the project owner.
 --
---   If, however, no such project is found (i.e. all projects have either
---   reached or exceeded their funding goals), the project count, along with
---   the computed "denominator" is returned—as the subsequent updated datum has
---   to carry this value and this approach prevents a re-calculation.
-{-# INLINABLE eliminateOneProject #-}
-eliminateOneProject :: Integer
-                    -> Map BuiltinByteString EliminationInfo
-                    -> Either
-                         (Integer, Integer)
-                         ( Map BuiltinByteString EliminationInfo
-                         , BuiltinByteString
-                         )
-eliminateOneProject matchPool ws =
+--   Raises exception upon pattern match failure.
+{-# INLINABLE findOutputsFromProjectUTxOs #-}
+findOutputsFromProjectUTxOs :: CurrencySymbol
+                            -> TokenName
+                            -> [TxInInfo]
+                            -> [TxInInfo]
+                            -> (    TxOut
+                                 -> TxOut
+                                 -> ([TxOut], (PubKeyHash, Integer))
+                               )
+                            -> ([TxOut], (PubKeyHash, Integer))
+findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
   -- {{{
-  let
-    kvs                                        = Map.toList ws
-    den                                        = findQVFDenominator kvs
-    helper (EliminationInfo req dons w)        =
+  case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
+    [TxInInfo{txInInfoResolved = inP}] ->
       -- {{{
-      let
-        won = (1_000_000_000 * matchPool * w) `divide` den + dons
-      in
-      won `divide` req
+      case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) refs of
+        [TxInInfo{txInInfoResolved = infoUTxO}] ->
+          -- {{{
+          validation inP infoUTxO
+          -- }}}
+        _                                       ->
+          -- {{{
+          traceError "E126"
+          -- }}}
       -- }}}
-    foldFn (projID, info) (count, p, minSoFar) =
+    _                                  ->
       -- {{{
-      let
-        theRatio = helper info
-      in
-      if theRatio < minSoFar then
-        (count + 1, projID, theRatio)
-      else
-        (count + 1, p     , minSoFar)
-      -- }}}
-  in
-  case kvs of
-    (p, t) : rest ->
-      -- {{{
-      let
-        (pCount, toBeEliminated, r) = foldr foldFn (1, p, helper t) rest
-      in
-      if r < 1_000_000_000 then
-        Right (Map.delete toBeEliminated ws, toBeEliminated)
-      else
-        Left (pCount, den)
-      -- }}}
-    _             ->
-      -- {{{
-      -- TODO.
-      traceError "E1"
+      traceError "E125"
       -- }}}
   -- }}}
 -- }}}
@@ -670,18 +687,18 @@ minRequestable = 5_000_000
 -- E119: No Other UTxOs from the contract can be spent.
 -- E120: Input project and reference project UTxOs don't belong to the same project, or are not coming from the same address as the governance UTxO.
 -- E121: Invalid order of the inputs compared to the reference inputs.
--- E122: Output governance UTxO must carry the match pool and the authentication token.
--- E123: Output governance UTxO must have a proper `DistributionProgress` datum.
+-- E122: Invalid outputs.
+-- E123: Project owner must be properly paid.
 -- E124: Exactly 1 UTxO must be produced at the script.
 -- E125: Exactly 1 project UTxO must be getting spent.
 -- E126: Could not find the project's information UTxO referenced.
--- E127: Invalid input datums.
--- E128: Exactly two UTxOs must be produced at the script.
--- E129: Produced governance UTxO must carry the key holder fee.
--- E130: Invalid datum attached to the produced governance UTxO.
--- E131: Project owner not paid properly.
--- E132: Produced project UTxO must carry its asset with half of the registration fee.
--- E133: Produced project UTxO must have a locked `Escrow` datum attached.
+-- E127: Project UTxOs must be from the script address.
+-- E128: Invalid input datums.
+-- E129: Unauthentic governance UTxO.
+-- E130: 
+-- E131: 
+-- E132: 
+-- E133: 
 -- E134: 
 -- E135: 
 -- E136: 

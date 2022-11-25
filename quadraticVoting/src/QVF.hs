@@ -495,30 +495,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
           traceError "E074"
           -- }}}
       -- }}}
-
-    validateProjectUTxOs :: TokenName
-                         -> (TxOut -> TxOut -> Bool)
-                         -> Bool
-    validateProjectUTxOs projTN validation =
-      -- {{{
-      case filter (utxoHasOnlyX qvfProjectSymbol projTN . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = inP}] ->
-          -- {{{
-          case filter (utxoHasOnlyX qvfProjectSymbol projTN . txInInfoResolved) refs of
-            [TxInInfo{txInInfoResolved = infoUTxO}] ->
-              -- {{{
-              validation inP infoUTxO
-              -- }}}
-            _                                       ->
-              -- {{{
-              traceError "E126"
-              -- }}}
-          -- }}}
-        _                                  ->
-          -- {{{
-          traceError "E125"
-          -- }}}
-      -- }}}
     -- }}}
   in
   case (datum, action) of
@@ -614,90 +590,28 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (ProjectEliminationProgress mp wMap           , EliminateOneProject    ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
-      case eliminateOneProject mp wMap of
-        Right (newMap, removedProjID) ->
-          -- {{{
-          let
-            projTN = TokenName removedProjID
-          in
-          validateProjectUTxOs projTN $
-            \inP@TxOut{txOutValue = pVal} infoUTxO ->
-              -- {{{
-              case (getInlineDatum inP, getInlineDatum infoUTxO) of
-                (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
-                  -- {{{
-                  case getContinuingOutputs ctx of
-                    [s, p] ->
-                      -- {{{
-                      let
-                        raised             =
-                          lovelaceFromValue pVal - halfOfTheRegistrationFee
-                        (khFee, belonging) = separateKeyHoldersFeeFrom raised
-                        paidAmount         =
-                          lovelaceFromValue (valuePaidTo info pdPubKeyHash)
-                      in
-                         traceIfFalse
-                           "E129"
-                           ( utxoHasValue
-                               (currVal <> lovelaceValueOf khFee)
-                               s
-                           )
-                      && traceIfFalse
-                           "E130"
-                           ( utxosDatumMatchesWith
-                               (ProjectEliminationProgress mp newMap)
-                               p
-                           )
-                      && traceIfFalse
-                           "E131"
-                           (paidAmount == belonging)
-                      && traceIfFalse
-                           "E132"
-                           ( utxoHasOnlyXWithLovelaces
-                               qvfProjectSymbol
-                               projTN
-                               halfOfTheRegistrationFee
-                               p
-                           )
-                      && traceIfFalse
-                           "E133"
-                           (utxosDatumMatchesWith (Escrow Map.empty) p)
-                      -- }}}
-                    _      ->
-                      -- {{{
-                      traceError "E128"
-                      -- }}}
-                  -- }}}
-                _                                                    ->
-                  -- {{{
-                  traceError "E127"
-                  -- }}}
-              -- }}}
-          -- }}}
-        Left (pCount, denominator)    ->
-          -- {{{
-          case getContinuingOutputs ctx of
-            [o] ->
-              -- {{{
-                 traceIfFalse
-                   "E122"
-                   (utxoHasValue currVal o)
-              && traceIfFalse
-                   "E123"
-                   ( utxosDatumMatchesWith
-                       ( DistributionProgress
-                           (lovelaceFromValue currVal - governanceLovelaces)
-                           pCount
-                           denominator
-                       )
-                       o
-                   )
-              -- }}}
-            _   ->
-              -- {{{
-              traceError "E124"
-              -- }}}
-          -- }}}
+      let
+        (validOutputs, mEliminated) =
+          eliminateOneProject
+            qvfSymbol
+            qvfProjectSymbol
+            currUTxO
+            inputs
+            refs
+            mp
+            wMap
+      in
+         traceIfFalse "E122" (validOutputs == getContinuingOutputs ctx)
+      && ( case mEliminated of
+             Just (eliminated, raised) ->
+               -- {{{
+               traceIfFalse "E123" (valuePaidTo info eliminated == raised)
+               -- }}}
+             Nothing                   ->
+               -- {{{
+               True
+               -- }}}
+         )
       -- }}}
 
     (DistributionProgress mp remaining den        , DistributePrize projID ) ->
@@ -706,7 +620,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       let
         projTN = TokenName projID
       in
-      validateProjectUTxOs projTN $
+      validateProjectUTxOsWith qvfProjectSymbol projTN inputs refs $
         \inP@TxOut{txOutValue = pVal} infoUTxO ->
           case (getInlineDatum inP, getInlineDatum infoUTxO) of
             (PrizeWeight w True, ProjectInfo ProjectDetails{..}) ->
@@ -1120,7 +1034,7 @@ accumulatePrizeWeights scriptAddr qvfSym pSym inputs refs =
                       -- }}}
                     -- }}}
                 in
-                i {txOutDatum = OutputDatum $ qvfDatumToDatum updatedD}
+                i {txOutDatum = qvfDatumToInlineDatum updatedD}
                 : outs
                 -- }}}
             in
@@ -1167,9 +1081,7 @@ accumulatePrizeWeights scriptAddr qvfSym pSym inputs refs =
                           w
                       )
                       wMap
-                  , i { txOutDatum =
-                          OutputDatum $ qvfDatumToDatum $ PrizeWeight w True
-                      }
+                  , i {txOutDatum = qvfDatumToInlineDatum $ PrizeWeight w True}
                     : outs
                   )
                 -- }}}
@@ -1191,6 +1103,147 @@ accumulatePrizeWeights scriptAddr qvfSym pSym inputs refs =
     go _ _ _          = traceError "E062"
   in
   go inputs refs (0, Map.empty, [])
+  -- }}}
+
+
+-- | Finds the summation of all the prize weights, and also finds how far each
+--   project is from their funding goal, and the project (if any) which has
+--   achieved the smallest percentage (less than 100%, including the raised
+--   donations), is removed from the map and the updated map along with the
+--   eliminated project are returned.
+--
+--   If, however, no such project is found (i.e. all projects have either
+--   reached or exceeded their funding goals), the project count, along with
+--   the computed "denominator" is returned—as the subsequent updated datum has
+--   to carry this value and this approach prevents a re-calculation.
+{-# INLINABLE eliminateOneProject #-}
+eliminateOneProject :: CurrencySymbol
+                    -> CurrencySymbol
+                    -> TxOut
+                    -> [TxInInfo]
+                    -> [TxInInfo]
+                    -> Integer
+                    -> Map BuiltinByteString EliminationInfo
+                    -> ([TxOut], Maybe (PubKeyHash, Integer))
+eliminateOneProject
+  qvfSym
+  pSym
+  currUTxO@TxOut{txOutAddress = scriptAddr, txOutValue = currVal}
+  inputs
+  refs
+  matchPool
+  ws =
+  -- {{{
+  let
+    kvs                                        = Map.toList ws
+    den                                        = findQVFDenominator kvs
+    findRatio (EliminationInfo req dons w)     =
+      -- {{{
+      let
+        won = (1_000_000_000 * matchPool * w) `divide` den + dons
+      in
+      won `divide` req
+      -- }}}
+    foldFn (projID, info) (count, p, minSoFar) =
+      -- {{{
+      let
+        theRatio = findRatio info
+      in
+      if theRatio < minSoFar then
+        (count + 1, projID, theRatio)
+      else
+        (count + 1, p     , minSoFar)
+      -- }}}
+  in
+  if utxoHasOnlyX qvfSym qvfTokenName currUTxO then
+    -- {{{
+    case kvs of
+      (p, t) : rest ->
+        -- {{{
+        let
+          (pCount, toBeEliminated, r) = foldr foldFn (1, p, findRatio t) rest
+        in
+        if r < 1_000_000_000 then
+          -- {{{
+          let
+            newMap = Map.delete toBeEliminated ws
+            projTN = TokenName toBeEliminated
+          in
+          fmap Just $ findOutputsFromProjectUTxOs projSym projTN inputs refs $
+            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO@{txOutAddress = iAddr} ->
+              -- {{{
+              if pAddr == iAddr && pAddr == scriptAddr then
+                -- {{{
+                case (getInlineDatum inP, getInlineDatum infoUTxO) of
+                  (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
+                    -- {{{
+                    let
+                      raised             =
+                        lovelaceFromValue pVal - halfOfTheRegistrationFee
+                      (khFee, belonging) = separateKeyHoldersFeeFrom raised
+                      s                  =
+                        -- {{{
+                        currUTxO
+                          { txOutDatum =
+                              qvfDatumToInlineDatum $
+                                ProjectEliminationProgress mp newMap
+                          , txOutValue = currVal <> lovelaceValueOf khFee
+                          }
+                        -- }}}
+                      p                  =
+                        -- {{{
+                        inP
+                          { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
+                          , txOutValue =
+                              makeAuthenticValue
+                                halfOfTheRegistrationFee
+                                pSym
+                                projTN
+                                1
+                          }
+                        -- }}}
+                    in
+                    ([s, p], (pdPubKeyHash, belonging))
+                    -- }}}
+                  _                                                    ->
+                    -- {{{
+                    traceError "E128"
+                    -- }}}
+                -- }}}
+              else
+                -- {{{
+                traceError "E127"
+                -- }}}
+              -- }}}
+          -- }}}
+        else
+          -- {{{
+          -- If all projects are eligible, then there should only be a single
+          -- UTxO going back to the script address, which is the governance
+          -- UTxO with an untouched value, and a properly updated datum.
+          ( [ currUTxO
+                { txOutDatum =
+                    qvfDatumToInlineDatum $
+                      DistributionProgress
+                        (lovelaceFromValue currVal - governanceLovelaces)
+                        pCount
+                        den
+                }
+            ]
+          , Nothing
+          )
+          -- }}}
+        -- }}}
+      _             ->
+        -- {{{
+        -- TODO.
+        traceError "E1"
+        -- }}}
+    -- }}}
+  else
+    -- {{{
+    traceError "E129"
+    -- }}}
   -- }}}
 -- }}}
 
