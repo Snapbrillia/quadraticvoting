@@ -616,75 +616,30 @@ mkQVFValidator QVFParams{..} datum action ctx =
                -- }}}
          )
       -- }}}
-{-
+
     (DistributionProgress mp remaining den        , DistributePrize projID ) ->
       -- Handing Out Prize of a Specific Project
       -- {{{
       let
-        projTN                            = TokenName projID
-        (validOutputs, (winner, portion)) =
-          findOutputsFromProjectUTxOs qvfProjectSymbol projTN inputs refs $
-            \inP@TxOut{txOutValue = pVal} infoUTxO ->
+        projTN                      = TokenName projID
+        (validOutputs, winner, won) =
+          distributePrize
+            qvfSymbol
+            qvfProjectSymbol
+            projTN
+            currUTxO
+            inputs
+            refs
+            mp
+            remaining
+            den
       in
-      validateProjectUTxOsWith qvfProjectSymbol projTN inputs refs $
-        \inP@TxOut{txOutValue = pVal} infoUTxO ->
-          case (getInlineDatum inP, getInlineDatum infoUTxO) of
-            (PrizeWeight w True, ProjectInfo ProjectDetails{..}) ->
-              -- {{{
-              let
-                matchPoolPortion   = mp * w `divide` den
-                raised             =
-                  lovelaceFromValue pVal - halfOfTheRegistrationFee
-                (khFee, belonging) =
-                  separateKeyHoldersFeeFrom $ raised + matchPoolPortion
-                paidAmount         =
-                  lovelaceFromValue (valuePaidTo info pdPubKeyHash)
-                excess             = max 0 $ belonging - pdRequested
-                shouldBePaid       = belonging - excess
-              in
-              case getContinuingOutputs ctx of
-                [s, p] ->
-                  -- {{{
-                     traceIfFalse
-                       "E090"
-                       ( utxoHasValue
-                           (    currVal
-                             <> lovelaceValueOf (khFee - matchPoolPortion)
-                           )
-                           s
-                       )
-                  && traceIfFalse
-                       "E091"
-                       ( utxosDatumMatchesWith
-                           (DistributionProgress mp (remaining - 1) den)
-                           s
-                       )
-                  && traceIfFalse
-                       "E092"
-                       ( utxoHasOnlyXWithLovelaces
-                           qvfProjectSymbol
-                           projTN
-                           (halfOfTheRegistrationFee + excess)
-                           p
-                       )
-                  && traceIfFalse
-                       "E093"
-                       (utxosDatumMatchesWith (Escrow Map.empty) p)
-                  && traceIfFalse
-                       "E094"
-                       (paidAmount == shouldBePaid)
-                  -- }}}
-                _      ->
-                  -- {{{
-                  traceError "E089"
-                  -- }}}
-              -- }}}
-            _                                                    ->
-              -- {{{
-              traceError "E088"
-              -- }}}
+         traceIfFalse "E122" (validOutputs == getContinuingOutputs ctx)
+      && traceIfFalse
+           "E094"
+           (valuePaidTo info winner == lovelaceValueOf won)
       -- }}}
--}
+
     (DistributionProgress _ remaining _           , ConcludeFundingRound   ) ->
       -- Conclusion of a Funding Round
       -- {{{
@@ -1175,10 +1130,12 @@ eliminateOneProject
             newMap = Map.delete toBeEliminated ws
             projTN = TokenName toBeEliminated
           in
-          fmap Just $ findOutputsFromProjectUTxOs pSym projTN inputs refs $
-            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO@TxOut{txOutAddress = iAddr} ->
+          findOutputsFromProjectUTxOs pSym projTN inputs refs $
+            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
               -- {{{
-              if pAddr == iAddr && pAddr == scriptAddr then
+              -- Equality of project addresses is checked by
+              -- `findOutputsFromProjectUTxOs`.
+              if pAddr == scriptAddr then
                 -- {{{
                 case (getInlineDatum inP, getInlineDatum infoUTxO) of
                   (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
@@ -1209,7 +1166,7 @@ eliminateOneProject
                           }
                         -- }}}
                     in
-                    ([outputS, outputP], (pdPubKeyHash, b))
+                    ([outputS, outputP], Just (pdPubKeyHash, b))
                     -- }}}
                   _                                                    ->
                     -- {{{
@@ -1251,6 +1208,74 @@ eliminateOneProject
     traceError "E129"
     -- }}}
   -- }}}
+
+
+{-# INLINABLE distributePrize #-}
+distributePrize :: CurrencySymbol
+                -> CurrencySymbol
+                -> TokenName
+                -> TxOut
+                -> [TxInInfo]
+                -> [TxInInfo]
+                -> Integer
+                -> Integer
+                -> Integer
+                -> ([TxOut], PubKeyHash, Integer)
+distributePrize
+  qvfSym
+  pSym
+  pTN
+  currUTxO@TxOut{txOutAddress = scriptAddr, txOutValue = currVal}
+  inputs
+  refs
+  matchPool
+  remaining
+  den =
+  findOutputsFromProjectUTxOs pSym pTN inputs refs $
+    \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
+      case (getInlineDatum inP, getInlineDatum infoUTxO) of
+        (PrizeWeight w True, ProjectInfo ProjectDetails{..}) ->
+          -- {{{
+          let
+            mpPortion    = matchPool * w `divide` den
+            raised       = lovelaceFromValue pVal - halfOfTheRegistrationFee
+            (khFee, b)   = separateKeyHoldersFeeFrom $ raised + mpPortion
+            excess       = max 0 $ b - pdRequested
+            shouldBePaid = b - excess
+            outputS      =
+              -- {{{
+              currUTxO
+                { txOutDatum =
+                    qvfDatumToInlineDatum $
+                      DistributionProgress matchPool (remaining - 1) den
+                , txOutValue = currVal <> lovelaceValueOf (khFee - mpPortion)
+                }
+              -- }}}
+            outputP      =
+              -- {{{
+              inP
+                { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
+                , txOutValue =
+                    makeAuthenticValue
+                      (halfOfTheRegistrationFee + excess)
+                      pSym
+                      pTN
+                      1
+                }
+              -- }}}
+          in
+          if utxoHasOnlyX qvfSym qvfTokenName currUTxO then
+            if pAddr == scriptAddr then
+              ([outputS, outputP], pdPubKeyHash, shouldBePaid)
+            else
+              traceError "E091"
+          else
+            traceError "E089"
+          -- }}}
+        _                                                    ->
+          -- {{{
+          traceError "E088"
+          -- }}}
 -- }}}
 
 

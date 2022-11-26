@@ -22,6 +22,7 @@ import           Data.Foldable              ( forM_ )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
 import           Data.Word                  ( Word8 )
+import qualified Ledger.Address             as Addr
 import           Plutus.V1.Ledger.Api       ( toBuiltin
                                             , BuiltinByteString )
 import           Plutus.V1.Ledger.Value     ( TokenName(..) )
@@ -723,7 +724,7 @@ main = do
                             ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
                               -- {{{
                               proj      <- projGo ref projInputs
-                              addrStr   <- decodeFromString @(Map Ledger.PubKeyHash String) pkhsToAddrs >>= Map.lookup pkh
+                              addrStr   <- decodeString @(Map Ledger.PubKeyHash String) pkhsToAddrs >>= Map.lookup pkh
                               ownerAddr <- tryReadAddress $ T.pack addrStr
                               let toOwner =
                                     CLI.outputToTxOut $
@@ -763,87 +764,88 @@ main = do
               -- }}}
           -- }}}
       -- }}}
-{-
-    "distribute-prize"         : infoJSONStr : prizeWeightJSONStr : fileNamesJSON : _          ->
+    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : _  ->
       -- {{{
-      fromDatumValue (fromString infoJSONStr) $ \case
-        ProjectInfo (ProjectDetails {..}) ->
+      let
+        mGov  = decodeString @Input govInputStr
+        mInfo = decodeString @Input infoInputStr
+        mProj = decodeString @Input projInputStr
+        mA    = CLI.getAssetFromInput
+      in
+      case (mGov, mInfo, mProj) of
+        (Just govInput@Input{iResolved = govO}, Just infoInput, Just projInput) ->
           -- {{{
-          fromDatumValue (fromString prizeWeightJSONStr) $ \case
-            PrizeWeight w True ->
+          case (mA govInput, mA projInput) of
+            (Just govAsset, Just projAsset) ->
               -- {{{
-              case A.decode $ fromString fileNamesJSON of
-                Just ocfn ->
+              let
+                currUTxO = CLI.outputToTxOut govO
+              in
+              case getInlineDatum currUTxO of
+                DistributionProgress mp remaining den ->
                   -- {{{
-                  actOnCurrentDatum @QVFRedeemer ocfn DistributePrizes Nothing $ \case
-                    DonationAccumulationConcluded remPs totLs den True ->
-                      -- {{{
-                      if remPs > 0 then
+                  if remaining > 0 then
+                    -- {{{
+                    let
+                      (outputs, winner, won) =
                         -- {{{
-                        let
-                          portion          :: Integer
-                          portion          =
-                            OC.findProjectsWonLovelaces totLs den w
-
-                          prize            :: Integer
-                          prize            = min pdRequested portion
-
-                          escrowLovelaces  :: Integer
-                          escrowLovelaces  =
-                            OC.findEscrowLovelaces portion pdRequested
-
-                          updatedDatumFile :: FilePath
-                          updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
-
-                          updatedDatum     :: QVFDatum
-                          updatedDatum     =
-                            DonationAccumulationConcluded
-                              (remPs - 1)
-                              totLs
-                              den
-                              True
-
-                          newDatumFile     :: FilePath
-                          newDatumFile     = getFileName ocfn ocfnNewDatum
-
-                          newDatum         :: QVFDatum
-                          newDatum         = Escrow Map.empty
-                        in do
-                        writeJSON updatedDatumFile updatedDatum
-                        writeJSON newDatumFile newDatum
-                        putStrLn $
-                             "{\"owner\":\""  ++ show prize           ++ "\""
-                          ++ ",\"escrow\":\"" ++ show escrowLovelaces ++ "\""
-                          ++ "}"
+                        OC.distributePrize
+                          (assetSymbol govAsset)
+                          (assetSymbol projAsset)
+                          (assetTokenName projAsset)
+                          currUTxO
+                          [CLI.inputToTxInInfo projInput]
+                          [CLI.inputToTxInInfo infoInput]
+                          mp
+                          remaining
+                          den
                         -- }}}
-                      else
+                      scriptAddrStr          = oAddressStr govO
+                      mFinalOutputs          = do
                         -- {{{
-                        putStrLn "FAILED: All prizes are distributed."
+                        scriptTxOuts <- traverse (txOutToScriptOutput scriptAddrStr) outputs
+                        ownerAddr    <- tryReadAddress $ T.pack ownerAddrStr
+                        ownerPKH     <- Addr.toPubKeyHash ownerAddr
+                        if ownerPKH == winner then do
+                          let initToOwner =
+                                CLI.outputToTxOut $
+                                  Output ownerAddr ownerAddrStr won Nothing
+                          toOwner      <- txOutToScriptOutput ownerAddrStr initToOwner
+                          return $ toOwner : scriptTxOuts
+                        else
+                          Nothing
                         -- }}}
-                      -- }}}
-                    _                                                  ->
-                      -- {{{
-                      putStrLn "FAILED: Invalid governance datum for distribution."
-                      -- }}}
+                    in
+                    case mFinalOutputs of
+                      Just finalOutputs ->
+                        print $ show <$> finalOutputs
+                      Nothing            ->
+                        putStrLn
+                          "FAILED: Couldn't convert `TxOut` values to `Output` values."
+                    -- }}}
+                  else
+                    -- {{{
+                    putStrLn "FAILED: No projects left."
+                    -- }}}
                   -- }}}
-                Nothing   ->
+                _                                     ->
                   -- {{{
-                  putStrLn $
-                       "FAILED because of bad off-chain filenames JSON:\n"
-                    ++ fileNamesJSON
+                  putStrLn "FAILED: Invalid input governance datum."
                   -- }}}
               -- }}}
-            _                   ->
+            _                               ->
               -- {{{
-              putStrLn "FAILED to parse the PrizeWeight datum."
+              putStrLn "FAILED: Bad UTxOs provided."
               -- }}}
           -- }}}
-        _                                 ->
+        _                                                                       ->
           -- {{{
-          putStrLn "FAILED to parse the ProjectInfo datum."
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ govInputStr
+            ++ "\n\t" ++ infoInputStr
+            ++ "\n\t" ++ projInputStr
           -- }}}
       -- }}}
--}
     "unlock-bounty-for"        : _                                                             ->
       putStrLn "TODO."
     "withdraw-bounty"          : _                                                             ->

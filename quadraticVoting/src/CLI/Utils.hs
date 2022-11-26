@@ -1010,8 +1010,8 @@ getDeadlineSlot currSlot (Ledger.POSIXTime deadline) = do
   -- }}}
 
 
-decodeFromString :: FromJSON a => String -> Maybe a
-decodeFromString = A.decode . fromString
+decodeString :: FromJSON a => String -> Maybe a
+decodeString = A.decode . fromString
 
 -- EXTRA
 -- {{{

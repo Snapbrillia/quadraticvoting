@@ -503,11 +503,8 @@ findOutputsFromProjectUTxOs :: CurrencySymbol
                             -> TokenName
                             -> [TxInInfo]
                             -> [TxInInfo]
-                            -> (    TxOut
-                                 -> TxOut
-                                 -> ([TxOut], (PubKeyHash, Integer))
-                               )
-                            -> ([TxOut], (PubKeyHash, Integer))
+                            -> (TxOut -> TxOut -> a)
+                            -> a
 findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
   -- {{{
   case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
@@ -516,7 +513,10 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
       case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) refs of
         [TxInInfo{txInInfoResolved = infoUTxO}] ->
           -- {{{
-          validation inP infoUTxO
+          if txOutAddress inP == txOutAddress infoUTxO then
+            validation inP infoUTxO
+          else
+            traceError "E090"
           -- }}}
         _                                       ->
           -- {{{
@@ -657,11 +657,11 @@ minRequestable = 5_000_000
 -- E086: Invalid script outputs.
 -- E087: Invalid script outputs.
 -- E088: Invalid input datums.
--- E089: Exactly two UTxOs must be produced at the script.
--- E090: Value of the governance datum must be properly updated.
--- E091: Datum of the governance datum must be properly updated.
--- E092: Produced project UTxO must be carry half of the registration fee plus the excess.
--- E093: Produced project UTxO must have a fully locked `Escrow` datum.
+-- E089: Unauthentic governance datum is getting spent.
+-- E090: Projects UTxOs must share the same address.
+-- E091: Project UTxOs must be from the script address.
+-- E092: 
+-- E093: 
 -- E094: Project owner must be paid accurately.
 -- E095: Both governance UTxOs must be getting spent.
 -- E096: Invalid governance UTxOs are getting spent.

@@ -317,13 +317,13 @@ fromGovAndInputs :: String
 fromGovAndInputs govInputStr inputsStr mRefsStr action =
   -- {{{
   let
-    mGov    = decodeFromString @Input   govInputStr
-    mInputs = decodeFromString @[Input] inputsStr
+    mGov    = decodeString @Input   govInputStr
+    mInputs = decodeString @[Input] inputsStr
   in
   case mRefsStr of
     Just refsStr ->
       -- {{{
-      case (mGov, mInputs, decodeFromString @[Input] refsStr) of
+      case (mGov, mInputs, decodeString @[Input] refsStr) of
         (Just govInput, Just inputs, Just refs) ->
           action govInput inputs refs
         _                                       ->
