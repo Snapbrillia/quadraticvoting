@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module CLI.Tx where
 
@@ -9,7 +10,8 @@ module CLI.Tx where
 import qualified Control.Monad.Fail          as M
 import qualified Data.Aeson                  as A
 import           Data.Aeson                  ( FromJSON(..)
-                                             , (.:) )
+                                             , (.:)
+                                             , (.:?) )
 import           Data.Aeson.Types            ( Parser )
 import           Data.Text                   ( Text )
 import qualified Data.Text                   as Text
@@ -238,7 +240,7 @@ qvfDatumParser txt =
 
 
 inputToTxInInfo :: Input -> TxInInfo
-inputToTxInInfo ScriptInput{..} =
+inputToTxInInfo Input{..} =
   -- {{{
   TxInInfo iTxOutRef $ outputToTxOut iResolved
   -- }}}
@@ -261,7 +263,7 @@ outputToTxOut Output{..} =
           (mempty, Ledger.NoOutputDatum)
           -- }}}
   in
-  TxOut soAddress (Ada.lovelaceValueOf soLovelace <> extraVal) d Nothing
+  TxOut oAddress (Ada.lovelaceValueOf oLovelace <> extraVal) d Nothing
   -- }}}
 
 
@@ -303,6 +305,44 @@ getAssetFromInput i =
 -- }}}
 
 
-
+-- IO
+-- {{{
+-- | Attempts decoding given strings into `Input` values, and applies the
+--   given IO action in case of success.
+fromGovAndInputs :: String
+                 -> String
+                 -> Maybe String
+                 -> (Input -> [Input] -> [Input] -> IO ())
+                 -> IO ()
+fromGovAndInputs govInputStr inputsStr mRefsStr action =
+  -- {{{
+  let
+    mGov    = decodeFromString @Input   govInputStr
+    mInputs = decodeFromString @[Input] inputsStr
+  in
+  case mRefsStr of
+    Just refsStr ->
+      -- {{{
+      case (mGov, mInputs, decodeFromString @[Input] refsStr) of
+        (Just govInput, Just inputs, Just refs) ->
+          action govInput inputs refs
+        _                                       ->
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ govInputStr
+            ++ "\n\t" ++ inputsStr
+            ++ "\n\t" ++ refsStr
+      -- }}}
+    Nothing      ->
+      -- {{{
+      case (mGov, mInputs) of
+        (Just govInput, Just inputs) ->
+          action govInput inputs []
+        _                            ->
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ govInputStr
+            ++ "\n\t" ++ inputsStr
+      -- }}}
+  -- }}}
+-- }}}
 
 

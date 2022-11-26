@@ -27,8 +27,7 @@ import           Codec.Serialise             ( Serialise
 import qualified Control.Monad.Fail          as M
 import qualified Data.Aeson                  as A
 import           Data.Aeson                  ( encode
-                                             , FromJSON(..)
-                                             , (.:) )
+                                             , FromJSON(..) )
 import qualified Data.ByteString.Char8       as BS8
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
@@ -857,44 +856,6 @@ fromDatumValue datVal =
         putStrLn $ "FAILED to parse data JSON: " ++ parseError
     )
     (putStrLn "FAILED: Improper data.")
-  -- }}}
-
-
--- | Attempts decoding given strings into `ScriptInput` values, and applies the
---   given IO action in case of success.
-fromGovAndInputs :: String
-                 -> String
-                 -> Maybe String
-                 -> (ScriptInput -> [ScriptInput] -> [ScriptInput] -> IO ())
-                 -> IO ()
-fromGovAndInputs govInputStr inputsStr mRefsStr action =
-  -- {{{
-  let
-    mGov    = decodeFromString @ScriptInput   govInputStr
-    mInputs = decodeFromString @[ScriptInput] inputsStr
-  in
-  case mRefsStr of
-    Just refsStr ->
-      -- {{{
-      case (mGov, mInputs, decodeFromString @[ScriptInput] refsStr) of
-        (Just govInput, Just inputs, Just refs) ->
-          action govInput inputs refs
-        _                                       ->
-          putStrLn $ "FAILED: Bad arguments:"
-            ++ "\n\t" ++ govInputStr
-            ++ "\n\t" ++ inputStr
-            ++ "\n\t" ++ refsStr
-      -- }}}
-    Nothing      ->
-      -- {{{
-      case (mGov, mInputs) of
-        (Just govInput, Just inputs) ->
-          action govInput inputs []
-        _                            ->
-          putStrLn $ "FAILED: Bad arguments:"
-            ++ "\n\t" ++ govInputStr
-            ++ "\n\t" ++ inputStr
-      -- }}}
   -- }}}
 
 

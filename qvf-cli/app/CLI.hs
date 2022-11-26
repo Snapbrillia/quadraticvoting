@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE LambdaCase        #-}
@@ -620,7 +621,7 @@ main = do
       -- }}}
     "accumulate-prize-weights" : govInputStr : infoInputsStr : projInputsStr : _               ->
       -- {{{
-      fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
+      CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
           case projInputs of
@@ -658,7 +659,7 @@ main = do
       -- }}}
     "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : pkhsToAddrs : _ ->
       -- {{{
-      fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
+      CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
           let
@@ -680,37 +681,50 @@ main = do
                         (CLI.inputToTxInInfo <$> infoInputs)
                         mp
                         wMap
+                    jsonToPrint :: ([Input], [Input], [Ledger.TxOut]) -> String
                     jsonToPrint (ins, refs, outs) =
-                         "{\"inputs\":"  ++ show ins
-                      ++ ",\"refs\":"    ++ show refs
-                      ++ ",\"outputs\":" ++ show outs
-                      ++ "}"
+                      -- {{{
+                      case traverse (txOutToScriptOutput $ oAddressStr govO) outs of
+                        Just scriptOuts ->
+                          -- {{{
+                             "{\"inputs\":"  ++ show ins
+                          ++ ",\"refs\":"    ++ show refs
+                          ++ ",\"outputs\":" ++ show scriptOuts
+                          ++ "}"
+                          -- }}}
+                        Nothing         ->
+                          -- {{{
+                          "FAILED: Couldn't convert `TxOut` values to `Output` values."
+                          -- }}}
+                      -- }}}
                   in
                   case mEliminated of
                     Just (pkh, raised) ->
                       -- {{{
                       let
+                        projGo :: Input -> [Input] -> Maybe Input
                         projGo ref (p : ps) =
                           -- {{{
                           case (CLI.getAssetFromInput ref, CLI.getAssetFromInput p) of
                             (Just refA, Just pA) | refA == pA ->
                               Just p
                             _                                 ->
-                              projGo ps
+                              projGo ref ps
                           -- }}}
                         projGo _   _        =
                           -- {{{
                           Nothing
                           -- }}}
-                        infoGo :: [Input] -> ([Input], [Input], [TxOut])
+                        infoGo :: [Input]
+                               -> Maybe ([Input], [Input], [Ledger.TxOut])
                         infoGo (ref : refs) =
                           -- {{{
-                          case (getInlineDatum $ CLI.scriptOutputToTxOut $ iResolved ref) of
+                          case getInlineDatum $ CLI.outputToTxOut $ iResolved ref of
                             ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
                               -- {{{
                               proj      <- projGo ref projInputs
-                              addrStr   <- decodeFromString @(Map PubKeyHash String) pkhsToAddrs >>= Map.lookup pkh
-                              ownerAddr <- tryReadAddress $ Text.pack addrStr
+                              addrStr   <- decodeFromString @(Map Ledger.PubKeyHash String) pkhsToAddrs >>= Map.lookup pkh
+                              ownerAddr <- tryReadAddress $ T.pack addrStr
                               let toOwner =
                                     CLI.outputToTxOut $
                                       Output ownerAddr addrStr raised Nothing
@@ -907,12 +921,12 @@ main = do
       -- }}}
     "test" : utxosStr : _                                               ->
       let
-        mUTxOs :: Maybe [ScriptInput]
+        mUTxOs :: Maybe [Input]
         mUTxOs = A.decode $ fromString utxosStr
       in
       case mUTxOs of
         Just utxos ->
-          print $ siResolved <$> utxos
+          print $ iResolved <$> utxos
         Nothing    ->
           putStrLn "FAILED"
     _                                                                   ->

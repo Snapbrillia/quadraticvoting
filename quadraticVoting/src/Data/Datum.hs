@@ -57,7 +57,7 @@ data ProjectDetails = ProjectDetails
   { pdPubKeyHash :: PubKeyHash
   , pdName       :: BuiltinByteString
   , pdRequested  :: Integer
-  } deriving (Show, Generic, FromJSON, ToJSON)
+  } deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
 instance Eq ProjectDetails where
   {-# INLINABLE (==) #-}
   ProjectDetails p0 n0 r0 == ProjectDetails p1 n1 r1 =
@@ -75,7 +75,7 @@ data EliminationInfo = EliminationInfo
   { eiRequested :: Integer
   , eiRaised    :: Integer
   , eiWeight    :: Integer -- TODO: remove?
-  } deriving (Show, Generic, FromJSON, ToJSON)
+  } deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
 instance Eq EliminationInfo where
   {-# INLINABLE (==) #-}
   EliminationInfo p0 n0 r0 == EliminationInfo p1 n1 r1 =
@@ -185,7 +185,7 @@ data QVFDatum
       -- }}}
   -- }}}
   -- }}}
-  deriving (Show, Generic, FromJSON, ToJSON)
+  deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}

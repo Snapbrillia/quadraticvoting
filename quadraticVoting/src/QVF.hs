@@ -606,7 +606,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && ( case mEliminated of
              Just (eliminated, raised) ->
                -- {{{
-               traceIfFalse "E123" (valuePaidTo info eliminated == raised)
+               traceIfFalse
+                 "E123"
+                 (valuePaidTo info eliminated == lovelaceValueOf raised)
                -- }}}
              Nothing                   ->
                -- {{{
@@ -614,7 +616,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                -- }}}
          )
       -- }}}
-
+{-
     (DistributionProgress mp remaining den        , DistributePrize projID ) ->
       -- Handing Out Prize of a Specific Project
       -- {{{
@@ -682,7 +684,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
               traceError "E088"
               -- }}}
       -- }}}
-
+-}
     (DistributionProgress _ remaining _           , ConcludeFundingRound   ) ->
       -- Conclusion of a Funding Round
       -- {{{
@@ -1182,19 +1184,19 @@ eliminateOneProject
                   (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
                     -- {{{
                     let
-                      raised             =
+                      raised   =
                         lovelaceFromValue pVal - halfOfTheRegistrationFee
-                      (khFee, belonging) = separateKeyHoldersFeeFrom raised
-                      s                  =
+                      (khF, b) = separateKeyHoldersFeeFrom raised
+                      outputS  =
                         -- {{{
                         currUTxO
                           { txOutDatum =
                               qvfDatumToInlineDatum $
                                 ProjectEliminationProgress matchPool newMap
-                          , txOutValue = currVal <> lovelaceValueOf khFee
+                          , txOutValue = currVal <> lovelaceValueOf khF
                           }
                         -- }}}
-                      p                  =
+                      outputP  =
                         -- {{{
                         inP
                           { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
@@ -1207,7 +1209,7 @@ eliminateOneProject
                           }
                         -- }}}
                     in
-                    ([s, p], (pdPubKeyHash, belonging))
+                    ([outputS, outputP], (pdPubKeyHash, b))
                     -- }}}
                   _                                                    ->
                     -- {{{
