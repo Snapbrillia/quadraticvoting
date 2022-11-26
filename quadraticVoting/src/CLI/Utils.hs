@@ -158,8 +158,8 @@ dataToCBOR =
   . encode
   -- }}}
 
-untypedToCBOR :: ToData a => a -> String
-untypedToCBOR =
+typedToCBOR :: ToData a => a -> String
+typedToCBOR =
   -- {{{
     dataToCBOR
   . PlutusTx.toData
@@ -693,8 +693,8 @@ deadlineToSlotHelp =
 
 
 -- GENERIC HELP TEXT: 
-helpText          :: String
-helpText          =
+helpText :: String
+helpText =
   -- {{{
      "\nQVF off-chain assistive CLI application.\n\n"
 
@@ -723,8 +723,8 @@ helpText          =
   -- }}}
 
 
-printHelp         :: IO ()
-printHelp         = putStrLn helpText
+printHelp :: IO ()
+printHelp = putStrLn helpText
 
 
 andPrintSuccess :: FilePath -> IO () -> IO ()
@@ -857,6 +857,44 @@ fromDatumValue datVal =
         putStrLn $ "FAILED to parse data JSON: " ++ parseError
     )
     (putStrLn "FAILED: Improper data.")
+  -- }}}
+
+
+-- | Attempts decoding given strings into `ScriptInput` values, and applies the
+--   given IO action in case of success.
+fromGovAndInputs :: String
+                 -> String
+                 -> Maybe String
+                 -> (ScriptInput -> [ScriptInput] -> [ScriptInput] -> IO ())
+                 -> IO ()
+fromGovAndInputs govInputStr inputsStr mRefsStr action =
+  -- {{{
+  let
+    mGov    = decodeFromString @ScriptInput   govInputStr
+    mInputs = decodeFromString @[ScriptInput] inputsStr
+  in
+  case mRefsStr of
+    Just refsStr ->
+      -- {{{
+      case (mGov, mInputs, decodeFromString @[ScriptInput] refsStr) of
+        (Just govInput, Just inputs, Just refs) ->
+          action govInput inputs refs
+        _                                       ->
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ govInputStr
+            ++ "\n\t" ++ inputStr
+            ++ "\n\t" ++ refsStr
+      -- }}}
+    Nothing      ->
+      -- {{{
+      case (mGov, mInputs) of
+        (Just govInput, Just inputs) ->
+          action govInput inputs []
+        _                            ->
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ govInputStr
+            ++ "\n\t" ++ inputStr
+      -- }}}
   -- }}}
 
 

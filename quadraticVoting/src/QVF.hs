@@ -61,6 +61,7 @@ import PlutusTx.Prelude                               ( Bool(..)
                                                       , any
                                                       , const
                                                       , find
+                                                      , fmap
                                                       , foldr
                                                       , filter
                                                       , isJust
@@ -618,7 +619,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Handing Out Prize of a Specific Project
       -- {{{
       let
-        projTN = TokenName projID
+        projTN                            = TokenName projID
+        (validOutputs, (winner, portion)) =
+          findOutputsFromProjectUTxOs qvfProjectSymbol projTN inputs refs $
+            \inP@TxOut{txOutValue = pVal} infoUTxO ->
       in
       validateProjectUTxOsWith qvfProjectSymbol projTN inputs refs $
         \inP@TxOut{txOutValue = pVal} infoUTxO ->
@@ -1169,8 +1173,8 @@ eliminateOneProject
             newMap = Map.delete toBeEliminated ws
             projTN = TokenName toBeEliminated
           in
-          fmap Just $ findOutputsFromProjectUTxOs projSym projTN inputs refs $
-            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO@{txOutAddress = iAddr} ->
+          fmap Just $ findOutputsFromProjectUTxOs pSym projTN inputs refs $
+            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO@TxOut{txOutAddress = iAddr} ->
               -- {{{
               if pAddr == iAddr && pAddr == scriptAddr then
                 -- {{{
@@ -1186,7 +1190,7 @@ eliminateOneProject
                         currUTxO
                           { txOutDatum =
                               qvfDatumToInlineDatum $
-                                ProjectEliminationProgress mp newMap
+                                ProjectEliminationProgress matchPool newMap
                           , txOutValue = currVal <> lovelaceValueOf khFee
                           }
                         -- }}}

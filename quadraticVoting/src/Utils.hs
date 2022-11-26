@@ -10,6 +10,7 @@
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 -- }}}
 
 
@@ -29,6 +30,7 @@ import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
 import           Data.String                 ( fromString )
 import qualified Ledger.Ada                  as Ada
+import qualified Plutus.V1.Ledger.Value      as Value
 import           Plutus.V1.Ledger.Value      ( flattenValue )
 import           Plutus.V2.Ledger.Api
 import qualified PlutusTx.AssocMap           as Map
@@ -197,7 +199,8 @@ valuePaidToFromOutputs :: [TxOut] -> PubKeyHash -> Value
 valuePaidToFromOutputs outputs pkh =
   -- {{{
   let
-    foldFn acc txOut =
+    foldFn :: TxOut -> Value -> Value
+    foldFn txOut acc =
       case txOut of
         TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue} ->
           if pkh == pkh' then acc <> txOutValue else acc
@@ -284,7 +287,7 @@ makeAuthenticValue :: Integer
                    -> Value
 makeAuthenticValue lovelaceCount sym tn amt =
   -- {{{
-  Ada.lovelaceValueOf lovelaceCount <> Value.singletong sym tn amt
+  Ada.lovelaceValueOf lovelaceCount <> Value.singleton sym tn amt
   -- }}}
 
 

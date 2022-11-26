@@ -63,83 +63,106 @@ readAsset a =
 -- }}}
 
 
--- SCRIPT OUTPUT
+-- TX OUTPUT
 -- {{{
-data ScriptOutput = ScriptOutput
-  { soAddress    :: Ledger.Address
-  , soAddressStr :: String
-  , soLovelace   :: Integer
-  , soAsset      :: Asset
-  , soAssetCount :: Integer
-  , soDatum      :: QVFDatum
+data Output = Output
+  { oAddress    :: Ledger.Address
+  , oAddressStr :: String
+  , oLovelace   :: Integer
+  , oForScript  :: Maybe (Asset, Integer, QVFDatum)
   } deriving (Eq)
 
-instance Ord ScriptOutput where
-  compare u0 u1 = compare (soDatum u0) (soDatum u1)
-
-instance Show ScriptOutput where
-  show ScriptOutput{..} =
+instance Show Output where
+  show Output{..} =
     -- {{{
-       "{\"address\":"    ++ "\"" ++ soAddressStr            ++ "\""
-    ++ ",\"lovelace\":"   ++         show soLovelace
-    ++ ",\"asset\":"      ++ "\"" ++ show soAsset            ++ "\""
-    ++ ",\"assetCount\":" ++         show soAssetCount
-    ++ ",\"datumCBOR\":"  ++ "\"" ++ untypedToCBOR soDatum   ++ "\""
+       "{\"address\":"    ++ "\"" ++      oAddressStr ++ "\""
+    ++ ",\"lovelace\":"   ++         show oLovelace
+    ++ ( case oForScript of
+           Just (oAsset, oAssetCount, oDatum) ->
+             -- {{{
+                ",\"asset\":"      ++ "\"" ++        show oAsset      ++ "\""
+             ++ ",\"assetCount\":" ++                show oAssetCount
+             ++ ",\"datumCBOR\":"  ++ "\"" ++ typedToCBOR oDatum      ++ "\""
+             -- }}}
+           Nothing                            ->
+             -- {{{
+             ""
+             -- }}}
+       )
     ++ "}"
     -- }}}
 -- }}}
 
 
--- SCRIPT INPUT
+-- TX INPUT
 -- {{{
-data ScriptInput = ScriptInput
-  { siTxOutRef :: TxOutRef
-  , siResolved :: ScriptOutput
+data Input = Input
+  { iTxOutRef :: TxOutRef
+  , iResolved :: Output
   } deriving (Eq)
 
-instance Ord ScriptInput where
-  compare u0 u1 = compare (siResolved u0) (siResolved u1)
+instance Show Input where
+  show Input{..} =
+       init (show iResolved) -- WARNING: Used `init` with caution.
+    ++ ",\"utxo\":" ++ showTxOutRef iTxOutRef
+    ++ "}"
 
-instance FromJSON ScriptInput where
-  -- parseJSON :: Value -> Parser ScriptInput
-  parseJSON = A.withObject "ScriptInput" $ \v -> do
+instance FromJSON Input where
+  -- parseJSON :: Value -> Parser Input
+  parseJSON = A.withObject "Input" $ \v -> do
     -- {{{
-    initUTxO   <- v .: "utxo"
-    initAddr   <- v .: "address"
-    initAsset  <- v .: "asset"
-    initCBOR   <- v .: "datumCBOR"
+    initUTxO   <- v .:  "utxo"
+    initAddr   <- v .:  "address"
+    mInitAsset <- v .:? "asset"
+    mInitCBOR  <- v .:? "datumCBOR"
     case initUTxO of
       A.String utxo ->
         -- {{{
         case initAddr of
           A.String addr ->
             -- {{{
-            case initAsset of
-              A.String asset ->
+            let
+              fromOut out = Input <$> utxoParser utxo <*> out
+            in
+            case (mInitAsset, mInitCBOR) of
+              (Just (A.String asset), Just (A.String cbor)) ->
                 -- {{{
-                case initCBOR of
-                  A.String cbor ->
+                let
+                  forScript =
                     -- {{{
-                    let
-                      out =
-                            ScriptOutput
-                        <$> addressParser addr
-                        <*> v .: "address"
-                        <*> v .: "lovelace"
-                        <*> assetParser asset
-                        <*> v .: "assetCount"
-                        <*> qvfDatumParser cbor
-                    in
-                    ScriptInput <$> utxoParser utxo <*> out
+                        (,,)
+                    <$> assetParser asset
+                    <*> v .: "assetCount"
+                    <*> qvfDatumParser cbor
                     -- }}}
-                  _             ->
+                  out       =
                     -- {{{
-                    M.fail "Invalid datum CBOR."
+                        Output
+                    <$> addressParser addr
+                    <*> v .: "address"
+                    <*> v .: "lovelace"
+                    <*> (Just <$> forScript)
                     -- }}}
+                in
+                fromOut out
                 -- }}}
-              _              ->
+              (Nothing              , Nothing             ) ->
                 -- {{{
-                M.fail "Invalid asset."
+                let
+                  out =
+                    -- {{{
+                        Output
+                    <$> addressParser addr
+                    <*> v .: "address"
+                    <*> v .: "lovelace"
+                    <*> return Nothing
+                    -- }}}
+                in
+                fromOut out
+                -- }}}
+              _                                             ->
+                -- {{{
+                M.fail "Invalid asset and/or CBOR."
                 -- }}}
             -- }}}
           _             ->
@@ -214,30 +237,35 @@ qvfDatumParser txt =
   -- }}}
 
 
-scriptInputToTxInInfo :: ScriptInput -> TxInInfo
-scriptInputToTxInInfo ScriptInput{..} =
+inputToTxInInfo :: Input -> TxInInfo
+inputToTxInInfo ScriptInput{..} =
   -- {{{
-  TxInInfo siTxOutRef $ scriptOutputToTxOut siResolved
+  TxInInfo iTxOutRef $ outputToTxOut iResolved
   -- }}}
 
 
-scriptOutputToTxOut :: ScriptOutput -> TxOut
-scriptOutputToTxOut ScriptOutput{..} =
+outputToTxOut :: Output -> TxOut
+outputToTxOut Output{..} =
   -- {{{
-  TxOut
-    soAddress
-    (    Ada.lovelaceValueOf soLovelace
-      <> Value.singleton
-           (assetSymbol soAsset)
-           (assetTokenName soAsset)
-           soAssetCount
-    )
-    (Ledger.OutputDatum $ qvfDatumToDatum soDatum)
-    Nothing
+  let
+    (extraVal, d) =
+      case oForScript of
+        Just (Asset{..}, assetCount, qvfD) ->
+          -- {{{
+          ( Value.singleton assetSymbol assetTokenName assetCount
+          , qvfDatumToInlineDatum qvfD
+          )
+          -- }}}
+        Nothing                            ->
+          -- {{{
+          (mempty, Ledger.NoOutputDatum)
+          -- }}}
+  in
+  TxOut soAddress (Ada.lovelaceValueOf soLovelace <> extraVal) d Nothing
   -- }}}
 
 
-txOutToScriptOutput :: String -> TxOut -> Maybe ScriptOutput
+txOutToScriptOutput :: String -> TxOut -> Maybe Output
 txOutToScriptOutput addrStr o@TxOut{..} = do
   -- {{{
   inAddr <- tryReadAddress $ Text.pack addrStr
@@ -246,13 +274,11 @@ txOutToScriptOutput addrStr o@TxOut{..} = do
     case (Value.flattenValue txOutValue, getInlineDatum o) of
       ([(sym', tn', amt'), (_, _, lovelaces)], qvfD) ->
         -- {{{
-        Just $ ScriptOutput
-          { soAddress    = txOutAddress
-          , soAddressStr = addrStr
-          , soLovelace   = lovelaces
-          , soAsset      = Asset sym' tn'
-          , soAssetCount = amt'
-          , soDatum      = qvfD
+        Just $ Output
+          { oAddress    = txOutAddress
+          , oAddressStr = addrStr
+          , oLovelace   = lovelaces
+          , oForScript  = Just (Asset sym' tn', amt', qvfD)
           }
         -- }}}
       _                                              ->
@@ -264,6 +290,15 @@ txOutToScriptOutput addrStr o@TxOut{..} = do
     -- {{{
     Nothing
     -- }}}
+  -- }}}
+
+
+getAssetFromInput :: Input -> Maybe Asset
+getAssetFromInput i =
+  -- {{{
+  case i of
+    Input{iResolved = Output{oForScript = Just (a, _, _)}} -> Just a
+    _                                                      -> Nothing
   -- }}}
 -- }}}
 

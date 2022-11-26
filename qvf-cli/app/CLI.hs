@@ -38,10 +38,9 @@ import           Data.Redeemer
 --
 import           CLI.Utils
 import qualified CLI.Tx                     as CLI
-import           CLI.Tx                     ( ScriptInput(..)
-                                            , ScriptOutput(..)
-                                            , Asset(..)
-                                            , scriptInputToTxInInfo
+import           CLI.Tx                     ( Asset(..)
+                                            , Input(..)
+                                            , Output(..)
                                             , txOutToScriptOutput )
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
@@ -621,44 +620,134 @@ main = do
       -- }}}
     "accumulate-prize-weights" : govInputStr : infoInputsStr : projInputsStr : _               ->
       -- {{{
-      let
-        mGov   = decodeFromString @ScriptInput   govInputStr
-        mInfos = decodeFromString @[ScriptInput] infoInputsStr
-        mProjs = decodeFromString @[ScriptInput] projInputsStr
-      in
-      case (mGov, mInfos, mProjs) of
-        (Just govInput, Just infoInputs, Just projInputs@(p0 : _)) ->
+      fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
+        \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
-          let
-            govSO   = siResolved govInput
-            outputs =
-              OC.accumulatePrizeWeights
-                (soAddress govSO)
-                (assetSymbol $ soAsset govSO)
-                (assetSymbol $ soAsset $ siResolved p0)
-                (scriptInputToTxInInfo <$> (projInputs ++ [govInput]))
-                (scriptInputToTxInInfo <$> infoInputs)
-            mScriptOutputs =
-              traverse (txOutToScriptOutput $ soAddressStr govSO) outputs
-          in
-          case mScriptOutputs of
-            Just scriptOutputs ->
-              print $ show <$> scriptOutputs
-            Nothing            ->
-              putStrLn
-                "FAILED: Couldn't convert `TxOut` values to `ScriptOutput` values."
-          -- }}}
-        _                                                          ->
-          -- {{{
-          putStrLn $
-               "FAILED with bad arguments:"
-            ++ "\n\t" ++ govInputStr 
-            ++ "\n\t" ++ infoInputsStr 
-            ++ "\n\t" ++ projInputsStr 
+          case projInputs of
+            p0 : _ ->
+              case (CLI.getAssetFromInput govInput, CLI.getAssetFromInput p0) of
+                (Just govAsset, Just pAsset) ->
+                  -- {{{
+                  let
+                    outputs        =
+                      OC.accumulatePrizeWeights
+                        (oAddress govO)
+                        (assetSymbol govAsset)
+                        (assetSymbol pAsset)
+                        (CLI.inputToTxInInfo <$> (projInputs ++ [govInput]))
+                        (CLI.inputToTxInInfo <$> infoInputs)
+                    mScriptOutputs =
+                      traverse (txOutToScriptOutput $ oAddressStr govO) outputs
+                  in
+                  case mScriptOutputs of
+                    Just scriptOutputs ->
+                      print $ show <$> scriptOutputs
+                    Nothing            ->
+                      putStrLn
+                        "FAILED: Couldn't convert `TxOut` values to `Output` values."
+                  -- }}}
+                _                            ->
+                  -- {{{
+                  putStrLn "FAILED: Invalid governance or project input."
+                  -- }}}
+            _      ->
+              -- {{{
+              putStrLn "FAILED: No projects found."
+              -- }}}
           -- }}}
       -- }}}
-    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : _               ->
+    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : pkhsToAddrs : _ ->
       -- {{{
+      fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
+        \govInput@Input{iResolved = govO} projInputs infoInputs ->
+          -- {{{
+          let
+            currUTxO = CLI.outputToTxOut govO
+          in
+          case projInputs of
+            p0 : _ ->
+              -- {{{
+              case (CLI.getAssetFromInput p0, CLI.getAssetFromInput govInput, getInlineDatum currUTxO) of
+                (Just pAsset, Just govAsset, ProjectEliminationProgress mp wMap) ->
+                  -- {{{
+                  let
+                    (validOutputs, mEliminated)   =
+                      OC.eliminateOneProject
+                        (assetSymbol govAsset)
+                        (assetSymbol pAsset)
+                        currUTxO
+                        (CLI.inputToTxInInfo <$> projInputs)
+                        (CLI.inputToTxInInfo <$> infoInputs)
+                        mp
+                        wMap
+                    jsonToPrint (ins, refs, outs) =
+                         "{\"inputs\":"  ++ show ins
+                      ++ ",\"refs\":"    ++ show refs
+                      ++ ",\"outputs\":" ++ show outs
+                      ++ "}"
+                  in
+                  case mEliminated of
+                    Just (pkh, raised) ->
+                      -- {{{
+                      let
+                        projGo ref (p : ps) =
+                          -- {{{
+                          case (CLI.getAssetFromInput ref, CLI.getAssetFromInput p) of
+                            (Just refA, Just pA) | refA == pA ->
+                              Just p
+                            _                                 ->
+                              projGo ps
+                          -- }}}
+                        projGo _   _        =
+                          -- {{{
+                          Nothing
+                          -- }}}
+                        infoGo :: [Input] -> ([Input], [Input], [TxOut])
+                        infoGo (ref : refs) =
+                          -- {{{
+                          case (getInlineDatum $ CLI.scriptOutputToTxOut $ iResolved ref) of
+                            ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
+                              -- {{{
+                              proj      <- projGo ref projInputs
+                              addrStr   <- decodeFromString @(Map PubKeyHash String) pkhsToAddrs >>= Map.lookup pkh
+                              ownerAddr <- tryReadAddress $ Text.pack addrStr
+                              let toOwner =
+                                    CLI.outputToTxOut $
+                                      Output ownerAddr addrStr raised Nothing
+                                  outputs = toOwner : validOutputs
+                              return ([proj], [ref], outputs)
+                              -- }}}
+                            _                                                    ->
+                              -- {{{
+                              infoGo refs
+                              -- }}}
+                          -- }}}
+                        infoGo _            =
+                          -- {{{
+                          Nothing
+                          -- }}}
+                      in
+                      case infoGo infoInputs of
+                        Just res ->
+                          putStrLn $ jsonToPrint res
+                        Nothing  ->
+                          putStrLn "FAILED: Something went wrong."
+                      -- }}}
+                    Nothing            ->
+                      -- {{{
+                      putStrLn $ jsonToPrint ([govInput], [], validOutputs)
+                      -- }}}
+                  -- }}}
+                _                                                                ->
+                  -- {{{
+                  putStrLn "FAILED: Either bad project input, bad governance value, or invalid current datum."
+                  -- }}}
+              -- }}}
+            _      ->
+              -- {{{
+              putStrLn "FAILED: No projects found."
+              -- }}}
+          -- }}}
       -- }}}
 {-
     "distribute-prize"         : infoJSONStr : prizeWeightJSONStr : fileNamesJSON : _          ->
