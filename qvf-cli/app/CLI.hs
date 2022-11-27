@@ -297,6 +297,25 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
+    "contribute"               : amtStr : fileNamesJSON : _                                    ->
+      -- {{{
+      case (readMaybe amtStr, decodeString fileNamesJSON) of
+        (Just amt, Just ocfn) ->
+          -- {{{
+          let
+            qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
+            qvfRedeemer     = Contribute amt
+          in
+          andPrintSuccess qvfRedeemerFile $
+            writeJSON qvfRedeemerFile qvfRedeemer
+          -- }}}
+        _                     ->
+          -- {{{
+          putStrLn $ "FAILED with bad arguments:"
+            ++ "\n\t" ++ amtStr
+            ++ "\n\t" ++ fileNamesJSON
+          -- }}}
+      -- }}}
     "fold-donations"           : restOfArgs                                                    ->
       -- {{{
       let
