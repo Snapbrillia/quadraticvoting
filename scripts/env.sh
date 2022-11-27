@@ -68,7 +68,7 @@ echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileN
 echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
 echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
 echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
-echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.txt\""     >> $fileNamesJSONFile
+echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 # }}}
 getFileName() {
