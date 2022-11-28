@@ -20,7 +20,8 @@ library
 
   default-language:    Haskell2010
 
-  exposed-modules:     CLI.Utils
+  exposed-modules:     CLI.OffChainFileNames
+                     , CLI.Utils
                      , CLI.Tx
                      , QVF
                      , Data.Datum

@@ -1,3 +1,7 @@
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
+
+
 module CLI.OffChainFileNames
   ( OffChainFileNames
   , projectsInfoFile
@@ -18,7 +22,8 @@ module CLI.OffChainFileNames
   ) where
 
 
-import Plutus.V1.Ledger.Value ( TokenName(..) )
+import Data.Aeson   ( FromJSON, ToJSON )
+import GHC.Generics ( Generic )
 
 
 data OffChainFileNames = OffChainFileNames
@@ -37,7 +42,7 @@ data OffChainFileNames = OffChainFileNames
   , ocfnQVFRedeemer          :: String
   , ocfnMinterRedeemer       :: String
   , ocfnProjectTokenName     :: String
-  } deriving (Generic, A.ToJSON, A.FromJSON)
+  } deriving (Generic, ToJSON, FromJSON)
 
 
 getFileName :: (OffChainFileNames -> String) -> OffChainFileNames -> FilePath
@@ -45,28 +50,51 @@ getFileName handle ocfn =
   ocfnPreDir ocfn ++ "/" ++ handle ocfn
 
 
-projectsDatumFile :: TokenName -> OffChainFileNames -> FilePath
-projectsDatumFile tn ocfn =
-     ocfnPreDir ocfn
-  ++ "/" ++ ocfnProjectsPreDir ocfn
-  ++ "/" ++ unsafeTokenNameToHex tn ++ ".datum"
+projectsDatumFile :: String -> OffChainFileNames -> FilePath
+projectsDatumFile tnStr ocfn =
+  ocfnPreDir ocfn ++ "/" ++ ocfnProjectsPreDir ocfn ++ "/" ++ tnStr ++ ".datum"
 
 
-projectsInfoFile :: TokenName -> OffChainFileNames -> FilePath
-projectsInfoFile tn ocfn =
-  ocfnPreDir ocfn ++ "/" ++ unsafeTokenNameToHex tn
+projectsInfoFile :: String -> OffChainFileNames -> FilePath
+projectsInfoFile tnStr ocfn = ocfnPreDir ocfn ++ "/" ++ tnStr
 
 
+governanceMinter   :: OffChainFileNames -> FilePath
 governanceMinter   = getFileName ocfnGovernanceMinter
+
+registrationMinter :: OffChainFileNames -> FilePath
 registrationMinter = getFileName ocfnRegistrationMinter
+
+donationMinter     :: OffChainFileNames -> FilePath
 donationMinter     = getFileName ocfnDonationMinter
+
+qvfMainValidator   :: OffChainFileNames -> FilePath
 qvfMainValidator   = getFileName ocfnQVFMainValidator
+
+deadlineSlot       :: OffChainFileNames -> FilePath
 deadlineSlot       = getFileName ocfnDeadlineSlot
+
+deadlineDatum      :: OffChainFileNames -> FilePath
 deadlineDatum      = getFileName ocfnDeadlineDatum
+
+initialGovDatum    :: OffChainFileNames -> FilePath
 initialGovDatum    = getFileName ocfnInitialGovDatum
+
+currentDatum       :: OffChainFileNames -> FilePath
 currentDatum       = getFileName ocfnCurrentDatum
+
+updatedDatum       :: OffChainFileNames -> FilePath
 updatedDatum       = getFileName ocfnUpdatedDatum
+
+newDatum           :: OffChainFileNames -> FilePath
 newDatum           = getFileName ocfnNewDatum
+
+qvfRedeemer        :: OffChainFileNames -> FilePath
 qvfRedeemer        = getFileName ocfnQVFRedeemer
+
+minterRedeemer     :: OffChainFileNames -> FilePath
 minterRedeemer     = getFileName ocfnMinterRedeemer
+
+projectTokenName   :: OffChainFileNames -> FilePath
 projectTokenName   = getFileName ocfnProjectTokenName
+

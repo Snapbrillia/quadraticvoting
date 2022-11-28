@@ -32,6 +32,7 @@ import qualified Data.ByteString.Char8       as BS8
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
 import qualified Data.Char                   as Char
+import           Data.Foldable               ( forM_ )
 import qualified Data.List                   as List
 import           Data.Maybe                  ( fromJust )
 import           Data.String                 ( fromString )
@@ -873,7 +874,7 @@ actOnCurrentDatum ocfn qvfRedeemer mMinterRedeemer datumToIO = do
   let datumJSON       = OCFN.currentDatum ocfn
       qvfRedeemerFile = OCFN.qvfRedeemer  ocfn
   writeJSON qvfRedeemerFile qvfRedeemer
-  forM_ mMinterRedeemer $ writeJSON (OCFN.minterRedeemer ocfn) minterRedeemer
+  forM_ mMinterRedeemer $ writeJSON (OCFN.minterRedeemer ocfn)
   datumVal <- LBS.readFile datumJSON
   fromDatumValue datumVal datumToIO
   -- }}}

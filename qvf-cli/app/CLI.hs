@@ -41,7 +41,6 @@ import           Data.DonationInfo
 import           Data.Redeemer
 --
 import qualified CLI.OffChainFileNames      as OCFN
-import           CLI.OffChainFileNames      ( OffChainFileNames )
 import           CLI.Utils
 import qualified CLI.Tx                     as CLI
 import           CLI.Tx                     ( Asset(..)
@@ -141,7 +140,7 @@ main =
               govOF     = OCFN.governanceMinter   ocfn
               regOF     = OCFN.registrationMinter ocfn
               donOF     = OCFN.donationMinter     ocfn
-              qvfOF     = OCFN.qVFMainValidator   ocfn
+              qvfOF     = OCFN.qvfMainValidator   ocfn
               dlDatOF   = OCFN.deadlineDatum      ocfn
               initDatOF = OCFN.initialGovDatum    ocfn
               dlSlotOF  = OCFN.deadlineSlot       ocfn
@@ -269,7 +268,9 @@ main =
                 projInfo          = ProjectInfo projDetails
                 projInfoFile      :: FilePath
                 projInfoFile      =
-                  OCFN.projectsInfoFile projTokenNameFile ocfn
+                  OCFN.projectsInfoFile
+                    (unsafeTokenNameToHex projTokenName)
+                    ocfn
               in do
               andPrintSuccess projTokenNameFile $
                 writeTokenNameHex projTokenNameFile projTokenName
