@@ -20,4 +20,5 @@ export preDir="$REPO/testnet2"
 mkdir -p $preDir
 
 # Change this to "dev" for testing/development:
-export ENV="prod"
+# export ENV="prod"
+export ENV="dev"

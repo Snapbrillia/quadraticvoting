@@ -39,6 +39,14 @@ data Asset = Asset
   , assetTokenName :: TokenName
   } deriving (Eq)
 
+instance Ord Asset where
+  -- {{{
+  compare a0 a1 =
+    case compare (assetSymbol a0) (assetSymbol a1) of
+      EQ -> compare (assetTokenName a0) (assetTokenName a1)
+      o  -> o
+  -- }}}
+
 instance Show Asset where
   -- {{{
   show a =
@@ -106,7 +114,7 @@ data Input = Input
 instance Show Input where
   show Input{..} =
        init (show iResolved) -- WARNING: Used `init` with caution.
-    ++ ",\"utxo\":" ++ showTxOutRef iTxOutRef
+    ++ ",\"utxo\":" ++ "\"" ++ showTxOutRef iTxOutRef ++ "\""
     ++ "}"
 
 instance FromJSON Input where
@@ -301,6 +309,23 @@ getAssetFromInput i =
   case i of
     Input{iResolved = Output{oForScript = Just (a, _, _)}} -> Just a
     _                                                      -> Nothing
+  -- }}}
+
+
+compareInputs :: Input -> Input -> Ordering
+compareInputs
+  Input{iTxOutRef = r0, iResolved = Output{oForScript = mT0}}
+  Input{iTxOutRef = r1, iResolved = Output{oForScript = mT1}} =
+  -- {{{
+  case (mT0, mT1) of
+    (Just (a0, _, _), Just (a1, _, _)) ->
+      compare a0 a1
+    (Just (_, _, _) , Nothing        ) ->
+      GT
+    (Nothing        , Just (_, _, _) ) ->
+      LT
+    (Nothing        , Nothing        ) ->
+      compare r0 r1
   -- }}}
 -- }}}
 

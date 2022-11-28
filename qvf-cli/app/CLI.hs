@@ -19,6 +19,8 @@ import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.Char                  as Char
 import           Data.Foldable              ( forM_ )
+import qualified Data.List                  as List
+import           Data.List                  ( sortBy )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
 import           Data.Word                  ( Word8 )
@@ -55,9 +57,30 @@ import           Utils
 -- APPLICATION
 -- {{{
 main :: IO ()
-main = do
+main =
+  let
+    inputsRefsOutputsJSON :: String
+                          -> ([Input], [Input], [Ledger.TxOut])
+                          -> String
+    inputsRefsOutputsJSON scriptAddr (ins, refs, outs) =
+      -- {{{
+      case traverse (txOutToScriptOutput scriptAddr) outs of
+        Just scriptOuts ->
+          -- {{{
+             "{\"inputs\":"  ++ show ins
+          ++ ",\"refs\":"    ++ show refs
+          ++ ",\"outputs\":" ++ show scriptOuts
+          ++ "}"
+          -- }}}
+        Nothing         ->
+          -- {{{
+          "FAILED: Couldn't convert `TxOut` values to `Output` values."
+          -- }}}
+      -- }}}
+  in do
   allArgs <- getArgs
   case allArgs of
+    -- {{{ HELP AND MAN ENDPOINTS 
     []                                 -> printHelp
     "generate" : genStr : "-h"     : _ -> printGenerateHelp genStr
     "generate" : genStr : "--help" : _ -> printGenerateHelp genStr
@@ -68,7 +91,9 @@ main = do
     "-h"       : _                     -> printHelp
     "--help"   : _                     -> printHelp
     "man"      : _                     -> printHelp
-    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _ ->
+    -- }}}
+    -- {{{ SMART CONTRACT INTERACTION ENDPOINTS 
+    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                 ->
       -- {{{
       let
         results = ScriptGenerationArgumentsParseResults
@@ -174,7 +199,7 @@ main = do
               -- }}}
           -- }}}
       -- }}}
-    "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                 ->
+    "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                                 ->
       -- {{{
       case (readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
         (Just reqFund, Just ocfn) ->
@@ -243,7 +268,7 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _               ->
+    "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _                               ->
       -- {{{
       case (hexStringToBuiltinByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
@@ -297,7 +322,7 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "contribute"               : amtStr : fileNamesJSON : _                                    ->
+    "contribute"               : amtStr : fileNamesJSON : _                                                    ->
       -- {{{
       case (readMaybe amtStr, decodeString fileNamesJSON) of
         (Just amt, Just ocfn) ->
@@ -316,7 +341,7 @@ main = do
             ++ "\n\t" ++ fileNamesJSON
           -- }}}
       -- }}}
-    "fold-donations"           : restOfArgs                                                    ->
+    "fold-donations"           : restOfArgs                                                                    ->
       -- {{{
       let
         go :: String
@@ -444,7 +469,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "consolidate-donations"    : restOfArgs                                                    ->
+    "consolidate-donations"    : restOfArgs                                                                    ->
       -- {{{
       let
         go :: String
@@ -559,7 +584,7 @@ main = do
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _   ->
+    "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _                   ->
       -- {{{
       case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
         (Just l0, Just (Donations map0), Just l1, Just (Donations map1), Just ocfn) ->
@@ -639,38 +664,64 @@ main = do
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "accumulate-prize-weights" : govInputStr : infoInputsStr : projInputsStr : _               ->
+    "accumulate-prize-weights" : inputCntStr : govInputStr : infoInputsStr : projInputsStr : fileNamesJSON : _ ->
       -- {{{
       CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
           case projInputs of
             p0 : _ ->
-              case (CLI.getAssetFromInput govInput, CLI.getAssetFromInput p0) of
-                (Just govAsset, Just pAsset) ->
+              -- {{{
+              case (readMaybe inputCntStr, CLI.getAssetFromInput govInput, CLI.getAssetFromInput p0, decodeString fileNamesJSON) of
+                (Just inputCount, Just govAsset, Just pAsset, Just ocfn) ->
                   -- {{{
                   let
-                    outputs        =
+                    scriptAddr                            = oAddressStr govO
+                    sortFn                                =
+                      sortBy CLI.compareInputs
+                    go :: [Input]
+                       -> [Input]
+                       -> ([Input], [Input])
+                       -> ([Input], [Input])
+                    go (p : ps) (i : is) acc@(pAcc, iAcc) =
+                      -- {{{
+                      if length pAcc < inputCount then
+                        case getInlineDatum $ CLI.outputToTxOut $ iResolved p of
+                          PrizeWeight _ False ->
+                            go ps is (p : pAcc, i : iAcc)
+                          _                   ->
+                            go ps is acc
+                      else
+                        (pAcc, iAcc)
+                      -- }}}
+                    go _        _        acc              = acc
+                    (finalProjs', finalInfos)             =
+                      go (sortFn projInputs) (sortFn infoInputs) ([], [])
+                    finalProjs                            =
+                      finalProjs' ++ [govInput]
+                    outputs                               =
+                      -- {{{
                       OC.accumulatePrizeWeights
                         (oAddress govO)
                         (assetSymbol govAsset)
                         (assetSymbol pAsset)
-                        (CLI.inputToTxInInfo <$> (projInputs ++ [govInput]))
-                        (CLI.inputToTxInInfo <$> infoInputs)
-                    mScriptOutputs =
-                      traverse (txOutToScriptOutput $ oAddressStr govO) outputs
-                  in
-                  case mScriptOutputs of
-                    Just scriptOutputs ->
-                      print $ show <$> scriptOutputs
-                    Nothing            ->
-                      putStrLn
-                        "FAILED: Couldn't convert `TxOut` values to `Output` values."
+                        (CLI.inputToTxInInfo <$> finalProjs)
+                        (CLI.inputToTxInInfo <$> finalInfos)
+                      -- }}}
+                  in do
+                  writeJSON
+                    (getFileName ocfn ocfnQVFRedeemer)
+                    AccumulatePrizeWeights
+                  putStrLn $
+                    inputsRefsOutputsJSON
+                      scriptAddr
+                      (finalProjs, finalInfos, outputs)
                   -- }}}
-                _                            ->
+                _                                                        ->
                   -- {{{
                   putStrLn "FAILED: Invalid governance or project input."
                   -- }}}
+              -- }}}
             _      ->
               -- {{{
               putStrLn "FAILED: No projects found."
@@ -683,7 +734,8 @@ main = do
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
           let
-            currUTxO = CLI.outputToTxOut govO
+            scriptAddr = oAddressStr govO
+            currUTxO   = CLI.outputToTxOut govO
           in
           case projInputs of
             p0 : _ ->
@@ -701,22 +753,6 @@ main = do
                         (CLI.inputToTxInInfo <$> infoInputs)
                         mp
                         wMap
-                    jsonToPrint :: ([Input], [Input], [Ledger.TxOut]) -> String
-                    jsonToPrint (ins, refs, outs) =
-                      -- {{{
-                      case traverse (txOutToScriptOutput $ oAddressStr govO) outs of
-                        Just scriptOuts ->
-                          -- {{{
-                             "{\"inputs\":"  ++ show ins
-                          ++ ",\"refs\":"    ++ show refs
-                          ++ ",\"outputs\":" ++ show scriptOuts
-                          ++ "}"
-                          -- }}}
-                        Nothing         ->
-                          -- {{{
-                          "FAILED: Couldn't convert `TxOut` values to `Output` values."
-                          -- }}}
-                      -- }}}
                   in
                   case mEliminated of
                     Just (pkh, raised) ->
@@ -763,13 +799,16 @@ main = do
                       in
                       case infoGo infoInputs of
                         Just res ->
-                          putStrLn $ jsonToPrint res
+                          putStrLn $ inputsRefsOutputsJSON scriptAddr res
                         Nothing  ->
                           putStrLn "FAILED: Something went wrong."
                       -- }}}
                     Nothing            ->
                       -- {{{
-                      putStrLn $ jsonToPrint ([govInput], [], validOutputs)
+                      putStrLn $
+                        inputsRefsOutputsJSON
+                          scriptAddr
+                          ([govInput], [], validOutputs)
                       -- }}}
                   -- }}}
                 _                                                                ->
@@ -869,6 +908,8 @@ main = do
       putStrLn "TODO."
     "withdraw-bounty"          : _                                                             ->
       putStrLn "TODO."
+    -- }}}
+    -- {{{ UTILITY ENDPOINTS 
     "pretty-datum"       : datumJSONStr : _                             ->
       -- {{{
       fromDatumValue (fromString datumJSONStr) print
@@ -911,7 +952,14 @@ main = do
       -- {{{
       case cborStringToData cborStr of
         Just d  ->
-          print d
+          let
+            initial =
+                show
+              $ encode
+              $ scriptDataToJson ScriptDataJsonDetailedSchema
+              $ dataToScriptData d
+          in
+          putStrLn $ tail $ List.init $ filter (\c -> c /= '\\') initial
         Nothing -> do
           putStrLn "FAILED to decode CBOR."
       -- }}}
@@ -940,6 +988,7 @@ main = do
           putStrLn "FAILED: Couldn't parse current slot number."
           -- }}}
       -- }}}
+    -- }}}
     "test" : utxosStr : _                                               ->
       let
         mUTxOs :: Maybe [Input]

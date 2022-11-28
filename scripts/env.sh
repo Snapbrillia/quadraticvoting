@@ -105,6 +105,9 @@ export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
 touch $projectTokenNameFile
 export registeredProjectsFile=$(getFileName ocfnRegisteredProjects)
 touch $registeredProjectsFile
+if [ ! "$(cat $registeredProjectsFile)" ]; then
+  echo "{}" > $registeredProjectsFile
+fi
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
@@ -636,11 +639,54 @@ get_all_script_utxos_datums_values() {
   count=0
   for d in $datums; do
     datumCBOR=$($qvf data-to-cbor "$d")
-    utxos="$(echo "$utxos" | jq -c --arg cbor "$datumCBOR" --argjson i "$count" '.[$i] |= (. += {"datumCBOR": ($cbor | tostring)})')"
+    utxos="$(echo "$utxos"            \
+      | jq -c --arg cbor "$datumCBOR" \
+              --argjson i "$count"    \
+      '.[$i] |= (. += {"datumCBOR": ($cbor | tostring)})'
+    )"
     count=$(expr $count + 1)
   done
   echo $utxos
   # }}}
+}
+
+
+# Takes 2 arguments:
+#   1. Argument prefex (should be either "--tx-in" or "--read-only-tx-in-reference"),
+#   2. The constant part for all the input UTxOs,
+#   3. The array of printed UTxOs returned by `qvf-cli`.
+qvf_output_to_tx_ins() {
+  utxos="$(echo "$3" | jq -c 'map(.utxo) | .[]')"
+  fnl=""
+  for u in $utxos; do
+    fnl="$fnl $1 $(remove_quotes $u) "$2""
+  done
+  echo "$fnl"
+}
+
+
+qvf_output_to_tx_outs() {
+  dDir="$preDir/datums"
+  rm -rf $dDir
+  mkdir -p $dDir
+  outputs=""
+  for obj in $(echo "$1" | jq -c '.[]'); do
+    addr="$(remove_quotes $(echo "$obj" | jq -c '.address'))"
+    lovelace="$(echo "$obj" | jq -c '.lovelace')"
+    cbor="$(remove_quotes $(echo "$obj" | jq -c '.datumCBOR'))"
+    if [ "$cbor" == "null" ]; then
+      outputs="$outputs --tx-out \"$addr + $lovelace lovelace\""
+    else
+      assetCount="$(echo "$obj" | jq -c '.assetCount')"
+      asset="$(remove_quotes $(echo "$obj" | jq -c '.asset'))"
+      datum="$($qvf cbor-to-data $cbor)"
+      echo "$datum" > $dDir/$cbor
+      outputs="$outputs --tx-out \"$addr + $lovelace lovelace + $assetCount $asset\"
+        --tx-out-inline-datum-file $dDir/$cbor
+        "
+    fi
+  done
+  echo $outputs
 }
 
 
