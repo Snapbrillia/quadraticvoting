@@ -40,6 +40,8 @@ import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
 --
+import qualified CLI.OffChainFileNames      as OCFN
+import           CLI.OffChainFileNames      ( OffChainFileNames )
 import           CLI.Utils
 import qualified CLI.Tx                     as CLI
 import           CLI.Tx                     ( Asset(..)
@@ -77,6 +79,35 @@ main =
           "FAILED: Couldn't convert `TxOut` values to `Output` values."
           -- }}}
       -- }}}
+    sortInputsRefsBy :: (Int -> QVFDatum -> Bool)
+                     -> [Input]
+                     -> [Input]
+                     -> ([Input], [Input])
+    sortInputsRefsBy predicate projs refs              =
+      -- {{{
+      let
+        sortFn                                = sortBy CLI.compareInputs
+        go :: [Input]
+           -> [Input]
+           -> ([Input], [Input])
+           -> ([Input], [Input])
+        go (p : ps) (i : is) acc@(pAcc, iAcc) =
+          -- {{{
+          let
+            cond =
+              predicate
+                (length pAcc)
+                (getInlineDatum $ CLI.outputToTxOut $ iResolved p)
+          in
+          if cond then
+            go ps is (p : pAcc, i : iAcc)
+          else
+            go ps is acc
+          -- }}}
+        go _        _        acc              = acc
+      in
+      go (sortFn projs) (sortFn refs) ([], [])
+      -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
@@ -107,14 +138,14 @@ main =
         \txRef currSlot dl ocfn -> do
           -- {{{
           let pkh       = fromString pkhStr
-              govOF     = getFileName ocfn ocfnGovernanceMinter
-              regOF     = getFileName ocfn ocfnRegistrationMinter
-              donOF     = getFileName ocfn ocfnDonationMinter
-              qvfOF     = getFileName ocfn ocfnQVFMainValidator
-              dlDatOF   = getFileName ocfn ocfnDeadlineDatum
-              initDatOF = getFileName ocfn ocfnInitialGovDatum
-              dlSlotOF  = getFileName ocfn ocfnDeadlineSlot
-              redOF     = getFileName ocfn ocfnMinterRedeemer
+              govOF     = OCFN.governanceMinter   ocfn
+              regOF     = OCFN.registrationMinter ocfn
+              donOF     = OCFN.donationMinter     ocfn
+              qvfOF     = OCFN.qVFMainValidator   ocfn
+              dlDatOF   = OCFN.deadlineDatum      ocfn
+              initDatOF = OCFN.initialGovDatum    ocfn
+              dlSlotOF  = OCFN.deadlineSlot       ocfn
+              redOF     = OCFN.minterRedeemer     ocfn
               --
               govPolicy = Gov.qvfPolicy pkh txRef dl
               govSymbol = mintingPolicyToSymbol govPolicy
@@ -222,25 +253,23 @@ main =
                 updatedDatum      :: QVFDatum
                 updatedDatum      = RegisteredProjectsCount $ soFar + 1
                 updatedDatumFile  :: FilePath
-                updatedDatumFile  = getFileName ocfn ocfnUpdatedDatum
+                updatedDatumFile  = OCFN.updatedDatum ocfn
 
                 newDatum          :: QVFDatum
                 newDatum          = ReceivedDonationsCount 0
                 newDatumFile      :: FilePath
-                newDatumFile      = getFileName ocfn ocfnNewDatum
+                newDatumFile      = OCFN.newDatum ocfn
 
                 projTokenName     :: TokenName
                 projTokenName     = indexToTokenName soFar
                 projTokenNameFile :: FilePath
-                projTokenNameFile = getFileName ocfn ocfnProjectTokenName
+                projTokenNameFile = OCFN.projectTokenName ocfn
 
                 projInfo          :: QVFDatum
                 projInfo          = ProjectInfo projDetails
                 projInfoFile      :: FilePath
                 projInfoFile      =
-                     ocfnPreDir ocfn
-                  ++ "/"
-                  ++ unsafeTokenNameToHex projTokenName
+                  OCFN.projectsInfoFile projTokenNameFile ocfn
               in do
               andPrintSuccess projTokenNameFile $
                 writeTokenNameHex projTokenNameFile projTokenName
@@ -293,12 +322,12 @@ main =
                 updatedDatum     :: QVFDatum
                 updatedDatum     = ReceivedDonationsCount $ soFar + 1
                 updatedDatumFile :: FilePath
-                updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+                updatedDatumFile = OCFN.updatedDatum ocfn
 
                 newDatum         :: QVFDatum
                 newDatum         = Donation donorPKH
                 newDatumFile     :: FilePath
-                newDatumFile     = getFileName ocfn ocfnNewDatum
+                newDatumFile     = OCFN.newDatum ocfn
               in do
               andPrintSuccess updatedDatumFile $
                 writeJSON updatedDatumFile updatedDatum
@@ -328,7 +357,7 @@ main =
         (Just amt, Just ocfn) ->
           -- {{{
           let
-            qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
+            qvfRedeemerFile = OCFN.qvfRedeemer ocfn
             qvfRedeemer     = Contribute amt
           in
           andPrintSuccess qvfRedeemerFile $
@@ -400,9 +429,9 @@ main =
           actOnCurrentDatum @QVFRedeemer ocfn FoldDonations Nothing $ \currDatum ->
             let
               updatedDatumFile    :: FilePath
-              updatedDatumFile    = getFileName ocfn ocfnUpdatedDatum
+              updatedDatumFile    = OCFN.updatedDatum ocfn
               newDatumFile        :: FilePath
-              newDatumFile        = getFileName ocfn ocfnNewDatum
+              newDatumFile        = OCFN.newDatum ocfn
               newDatum            :: QVFDatum
               newDatum            = Donations foldedMap
               jsonToPrint ls mint =
@@ -524,7 +553,7 @@ main =
           actOnCurrentDatum @QVFRedeemer ocfn FoldDonations Nothing $ \currDatum ->
             let
               updatedDatumFile :: FilePath
-              updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+              updatedDatumFile = OCFN.updatedDatum ocfn
               mUpdatedDatum    :: Maybe QVFDatum
               mUpdatedDatum    =
                 -- {{{
@@ -635,9 +664,9 @@ main =
           else
             let
               updatedDatumFile :: FilePath
-              updatedDatumFile = getFileName ocfn ocfnUpdatedDatum
+              updatedDatumFile = OCFN.updatedDatum ocfn
               newDatumFile     :: FilePath
-              newDatumFile     = getFileName ocfn ocfnNewDatum
+              newDatumFile     = OCFN.newDatum ocfn
               updatedDatum     = Donations m0'
               newDatum         = Donations m1'
             in do
@@ -676,30 +705,22 @@ main =
                 (Just inputCount, Just govAsset, Just pAsset, Just ocfn) ->
                   -- {{{
                   let
-                    scriptAddr                            = oAddressStr govO
-                    sortFn                                =
-                      sortBy CLI.compareInputs
-                    go :: [Input]
-                       -> [Input]
-                       -> ([Input], [Input])
-                       -> ([Input], [Input])
-                    go (p : ps) (i : is) acc@(pAcc, iAcc) =
+                    scriptAddr                = oAddressStr govO
+                    predicate accCount qvfD   =
                       -- {{{
-                      if length pAcc < inputCount then
-                        case getInlineDatum $ CLI.outputToTxOut $ iResolved p of
+                      if accCount < inputCount then
+                        case qvfD of
                           PrizeWeight _ False ->
-                            go ps is (p : pAcc, i : iAcc)
+                            True
                           _                   ->
-                            go ps is acc
+                            False
                       else
-                        (pAcc, iAcc)
+                        False
                       -- }}}
-                    go _        _        acc              = acc
-                    (finalProjs', finalInfos)             =
-                      go (sortFn projInputs) (sortFn infoInputs) ([], [])
-                    finalProjs                            =
-                      finalProjs' ++ [govInput]
-                    outputs                               =
+                    (finalProjs', finalInfos) =
+                      sortInputsRefsBy predicate projInputs infoInputs
+                    finalProjs                = finalProjs' ++ [govInput]
+                    outputs                   =
                       -- {{{
                       OC.accumulatePrizeWeights
                         (oAddress govO)
@@ -709,9 +730,7 @@ main =
                         (CLI.inputToTxInInfo <$> finalInfos)
                       -- }}}
                   in do
-                  writeJSON
-                    (getFileName ocfn ocfnQVFRedeemer)
-                    AccumulatePrizeWeights
+                  writeJSON (OCFN.qvfRedeemer ocfn) AccumulatePrizeWeights
                   putStrLn $
                     inputsRefsOutputsJSON
                       scriptAddr
@@ -728,7 +747,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : pkhsToAddrs : _ ->
+    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : pkhsToAddrs : _                 ->
       -- {{{
       CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
@@ -744,13 +763,21 @@ main =
                 (Just pAsset, Just govAsset, ProjectEliminationProgress mp wMap) ->
                   -- {{{
                   let
+                    predicate _ qvfD              =
+                      -- {{{
+                      case qvfD of
+                        PrizeWeight _ True -> True
+                        _                  -> False
+                      -- }}}
+                    (finalProjs, finalInfos)      =
+                      sortInputsRefsBy predicate projInputs infoInputs
                     (validOutputs, mEliminated)   =
                       OC.eliminateOneProject
                         (assetSymbol govAsset)
                         (assetSymbol pAsset)
                         currUTxO
-                        (CLI.inputToTxInInfo <$> projInputs)
-                        (CLI.inputToTxInInfo <$> infoInputs)
+                        (CLI.inputToTxInInfo <$> finalProjs)
+                        (CLI.inputToTxInInfo <$> finalInfos)
                         mp
                         wMap
                   in
@@ -822,7 +849,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : _  ->
+    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : _                  ->
       -- {{{
       let
         mGov  = decodeString @Input govInputStr
@@ -904,9 +931,9 @@ main =
             ++ "\n\t" ++ projInputStr
           -- }}}
       -- }}}
-    "unlock-bounty-for"        : _                                                             ->
+    "unlock-bounty-for"        : _                                                                             ->
       putStrLn "TODO."
-    "withdraw-bounty"          : _                                                             ->
+    "withdraw-bounty"          : _                                                                             ->
       putStrLn "TODO."
     -- }}}
     -- {{{ UTILITY ENDPOINTS 

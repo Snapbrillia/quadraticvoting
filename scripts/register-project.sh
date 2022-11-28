@@ -46,12 +46,12 @@ $qvf register-project         \
 # {{{
 projectTokenName=$(cat $projectTokenNameFile)
 newRegisteredProjects=$(cat $registeredProjectsFile \
-  | jq -c --arg addr "$projectOwnerAddress"         \
-          --arg pkh "$projectOwnerPKH"              \
+  | jq -c --arg pkh "$projectOwnerPKH"              \
+          --arg addr "$projectOwnerAddress"         \
           --arg tn "$projectTokenName"              \
-          '. += {$addr:{"pkh":$pkh,"tn":$tn}}'
+          '. += {($pkh):{"address":$addr,"tn":$tn}}'
   )
-echo $projectTokenName >> $registeredProjectsFile
+echo $newRegisteredProjects > $registeredProjectsFile
 projectAsset="$regSym.$projectTokenName"
 projectDatumFile="$newDatumFile"
 projectInfoDatumFile="$preDir/$projectTokenName"

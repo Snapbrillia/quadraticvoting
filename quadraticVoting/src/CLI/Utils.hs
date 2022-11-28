@@ -55,6 +55,8 @@ import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.Prelude            ( lengthOfByteString )
 import           Prelude
 
+import qualified CLI.OffChainFileNames       as OCFN
+import           CLI.OffChainFileNames       ( OffChainFileNames )
 import           Data.Datum
 import           Data.Redeemer
 import           Utils
@@ -868,21 +870,10 @@ actOnCurrentDatum :: PlutusTx.ToData a
                   -> IO ()
 actOnCurrentDatum ocfn qvfRedeemer mMinterRedeemer datumToIO = do
   -- {{{
-  let datumJSON       = getFileName ocfn ocfnCurrentDatum
-      qvfRedeemerFile = getFileName ocfn ocfnQVFRedeemer
+  let datumJSON       = OCFN.currentDatum ocfn
+      qvfRedeemerFile = OCFN.qvfRedeemer  ocfn
   writeJSON qvfRedeemerFile qvfRedeemer
-  case mMinterRedeemer of
-    Nothing             ->
-      -- {{{
-      return ()
-      -- }}}
-    Just minterRedeemer ->
-      -- {{{
-      let
-        minterRedeemerFile = getFileName ocfn ocfnMinterRedeemer
-      in
-      writeJSON minterRedeemerFile minterRedeemer
-      -- }}}
+  forM_ mMinterRedeemer $ writeJSON (OCFN.minterRedeemer ocfn) minterRedeemer
   datumVal <- LBS.readFile datumJSON
   fromDatumValue datumVal datumToIO
   -- }}}
@@ -905,7 +896,7 @@ infArgHelper argFn initEith infArgs =
   case (initEith, infArgs) of
     (Right x   , [ocfnStr] ) ->
       -- {{{
-      case A.decode (fromString ocfnStr) of
+      case decodeString ocfnStr of
         Just ocfn ->
           Right (x, ocfn)
         Nothing   ->
@@ -935,7 +926,7 @@ infArgHelper2 argFn initEith infArgs =
   case (initEith, infArgs) of
     (Right x   , [ocfnStr]       ) ->
       -- {{{
-      case A.decode (fromString ocfnStr) of
+      case decodeString ocfnStr of
         Just ocfn ->
           Right (x, ocfn)
         Nothing   ->
@@ -970,7 +961,7 @@ infArgHelper3 triArgFn initEith infArgs =
   case (initEith, infArgs) of
     (Right x   , [ocfnStr]               ) ->
       -- {{{
-      case A.decode (fromString ocfnStr) of
+      case decodeString ocfnStr of
         Just ocfn ->
           Right (x, ocfn)
         Nothing   ->
@@ -1021,57 +1012,6 @@ data OutputPlutus = OutputPlutus
 instance Show OutputPlutus where
   show OutputPlutus{..} =
     show $ lengthOfByteString cborHex
-
-
--- TODO: Create a module that only exposes the `OffChainFileNames` type
---       constructor, and the `getFileName` without exposing any of the
---       handles. Current solution involves use of type-level string literals.
---
---       Such a design would allow a more robust filename extraction (with
---       absolute paths). An outcome similar to the code snippet below
---       (utilizing the `TypeApplications` extension) would be desireable.
---
---       (Sample excerpt from the script generation endpoint of `main`.)
---
---       ```hs
---       let govOF     = getFileName ocfn @"ocfnGovernanceMinter"
---           regOF     = getFileName ocfn @"ocfnRegistrationMinter"
---           donOF     = getFileName ocfn @"ocfnDonationMinter"
---           qvfOF     = getFileName ocfn @"ocfnQVFMainValidator"
---           dlDatOF   = getFileName ocfn @"ocfnDeadlineDatum"
---           initDatOF = getFileName ocfn @"ocfnInitialGovDatum"
---           dlSlotOF  = getFileName ocfn @"ocfnDeadlineSlot"
---       ```
---
---       Another solution could be a custom `FromJSON` instance.
---
-data OffChainFileNames = OffChainFileNames
-  { ocfnPreDir               :: String
-  , ocfnProjectsPreDir       :: String
-  , ocfnGovernanceMinter     :: String
-  , ocfnRegistrationMinter   :: String
-  , ocfnDonationMinter       :: String
-  , ocfnQVFMainValidator     :: String
-  , ocfnDeadlineSlot         :: String
-  , ocfnDeadlineDatum        :: String
-  , ocfnInitialGovDatum      :: String
-  , ocfnCurrentDatum         :: String
-  , ocfnUpdatedDatum         :: String
-  , ocfnNewDatum             :: String
-  , ocfnQVFRedeemer          :: String
-  , ocfnMinterRedeemer       :: String
-  , ocfnProjectTokenName     :: String
-  } deriving (Generic, A.ToJSON, A.FromJSON)
-
-
-getFileName :: OffChainFileNames -> (OffChainFileNames -> String) -> FilePath
-getFileName ocfn handle =
-  ocfnPreDir ocfn ++ "/" ++ handle ocfn
-
-
-getProjectsDatumFile :: OffChainFileNames -> TokenName -> FilePath
-getProjectsDatumFile ocfn tn =
-  ocfnPreDir ocfn ++ "/" ++ ocfnProjectsPreDir ocfn ++ "/" ++ unsafeTokenNameToHex tn ++ ".datum"
 
 
 data ScriptGenerationArgumentsParseResults =

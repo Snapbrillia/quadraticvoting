@@ -651,21 +651,26 @@ get_all_script_utxos_datums_values() {
 }
 
 
-# Takes 2 arguments:
+# Takes 3 arguments:
 #   1. Argument prefex (should be either "--tx-in" or "--read-only-tx-in-reference"),
 #   2. The constant part for all the input UTxOs,
 #   3. The array of printed UTxOs returned by `qvf-cli`.
 qvf_output_to_tx_ins() {
+  # {{{
   utxos="$(echo "$3" | jq -c 'map(.utxo) | .[]')"
   fnl=""
   for u in $utxos; do
     fnl="$fnl $1 $(remove_quotes $u) "$2""
   done
   echo "$fnl"
+  # }}}
 }
 
 
+# Takes 1 argument:
+#   1. The JSON output array from `qvf-cli`.
 qvf_output_to_tx_outs() {
+  # {{{
   dDir="$preDir/datums"
   rm -rf $dDir
   mkdir -p $dDir
@@ -687,6 +692,7 @@ qvf_output_to_tx_outs() {
     fi
   done
   echo $outputs
+  # }}}
 }
 
 
