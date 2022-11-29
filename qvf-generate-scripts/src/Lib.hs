@@ -42,7 +42,7 @@ handler :: GenerateScriptsParams -> Context () -> IO (Either String GenerateScri
 handler GenerateScriptsParams{..} _ = 
   return $ Right GenerateScriptsResponse{..}
   where 
-    governancePolicy   = Gov.qvfPolicy txRef deadline
+    governancePolicy   = Gov.qvfPolicy keyHolderPubKeyHash txRef deadline
     qvfSymbol          = mintingPolicyToSymbol governancePolicy 
     registrationPolicy = Reg.registrationPolicy keyHolderPubKeyHash qvfSymbol
     regSymbol          = mintingPolicyToSymbol registrationPolicy

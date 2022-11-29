@@ -831,8 +831,7 @@ main =
                       in
                       case (infoGo infoInputs, decodeString fileNamesJSON) of
                         (Just res, Just ocfn) -> do
-                          writeJSON (OCFN.qvfRedeemer ocfn) AccumulatePrizeWeights
-                          -- print res
+                          writeJSON (OCFN.qvfRedeemer ocfn) EliminateOneProject
                           putStrLn $ inputsRefsOutputsJSON scriptAddr res
                         _                     ->
                           putStrLn "FAILED: Something went wrong."
