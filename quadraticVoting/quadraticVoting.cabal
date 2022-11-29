@@ -37,7 +37,6 @@ library
                      , aeson
                      , bytestring
                      , cardano-api
-                     , cardano-cli
                      , cardano-crypto-class
                      , cardano-ledger-core
                      , data-default
