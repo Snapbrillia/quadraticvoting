@@ -100,8 +100,7 @@ initiate_fund() {
   donSym=$($cli transaction policyid --script-file $donScriptFile)
   echo $donSym > $donSymFile
 
-  govLovelaces=1500000 #  1.5 ADA
-  outUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
+  outUTxO="$scriptAddr + $governanceLovelaces lovelace + 1 $govAsset"
 
   generate_protocol_params
 

@@ -22,7 +22,8 @@ module CLI.OffChainFileNames
   ) where
 
 
-import Data.Aeson   ( FromJSON, ToJSON )
+import Data.Aeson   ( FromJSON
+                    , ToJSON )
 import GHC.Generics ( Generic )
 
 

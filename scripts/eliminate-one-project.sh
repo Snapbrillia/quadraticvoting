@@ -18,12 +18,11 @@ govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 allProjectInfoUTxOs="$(get_all_projects_info_utxos_datums_values)"
 allProjectStateUTxOs="$(get_all_projects_state_utxos_datums_values)"
 
-
-
 result=$($qvf eliminate-one-project    \
   "$govUTxOObj"                        \
   "$allProjectInfoUTxOs"               \
   "$allProjectStateUTxOs"              \
+  "$(cat $registeredProjectsFile)"     \
   "$(cat $fileNamesJSONFile)"
   )
 
@@ -45,3 +44,21 @@ keyHoldersInUTxO=$(get_first_utxo_of $keyHolder)
 
 generate_protocol_params
 
+buildTx="$cli $BUILD_TX_CONST_ARGS
+  --required-signer-hash $keyHoldersPubKeyHash
+  --tx-in $keyHoldersInUTxO
+  --tx-in-collateral $keyHoldersInUTxO
+  $refArgs $inputArgs $outputArgs
+  --change-address $keyHoldersAddress
+  "
+
+echo $buildTx > $tempBashFile
+. $tempBashFile
+
+if [ "$ENV" == "dev" ]; then
+  sign_and_submit_tx $preDir/$keyHolder.skey
+  wait_for_new_slot
+else
+  echo "TODO"
+  return 1
+fi

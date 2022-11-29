@@ -45,20 +45,18 @@ $qvf register-project         \
 
 # {{{
 projectTokenName=$(cat $projectTokenNameFile)
+newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
 newRegisteredProjects=$(cat $registeredProjectsFile \
-  | jq -c --arg pkh "$projectOwnerPKH"              \
-          --arg addr "$projectOwnerAddress"         \
-          --arg tn "$projectTokenName"              \
-          '. += {($pkh):{"address":$addr,"tn":$tn}}'
+  | jq --argjson obj "$newProjJSON"                 \
+  'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
   )
 echo $newRegisteredProjects > $registeredProjectsFile
 projectAsset="$regSym.$projectTokenName"
 projectDatumFile="$newDatumFile"
 projectInfoDatumFile="$preDir/$projectTokenName"
 
-regFeeLovelaces=1500000 # 1.5 ADA, half of the registration fee.
 firstUTxO="$qvfAddress + $govLovelaces lovelace + 1 $govAsset"
-projUTxO="$qvfAddress + $regFeeLovelaces lovelace + 1 $projectAsset"
+projUTxO="$qvfAddress + $halfOfTheRegistrationFee lovelace + 1 $projectAsset"
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 regRefUTxO=$(cat $regRefUTxOFile)

@@ -41,6 +41,7 @@ import           Data.DonationInfo
 import           Data.Redeemer
 --
 import qualified CLI.OffChainFileNames      as OCFN
+import qualified CLI.RegisteredProject      as RP
 import           CLI.Utils
 import qualified CLI.Tx                     as CLI
 import           CLI.Tx                     ( Asset(..)
@@ -123,7 +124,7 @@ main =
     "man"      : _                     -> printHelp
     -- }}}
     -- {{{ SMART CONTRACT INTERACTION ENDPOINTS 
-    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                 ->
+    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                        ->
       -- {{{
       let
         results = ScriptGenerationArgumentsParseResults
@@ -229,7 +230,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                                 ->
+    "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                                        ->
       -- {{{
       case (readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
         (Just reqFund, Just ocfn) ->
@@ -298,7 +299,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _                               ->
+    "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _                                      ->
       -- {{{
       case (hexStringToBuiltinByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
@@ -352,7 +353,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "contribute"               : amtStr : fileNamesJSON : _                                                    ->
+    "contribute"               : amtStr : fileNamesJSON : _                                                           ->
       -- {{{
       case (readMaybe amtStr, decodeString fileNamesJSON) of
         (Just amt, Just ocfn) ->
@@ -371,7 +372,7 @@ main =
             ++ "\n\t" ++ fileNamesJSON
           -- }}}
       -- }}}
-    "fold-donations"           : restOfArgs                                                                    ->
+    "fold-donations"           : restOfArgs                                                                           ->
       -- {{{
       let
         go :: String
@@ -499,7 +500,7 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "consolidate-donations"    : restOfArgs                                                                    ->
+    "consolidate-donations"    : restOfArgs                                                                           ->
       -- {{{
       let
         go :: String
@@ -614,7 +615,7 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _                   ->
+    "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _                          ->
       -- {{{
       case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
         (Just l0, Just (Donations map0), Just l1, Just (Donations map1), Just ocfn) ->
@@ -694,7 +695,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "accumulate-prize-weights" : inputCntStr : govInputStr : infoInputsStr : projInputsStr : fileNamesJSON : _ ->
+    "accumulate-prize-weights" : inputCntStr : govInputStr : infoInputsStr : projInputsStr : fileNamesJSON : _        ->
       -- {{{
       CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
@@ -709,14 +710,13 @@ main =
                     scriptAddr                = oAddressStr govO
                     predicate accCount qvfD   =
                       -- {{{
-                      if accCount < inputCount then
-                        case qvfD of
-                          PrizeWeight _ False ->
-                            True
-                          _                   ->
-                            False
-                      else
-                        False
+                         (accCount < inputCount)
+                      && ( case qvfD of
+                             PrizeWeight _ False ->
+                               True
+                             _                   ->
+                               False
+                         )
                       -- }}}
                     (finalProjs', finalInfos) =
                       sortInputsRefsBy predicate projInputs infoInputs
@@ -748,7 +748,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : pkhsToAddrs : _                 ->
+    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : registeredProjsStr : fileNamesJSON : _ ->
       -- {{{
       CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
@@ -807,13 +807,17 @@ main =
                             ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
                               -- {{{
                               proj      <- projGo ref projInputs
-                              addrStr   <- decodeString @(Map Ledger.PubKeyHash String) pkhsToAddrs >>= Map.lookup pkh
+                              addrStr   <- decodeString registeredProjsStr >>= RP.lookupAddressWithPKH pkh
                               ownerAddr <- tryReadAddress $ T.pack addrStr
                               let toOwner =
                                     CLI.outputToTxOut $
                                       Output ownerAddr addrStr raised Nothing
-                                  outputs = toOwner : validOutputs
-                              return ([proj], [ref], outputs)
+                                  outputs =
+                                    if raised > 0 then
+                                      toOwner : validOutputs
+                                    else
+                                      validOutputs
+                              return ([govInput, proj], [ref], outputs)
                               -- }}}
                             _                                                    ->
                               -- {{{
@@ -825,10 +829,12 @@ main =
                           Nothing
                           -- }}}
                       in
-                      case infoGo infoInputs of
-                        Just res ->
+                      case (infoGo infoInputs, decodeString fileNamesJSON) of
+                        (Just res, Just ocfn) -> do
+                          writeJSON (OCFN.qvfRedeemer ocfn) AccumulatePrizeWeights
+                          -- print res
                           putStrLn $ inputsRefsOutputsJSON scriptAddr res
-                        Nothing  ->
+                        _                     ->
                           putStrLn "FAILED: Something went wrong."
                       -- }}}
                     Nothing            ->
@@ -850,7 +856,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : _                  ->
+    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : _                         ->
       -- {{{
       let
         mGov  = decodeString @Input govInputStr
@@ -932,9 +938,9 @@ main =
             ++ "\n\t" ++ projInputStr
           -- }}}
       -- }}}
-    "unlock-bounty-for"        : _                                                                             ->
+    "unlock-bounty-for"        : _                                                                                    ->
       putStrLn "TODO."
-    "withdraw-bounty"          : _                                                                             ->
+    "withdraw-bounty"          : _                                                                                    ->
       putStrLn "TODO."
     -- }}}
     -- {{{ UTILITY ENDPOINTS 
