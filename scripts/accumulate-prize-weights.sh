@@ -7,7 +7,6 @@ govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
-regRefUTxO=$(cat $regRefUTxOFile)
 
 govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
@@ -56,10 +55,7 @@ buildTx="$cli $BUILD_TX_CONST_ARGS
 echo $buildTx > $tempBashFile
 . $tempBashFile
 
-if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$keyHolder.skey
-  wait_for_new_slot
-else
-  echo "TODO"
-  return 1
-fi
+sign_and_submit_tx $preDir/$keyHolder.skey
+wait_for_new_slot
+store_current_slot
+wait_for_new_slot

@@ -9,7 +9,7 @@ module Main (main) where
 
 -- IMPORTS
 -- {{{
--- import Debug.Trace (trace)
+import Debug.Trace (trace)
 
 import           Cardano.Api
 import           Codec.Serialise            ( serialise )
@@ -47,7 +47,7 @@ import qualified CLI.Tx                     as CLI
 import           CLI.Tx                     ( Asset(..)
                                             , Input(..)
                                             , Output(..)
-                                            , txOutToScriptOutput )
+                                            , txOutToOutput )
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
@@ -61,22 +61,28 @@ import           Utils
 main :: IO ()
 main =
   let
+    inputsRefsOutputsJSONHelper  :: ([Input], [Input], [Output])
+                                 -> String
+    inputsRefsOutputsJSONHelper (ins, refs, outs)      =
+      -- {{{
+         "{\"inputs\":"  ++ show ins
+      ++ ",\"refs\":"    ++ show refs
+      ++ ",\"outputs\":" ++ show outs
+      ++ "}"
+      -- }}}
     inputsRefsOutputsJSON :: String
                           -> ([Input], [Input], [Ledger.TxOut])
                           -> String
     inputsRefsOutputsJSON scriptAddr (ins, refs, outs) =
       -- {{{
-      case traverse (txOutToScriptOutput scriptAddr) outs of
+      case traverse (txOutToOutput scriptAddr) outs of
         Just scriptOuts ->
           -- {{{
-             "{\"inputs\":"  ++ show ins
-          ++ ",\"refs\":"    ++ show refs
-          ++ ",\"outputs\":" ++ show scriptOuts
-          ++ "}"
+          inputsRefsOutputsJSONHelper (ins, refs, scriptOuts)
           -- }}}
         Nothing         ->
           -- {{{
-          "FAILED: Couldn't convert `TxOut` values to `Output` values."
+          trace (show outs) "FAILED: Couldn't convert `TxOut` values to `Output` values."
           -- }}}
       -- }}}
     sortInputsRefsBy :: (Int -> QVFDatum -> Bool)
@@ -787,7 +793,7 @@ main =
                       -- {{{
                       let
                         projGo :: Input -> [Input] -> Maybe Input
-                        projGo ref (p : ps) =
+                        projGo ref (p : ps)             =
                           -- {{{
                           case (CLI.getAssetFromInput ref, CLI.getAssetFromInput p) of
                             (Just refA, Just pA) | refA == pA ->
@@ -795,12 +801,12 @@ main =
                             _                                 ->
                               projGo ref ps
                           -- }}}
-                        projGo _   _        =
+                        projGo _   _                    =
                           -- {{{
                           Nothing
                           -- }}}
                         infoGo :: [Input]
-                               -> Maybe ([Input], [Input], [Ledger.TxOut])
+                               -> Maybe ([Input], [Input], [Output])
                         infoGo (ref : refs) =
                           -- {{{
                           case getInlineDatum $ CLI.outputToTxOut $ iResolved ref of
@@ -809,14 +815,20 @@ main =
                               proj      <- projGo ref projInputs
                               addrStr   <- decodeString registeredProjsStr >>= RP.lookupAddressWithPKH pkh
                               ownerAddr <- tryReadAddress $ T.pack addrStr
-                              let toOwner =
-                                    CLI.outputToTxOut $
-                                      Output ownerAddr addrStr raised Nothing
-                                  outputs =
+                              qvfOuts   <- traverse (txOutToOutput scriptAddr) validOutputs
+                              let outputs =
                                     if raised > 0 then
-                                      toOwner : validOutputs
+                                      let
+                                        toOwner =
+                                          Output
+                                            ownerAddr
+                                            addrStr
+                                            raised
+                                            Nothing
+                                      in
+                                      toOwner : qvfOuts
                                     else
-                                      validOutputs
+                                      qvfOuts
                               return ([govInput, proj], [ref], outputs)
                               -- }}}
                             _                                                    ->
@@ -832,7 +844,7 @@ main =
                       case (infoGo infoInputs, decodeString fileNamesJSON) of
                         (Just res, Just ocfn) -> do
                           writeJSON (OCFN.qvfRedeemer ocfn) EliminateOneProject
-                          putStrLn $ inputsRefsOutputsJSON scriptAddr res
+                          putStrLn $ inputsRefsOutputsJSONHelper res
                         _                     ->
                           putStrLn "FAILED: Something went wrong."
                       -- }}}
@@ -855,7 +867,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : _                         ->
+    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON : _         ->
       -- {{{
       let
         mGov  = decodeString @Input govInputStr
@@ -894,25 +906,34 @@ main =
                       scriptAddrStr          = oAddressStr govO
                       mFinalOutputs          = do
                         -- {{{
-                        scriptTxOuts <- traverse (txOutToScriptOutput scriptAddrStr) outputs
+                        scriptTxOuts <- traverse (txOutToOutput scriptAddrStr) outputs
                         ownerAddr    <- tryReadAddress $ T.pack ownerAddrStr
                         ownerPKH     <- Addr.toPubKeyHash ownerAddr
                         if ownerPKH == winner then do
                           let initToOwner =
                                 CLI.outputToTxOut $
                                   Output ownerAddr ownerAddrStr won Nothing
-                          toOwner      <- txOutToScriptOutput ownerAddrStr initToOwner
-                          return $ toOwner : scriptTxOuts
+                          toOwner <- txOutToOutput ownerAddrStr initToOwner
+                          if won > 0 then
+                            return $ toOwner : scriptTxOuts
+                          else
+                            return scriptTxOuts
                         else
                           Nothing
                         -- }}}
                     in
-                    case mFinalOutputs of
-                      Just finalOutputs ->
+                    case (mFinalOutputs, decodeString fileNamesJSON) of
+                      (Just finalOutputs, Just ocfn) -> do
+                        writeJSON
+                          (OCFN.qvfRedeemer ocfn)
+                          (   DistributePrize
+                            $ unTokenName
+                            $ assetTokenName projAsset
+                          )
                         print $ show <$> finalOutputs
-                      Nothing            ->
+                      _                              ->
                         putStrLn
-                          "FAILED: Couldn't convert `TxOut` values to `Output` values."
+                          "FAILED: Couldn't convert `TxOut` values to `Output` values, or bad JSON provided for file names."
                     -- }}}
                   else
                     -- {{{

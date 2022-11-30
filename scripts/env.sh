@@ -682,18 +682,20 @@ qvf_output_to_tx_outs() {
   mkdir -p $dDir
   outputs=""
   for obj in $(echo "$1" | jq -c '.[]'); do
-    addr="$(remove_quotes $(echo "$obj" | jq -c '.address'))"
+    addr="$(echo "$obj" | jq -r -c '.address')"
     lovelace="$(echo "$obj" | jq -c '.lovelace')"
-    cbor="$(remove_quotes $(echo "$obj" | jq -c '.datumCBOR'))"
+    cbor="$(echo "$obj" | jq -r -c '.datumCBOR')"
     if [ "$cbor" == "null" ]; then
       outputs="$outputs --tx-out \"$addr + $lovelace lovelace\""
     else
       assetCount="$(echo "$obj" | jq -c '.assetCount')"
-      asset="$(remove_quotes $(echo "$obj" | jq -c '.asset'))"
+      asset="$(echo "$obj" | jq -r -c '.asset')"
       datum="$($qvf cbor-to-data $cbor)"
-      echo "$datum" > $dDir/$cbor
+      dHash="$(hash_datum "$datum")"
+      proxyFile=$dDir/$dHash
+      echo "$datum" > $proxyFile
       outputs="$outputs --tx-out \"$addr + $lovelace lovelace + $assetCount $asset\"
-        --tx-out-inline-datum-file $dDir/$cbor
+        --tx-out-inline-datum-file $proxyFile
         "
     fi
   done
@@ -759,6 +761,15 @@ get_total_lovelaces_from_json() {
 
 
 # Takes 1 argument:
+#   1. Script data JSON.
+hash_datum() {
+  proxyFile=$preDir/tmp.json
+  echo "$1" > $proxyFile
+  $cli transaction hash-script-data --script-data-file $proxyFile
+}
+
+
+# Takes 1 argument:
 #   1. A JSON.
 jq_zip() {
   # {{{
@@ -820,15 +831,15 @@ get_all_projects_state_utxos_datums_values() {
 # Takes no arguments.
 find_registered_projects_count() {
   # {{{
-  wc -l $registeredProjectsFile | awk '{ print $1 }'
+  cat $registeredProjectsFile | jq length
   # }}}
 }
 
 
 # Takes 1 argument:
-#   1. The "number" of the project (first registered project is represented
-#      with 1, and so on). Clamps implicitly.
-project_number_to_token_name() {
+#   1. The "index" of the project (0 for the project that registered first, and
+#      so on). Clamps implicitly.
+project_index_to_token_name() {
   # {{{
   clamped="$1"
   min=0
@@ -838,7 +849,8 @@ project_number_to_token_name() {
   elif [ "$clamped" -gt "$max" ]; then
     clamped="$max"
   fi
-  sed "${clamped}q;d" $registeredProjectsFile
+  cat $registeredProjectsFile | jq -r --argjson i "$clamped" '.[$i] | .tn'
+  # sed "${clamped}q;d" $registeredProjectsFile
   # }}}
 }
 
@@ -864,11 +876,31 @@ get_projects_state_utxo() {
 
 
 # Takes 1 argument:
+#   1. Project's ID (token name).
+get_projects_info_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  projectAsset="$(cat $regSymFile).$1"
+  projectUTxOs="$(get_script_utxos_datums_values $qvfAddress $projectAsset)"
+  projectUTxOObj=""
+  temp0="$(echo "$projectUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is ProjectInfo "$temp0")
+  if [ $isInfo == "True" ]; then
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[0]')"
+  else
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[1]')"
+  fi
+  echo $projectUTxOObj
+  # }}}
+}
+
+
+# Takes 1 argument:
 #   1. The "number" of the project (first registered project is represented
 #      with 1, and so on). Clamps implicitly.
 get_nth_projects_state_utxo() {
   # {{{
-  get_projects_state_utxo $(project_number_to_token_name $1)
+  get_projects_state_utxo $(project_index_to_token_name $1)
   # }}}
 }
 
@@ -889,7 +921,7 @@ get_projects_donation_utxos() {
 #      with 1, and so on). Clamps implicitly.
 get_nth_projects_donation_utxos() {
   # {{{
-  get_projects_donation_utxos $(project_number_to_token_name $1)
+  get_projects_donation_utxos $(project_index_to_token_name $1)
   # }}}
 }
 #########################################################################

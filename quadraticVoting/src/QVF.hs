@@ -738,11 +738,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Elimination of Non-Eligible Projects
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
-      let
-        tn = getCurrTokenName qvfProjectSymbol
-      in
         traceIfFalse "E100"
-      $ xInputWithSpecificDatumExists qvfProjectSymbol tn
+      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
       $ \case
           ProjectEliminationProgress _ _ -> True
           _                              -> False
@@ -752,11 +749,18 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Distribution of a Project's Prize
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
-        traceIfFalse "E101"
-      $ xInputWithSpecificDatumExists qvfProjectSymbol (TokenName projID)
-      $ \case
-          DistributionProgress {} -> True
-          _                       -> False
+         traceIfFalse
+           "E092"
+           (getCurrTokenName qvfProjectSymbol == TokenName projID)
+      && traceIfFalse "E101"
+           ( xInputWithSpecificDatumExists
+               qvfSymbol
+               qvfTokenName
+               ( \case
+                   DistributionProgress {} -> True
+                   _                       -> False
+               )
+           )
       -- }}} 
 
     --      v-----------v is there a better term?

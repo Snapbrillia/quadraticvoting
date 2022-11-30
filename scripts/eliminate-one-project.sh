@@ -7,7 +7,6 @@ govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
-regRefUTxO=$(cat $regRefUTxOFile)
 
 govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
@@ -32,6 +31,8 @@ txInConstant="--spending-tx-in-reference $qvfRefUTxO    \
   --spending-reference-tx-in-redeemer-file $devRedeemer
   "
 
+echo $result
+
 inputs=$(echo "$result" | jq -c .inputs)
 refs=$(echo "$result" | jq -c .refs)
 outputs=$(echo "$result" | jq -c .outputs)
@@ -52,13 +53,12 @@ buildTx="$cli $BUILD_TX_CONST_ARGS
   --change-address $keyHoldersAddress
   "
 
+rm -f $tempBashFile
+touch $tempBashFile
 echo $buildTx > $tempBashFile
 . $tempBashFile
 
-if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$keyHolder.skey
-  wait_for_new_slot
-else
-  echo "TODO"
-  return 1
-fi
+sign_and_submit_tx $preDir/$keyHolder.skey
+wait_for_new_slot
+store_current_slot
+wait_for_new_slot

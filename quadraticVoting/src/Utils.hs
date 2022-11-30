@@ -660,7 +660,7 @@ minRequestable = 5_000_000
 -- E089: Unauthentic governance datum is getting spent.
 -- E090: Projects UTxOs must share the same address.
 -- E091: Project UTxOs must be from the script address.
--- E092: 
+-- E092: The redeemer is not pointing to this UTxO.
 -- E093: 
 -- E094: Project owner must be paid accurately.
 -- E095: Both governance UTxOs must be getting spent.
@@ -668,8 +668,8 @@ minRequestable = 5_000_000
 -- E097: 
 -- E098: 
 -- E099: 
--- E100: The project UTxO must also be getting consumed.
--- E101: The project UTxO must also be getting consumed.
+-- E100: The governance UTxO must also be getting consumed.
+-- E101: The governance UTxO must also be getting consumed.
 -- E102: Bad reference project datum provided.
 -- E103: Unauthentic escrow UTxO.
 -- E104: Insufficient funds.

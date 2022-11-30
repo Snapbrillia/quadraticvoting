@@ -275,23 +275,32 @@ outputToTxOut Output{..} =
   -- }}}
 
 
-txOutToScriptOutput :: String -> TxOut -> Maybe Output
-txOutToScriptOutput addrStr o@TxOut{..} = do
+txOutToOutput :: String -> TxOut -> Maybe Output
+txOutToOutput addrStr o@TxOut{..} = do
   -- {{{
   inAddr <- tryReadAddress $ Text.pack addrStr
   if inAddr == txOutAddress then
     -- {{{
-    case (Value.flattenValue txOutValue, getInlineDatum o) of
-      ([(sym', tn', amt'), (_, _, lovelaces)], qvfD) ->
+    case Value.flattenValue txOutValue of
+      [(sym', tn', amt'), (_, _, lovelaces)] ->
         -- {{{
         Just $ Output
           { oAddress    = txOutAddress
           , oAddressStr = addrStr
           , oLovelace   = lovelaces
-          , oForScript  = Just (Asset sym' tn', amt', qvfD)
+          , oForScript  = Just (Asset sym' tn', amt', getInlineDatum o)
           }
         -- }}}
-      _                                              ->
+      [(_, _, lovelaces)]                    ->
+        -- {{{
+        Just $ Output
+          { oAddress    = txOutAddress
+          , oAddressStr = addrStr
+          , oLovelace   = lovelaces
+          , oForScript  = Nothing
+          }
+        -- }}}
+      _                                      ->
         -- {{{
         Nothing
         -- }}}

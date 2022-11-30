@@ -4,7 +4,7 @@ MAX_SPENDABLE_UTXOS=8
 
 . $REPO/scripts/initiation.sh
 
-projectTokenName=$(project_number_to_token_name "$1")
+projectTokenName=$(project_index_to_token_name "$1")
 startingPhase=$2
 
 qvfAddress=$(cat $scriptAddressFile)
