@@ -17,6 +17,7 @@ else
   txInUTxO=$3
   txInCollateralUTxO=$4
   txOutUTxO=$5
+  txOutCollateralUTxO=$6
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -41,23 +42,26 @@ $qvf contribute               \
 
 generate_protocol_params
 
-$cli $BUILD_TX_CONST_ARGS                                   \
-  --read-only-tx-in-reference $deadlineUTxO                 \
-  --tx-in $govUTxO                                          \
-  --spending-tx-in-reference $qvfRefUTxO                    \
-  --spending-plutus-script-v2                               \
-  --spending-reference-tx-in-inline-datum-present           \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
-  --tx-out "$govOutput"                                     \
-  --tx-out-inline-datum-file $currentDatumFile              \
-  --invalid-hereafter $cappedSlot                           \
+$cli $BUILD_TX_CONST_ARGS                                        \
+  --read-only-tx-in-reference $deadlineUTxO                      \
+  --tx-in $govUTxO                                               \
+  --spending-tx-in-reference $qvfRefUTxO                         \
+  --spending-plutus-script-v2                                    \
+  --spending-reference-tx-in-inline-datum-present                \
+  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO  \
+  --tx-out "$govOutput"                                          \
+  --tx-out-inline-datum-file $currentDatumFile                   \
+  --invalid-hereafter $cappedSlot                                \
   --change-address $sponsorAddress      
 
 if [ "$ENV" == "dev" ]; then
   sign_and_submit_tx $preDir/$sponsorWalletLabel.skey
   wait_for_new_slot
 else
-  echo "TODO"
-  return 1
+  store_current_slot
+  JSON_STRING=$( jq -n                         \
+    --arg bn "$(cat $txBody | jq -r .cborHex)" \
+    '{transaction: $bn}' )
+  echo "---$JSON_STRING"
 fi

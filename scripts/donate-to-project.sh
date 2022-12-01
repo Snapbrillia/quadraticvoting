@@ -129,6 +129,7 @@ else
   txInUTxO=$5
   txInCollateralUTxO=$6
   txOutUTxO=$7
+  txOutCollateralUTxO=$8
 fi
 
 projectAsset="$regSym.$projectTokenName"
@@ -156,25 +157,25 @@ donRefUTxO=$(cat $donRefUTxOFile)
 
 generate_protocol_params
 
-$cli $BUILD_TX_CONST_ARGS                                   \
-  --required-signer-hash $donorPKH                          \
-  --read-only-tx-in-reference $deadlineUTxO                 \
-  --tx-in $projectUTxO                                      \
-  --spending-tx-in-reference $qvfRefUTxO                    \
-  --spending-plutus-script-v2                               \
-  --spending-reference-tx-in-inline-datum-present           \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
-  --tx-out "$outputProjectUTxO"                             \
-  --tx-out-inline-datum-file $updatedDatumFile              \
-  --tx-out "$donationUTxO"                                  \
-  --tx-out-inline-datum-file $newDatumFile                  \
-  --invalid-hereafter $cappedSlot                           \
-  --mint "1 $donAsset"                                      \
-  --mint-tx-in-reference $donRefUTxO                        \
-  --mint-plutus-script-v2                                   \
-  --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
-  --policy-id $donSym                                       \
+$cli $BUILD_TX_CONST_ARGS                                       \
+  --required-signer-hash $donorPKH                              \
+  --read-only-tx-in-reference $deadlineUTxO                     \
+  --tx-in $projectUTxO                                          \
+  --spending-tx-in-reference $qvfRefUTxO                        \
+  --spending-plutus-script-v2                                   \
+  --spending-reference-tx-in-inline-datum-present               \
+  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO \
+  --tx-out "$outputProjectUTxO"                                 \
+  --tx-out-inline-datum-file $updatedDatumFile                  \
+  --tx-out "$donationUTxO"                                      \
+  --tx-out-inline-datum-file $newDatumFile                      \
+  --invalid-hereafter $cappedSlot                               \
+  --mint "1 $donAsset"                                          \
+  --mint-tx-in-reference $donRefUTxO                            \
+  --mint-plutus-script-v2                                       \
+  --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
+  --policy-id $donSym                                           \
   --change-address $donorAddress
 
 if [ "$ENV" == "dev" ]; then
