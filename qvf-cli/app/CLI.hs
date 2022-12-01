@@ -62,12 +62,17 @@ main :: IO ()
 main =
   let
     inputsRefsOutputsJSONHelper  :: ([Input], [Input], [Output])
+                                 -> Maybe String
                                  -> String
-    inputsRefsOutputsJSONHelper (ins, refs, outs)      =
+    inputsRefsOutputsJSONHelper (ins, refs, outs) mX   =
       -- {{{
          "{\"inputs\":"  ++ show ins
       ++ ",\"refs\":"    ++ show refs
       ++ ",\"outputs\":" ++ show outs
+      ++ ( case mX of
+             Just misc -> ",\"extra\":" ++ misc
+             Nothing   -> ""
+         )
       ++ "}"
       -- }}}
     inputsRefsOutputsJSON :: String
@@ -78,7 +83,7 @@ main =
       case traverse (txOutToOutput scriptAddr) outs of
         Just scriptOuts ->
           -- {{{
-          inputsRefsOutputsJSONHelper (ins, refs, scriptOuts)
+          inputsRefsOutputsJSONHelper (ins, refs, scriptOuts) Nothing
           -- }}}
         Nothing         ->
           -- {{{
@@ -778,7 +783,7 @@ main =
                       -- }}}
                     (finalProjs, finalInfos)      =
                       sortInputsRefsBy predicate projInputs infoInputs
-                    (validOutputs, mEliminated)   =
+                    (validOutputs, mEliminated, r) =
                       OC.eliminateOneProject
                         (assetSymbol govAsset)
                         (assetSymbol pAsset)
@@ -844,7 +849,7 @@ main =
                       case (infoGo infoInputs, decodeString fileNamesJSON) of
                         (Just res, Just ocfn) -> do
                           writeJSON (OCFN.qvfRedeemer ocfn) EliminateOneProject
-                          putStrLn $ inputsRefsOutputsJSONHelper res
+                          putStrLn $ inputsRefsOutputsJSONHelper res $ Just $ show r
                         _                     ->
                           putStrLn "FAILED: Something went wrong."
                       -- }}}
@@ -890,7 +895,7 @@ main =
                   if remaining > 0 then
                     -- {{{
                     let
-                      (outputs, winner, won) =
+                      (outputs, winner, won, interVals) =
                         -- {{{
                         OC.distributePrize
                           (assetSymbol govAsset)
@@ -930,7 +935,7 @@ main =
                             $ unTokenName
                             $ assetTokenName projAsset
                           )
-                        putStrLn $ inputsRefsOutputsJSONHelper res
+                        putStrLn $ inputsRefsOutputsJSONHelper res $ Just $ show interVals
                       _                     ->
                         putStrLn
                           "FAILED: Couldn't convert `TxOut` values to `Output` values, or bad JSON provided for file names."

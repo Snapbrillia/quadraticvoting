@@ -48,6 +48,12 @@ inputs=$(echo "$result" | jq -c .inputs)
 refs=$(echo "$result" | jq -c .refs)
 outputs=$(echo "$result" | jq -c .outputs)
 
+echo
+echo "================================================"
+echo "$result" | jq -c .extra
+echo "================================================"
+echo
+
 refArgs=$(qvf_output_to_tx_ins "--read-only-tx-in-reference" "" "$refs")
 inputArgs=$(qvf_output_to_tx_ins "--tx-in" "$txInConstant" "$inputs")
 outputArgs=$(qvf_output_to_tx_outs "$outputs")

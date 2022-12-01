@@ -464,7 +464,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Elimination of Non-Eligible Projects
       -- {{{
       let
-        (validOutputs, mEliminated) =
+        (validOutputs, mEliminated, _) =
           eliminateOneProject
             qvfSymbol
             qvfProjectSymbol
@@ -493,8 +493,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Handing Out Prize of a Specific Project
       -- {{{
       let
-        projTN                      = TokenName projID
-        (validOutputs, winner, won) =
+        projTN                         = TokenName projID
+        (validOutputs, winner, won, _) =
           distributePrize
             qvfSymbol
             qvfProjectSymbol
@@ -961,7 +961,7 @@ eliminateOneProject :: CurrencySymbol
                     -> [TxInInfo]
                     -> Integer
                     -> Map BuiltinByteString EliminationInfo
-                    -> ([TxOut], Maybe (PubKeyHash, Integer))
+                    -> ([TxOut], Maybe (PubKeyHash, Integer), Integer)
 eliminateOneProject
   qvfSym
   pSym
@@ -1042,7 +1042,7 @@ eliminateOneProject
                           }
                         -- }}}
                     in
-                    ([outputS, outputP], Just (pdPubKeyHash, b))
+                    ([outputS, outputP], Just (pdPubKeyHash, b), r)
                     -- }}}
                   _                                                    ->
                     -- {{{
@@ -1070,6 +1070,7 @@ eliminateOneProject
                 }
             ]
           , Nothing
+          , r
           )
           -- }}}
         -- }}}
@@ -1094,9 +1095,9 @@ distributePrize :: CurrencySymbol
                 -> [TxInInfo]
                 -> [TxInInfo]
                 -> Integer
-                -> Integer
-                -> Integer
-                -> ([TxOut], PubKeyHash, Integer)
+                -> Integer -- Intermediary values for development purposes.
+                -> Integer --                     v-------v
+                -> ([TxOut], PubKeyHash, Integer, [Integer])
 distributePrize
   qvfSym
   pSym
@@ -1117,7 +1118,6 @@ distributePrize
             raised        = lovelaceFromValue pVal - halfOfTheRegistrationFee
             (donFee, don) = separateKeyHoldersFeeFrom raised
             (mpFee, won)  = separateKeyHoldersFeeFrom mpPortion
-            -- (khFee, b)    = separateKeyHoldersFeeFrom $ raised + mpPortion
             belonging     = don + won
             excess        = max 0 $ belonging - pdRequested
             shouldBePaid  = belonging - excess
@@ -1128,7 +1128,7 @@ distributePrize
                     qvfDatumToInlineDatum $
                       DistributionProgress matchPool (remaining - 1) den
                 , txOutValue =
-                    currVal <> lovelaceValueOf (donFee + mpFee - won)
+                    currVal <> lovelaceValueOf (donFee - won)
                 }
               -- }}}
             outputP       =
@@ -1146,7 +1146,20 @@ distributePrize
           in
           if utxoHasOnlyX qvfSym qvfTokenName currUTxO then
             if pAddr == scriptAddr then
-              ([outputS, outputP], pdPubKeyHash, shouldBePaid)
+              ( [outputS, outputP]
+              , pdPubKeyHash
+              , shouldBePaid
+              , [ mpPortion
+                , raised
+                , donFee
+                , don
+                , mpFee
+                , won
+                , belonging
+                , excess
+                , shouldBePaid
+                ]
+              )
             else
               traceError "E091"
           else
