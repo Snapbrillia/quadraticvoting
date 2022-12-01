@@ -21,6 +21,7 @@ else
   txInUTxO=$5
   txInCollateralUTxO=$6
   txOutUTxO=$7
+  txOutCollateralUTxO=$8
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -63,27 +64,27 @@ regRefUTxO=$(cat $regRefUTxOFile)
 
 generate_protocol_params
 
-$cli $BUILD_TX_CONST_ARGS                                   \
-  --required-signer-hash $projectOwnerPKH                   \
-  --read-only-tx-in-reference $deadlineUTxO                 \
-  --tx-in $govUTxO                                          \
-  --spending-tx-in-reference $qvfRefUTxO                    \
-  --spending-plutus-script-v2                               \
-  --spending-reference-tx-in-inline-datum-present           \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
-  --tx-out "$firstUTxO"                                     \
-  --tx-out-inline-datum-file $updatedDatumFile              \
-  --tx-out "$projUTxO"                                      \
-  --tx-out-inline-datum-file $projectInfoDatumFile          \
-  --tx-out "$projUTxO"                                      \
-  --tx-out-inline-datum-file $projectDatumFile              \
-  --invalid-hereafter $cappedSlot                           \
-  --mint "2 $projectAsset"                                  \
-  --mint-tx-in-reference $regRefUTxO                        \
-  --mint-plutus-script-v2                                   \
-  --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
-  --policy-id $regSym                                       \
+$cli $BUILD_TX_CONST_ARGS                                        \
+  --required-signer-hash $projectOwnerPKH                        \
+  --read-only-tx-in-reference $deadlineUTxO                      \
+  --tx-in $govUTxO                                               \
+  --spending-tx-in-reference $qvfRefUTxO                         \
+  --spending-plutus-script-v2                                    \
+  --spending-reference-tx-in-inline-datum-present                \
+  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO  \
+  --tx-out "$firstUTxO"                                          \
+  --tx-out-inline-datum-file $updatedDatumFile                   \
+  --tx-out "$projUTxO"                                           \
+  --tx-out-inline-datum-file $projectInfoDatumFile               \
+  --tx-out "$projUTxO"                                           \
+  --tx-out-inline-datum-file $projectDatumFile                   \
+  --invalid-hereafter $cappedSlot                                \
+  --mint "2 $projectAsset"                                       \
+  --mint-tx-in-reference $regRefUTxO                             \
+  --mint-plutus-script-v2                                        \
+  --mint-reference-tx-in-redeemer-file $minterRedeemerFile       \
+  --policy-id $regSym                                            \
   --change-address $projectOwnerAddress
 
 if [ "$ENV" == "dev" ]; then
