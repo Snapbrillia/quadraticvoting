@@ -29,7 +29,8 @@ import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import qualified Plutus.V1.Ledger.Interval            as Interval
 import           Plutus.V2.Ledger.Api
-import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol )
+import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol
+                                                      , txSignedBy )
 import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Data.Datum
@@ -42,44 +43,38 @@ qvfTokenName :: TokenName
 qvfTokenName = emptyTokenName
 
 
-{-# INLINABLE deadlineTokenName #-}
-deadlineTokenName :: TokenName
-deadlineTokenName = TokenName "D"
-
-
-data TempRedeemer
-  = Validate
+data GovernanceRedeemer
+  = Initiate
+  | Conclude
   | Dev
 
-PlutusTx.makeIsDataIndexed ''TempRedeemer
-  [ ('Validate, 11)
-  , ('Dev     , 10)
+PlutusTx.makeIsDataIndexed ''GovernanceRedeemer
+  [ ('Initiate, 0 )
+  , ('Conclude, 1 )
+  , ('Dev     , 20)
   ]
 
 
 {-# INLINABLE mkQVFPolicy #-}
-mkQVFPolicy :: TxOutRef
+mkQVFPolicy :: PubKeyHash
+            -> TxOutRef
             -> POSIXTime
-            -> TokenName
-            -> TokenName
-            -> TempRedeemer
+            -> GovernanceRedeemer
             -> ScriptContext
             -> Bool
-mkQVFPolicy oref deadline dlTN tn r ctx =
+mkQVFPolicy pkh oref deadline r ctx =
   -- {{{
-  -- For development. TODO: REMOVE.
+  let
+    info :: TxInfo
+    info = scriptContextTxInfo ctx
+
+    ownSym :: CurrencySymbol
+    ownSym = ownCurrencySymbol ctx
+  in
   case r of
-    Dev ->
-      True
-    _   ->
-  ---------------------------------
+    Initiate ->
+      -- {{{
       let
-        info :: TxInfo
-        info = scriptContextTxInfo ctx
-
-        ownSym :: CurrencySymbol
-        ownSym = ownCurrencySymbol ctx
-
         hasUTxO :: Bool
         hasUTxO =
           -- {{{
@@ -96,22 +91,16 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
         checkMintedAmount =
           -- {{{
           case flattenValue (txInfoMint info) of
-            [(_, dlTN', dlAmt'), (_, tn', amt')] ->
+            [(_, tn', amt')] ->
               -- {{{
                  traceIfFalse
                    "E000"
-                   (dlTN' == dlTN)
+                   (amt' == 2)
               && traceIfFalse
                    "E001"
-                   (tn' == tn)
-              && traceIfFalse
-                   "E002"
-                   (dlAmt' == 1)
-              && traceIfFalse
-                   "E003"
-                   (amt' == 1)
+                   (tn' == qvfTokenName)
               -- }}}
-            _              ->
+            _                ->
               -- {{{
               traceError "E004"
               -- }}}
@@ -121,10 +110,20 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
           -- {{{
              traceIfFalse
                "E005"
-               (utxoHasOnlyXWithLovelaces ownSym dlTN governanceLovelaces o0)
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   qvfTokenName
+                   governanceLovelaces
+                   o0
+               )
           && traceIfFalse
                "E006"
-               (utxoHasOnlyXWithLovelaces ownSym tn governanceLovelaces o1)
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   qvfTokenName
+                   governanceLovelaces
+                   o1
+               )
           && ( case (getInlineDatum o0, getInlineDatum o1) of
                  (DeadlineDatum dl, RegisteredProjectsCount count) ->
                    -- {{{
@@ -142,15 +141,19 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            [o0, o1]    ->
+            [o0, o1]       ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
-            [_, o0, o1] ->
+            [_, o0, o1]    ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
-            _           ->
+            [_, _, o0, o1] ->
+              -- {{{
+              validateTwoOutputs o0 o1
+              -- }}}
+            _              ->
               -- {{{
               traceError "E010"
               -- }}}
@@ -160,26 +163,49 @@ mkQVFPolicy oref deadline dlTN tn r ctx =
       && traceIfFalse "E012" deadlineIsValid
       && checkMintedAmount
       && validOutputsPresent
+      -- }}}
+    Conclude ->
+      -- {{{
+      case filter (utxoHasOnlyX ownSym qvfTokenName . txInInfoResolved) (txInfoInputs info) of
+        [TxInInfo{txInInfoResolved = i0}, TxInInfo{txInInfoResolved = i1}] ->
+          -- {{{
+          case (getInlineDatum i0, getInlineDatum i1) of
+            (DeadlineDatum _, DistributionProgress _ remaining _) ->
+              -- {{{
+              traceIfFalse "E003" (remaining == 0)
+              -- }}}
+            _                                                     ->
+              -- {{{
+              traceError "E096"
+              -- }}}
+          -- }}}
+        _                                                                  ->
+          -- {{{
+          traceError "E095"
+          -- }}}
+      -- }}}
+    -- For development. TODO: REMOVE.
+    Dev      ->
+      traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 
 
-qvfPolicy :: TxOutRef -> POSIXTime -> MintingPolicy
-qvfPolicy oref deadline =
+qvfPolicy :: PubKeyHash -> TxOutRef -> POSIXTime -> MintingPolicy
+qvfPolicy pkh oref deadline =
   -- {{{
   let
-    wrap :: (TempRedeemer -> ScriptContext -> Bool) -> PSU.V2.UntypedMintingPolicy
+    wrap :: (GovernanceRedeemer -> ScriptContext -> Bool)
+         -> PSU.V2.UntypedMintingPolicy
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \oref' deadline' dlTN' tn' -> wrap $ mkQVFPolicy oref' deadline' dlTN' tn' ||])
+    $$(PlutusTx.compile [|| \pkh' oref' deadline' -> wrap $ mkQVFPolicy pkh' oref' deadline' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode oref
     `PlutusTx.applyCode`
     PlutusTx.liftCode deadline
-    `PlutusTx.applyCode`
-    PlutusTx.liftCode deadlineTokenName
-    `PlutusTx.applyCode`
-    PlutusTx.liftCode qvfTokenName
   -- }}}
 
 

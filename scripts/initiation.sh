@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. $HOME/quadraticVoting/scripts/env.sh
+# . $HOME/quadraticVoting/scripts/env.sh
+. scripts/env.sh
 
 startingWallet=1
 endingWallet=20
@@ -42,10 +43,6 @@ store_gov_symbol() {
 get_gov_asset() {
   store_gov_symbol
   echo $govSym
-}
-
-get_deadline_asset() {
-  echo $(cat $govSymFile).$(cat $deadlineTokenNameHexFile)
 }
 
 get_script_data_hash() {
@@ -97,16 +94,13 @@ initiate_fund() {
   govDatumFile=$(getFileName ocfnInitialGovDatum)
   # NOTE: The order of these 2 assignments matters.
   govAsset=$(get_gov_asset)
-  deadlineAsset=$(get_deadline_asset)
   # -----------------------------------------------
   regSym=$($cli transaction policyid --script-file $regScriptFile)
   echo $regSym > $regSymFile
   donSym=$($cli transaction policyid --script-file $donScriptFile)
   echo $donSym > $donSymFile
 
-  govLovelaces=1500000 #  1.5 ADA
-  firstUTxO="$scriptAddr + $govLovelaces lovelace + 1 $deadlineAsset"
-  secondUTxO="$scriptAddr + $govLovelaces lovelace + 1 $govAsset"
+  outUTxO="$scriptAddr + $governanceLovelaces lovelace + 1 $govAsset"
 
   generate_protocol_params
 
@@ -116,14 +110,14 @@ initiate_fund() {
   $cli $BUILD_TX_CONST_ARGS                   \
     --tx-in $genesisUTxO                      \
     --tx-in-collateral $genesisUTxO           \
-    --tx-out "$firstUTxO"                     \
+    --tx-out "$outUTxO"                       \
     --tx-out-inline-datum-file $deadlineDatum \
-    --tx-out "$secondUTxO"                    \
+    --tx-out "$outUTxO"                       \
     --tx-out-inline-datum-file $govDatumFile  \
     --invalid-hereafter $cappedSlot           \
-    --mint "1 $deadlineAsset + 1 $govAsset"   \
+    --mint "2 $govAsset"                      \
     --mint-script-file $govScriptFile         \
-    --mint-redeemer-file $tempRedeemer        \
+    --mint-redeemer-file $minterRedeemerFile  \
     --change-address $keyHoldersAddress
   
   sign_and_submit_tx $keyHoldersSigningKeyFile
@@ -208,16 +202,16 @@ initiate_fund() {
 dev_depletion() {
   # {{{
   collateral=$(get_first_utxo_of $keyHolder)
-  deadlineAsset=$(get_deadline_asset)
   govAsset=$(get_gov_asset)
   regRefUTxO=$(cat $regRefUTxOFile)
   regSym=$(cat $regSymFile)
   donRefUTxO=$(cat $donRefUTxOFile)
   donSym=$(cat $donSymFile)
   scriptAddr=$(cat $scriptAddressFile)
-  # allUTxOs=$(get_nth_projects_donation_utxos $1 | jq '.[0:8]')
-  # allUTxOs=$(get_all_projects_utxos_datums_values | jq '.[0:8]')
+  # allUTxOs=$(get_nth_projects_donation_utxos $1 | jq '.[0:9]')
+  # allUTxOs=$(get_all_projects_utxos_datums_values | jq '.[0:9]')
   allUTxOs=$(get_all_script_utxos_datums_values $scriptAddr | jq '.[0:8]')
+  echo "$allUTxOs" | jq 'map(.asset)'
   const="--spending-tx-in-reference $(cat $qvfRefUTxOFile) --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
   txInArg=$(echo "$allUTxOs" | jq --arg const "$const" 'map("--tx-in " + .utxo + " " + $const) | reduce .[] as $a (""; if . == "" then $a else (. + " " + $a) end)')
   txInArg=$(remove_quotes "$txInArg")
@@ -235,23 +229,25 @@ dev_depletion() {
     --mint-plutus-script-v2
     --mint-reference-tx-in-redeemer-file $devRedeemer
     --policy-id $(cat $regSymFile)
-    --change-address $(cat testnet/$keyHolder.addr)
+    --change-address $(cat $preDir/$keyHolder.addr)
   "
-  ## buildTx="$cli $BUILD_TX_CONST_ARGS
-  ##   --required-signer-hash $(cat $preDir/$keyHolder.pkh)
-  ##   --tx-in-collateral $collateral
-  ##   $txInArg
-  ##   --mint \"$mintArg\"
-  ##   --mint-tx-in-reference $regRefUTxO
-  ##   --mint-plutus-script-v2
-  ##   --mint-reference-tx-in-redeemer-file $devRedeemer
-  ##   --policy-id $(cat $regSymFile)
-  ##   --change-address $(cat testnet/$keyHolder.addr)
-  ## "
-  ###### --mint-tx-in-reference $donRefUTxO
-  ###### --mint-plutus-script-v2
-  ###### --mint-reference-tx-in-redeemer-file $devRedeemer
-  ###### --policy-id $(cat $donSymFile)
+  #   --mint-tx-in-reference $donRefUTxO
+  #   --mint-plutus-script-v2
+  #   --mint-reference-tx-in-redeemer-file $devRedeemer
+  #   --policy-id $(cat $donSymFile)
+  # buildTx="$cli $BUILD_TX_CONST_ARGS
+  #   --required-signer-hash $(cat $preDir/$keyHolder.pkh)
+  #   --tx-in-collateral $collateral
+  #   $txInArg
+  #   --mint \"$mintArg\"
+  #   --mint-script-file $govScriptFile
+  #   --mint-redeemer-file $devRedeemer
+  #   --mint-tx-in-reference $donRefUTxO
+  #   --mint-plutus-script-v2
+  #   --mint-reference-tx-in-redeemer-file $devRedeemer
+  #   --policy-id $(cat $donSymFile)
+  #   --change-address $(cat testnet/$keyHolder.addr)
+  # "
   echo $buildTx > $tempBashFile
   . $tempBashFile
   sign_and_submit_tx $preDir/$keyHolder.skey

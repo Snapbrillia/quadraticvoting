@@ -20,11 +20,14 @@ library
 
   default-language:    Haskell2010
 
-  exposed-modules:     QVF
+  exposed-modules:     CLI.OffChainFileNames
+                     , CLI.RegisteredProject
+                     , CLI.Utils
+                     , CLI.Tx
+                     , QVF
                      , Data.Datum
                      , Data.DonationInfo
                      , Data.Redeemer
-                     , Data.RegistrationInfo
                      , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration
@@ -34,6 +37,8 @@ library
                      , aeson
                      , bytestring
                      , cardano-api
+                     , cardano-crypto-class
+                     , cardano-ledger-core
                      , data-default
                      , plutonomy
                      , plutus-ledger
@@ -42,6 +47,8 @@ library
                      , plutus-tx-plugin
                      , plutus-tx
                      , serialise
+                     , text
+                     , time
 
   ghc-options:         -Wall 
                        -fobject-code

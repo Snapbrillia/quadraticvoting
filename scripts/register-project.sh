@@ -1,35 +1,43 @@
 #!/bin/bash
 
-. $HOME/quadraticVoting/scripts/initiation.sh
+. $REPO/scripts/initiation.sh
 
 
-projectName=$1
-projectRequestedFund=$2
-projectOwnerAddress=$3
-projectOwnerPKH=$4
-projectIdUTxO=$5
-txInUTxO=$6
-txInCollateralUTxO=$7
-txOutUTxO=$8
+if [ "$ENV" == "dev" ]; then
+  projectOwnerWalletLabel=$1
+  projectName=$2
+  projectRequestedFund=$3
+  projectOwnerAddress=$(cat $preDir/$projectOwnerWalletLabel.addr)
+  projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)
+  ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
+  txInUTxO="--tx-in $ownerInputUTxO"
+  txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
+  txOutUTxO=""
+else
+  projectName=$1
+  projectRequestedFund=$2
+  projectOwnerAddress=$3
+  projectOwnerPKH=$4
+  txInUTxO=$5
+  txInCollateralUTxO=$6
+  txOutUTxO=$7
+fi
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
-deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
-govUTxOObj="$(get_script_utxos_datums_values $qvfAddress $govAsset | jq -c '.[0]')"
+govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
 govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
-deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
-
+deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
 $qvf register-project         \
-  $projectIdUTxO              \
   $projectOwnerPKH            \
 	$projectName                \
 	$projectRequestedFund       \
@@ -37,15 +45,18 @@ $qvf register-project         \
 
 # {{{
 projectTokenName=$(cat $projectTokenNameFile)
-echo $projectTokenName >> $registeredProjectsFile
+newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
+newRegisteredProjects=$(cat $registeredProjectsFile \
+  | jq --argjson obj "$newProjJSON"                 \
+  'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
+  )
+echo $newRegisteredProjects > $registeredProjectsFile
 projectAsset="$regSym.$projectTokenName"
 projectDatumFile="$newDatumFile"
 projectInfoDatumFile="$preDir/$projectTokenName"
 
-regFeeLovelaces=1500000 # 1.5 ADA, half of the registration fee.
 firstUTxO="$qvfAddress + $govLovelaces lovelace + 1 $govAsset"
-projUTxO="$qvfAddress + $regFeeLovelaces lovelace + 1 $projectAsset"
-
+projUTxO="$qvfAddress + $halfOfTheRegistrationFee lovelace + 1 $projectAsset"
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 regRefUTxO=$(cat $regRefUTxOFile)
@@ -60,9 +71,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --spending-plutus-script-v2                               \
   --spending-reference-tx-in-inline-datum-present           \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  $txInUTxO                                                 \
-  $txInCollateralUTxO                                       \
-  $txOutUTxO                                                \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
   --tx-out "$firstUTxO"                                     \
   --tx-out-inline-datum-file $updatedDatumFile              \
   --tx-out "$projUTxO"                                      \
@@ -75,14 +84,17 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
   --policy-id $regSym                                       \
-  --change-address $projectOwnerAddress                     \
-  --cddl-format
-  
-store_current_slot
+  --change-address $projectOwnerAddress
 
-JSON_STRING=$( jq -n \
-                  --arg bn "$(cat $txBody | jq -r .cborHex)" \
-                  --arg on "$(cat $preDir/project-token-name.hex)" \
-                  '{transaction: $bn, projectTokenName: $on }' )
-
-echo "---$JSON_STRING"
+if [ "$ENV" == "dev" ]; then
+  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey
+  wait_for_new_slot
+else
+  store_current_slot
+  JSON_STRING=$( jq -n                         \
+    --arg bn "$(cat $txBody | jq -r .cborHex)" \
+    --arg on "$(cat $projectTokenNameFile)"    \
+    '{transaction: $bn, projectTokenName: $on}' )
+  echo "---$JSON_STRING"
+fi
+# }}}

@@ -2,12 +2,6 @@
 
 . $REPO/scripts/initiation.sh
 
-if [ "$ENV" == "dev" ]; then
-  projectTokenName=$(project_index_to_token_name "$1")
-else
-  projectTokenName=$1
-fi
-
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
@@ -20,19 +14,16 @@ govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
 govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 
-projectsInfoUTxOObj="$(get_projects_info_utxo $projectTokenName)"
-projectsStateUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-ownerAddrStr=$(cat $registeredProjectsFile \
-  | jq -r --arg tn "$projectTokenName"     \
-  'map(select(.tn == $tn)) | .[0] | .address'
-  )
+allProjectInfoUTxOs="$(get_all_projects_info_utxos_datums_values)"
+allProjectStateUTxOs="$(get_all_projects_state_utxos_datums_values)"
 
-# govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON
-result=$($qvf distribute-prize \
-  "$govUTxOObj"                    \
-  "$projectsInfoUTxOObj"           \
-  "$projectsStateUTxOObj"          \
-  $ownerAddrStr                    \
+numberOfProjectsToProcess=8
+
+result=$($qvf accumulate-prize-weights \
+  $numberOfProjectsToProcess           \
+  "$govUTxOObj"                        \
+  "$allProjectInfoUTxOs"               \
+  "$allProjectStateUTxOs"              \
   "$(cat $fileNamesJSONFile)"
   )
 
@@ -42,17 +33,9 @@ txInConstant="--spending-tx-in-reference $qvfRefUTxO    \
   --spending-reference-tx-in-redeemer-file $devRedeemer
   "
 
-echo $result
-
 inputs=$(echo "$result" | jq -c .inputs)
 refs=$(echo "$result" | jq -c .refs)
 outputs=$(echo "$result" | jq -c .outputs)
-
-echo
-echo "================================================"
-echo "$result" | jq -c .extra
-echo "================================================"
-echo
 
 refArgs=$(qvf_output_to_tx_ins "--read-only-tx-in-reference" "" "$refs")
 inputArgs=$(qvf_output_to_tx_ins "--tx-in" "$txInConstant" "$inputs")
@@ -69,9 +52,6 @@ buildTx="$cli $BUILD_TX_CONST_ARGS
   $refArgs $inputArgs $outputArgs
   --change-address $keyHoldersAddress
   "
-
-rm -f $tempBashFile
-touch $tempBashFile
 echo $buildTx > $tempBashFile
 . $tempBashFile
 

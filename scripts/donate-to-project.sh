@@ -1,25 +1,26 @@
 #!/bin/bash
 
-. $HOME/quadraticVoting/scripts/initiation.sh
+. $REPO/scripts/initiation.sh
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
-deadlineAsset="$govAsset.$(cat $deadlineTokenNameHexFile)"
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
 # Takes 1 argument:
 #   1. Donation count.
 mkProjectDatum() {
-  echo "{\"constructor\":5,\"fields\":[{\"int\":$1}]}"
+  constr=$($qvf get-constr-index ReceivedDonationsCount)
+  echo "{\"constructor\":$constr,\"fields\":[{\"int\":$1}]}"
 }
 
 # Takes 1 argument:
 #   1. Donor's public key hash.
 mkDonationDatum() {
-  echo "{\"constructor\":9,\"fields\":[{\"bytes\":\"$1\"}]}"
+  constr=$($qvf get-constr-index Donation)
+  echo "{\"constructor\":$constr,\"fields\":[{\"bytes\":\"$1\"}]}"
 }
 
 
@@ -29,6 +30,7 @@ mkDonationDatum() {
 #   3. Ending donor wallet number,
 #   4. Max donor count per transaction.
 dev() {
+  # {{{
   devDonDir="$preDir/dev_donations"
   mkdir -p $devDonDir
   projectTokenName=$(project_number_to_token_name $1)
@@ -100,6 +102,7 @@ dev() {
     store_current_slot
     wait_for_new_slot
   done
+  # }}}
 }
 
 
@@ -108,13 +111,25 @@ if [ "$1" == "dev" ]; then
   return 0
 fi
 
-projectTokenName=$1
-donationAmount=$2
-donorPKH=$3
-donorAddress=$4
-txInUTxO=$5
-txInCollateralUTxO=$6
-txOutUTxO=$7
+if [ "$ENV" == "dev" ]; then
+  donorWalletLabel=$1
+  projectTokenName=$2
+  donationAmount=$3
+  donorPKH=$(cat $preDir/$donorWalletLabel.pkh)
+  donorAddress=$(cat $preDir/$donorWalletLabel.addr)
+  donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
+  txInUTxO="--tx-in $donorInUTxO"
+  txInCollateralUTxO="--tx-in-collateral $donorInUTxO"
+  txOutUTxO=""
+else
+  projectTokenName=$1
+  donationAmount=$2
+  donorPKH=$3
+  donorAddress=$4
+  txInUTxO=$5
+  txInCollateralUTxO=$6
+  txOutUTxO=$7
+fi
 
 projectAsset="$regSym.$projectTokenName"
 donAsset="$donSym.$projectTokenName"
@@ -125,8 +140,7 @@ projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
 echo "$projectCurrDatum" > $currentDatumFile
 projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
-deadlineUTxO=$(remove_quotes $(get_script_utxos_datums_values $qvfAddress $deadlineAsset | jq -c '.[0] | .utxo'))
-
+deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
 $qvf donate-to-project        \
   $donorPKH                   \
@@ -150,9 +164,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --spending-plutus-script-v2                               \
   --spending-reference-tx-in-inline-datum-present           \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile \
-  $txInUTxO                                                 \
-  $txInCollateralUTxO                                       \
-  $txOutUTxO                                                \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                  \
   --tx-out "$outputProjectUTxO"                             \
   --tx-out-inline-datum-file $updatedDatumFile              \
   --tx-out "$donationUTxO"                                  \
@@ -163,16 +175,19 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --mint-plutus-script-v2                                   \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile  \
   --policy-id $donSym                                       \
-  --change-address $donorAddress                            \
-  --cddl-format
+  --change-address $donorAddress
 
-
-store_current_slot
-
-JSON_STRING=$( jq -n \
-                  --arg bn "$(cat $txBody | jq -r .cborHex)" \
-                  '{transaction: $bn }' )
-
-echo "---$JSON_STRING"
-
+if [ "$ENV" == "dev" ]; then
+  sign_and_submit_tx $preDir/$donorWalletLabel.skey
+  wait_for_new_slot
+  store_current_slot
+  wait_for_new_slot
+else
+  store_current_slot
+  JSON_STRING=$( jq -n                         \
+    --arg bn "$(cat $txBody | jq -r .cborHex)" \
+    '{transaction: $bn }' )
+  echo "---$JSON_STRING"
+fi
 # }}}
+

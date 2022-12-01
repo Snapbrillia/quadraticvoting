@@ -1,13 +1,9 @@
-# === CHANGE THESE VARIABLES ACCORDINGLY === #
-export MAGIC='--testnet-magic 1'
-export CARDANO_NODE_SOCKET_PATH="$HOME/preprod-testnet/node.socket"
-export REPO="$HOME/code/quadraticvoting"
-export cli="cardano-cli"
-export qvf="qvf-cli"
-# ========================================== #
-
-export preDir="$REPO/testnet2"
-mkdir -p $preDir
+if [ -z "$MAGIC" ] || [ -z "$CARDANO_NODE_SOCKET_PATH" ] || [ -z "$REPO" ] || [ -z "$cli" ] || [ -z "$qvf" ] || [ -z "$preDir" ] || [ -z "$ENV" ]; then
+  echo "Unassigned envrionment variables detected. Please modify your"
+  echo "\`scripts/local-env.sh\` file and source it to bring the required"
+  echo "variables into scope."
+  return 1
+fi
 
 # Removes the single quotes.
 #
@@ -72,7 +68,7 @@ echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileN
 echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
 echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
 echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
-echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.txt\""     >> $fileNamesJSONFile
+echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 # }}}
 getFileName() {
@@ -105,12 +101,13 @@ export newDatumFile=$(getFileName ocfnNewDatum)
 export qvfRedeemerFile=$(getFileName ocfnQVFRedeemer)
 export minterRedeemerFile=$(getFileName ocfnMinterRedeemer)
  
-export deadlineTokenNameHexFile=$(getFileName ocfnDeadlineTokenNameHex)
-touch $deadlineTokenNameHexFile
 export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
 touch $projectTokenNameFile
 export registeredProjectsFile=$(getFileName ocfnRegisteredProjects)
 touch $registeredProjectsFile
+if [ ! "$(cat $registeredProjectsFile)" ]; then
+  echo "[]" > $registeredProjectsFile
+fi
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
@@ -133,16 +130,22 @@ export txSigned="$preDir/tx.signed"
 
 # Convenient variable to replace the constant arguemnts for constructing a
 # transaction.
-export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody"
+export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody --cddl-format"
+
+
+# CONTRACT'S CONSTANTS ================
+export halfOfTheRegistrationFee=1500000
+export governanceLovelaces=1500000
+# =====================================
 
 
 # REQUIRED FOR DEVELOPMENT:
-tempRedeemer="$preDir/temp.redeemer"
-touch $tempRedeemer
-echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
+###### tempRedeemer="$preDir/temp.redeemer"
+###### touch $tempRedeemer
+###### echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
 devRedeemer="$preDir/dev.redeemer"
 touch $devRedeemer
-echo "{\"constructor\":10,\"fields\":[]}" > $devRedeemer
+echo "{\"constructor\":20,\"fields\":[]}" > $devRedeemer
 # =========================
 
 
@@ -611,8 +614,7 @@ get_wallet_lovelace_utxos() {
 get_all_script_utxos_datums_values() {
   # {{{
   $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
-  jq -c \
-    'to_entries
+  utxos=$(cat $queryJSONFile | jq -c 'to_entries
     | map(select((.value | .value | to_entries | length) == 2))
     | map
         ( ( .value
@@ -621,6 +623,7 @@ get_all_script_utxos_datums_values() {
           | map(select(.key != "lovelace"))
           ) as $notLovelace
         | { utxo: .key
+          , address: (.value | .address)
           , datum: (.value | .inlineDatum)
           , lovelace: (.value | .value | .lovelace)
           , asset:
@@ -637,7 +640,66 @@ get_all_script_utxos_datums_values() {
               | .[0]
               )
           }
-        )' $queryJSONFile
+        )')
+  datums="$(echo "$utxos" | jq -c 'map(.datum) | .[]')"
+  count=0
+  for d in $datums; do
+    datumCBOR=$($qvf data-to-cbor "$d")
+    utxos="$(echo "$utxos"            \
+      | jq -c --arg cbor "$datumCBOR" \
+              --argjson i "$count"    \
+      '.[$i] |= (. += {"datumCBOR": ($cbor | tostring)})'
+    )"
+    count=$(expr $count + 1)
+  done
+  echo $utxos
+  # }}}
+}
+
+
+# Takes 3 arguments:
+#   1. Argument prefex (should be either "--tx-in" or "--read-only-tx-in-reference"),
+#   2. The constant part for all the input UTxOs,
+#   3. The array of printed UTxOs returned by `qvf-cli`.
+qvf_output_to_tx_ins() {
+  # {{{
+  utxos="$(echo "$3" | jq -c 'map(.utxo) | .[]')"
+  fnl=""
+  for u in $utxos; do
+    fnl="$fnl $1 $(remove_quotes $u) "$2""
+  done
+  echo "$fnl"
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The JSON output array from `qvf-cli`.
+qvf_output_to_tx_outs() {
+  # {{{
+  dDir="$preDir/datums"
+  rm -rf $dDir
+  mkdir -p $dDir
+  outputs=""
+  for obj in $(echo "$1" | jq -c '.[]'); do
+    addr="$(echo "$obj" | jq -r -c '.address')"
+    lovelace="$(echo "$obj" | jq -c '.lovelace')"
+    cbor="$(echo "$obj" | jq -r -c '.datumCBOR')"
+    if [ "$cbor" == "null" ]; then
+      outputs="$outputs --tx-out \"$addr + $lovelace lovelace\""
+    else
+      assetCount="$(echo "$obj" | jq -c '.assetCount')"
+      asset="$(echo "$obj" | jq -r -c '.asset')"
+      datum="$($qvf cbor-to-data $cbor)"
+      dHash="$(hash_datum "$datum")"
+      proxyFile=$dDir/$dHash
+      echo "$datum" > $proxyFile
+      outputs="$outputs --tx-out \"$addr + $lovelace lovelace + $assetCount $asset\"
+        --tx-out-inline-datum-file $proxyFile
+        "
+    fi
+  done
+  echo $outputs
   # }}}
 }
 
@@ -652,6 +714,42 @@ get_script_utxos_datums_values() {
 }
 
 
+get_governance_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  govAsset="$(cat $govSymFile)"
+  govUTxOs="$(get_script_utxos_datums_values $qvfAddress $govAsset)"
+  govUTxOObj=""
+  temp0="$(echo "$govUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is DeadlineDatum "$temp0")
+  if [ $isInfo == "True" ]; then
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[1]')"
+  else
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[0]')"
+  fi
+  echo $govUTxOObj
+  # }}}
+}
+
+
+get_deadline_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  govAsset="$(cat $govSymFile)"
+  govUTxOs="$(get_script_utxos_datums_values $qvfAddress $govAsset)"
+  govUTxOObj=""
+  temp0="$(echo "$govUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is DeadlineDatum "$temp0")
+  if [ $isInfo == "True" ]; then
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[0]')"
+  else
+    govUTxOObj="$(echo "$govUTxOs" | jq -c '.[1]')"
+  fi
+  echo $govUTxOObj
+  # }}}
+}
+
+
 # Takes 1 argument:
 #   1. A JSON array such that all its elements are objects that have a
 #      "lovelace" field.
@@ -659,6 +757,15 @@ get_total_lovelaces_from_json() {
   # {{{
   echo "$1" | jq 'map(.lovelace) | reduce .[] as $l (0; . + $l)'
   # }}}
+}
+
+
+# Takes 1 argument:
+#   1. Script data JSON.
+hash_datum() {
+  proxyFile=$preDir/tmp.json
+  echo "$1" > $proxyFile
+  $cli transaction hash-script-data --script-data-file $proxyFile
 }
 
 
@@ -712,26 +819,27 @@ get_all_projects_utxos_datums_values() {
   # }}}
 }
 
-# CAUTION: The constructor index needs to match with that of the corresponding
-#          `QVFDatum` constructor.
-#
-# Takes no arguments.
+get_all_projects_info_utxos_datums_values() {
+  constr=$($qvf get-constr-index ProjectInfo)
+  get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) == ($constr | tonumber)))'
+}
 get_all_projects_state_utxos_datums_values() {
-  get_all_projects_utxos_datums_values | jq -c 'map(select((.datum .constructor) != 4))'
+  constr=$($qvf get-constr-index ProjectInfo)
+  get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) != ($constr | tonumber)))'
 }
 
 # Takes no arguments.
 find_registered_projects_count() {
   # {{{
-  wc -l $registeredProjectsFile | awk '{ print $1 }'
+  cat $registeredProjectsFile | jq length
   # }}}
 }
 
 
 # Takes 1 argument:
-#   1. The "number" of the project (first registered project is represented
-#      with 1, and so on). Clamps implicitly.
-project_number_to_token_name() {
+#   1. The "index" of the project (0 for the project that registered first, and
+#      so on). Clamps implicitly.
+project_index_to_token_name() {
   # {{{
   clamped="$1"
   min=0
@@ -741,7 +849,8 @@ project_number_to_token_name() {
   elif [ "$clamped" -gt "$max" ]; then
     clamped="$max"
   fi
-  sed "${clamped}q;d" $registeredProjectsFile
+  cat $registeredProjectsFile | jq -r --argjson i "$clamped" '.[$i] | .tn'
+  # sed "${clamped}q;d" $registeredProjectsFile
   # }}}
 }
 
@@ -767,11 +876,31 @@ get_projects_state_utxo() {
 
 
 # Takes 1 argument:
+#   1. Project's ID (token name).
+get_projects_info_utxo() {
+  # {{{
+  qvfAddress=$(cat $scriptAddressFile)
+  projectAsset="$(cat $regSymFile).$1"
+  projectUTxOs="$(get_script_utxos_datums_values $qvfAddress $projectAsset)"
+  projectUTxOObj=""
+  temp0="$(echo "$projectUTxOs" | jq -c 'map(.datum) | .[0]')"
+  isInfo=$($qvf datum-is ProjectInfo "$temp0")
+  if [ $isInfo == "True" ]; then
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[0]')"
+  else
+    projectUTxOObj="$(echo "$projectUTxOs" | jq -c '.[1]')"
+  fi
+  echo $projectUTxOObj
+  # }}}
+}
+
+
+# Takes 1 argument:
 #   1. The "number" of the project (first registered project is represented
 #      with 1, and so on). Clamps implicitly.
 get_nth_projects_state_utxo() {
   # {{{
-  get_projects_state_utxo $(project_number_to_token_name $1)
+  get_projects_state_utxo $(project_index_to_token_name $1)
   # }}}
 }
 
@@ -792,7 +921,7 @@ get_projects_donation_utxos() {
 #      with 1, and so on). Clamps implicitly.
 get_nth_projects_donation_utxos() {
   # {{{
-  get_projects_donation_utxos $(project_number_to_token_name $1)
+  get_projects_donation_utxos $(project_index_to_token_name $1)
   # }}}
 }
 #########################################################################

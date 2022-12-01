@@ -24,7 +24,6 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 
 import           Data.Datum
-import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
 import           Utils
 
@@ -32,14 +31,14 @@ import           Utils
 -- REDEEMER
 -- {{{
 data RegistrationRedeemer
-  = RegisterProject RegistrationInfo
+  = RegisterProject ProjectDetails
   | ConcludeAndRefund BuiltinByteString
   | Dev
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
   , ('ConcludeAndRefund, 1)
-  , ('Dev              , 10)
+  , ('Dev              , 20)
   ]
 -- }}}
 
@@ -66,13 +65,9 @@ mkRegistrationPolicy pkh sym tn action ctx =
     ownSym = ownCurrencySymbol ctx
   in 
   case action of
-    RegisterProject RegistrationInfo{..} ->
+    RegisterProject pd          ->
       -- {{{
       let
-        -- | The resulting token name based on the specified UTxO being spent.
-        currTN :: TokenName
-        currTN = orefToTokenName riTxOutRef
-
         inputGovUTxO :: TxOut
         inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
@@ -95,6 +90,10 @@ mkRegistrationPolicy pkh sym tn action ctx =
               -- }}}
           -- }}}
 
+        -- | The resulting token name based on the specified UTxO being spent.
+        currTN :: TokenName
+        currTN = indexToTokenName currPCount
+
         -- | Checks if the given UTxOs carry project's assets, and makes sure
         --   the first one has a `ProjectInfo` datum, while the second one has
         --   a `ReceivedDonationsCount` attached. Also expects each of them to
@@ -108,6 +107,9 @@ mkRegistrationPolicy pkh sym tn action ctx =
         outputSAndPsAreValid s p0 p1 =
           -- {{{
              traceIfFalse
+               "E2"
+               (pdRequested pd > minRequestable)
+          && traceIfFalse
                "E014"
                ( validateGovUTxO
                    (txOutValue inputGovUTxO)
@@ -133,41 +135,38 @@ mkRegistrationPolicy pkh sym tn action ctx =
                )
           && traceIfFalse
                "E017"
-               (utxosDatumMatchesWith (ProjectInfo riProjectDetails) p0)
+               (utxosDatumMatchesWith (ProjectInfo pd) p0)
           && traceIfFalse
                "E018"
                (utxosDatumMatchesWith (ReceivedDonationsCount 0) p1)
           -- }}}
       in
          traceIfFalse
-           "E019"
-           (utxoIsGettingSpent inputs riTxOutRef)
-      && traceIfFalse
            "E020"
-           (txSignedBy info $ pdPubKeyHash riProjectDetails)
+           (txSignedBy info $ pdPubKeyHash pd)
       && ( case outputs of
-             [s, p0, p1]    ->
+             [s, p0, p1]       ->
                -- {{{
                outputSAndPsAreValid s p0 p1
                -- }}}
-             [_, s, p0, p1] ->
+             [_, s, p0, p1]    ->
                -- {{{
                outputSAndPsAreValid s p0 p1
                -- }}}
-             _              ->
+             [_, _, s, p0, p1] ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             _                 ->
                -- {{{
                traceError "E021"
                -- }}}
          )
       -- }}}
-    ConcludeAndRefund projectId          ->
+    ConcludeAndRefund projectID ->
       -- {{{
-      let
-        currTN :: TokenName
-        currTN = TokenName projectId
-
-        validateInputs :: TxInInfo -> TxInInfo -> Bool
-        validateInputs TxInInfo{txInInfoResolved = p0} TxInInfo{txInInfoResolved = p1} =
+      case inputs of
+        TxInInfo{txInInfoResolved = p0} : TxInInfo{txInInfoResolved = p1} : rest ->
           -- {{{
           case getInlineDatum p0 of
             ProjectInfo ProjectDetails{..} ->
@@ -175,6 +174,11 @@ mkRegistrationPolicy pkh sym tn action ctx =
               case getInlineDatum p1 of
                 Escrow _                                 ->
                   -- {{{
+                  let
+                    currTN = TokenName projectID
+                    addr0  = txOutAddress p0
+                    addr1  = txOutAddress p1
+                  in
                      traceIfFalse
                        "E022"
                        ( utxoHasOnlyXWithLovelaces
@@ -194,6 +198,14 @@ mkRegistrationPolicy pkh sym tn action ctx =
                   && traceIfFalse
                        "E024"
                        (txSignedBy info pdPubKeyHash)
+                  && traceIfFalse
+                       "E118"
+                       (addr0 == addr1)
+                  && ( if any ((== addr0) . txOutAddress . txInInfoResolved) rest then
+                         traceError "E119"
+                       else
+                         True
+                     )
                   -- }}}
                 _                                        ->
                   -- {{{
@@ -205,23 +217,13 @@ mkRegistrationPolicy pkh sym tn action ctx =
               traceError "E026"
               -- }}}
           -- }}}
-      in
-      case inputs of
-        [i0, i1]    ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        [_, i0, i1] ->
-          -- {{{
-          validateInputs i0 i1
-          -- }}}
-        _                                         ->
+        _                                                                        ->
           -- {{{
           traceError "E027"
           -- }}}
       -- }}}
     -- TODO: REMOVE.
-    Dev                                  ->
+    Dev                         ->
       traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 

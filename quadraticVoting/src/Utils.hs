@@ -10,6 +10,7 @@
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 -- }}}
 
 
@@ -29,6 +30,7 @@ import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
 import           Data.String                 ( fromString )
 import qualified Ledger.Ada                  as Ada
+import qualified Plutus.V1.Ledger.Value      as Value
 import           Plutus.V1.Ledger.Value      ( flattenValue )
 import           Plutus.V2.Ledger.Api
 import qualified PlutusTx.AssocMap           as Map
@@ -162,12 +164,9 @@ utxoIsGettingSpent inputs oref =
   -- }}}
 
 
-{-# INLINABLE orefToTokenName #-}
-orefToTokenName :: TxOutRef -> TokenName
-orefToTokenName TxOutRef{txOutRefId = TxId txHash, txOutRefIdx = txIndex} =
-  -- {{{
-  TokenName $ sha2_256 $ consByteString txIndex txHash
-  -- }}}
+{-# INLINABLE indexToTokenName #-}
+indexToTokenName :: Integer -> TokenName
+indexToTokenName i = TokenName $ consByteString i mempty
 
 
 {-# INLINABLE getInlineDatum #-}
@@ -186,6 +185,29 @@ getInlineDatum utxo =
           traceError "E111"
     _                     ->
       traceError "E112"
+  -- }}}
+
+
+{-# INLINABLE valuePaidToFromOutputs #-}
+-- | Similar to `valuePaidTo` from Plutus, but takes in a list of outputs
+--   rather than the whole transaction info.
+--
+--   Looking at the source code for `valuePaidTo`, this implementation seems to
+--   traverse the output list one less time. Github link:
+--   https://github.com/input-output-hk/plutus/blob/master/plutus-ledger-api/src/PlutusLedgerApi/V2/Contexts.hs
+valuePaidToFromOutputs :: [TxOut] -> PubKeyHash -> Value
+valuePaidToFromOutputs outputs pkh =
+  -- {{{
+  let
+    foldFn :: TxOut -> Value -> Value
+    foldFn txOut acc =
+      case txOut of
+        TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue} ->
+          if pkh == pkh' then acc <> txOutValue else acc
+        _                                                                   ->
+          acc
+  in
+  foldr foldFn mempty outputs
   -- }}}
 
 
@@ -249,6 +271,44 @@ utxosDatumMatchesWith :: QVFDatum -> TxOut -> Bool
 utxosDatumMatchesWith newDatum =
   -- {{{
   (newDatum ==) . getInlineDatum
+  -- }}}
+
+
+{-# INLINABLE qvfDatumToInlineDatum #-}
+qvfDatumToInlineDatum :: QVFDatum -> OutputDatum
+qvfDatumToInlineDatum = OutputDatum . Datum . toBuiltinData
+
+
+{-# INLINABLE makeAuthenticValue #-}
+makeAuthenticValue :: Integer
+                   -> CurrencySymbol
+                   -> TokenName
+                   -> Integer
+                   -> Value
+makeAuthenticValue lovelaceCount sym tn amt =
+  -- {{{
+  Ada.lovelaceValueOf lovelaceCount <> Value.singleton sym tn amt
+  -- }}}
+
+
+{-# INLINABLE getTokenNameOfUTxO #-}
+-- | Tries to find a singular asset with a given symbol inside the given
+--   UTxO, and returns its token name.
+getTokenNameOfUTxO :: CurrencySymbol -> TxOut -> Maybe TokenName
+getTokenNameOfUTxO sym utxo =
+  -- {{{
+  case flattenValue (txOutValue utxo) of
+    [(sym', tn', amt'), _] ->
+      -- {{{
+      if sym' == sym && amt' == 1 then
+        Just tn'
+      else
+        Nothing
+      -- }}}
+    _                      ->
+      -- {{{
+      Nothing
+      -- }}}
   -- }}}
 
 
@@ -408,6 +468,66 @@ foldDonationInputs donationSymbol donationTN inputs =
   in
   foldr foldFn (0, 0, Map.empty) inputs
   -- }}}
+
+
+-- | Given the match pool's Lovelace count, sum of all the prize weights, and
+--   a project's prize weight, this function finds the portion of the match
+--   pool won by the project.
+{-# INLINABLE findProjectsWonPortion #-}
+findProjectsWonPortion :: Integer -> Integer -> Integer -> Integer
+findProjectsWonPortion matchPool sumW w =
+  -- {{{
+  (w * matchPool) `divide` sumW
+  -- }}}
+
+
+-- | Returns the sum of all the prize weights included in the `EliminationInfo`
+--   values.
+{-# INLINABLE findQVFDenominator #-}
+findQVFDenominator :: [(BuiltinByteString, EliminationInfo)]
+                   -> Integer
+findQVFDenominator =
+  -- {{{
+  foldr (\(_, EliminationInfo _ _ w) acc -> acc + w) 0
+  -- }}}
+
+
+-- | Checks that there are both UTxOs of a specific project present in inputs
+--   and reference inputs. If they are found, the provided function is applied
+--   to find the proper transaction outputs, along with the information for
+--   paying the project owner.
+--
+--   Raises exception upon pattern match failure.
+{-# INLINABLE findOutputsFromProjectUTxOs #-}
+findOutputsFromProjectUTxOs :: CurrencySymbol
+                            -> TokenName
+                            -> [TxInInfo]
+                            -> [TxInInfo]
+                            -> (TxOut -> TxOut -> a)
+                            -> a
+findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
+  -- {{{
+  case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
+    [TxInInfo{txInInfoResolved = inP}] ->
+      -- {{{
+      case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) refs of
+        [TxInInfo{txInInfoResolved = infoUTxO}] ->
+          -- {{{
+          if txOutAddress inP == txOutAddress infoUTxO then
+            validation inP infoUTxO
+          else
+            traceError "E090"
+          -- }}}
+        _                                       ->
+          -- {{{
+          traceError "E126"
+          -- }}}
+      -- }}}
+    _                                  ->
+      -- {{{
+      traceError "E125"
+      -- }}}
+  -- }}}
 -- }}}
 
 
@@ -432,21 +552,27 @@ maxTotalDonationCount :: Integer
 maxTotalDonationCount =
   maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
-minKeyHolderFee :: Integer
-minKeyHolderFee = 1_000_000
+keyHolderFeePercentage :: Integer
+keyHolderFeePercentage = 5
 
 minDonationAmount :: Integer
 minDonationAmount = 2_000_000
+
+minRequestable :: Integer
+minRequestable = 5_000_000
 -- }}}
 
 
 -- ERROR CODES
---
--- E000: Bad deadline token name.
--- E001: Bad main token name.
--- E002: Exactly 1 deadline token must be minted.
--- E003: Exactly 1 main token must be minted.
--- E004: Exactly 2 type of assets must be minted.
+-- {{{
+-- E0  : Negative value passed to square root.
+-- E1  : No projects found.
+-- E2  : Can not request 0 or less Lovelaces.
+-- E000: Exactly 2 governance tokens must be minted.
+-- E001: Bad token name.
+-- E002: Exactly 2 governance tokens must be getting burnt.
+-- E003: All prizes must be sent out before concluding a funding round.
+-- E004: Exactly 1 type of asset must be minted.
 -- E005: Invalid value for the deadline UTxO.
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
@@ -498,14 +624,14 @@ minDonationAmount = 2_000_000
 -- E053: Project output must preserve its Lovelaces.
 -- E054: Missing proper outputs for the first phase of folding donations.
 -- E055: Project asset not found.
--- E056: Unexpected UTxO encountered (expected a `PrizeWeight`.
--- E057: Invalid datum attached to depleted prize weight UTxO.
+-- E056: Unexpected UTxO encountered (expected a `PrizeWeight` and `ProjectInfo`).
+-- E057: Unauthentic governance UTxO provided.
 -- E058: Invalid prize weight UTxO is being produced.
--- E059: Excessive number of prize weight inputs are provided.
--- E060: Main UTxO should carry all the donations.
--- E061: Invalid datum attached to the produced main datum.
--- E062: Invalid UTxO getting produced at the script.
--- E063: Improper correspondence between input and output prize weights.
+-- E059: Provided governance UTxO has invalid value.
+-- E060: Input governance UTxO has an improper datum.
+-- E061: Excessive number of prize weight inputs are provided.
+-- E062: Invalid pattern between inputs and references.
+-- E063: Improper correspondence between input and output prize weights, and projects' info reference inputs.
 -- E064: This funding round is over.
 -- E065: Invalid deadline datum.
 -- E066: This funding round is still in progress.
@@ -525,25 +651,25 @@ minDonationAmount = 2_000_000
 -- E080: All donation assets must be burnt.
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
--- E083: Unauthentic governance UTxO provided.
--- E084: Invalid Lovelace count at the produced governance UTxO.
--- E085: Governance datum not updated properly.
--- E086: Governance UTxO not produced.
--- E087: Key holder fees must be paid accurately.
--- E088: Bad project info reference provided.
--- E089: Escrow must carry the excess reward.
--- E090: Escrow's inline datum is invalid.
--- E091: Escrow UTxO was not produced.
--- E092: Prize not paid.
--- E093: Bad datum attached to a project UTxO.
--- E094: Couldn't find the corresponding input UTxO of a provided reference project UTxO.
--- E095: The impossible happened.
--- E096: Current UTxO is unauthentic.
--- E097: Impossible 2.0 happened.
--- E098: Governance UTxO is not getting updated properly.
--- E099: Prize Lovelaces are not properly withdrawn.
--- E100: Missing output governance UTxO.
--- E101: The project UTxO must also be getting consumed.
+-- E083: Invalid value in the prodced governance UTxO.
+-- E084: Invalid datum attached to the produced governance UTxO.
+-- E085: Only one UTxO must be produced at the script address.
+-- E086: Invalid script outputs.
+-- E087: Invalid script outputs.
+-- E088: Invalid input datums.
+-- E089: Unauthentic governance datum is getting spent.
+-- E090: Projects UTxOs must share the same address.
+-- E091: Project UTxOs must be from the script address.
+-- E092: The redeemer is not pointing to this UTxO.
+-- E093: 
+-- E094: Project owner must be paid accurately.
+-- E095: Both governance UTxOs must be getting spent.
+-- E096: Invalid governance UTxOs are getting spent.
+-- E097: 
+-- E098: 
+-- E099: 
+-- E100: The governance UTxO must also be getting consumed.
+-- E101: The governance UTxO must also be getting consumed.
 -- E102: Bad reference project datum provided.
 -- E103: Unauthentic escrow UTxO.
 -- E104: Insufficient funds.
@@ -559,16 +685,47 @@ minDonationAmount = 2_000_000
 -- E114: Output governance UTxO must have a properly updated datum.
 -- E115: Governance token must be sent back to the same address from which it's getting consumed.
 -- E116: Unexpected UTxO encountered.
--- E117: 
--- E118: 
--- E119: 
--- E120: 
--- E121: 
--- E122: 
--- E123: 
--- E124: 
--- E125: 
--- E126: 
--- E127: 
--- E128: 
--- E129: 
+-- E117: Couldn't find UTxO.
+-- E118: Mismatch of input project UTxO addresses.
+-- E119: No Other UTxOs from the contract can be spent.
+-- E120: Input project and reference project UTxOs don't belong to the same project, or are not coming from the same address as the governance UTxO.
+-- E121: Invalid order of the inputs compared to the reference inputs.
+-- E122: Invalid outputs.
+-- E123: Project owner must be properly paid.
+-- E124: Exactly 1 UTxO must be produced at the script.
+-- E125: Exactly 1 project UTxO must be getting spent.
+-- E126: Could not find the project's information UTxO referenced.
+-- E127: Project UTxOs must be from the script address.
+-- E128: Invalid input datums.
+-- E129: Unauthentic governance UTxO.
+-- E130: 
+-- E131: 
+-- E132: 
+-- E133: 
+-- E134: 
+-- E135: 
+-- E136: 
+-- E137: 
+-- E138: 
+-- E139: 
+-- E140: 
+-- E141: 
+-- E142: 
+-- E143: 
+-- E144: 
+-- E145: 
+-- E146: 
+-- E147: 
+-- E148: 
+-- E149: 
+-- E150: 
+-- E151: 
+-- E152: 
+-- E153: 
+-- E154: 
+-- E155: 
+-- E156: 
+-- E157: 
+-- E158: 
+-- E159: 
+-- }}}

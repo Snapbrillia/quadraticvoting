@@ -2,12 +2,6 @@
 
 . $REPO/scripts/initiation.sh
 
-if [ "$ENV" == "dev" ]; then
-  projectTokenName=$(project_index_to_token_name "$1")
-else
-  projectTokenName=$1
-fi
-
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
@@ -18,21 +12,21 @@ govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
+noMoreLeftToEliminate=$($qvf datum-is DistributionProgress "$govCurrDatum")
+if [ $noMoreLeftToEliminate == "True" ]; then
+  echo "All non-eligible projects are eliminated."
+  return 1
+fi
 govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 
-projectsInfoUTxOObj="$(get_projects_info_utxo $projectTokenName)"
-projectsStateUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-ownerAddrStr=$(cat $registeredProjectsFile \
-  | jq -r --arg tn "$projectTokenName"     \
-  'map(select(.tn == $tn)) | .[0] | .address'
-  )
+allProjectInfoUTxOs="$(get_all_projects_info_utxos_datums_values)"
+allProjectStateUTxOs="$(get_all_projects_state_utxos_datums_values)"
 
-# govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON
-result=$($qvf distribute-prize \
-  "$govUTxOObj"                    \
-  "$projectsInfoUTxOObj"           \
-  "$projectsStateUTxOObj"          \
-  $ownerAddrStr                    \
+result=$($qvf eliminate-one-project \
+  "$govUTxOObj"                     \
+  "$allProjectInfoUTxOs"            \
+  "$allProjectStateUTxOs"           \
+  "$(cat $registeredProjectsFile)"  \
   "$(cat $fileNamesJSONFile)"
   )
 

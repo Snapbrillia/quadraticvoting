@@ -38,7 +38,7 @@ data DonationRedeemer
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
   , ('FoldDonations   ,1)
-  , ('Dev             ,10)
+  , ('Dev             ,20)
   ]
 -- }}}
 
@@ -66,7 +66,7 @@ mkDonationPolicy pkh sym action ctx =
       -- {{{
       let
         tn :: TokenName
-        tn = TokenName diProjectId
+        tn = TokenName diProjectID
 
         -- Raises exception upon failure.
         inputProjUTxO :: TxOut
@@ -120,11 +120,15 @@ mkDonationPolicy pkh sym action ctx =
            "E035"
            (txSignedBy info diDonor)
       && ( case outputs of
-             [s, v]    ->
+             [s, v]         ->
                -- {{{
                outputSAndVAreValid s v
                -- }}}
-             [_, s, v] ->
+             [_, s, v]      ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             [_, _, s, v]   ->
                -- {{{
                outputSAndVAreValid s v
                -- }}}
@@ -134,11 +138,11 @@ mkDonationPolicy pkh sym action ctx =
                -- }}}
          )
       -- }}}
-    FoldDonations projectId          ->
+    FoldDonations projectID          ->
       -- {{{
       let
         tn :: TokenName
-        tn = TokenName projectId
+        tn = TokenName projectID
 
         -- Raises exception upon failure.
         inputProjUTxO :: TxOut
@@ -173,15 +177,19 @@ mkDonationPolicy pkh sym action ctx =
               -- }}}
           in
           case outputs of
-            [o]    ->
+            [o]       ->
               -- {{{
               foldedOutputIsValid o
               -- }}}
-            [_, o] ->
+            [_, o]    ->
               -- {{{
               foldedOutputIsValid o
               -- }}}
-            _      ->
+            [_, _, o] ->
+              -- {{{
+              foldedOutputIsValid o
+              -- }}}
+            _         ->
               -- {{{
               traceError "E041"
               -- }}}

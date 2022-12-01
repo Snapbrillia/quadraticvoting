@@ -30,9 +30,15 @@ in case the binary is already installed, it's allowed to overwrite it):
 $ cabal install qvf-cli --overwrite-policy=always
 ```
 
-4. Source `scripts/env.sh` from the repository's home directory, and the logs
-should guide you through any further requirements:
+4. Modify the `scripts/local-env.sh` file to match your environment and then
+source it to expose its variables:
 ```bash
 $ cd /path/to/quadraticvoting
+$ . scripts/local-env.sh
+```
+
+5. Source `scripts/env.sh`, and the logs should guide you through any further
+requirements:
+```bash
 $ . scripts/env.sh
 ```
