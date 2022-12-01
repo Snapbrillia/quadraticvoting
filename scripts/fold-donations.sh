@@ -119,6 +119,10 @@ while [ $phase -lt 4 ]; do
   fi
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
+  if [ $donUTxOCount -eq 0 ]; then
+    echo "No donations found."
+    return 1
+  fi
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
   txsDone=0
   while [ $txsDone -lt $txsNeeded ]; do

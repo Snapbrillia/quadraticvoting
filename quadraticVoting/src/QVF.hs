@@ -1105,7 +1105,7 @@ eliminateOneProject
     findRatio (EliminationInfo req dons w)     =
       -- {{{
       let
-        won = (1_000_000_000 * matchPool * w) `divide` den + dons
+        won = 1_000_000_000 * (matchPool * w `divide` den + dons)
       in
       won `divide` req
       -- }}}

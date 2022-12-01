@@ -812,10 +812,10 @@ main =
                           case getInlineDatum $ CLI.outputToTxOut $ iResolved ref of
                             ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
                               -- {{{
+                              qvfOuts   <- traverse (txOutToOutput scriptAddr) validOutputs
                               proj      <- projGo ref projInputs
                               addrStr   <- decodeString registeredProjsStr >>= RP.lookupAddressWithPKH pkh
                               ownerAddr <- tryReadAddress $ T.pack addrStr
-                              qvfOuts   <- traverse (txOutToOutput scriptAddr) validOutputs
                               let outputs =
                                     if raised > 0 then
                                       let
@@ -904,34 +904,34 @@ main =
                           den
                         -- }}}
                       scriptAddrStr          = oAddressStr govO
-                      mFinalOutputs          = do
+                      mFinalTriplet          = do
                         -- {{{
                         scriptTxOuts <- traverse (txOutToOutput scriptAddrStr) outputs
                         ownerAddr    <- tryReadAddress $ T.pack ownerAddrStr
                         ownerPKH     <- Addr.toPubKeyHash ownerAddr
-                        if ownerPKH == winner then do
-                          let initToOwner =
-                                CLI.outputToTxOut $
-                                  Output ownerAddr ownerAddrStr won Nothing
-                          toOwner <- txOutToOutput ownerAddrStr initToOwner
-                          if won > 0 then
-                            return $ toOwner : scriptTxOuts
-                          else
-                            return scriptTxOuts
-                        else
-                          Nothing
+                        finalOutputs <- if ownerPKH == winner then do
+                                          let toOwner =
+                                                Output ownerAddr ownerAddrStr won Nothing
+                                          if won > 0 then
+                                            return $ toOwner : scriptTxOuts
+                                          else
+                                            return scriptTxOuts
+                                        else
+                                          Nothing
+                        return
+                          ([govInput, projInput], [infoInput], finalOutputs)
                         -- }}}
                     in
-                    case (mFinalOutputs, decodeString fileNamesJSON) of
-                      (Just finalOutputs, Just ocfn) -> do
+                    case (mFinalTriplet, decodeString fileNamesJSON) of
+                      (Just res, Just ocfn) -> do
                         writeJSON
                           (OCFN.qvfRedeemer ocfn)
                           (   DistributePrize
                             $ unTokenName
                             $ assetTokenName projAsset
                           )
-                        print $ show <$> finalOutputs
-                      _                              ->
+                        putStrLn $ inputsRefsOutputsJSONHelper res
+                      _                     ->
                         putStrLn
                           "FAILED: Couldn't convert `TxOut` values to `Output` values, or bad JSON provided for file names."
                     -- }}}

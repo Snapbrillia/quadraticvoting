@@ -4,15 +4,17 @@
 
 initiate_fund
 
-. scripts/register-project.sh 1 ProjectA 100000000
+. scripts/contribute.sh $keyHolder 100000000
 
-. scripts/register-project.sh 2 ProjectB 100000000
+. scripts/register-project.sh 1 ProjectA 300000000
 
-. scripts/register-project.sh 3 ProjectC 100000000
+. scripts/register-project.sh 2 ProjectB 300000000
 
-. scripts/register-project.sh 4 ProjectD 100000000
+. scripts/register-project.sh 3 ProjectC 300000000
 
-. scripts/register-project.sh 5 ProjectE 100000000
+. scripts/register-project.sh 4 ProjectD 300000000
+
+. scripts/register-project.sh 5 ProjectE 300000000
 
 donor=6
 for i in $(seq 0 4); do
@@ -53,7 +55,7 @@ for i in $(seq 0 4); do
   . scripts/eliminate-one-project.sh
 done
 
-# 
-# for i in $(seq 1 5); do
-#   . scripts/distribute-prize.sh $i
-# done
+
+for i in $(seq 0 1); do
+  . scripts/distribute-prize.sh $i
+done

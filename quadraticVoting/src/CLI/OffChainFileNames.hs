@@ -43,7 +43,7 @@ data OffChainFileNames = OffChainFileNames
   , ocfnQVFRedeemer          :: String
   , ocfnMinterRedeemer       :: String
   , ocfnProjectTokenName     :: String
-  } deriving (Generic, ToJSON, FromJSON)
+  } deriving (Show, Generic, ToJSON, FromJSON)
 
 
 getFileName :: (OffChainFileNames -> String) -> OffChainFileNames -> FilePath

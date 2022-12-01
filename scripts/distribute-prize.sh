@@ -23,12 +23,12 @@ govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 projectsInfoUTxOObj="$(get_projects_info_utxo $projectTokenName)"
 projectsStateUTxOObj="$(get_projects_state_utxo $projectTokenName)"
 ownerAddrStr=$(cat $registeredProjectsFile \
-  | jq --arg tn "$projectTokenName"        \
-  'map(select(.tn == $tn)) | .[0]'
+  | jq -r --arg tn "$projectTokenName"     \
+  'map(select(.tn == $tn)) | .[0] | .address'
   )
 
-# govInputStr : infoInputStr : projInputStr : ownerAddrStr 
-outputsStr=$($qvf distribute-prize \
+# govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON
+result=$($qvf distribute-prize \
   "$govUTxOObj"                    \
   "$projectsInfoUTxOObj"           \
   "$projectsStateUTxOObj"          \
@@ -36,7 +36,21 @@ outputsStr=$($qvf distribute-prize \
   "$(cat $fileNamesJSONFile)"
   )
 
-outputArgs=$(qvf_output_to_tx_outs "$outputsStr")
+txInConstant="--spending-tx-in-reference $qvfRefUTxO    \
+  --spending-plutus-script-v2                           \
+  --spending-reference-tx-in-inline-datum-present       \
+  --spending-reference-tx-in-redeemer-file $devRedeemer
+  "
+
+echo $result
+
+inputs=$(echo "$result" | jq -c .inputs)
+refs=$(echo "$result" | jq -c .refs)
+outputs=$(echo "$result" | jq -c .outputs)
+
+refArgs=$(qvf_output_to_tx_ins "--read-only-tx-in-reference" "" "$refs")
+inputArgs=$(qvf_output_to_tx_ins "--tx-in" "$txInConstant" "$inputs")
+outputArgs=$(qvf_output_to_tx_outs "$outputs")
 
 keyHoldersInUTxO=$(get_first_utxo_of $keyHolder)
 
@@ -49,6 +63,9 @@ buildTx="$cli $BUILD_TX_CONST_ARGS
   $refArgs $inputArgs $outputArgs
   --change-address $keyHoldersAddress
   "
+
+rm -f $tempBashFile
+touch $tempBashFile
 echo $buildTx > $tempBashFile
 . $tempBashFile
 

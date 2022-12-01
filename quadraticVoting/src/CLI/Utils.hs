@@ -812,6 +812,10 @@ predicateKeyWordToPredicate kw =
       Just $ \case
         DeadlineDatum _ -> True
         _               -> False
+    "DistributionProgress"          ->
+      Just $ \case
+        DistributionProgress {} -> True
+        _                       -> False
     _               ->
       Nothing
   -- }}}

@@ -229,7 +229,7 @@ dev_depletion() {
     --mint-plutus-script-v2
     --mint-reference-tx-in-redeemer-file $devRedeemer
     --policy-id $(cat $regSymFile)
-    --change-address $(cat testnet/$keyHolder.addr)
+    --change-address $(cat $preDir/$keyHolder.addr)
   "
   #   --mint-tx-in-reference $donRefUTxO
   #   --mint-plutus-script-v2

@@ -12,16 +12,21 @@ govUTxOObj="$(get_governance_utxo)"
 govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
+noMoreLeftToEliminate=$($qvf datum-is DistributionProgress "$govCurrDatum")
+if [ $noMoreLeftToEliminate == "True" ]; then
+  echo "All non-eligible projects are eliminated."
+  return 1
+fi
 govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 
 allProjectInfoUTxOs="$(get_all_projects_info_utxos_datums_values)"
 allProjectStateUTxOs="$(get_all_projects_state_utxos_datums_values)"
 
-result=$($qvf eliminate-one-project    \
-  "$govUTxOObj"                        \
-  "$allProjectInfoUTxOs"               \
-  "$allProjectStateUTxOs"              \
-  "$(cat $registeredProjectsFile)"     \
+result=$($qvf eliminate-one-project \
+  "$govUTxOObj"                     \
+  "$allProjectInfoUTxOs"            \
+  "$allProjectStateUTxOs"           \
+  "$(cat $registeredProjectsFile)"  \
   "$(cat $fileNamesJSONFile)"
   )
 
