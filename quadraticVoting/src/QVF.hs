@@ -677,6 +677,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
         currLovelaces = lovelaceFromValue $ txOutValue currUTxO
         tn            = getCurrTokenName qvfProjectSymbol
       in
+      signedByKeyHolder && -- For development. TODO: REMOVE.
       case Map.lookup winner beneficiaries of
         Just bounty ->
           -- {{{
@@ -1108,6 +1109,7 @@ distributePrize
   matchPool
   remaining
   den =
+  -- {{{
   findOutputsFromProjectUTxOs pSym pTN inputs refs $
     \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
       case (getInlineDatum inP, getInlineDatum infoUTxO) of
@@ -1169,6 +1171,7 @@ distributePrize
           -- {{{
           traceError "E088"
           -- }}}
+  -- }}}
 -- }}}
 
 
