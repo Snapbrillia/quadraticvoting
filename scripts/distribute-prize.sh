@@ -64,9 +64,9 @@ generate_protocol_params
 
 buildTx="$cli $BUILD_TX_CONST_ARGS
   --required-signer-hash $keyHoldersPubKeyHash
+  $refArgs $inputArgs $outputArgs
   --tx-in $keyHoldersInUTxO
   --tx-in-collateral $keyHoldersInUTxO
-  $refArgs $inputArgs $outputArgs
   --change-address $keyHoldersAddress
   "
 

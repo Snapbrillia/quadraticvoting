@@ -90,6 +90,8 @@ $cli $BUILD_TX_CONST_ARGS                                        \
 if [ "$ENV" == "dev" ]; then
   sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey
   wait_for_new_slot
+  store_current_slot
+  wait_for_new_slot
 else
   store_current_slot
   JSON_STRING=$( jq -n                         \
