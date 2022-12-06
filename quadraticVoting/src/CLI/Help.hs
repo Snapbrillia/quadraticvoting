@@ -13,12 +13,14 @@ generic =
   -- {{{
      "\nQVF off-chain assistive CLI application.\n\n"
 
-  ++ "You can separately print the argument guide for each action\n"
-  ++ "with (-h|--help|man) following the desired action. Available\n"
+  ++ "You can separately print the guide for each endpoint with\n"
+  ++ "(-h|--help|man) following the desired action. Available\n"
   ++ "endpoints are:\n"
 
+  ++ "\nSmart Contract Initiation:\n"
+  ++ "\tqvf-cli generate scripts --help\n"
+
   ++ "\nSmart Contract Interaction:\n"
-  ++ "\tqvf-cli generate scripts         --help\n"
   ++ "\tqvf-cli register-project         --help\n"
   ++ "\tqvf-cli donate-to-project        --help\n"
   ++ "\tqvf-cli contribute               --help\n"
@@ -28,6 +30,7 @@ generic =
   ++ "\tqvf-cli accumulate-prize-weights --help\n"
   ++ "\tqvf-cli eliminate-one-project    --help\n"
   ++ "\tqvf-cli distribute-prize         --help\n"
+
   ++ "\nUtility:\n"
   ++ "\tqvf-cli pretty-datum      --help\n"
   ++ "\tqvf-cli datum-is          --help\n"
