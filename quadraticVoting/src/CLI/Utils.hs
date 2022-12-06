@@ -24,20 +24,16 @@ import           Cardano.Ledger.Hashes       ( ScriptHash(..) )
 import           Cardano.Ledger.Keys         ( KeyHash(..) )
 import           Codec.Serialise             ( Serialise
                                              , serialise )
-import qualified Control.Monad.Fail          as M
 import qualified Data.Aeson                  as A
-import           Data.Aeson                  ( encode
-                                             , FromJSON(..) )
+import           Data.Aeson                  ( encode )
 import qualified Data.ByteString.Char8       as BS8
 import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
 import qualified Data.Char                   as Char
 import           Data.Foldable               ( forM_ )
-import qualified Data.List                   as List
 import           Data.Maybe                  ( fromJust )
 import           Data.String                 ( fromString )
 import           Data.Text                   ( Text )
-import qualified Data.Text                   as Text
 import           Data.Time.Clock.POSIX       ( getPOSIXTime )
 import           GHC.Generics                ( Generic )
 import           Plutus.V1.Ledger.Api        ( fromBuiltin
@@ -45,8 +41,7 @@ import           Plutus.V1.Ledger.Api        ( fromBuiltin
                                              , BuiltinByteString )
 import qualified Plutus.V1.Ledger.Credential as Plutus
 import qualified Plutus.V1.Ledger.Crypto     as Plutus
-import           Plutus.V1.Ledger.Value      ( CurrencySymbol(..)
-                                             , TokenName(..) )
+import           Plutus.V1.Ledger.Value      ( TokenName(..) )
 import           Plutus.V2.Ledger.Api        ( TxOutRef(..)
                                              , ToData(..) )
 import qualified Plutus.V2.Ledger.Api        as Ledger
@@ -60,7 +55,6 @@ import qualified CLI.OffChainFileNames       as OCFN
 import           CLI.OffChainFileNames       ( OffChainFileNames )
 import           Data.Datum
 import           Data.Redeemer
-import           Utils
 -- }}}
 
 
@@ -406,397 +400,31 @@ unsafeTokenNameToHex =
 deadlineDatum :: Ledger.POSIXTime -> QVFDatum
 deadlineDatum = DeadlineDatum
 
+
 initialGovDatum :: QVFDatum
 initialGovDatum = RegisteredProjectsCount 0
 
 
-makeHelpText :: String -> String -> String -> [String] -> String
-makeHelpText description elem0 elem1 restOfElems =
-  -- {{{
-  let
-    elems           = elem0 : elem1 : restOfElems
-    cmd             :: String
-    cmd             = "qvf-cli "
-    makeBlank x     = replicate x ' '
-    preBlank        :: String
-    preBlank        = "\t" ++ makeBlank (length cmd)
-    longest         =
-      -- {{{
-      length $ List.maximumBy
-        (\arg0 arg1 -> compare (length arg0) (length arg1))
-        elems
-      -- }}}
-    withPostBlank e = e ++ makeBlank (longest - length e) ++ " \\\n"
-    elemsWithBlanks = map ((preBlank ++) . withPostBlank) $ tail $ init elems
-  in
-     "\n\n\t" ++ description ++ "\n\n"
-  ++ "\t" ++ cmd
-  ++ withPostBlank elem0
-  ++ concat elemsWithBlanks
-  ++ preBlank ++ last elems ++ "\n"
-  -- }}}
-
-
--- SUB-HELP TEXTS: 
--- {{{
-helpCurrDatum      :: String
-helpCurrDatum      = "<current.datum>"
-toHexHelp          :: String
-toHexHelp          =
-  -- {{{
-  makeHelpText
-    "Export the hex serialization of a token name:"
-    "string-to-hex"
-    "<token-name>"
-    ["<output.hex>"]
-  -- }}}
-scriptHelp         :: String
-scriptHelp         =
-  -- {{{
-  makeHelpText
-    (    "Generate the compiled Plutus validation and minting scripts.\n\n"
-
-      ++ "\tThe JSON for file names should have these fields:\n\n"
-      ++ "\t\t, ocfnGovernanceMinter     :: String\n"
-      ++ "\t\t, ocfnRegistrationMinter   :: String\n"
-      ++ "\t\t, ocfnDonationMinter       :: String\n"
-      ++ "\t\t, ocfnQVFMainValidator     :: String\n"
-      ++ "\t\t, ocfnDeadlineSlot         :: String\n"
-      ++ "\t\t, ocfnDeadlineDatum        :: String\n"
-      ++ "\t\t, ocfnInitialGovDatum      :: String\n"
-      ++ "\t\t, ocfnCurrentDatum         :: String\n"
-      ++ "\t\t, ocfnUpdatedDatum         :: String\n"
-      ++ "\t\t, ocfnNewDatum             :: String\n"
-      ++ "\t\t, ocfnQVFRedeemer          :: String\n"
-      ++ "\t\t, ocfnMinterRedeemer       :: String\n"
-      ++ "\t\t}"
-    )
-    "generate scripts"
-    "<key-holder-pub-key-hash>"
-    [ "<txID>#<output-index>"
-    , "<current-slot-number>"
-    , "<deadline-posix-milliseconds>"
-    , "{file-names-json}"
-    ]
-  -- }}}
-registrationHelp   :: String
-registrationHelp   =
-  -- {{{
-  makeHelpText
-    (    "Read the current datum from disk, and write the corresponding files:\n"
-      ++ "\t\t- Updated governance datum,\n"
-      ++ "\t\t- New initial project datum,\n"
-      ++ "\t\t- Static datum for project's info,\n"
-      ++ "\t\t- Redeemer for the QVF validator,\n"
-      ++ "\t\t- Redeemer for the registration policy."
-    )
-    "register-project"
-    "<project-owner-pub-key-hash>"
-    [ "<project-name>"
-    , "<project-requested-fund>"
-    , "{file-names-json}"
-    ]
-  -- }}}
-donationHelp       :: String
-donationHelp       =
-  -- {{{
-  makeHelpText
-    (    "Read the current datum from disk, and write the corresponding files:\n"
-      ++ "\t\t- Updated project datum,\n"
-      ++ "\t\t- New donation datum,\n"
-      ++ "\t\t- Redeemer for the QVF validator,\n"
-      ++ "\t\t- Redeemer for the donation policy."
-    )
-    "donate-to-project"
-    "<donors-pub-key-hash>"
-    [ "<target-project-id>"
-    , "<donation-amount>"
-    , "{file-names-json}"
-    ]
-  -- }}}
-foldingHelp        :: String
-foldingHelp        =
-  -- {{{
-  makeHelpText
-    (    "Read the current project datum from disk, and write the\n"
-      ++ "\tupdated project datum to disk. Also prints a JSON\n"
-      ++ "\twith two fields of \"lovelace\" and \"mint\" to help\n"
-      ++ "\tthe bash script construct the `tx-out` argument.\n"
-    )
-    "fold-donations"
-    "<donation(s)-lovelace-count-0>"
-    [ "<donation-count-------------0>"
-    , "{donation-datum-json--------0}"
-    , "<donation(s)-lovelace-count-1>"
-    , "<donation-count-------------1>"
-    , "{donation-datum-json--------1}"
-    , "<...etc...>"
-    , "{file-names-json}"
-    ]
-  -- }}}
-consolidationHelp  :: String
-consolidationHelp  =
-  -- {{{
-  makeHelpText
-    (    "Read the current project datum from disk, and write the\n"
-      ++ "\tupdated project datum to disk. Also prints a JSON\n"
-      ++ "\twith two fields of \"lovelace\" and \"mint\" to help\n"
-      ++ "\tthe bash script construct the `tx-out` argument.\n"
-      ++ "\tThe value in the \"lovelace\" field is the amound that\n"
-      ++ "\tshould be added to the input main UTxO.\n"
-    )
-    "consolidate-donations"
-    "<donation(s)-lovelace-count-0>"
-    [ "<donation-count-------------0>"
-    , "{folded-donation-datum-json-0}"
-    , "<donation(s)-lovelace-count-1>"
-    , "<donation-count-------------1>"
-    , "{folded-donation-datum-json-1}"
-    , "<...etc...>"
-    , "{file-names-json}"
-    ]
-  -- }}}
-traversalHelp      :: String
-traversalHelp      =
-  -- {{{
-  makeHelpText
-    (    "Takes information of two input fully folded donation UTxOs,\n"
-      ++ "\tcompares their donations, and if duplicates where found,\n"
-      ++ "\tit'll return a JSON object with \"lovelace0\" and \"lovelace1\"\n"
-      ++ "\tfields (as resolving the duplication requires exchange of\n"
-      ++ "\tsome Lovelaces). Reallocation of donation assets doesn't\n"
-      ++ "\tseem necessary at this point.\n"
-      ++ "\tIf there are no overlaps, the \"Nothing\" string is returned.\n"
-    )
-    "traverse-donations"
-    "<donations-lovelace-count-0>"
-    [ "{donations-datum-json-----0}"
-    , "<donations-lovelace-count-1>"
-    , "{donations-datum-json-----1}"
-    , "{file-names-json}"
-    ]
-  -- }}}
-accumulationHelp   :: String
-accumulationHelp   =
-  -- {{{
-  makeHelpText
-    (    "Read the current governance datum from disk, and write the\n"
-      ++ "\tupdated datum to disk. Also writes a dedicated file (labeled\n"
-      ++ "\tthe same as the token name of the project with a `.datum`\n"
-      ++ "\textension) where the updated datum of that project is stored.\n"
-      ++ "\tThe input Lovelace count, minus all the registration fees\n"
-      ++ "\t(as they are meant to be included in the inputs) is what gets\n"
-      ++ "\tprinted.\n"
-    )
-    "accumulate-donations"
-    "<project-id-------------0>"
-    [ "<project-lovelace-count-0>"
-    , "{project-datum-json-----0}"
-    , "<project-id-------------1>"
-    , "<project-lovelace-count-1>"
-    , "{project-datum-json-----1}"
-    , "<...etc...>"
-    , "{file-names-json}"
-    ]
-  -- }}}
-khFeeHelp          :: String
-khFeeHelp          =
-  -- {{{
-  makeHelpText
-    (    "The only required argument is the JSON of the filenames. The\n"
-      ++ "\tprinted value is the Lovelace count that should be paid to\n"
-      ++ "\tthe key holder."
-    )
-    "collect-key-holder-fee"
-    "{file-names-json}"
-    []
-  -- }}}
-distributionHelp   :: String
-distributionHelp   =
-  -- {{{
-  makeHelpText
-    (    "With the project's info datum and prize weight provided,\n"
-      ++ "\tthis endpoint reads the current governance datum from disk,\n"
-      ++ "\twrites the updated datum, and also writes the escrow datum\n"
-      ++ "\tinside the \"new datum\" file on disk.\n"
-      ++ "\tThe printed output is a JSON with two fields, \"owner\",\n"
-      ++ "\tholding the number of Lovelaces that should be sent to the\n"
-      ++ "\tproject owner, and \"escrow\" that holds the Lovelace count\n"
-      ++ "\tthat must be stored inside the produced escrow datum."
-    )
-    "distribute-prize"
-    "{project-info-datum-json}"
-    [ "{project-weight-datum-json}"
-    , "{file-names-json}"
-    ]
-  -- }}}
-prettyDatumHelp    :: String
-prettyDatumHelp    =
-  -- {{{
-  makeHelpText
-    "Print an easy-to-read parsing of a given datum JSON:"
-    "pretty-datum"
-    "{current-datum-json-value}"
-    []
-  -- }}}
-checkDatumHelp     :: String
-checkDatumHelp     =
-  -- {{{
-  makeHelpText
-    (    "Check whether a given data JSON decodes to a specific `QVFDatum`\n"
-      ++ "\t(returns either \"True\" or \"False\"). Supported keywords are:\n"
-      ++ "\t\tDeadlineDatum\n"
-      ++ "\t\tProjectInfo"
-      ++ "\t\tDonationAccumulationConcluded"
-    )
-    "datum-is"
-    "<predicate-keyword>"
-    ["{current-datum-json-value}"]
-  -- }}}
-getConstrHelp      :: String
-getConstrHelp      =
-  -- {{{
-  makeHelpText
-    (    "Given a constructor from `QVFDatum`, this endpoints returns the\n"
-      ++ "\tconstructor index of the `Data` equivalent.\n"
-    )
-    "get-constr-index"
-    "<datum-constructor>"
-    []
-  -- }}}
-dataToCBORHelp     :: String
-dataToCBORHelp     =
-  -- {{{
-  makeHelpText
-    "Return the CBOR encoding of a given JSON formatted `Data` value:"
-    "data-to-cbor"
-    "{arbitrary-data-json-value}"
-    []
-  -- }}}
-cborToDataHelp     :: String
-cborToDataHelp     =
-  -- {{{
-  makeHelpText
-    "Attempt decoding a CBOR to a JSON formatted `Data` value:"
-    "cbor-to-data"
-    "<cbor-hex-string>"
-    []
-  -- }}}
-deadlineToSlotHelp :: String
-deadlineToSlotHelp =
-  -- {{{
-  makeHelpText
-    "Convert the deadline in a given datum to the slot number:"
-    "get-deadline-slot"
-    "<current-slot-number>"
-    [helpCurrDatum]
-  -- }}}
--- }}}
-
-
--- GENERIC HELP TEXT: 
-helpText :: String
-helpText =
-  -- {{{
-     "\nQVF off-chain assistive CLI application.\n\n"
-
-  ++ "You can separately print the argument guide for each action\n"
-  ++ "with (-h|--help|man) following the desired action. Available\n"
-  ++ "options are:\n\n"
-
-  ++ "Utility:\n"
-  ++ "\tqvf-cli generate scripts       --help\n"
-  ++ "\tqvf-cli register-project       --help\n"
-  ++ "\tqvf-cli donate-to-project      --help\n"
-  ++ "\tqvf-cli fold-donations         --help\n"
-  ++ "\tqvf-cli consolidate-donations  --help\n"
-  ++ "\tqvf-cli traverse-donations     --help\n"
-  ++ "\tqvf-cli accumulate-donations   --help\n"
-  ++ "\tqvf-cli collect-key-holder-fee --help\n"
-  ++ "\tqvf-cli distribute-prize       --help\n"
-  ++ "\tqvf-cli pretty-datum           --help\n"
-  ++ "\tqvf-cli datum-is               --help\n"
-  ++ "\tqvf-cli data-to-cbor           --help\n"
-  ++ "\tqvf-cli cbor-to-data           --help\n"
-  ++ "\tqvf-cli string-to-hex          --help\n"
-  ++ "\tqvf-cli get-deadline-slot      --help\n\n"
-
-  ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
-  -- }}}
-
-
-printHelp :: IO ()
-printHelp = putStrLn helpText
-
-
-andPrintSuccess :: FilePath -> IO () -> IO ()
-andPrintSuccess outFile ioAction = do
+withSuccessMessage :: FilePath -> IO () -> IO ()
+withSuccessMessage outFile ioAction = do
   -- {{{
   ioAction
   putStrLn $ outFile ++ " generated SUCCESSFULLY."
   -- }}}
 
 
-andPrintSuccessWithSize :: Show a
-                         => FilePath
-                         -> (FilePath -> IO a)
-                         -> IO ()
-                         -> IO ()
-andPrintSuccessWithSize outFile getByteCount ioAction = do
+withSuccessMessageAndSize :: Show a
+                          => FilePath
+                          -> (FilePath -> IO a)
+                          -> IO ()
+                          -> IO ()
+withSuccessMessageAndSize outFile getByteCount ioAction = do
   -- {{{
   ioAction
   printable <- getByteCount outFile
   let byteCount = show printable
   putStrLn $
     outFile ++ " generated SUCCESSFULLY (" ++ byteCount ++ " bytes)."
-  -- }}}
-
-
-printGenerateHelp :: String -> IO ()
-printGenerateHelp genStr =
-  -- {{{
-  case genStr of
-    "scripts"               ->
-      putStrLn scriptHelp
-    _                       ->
-      printHelp
-  -- }}}
-
-
-printActionHelp :: String -> IO ()
-printActionHelp action =
-  -- {{{
-  case action of
-    "register-project"       ->
-      putStrLn registrationHelp
-    "donate-to-project"      ->
-      putStrLn donationHelp
-    "fold-donations"         ->
-      putStrLn foldingHelp
-    "consolidate-donations"  ->
-      putStrLn consolidationHelp
-    "traverse-donations"     ->
-      putStrLn traversalHelp
-    "accumulate-donations"   ->
-      putStrLn accumulationHelp
-    "collect-key-holder-fee" ->
-      putStrLn khFeeHelp
-    "distribute-prize"       ->
-      putStrLn distributionHelp
-    "pretty-datum"           ->
-      putStrLn prettyDatumHelp
-    "datum-is"               ->
-      putStrLn checkDatumHelp
-    "data-to-cbor"           ->
-      putStrLn dataToCBORHelp
-    "cbor-to-data"           ->
-      putStrLn cborToDataHelp
-    "string-to-hex"          ->
-      putStrLn toHexHelp
-    "get-deadline-slot"      ->
-      putStrLn deadlineToSlotHelp
-    _                        ->
-      printHelp
   -- }}}
 
 
@@ -1006,7 +634,7 @@ getDeadlineSlot currSlot (Ledger.POSIXTime deadline) = do
   -- }}}
 
 
-decodeString :: FromJSON a => String -> Maybe a
+decodeString :: A.FromJSON a => String -> Maybe a
 decodeString = A.decode . fromString
 
 -- EXTRA

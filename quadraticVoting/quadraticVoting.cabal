@@ -20,7 +20,8 @@ library
 
   default-language:    Haskell2010
 
-  exposed-modules:     CLI.OffChainFileNames
+  exposed-modules:     CLI.Help
+                     , CLI.OffChainFileNames
                      , CLI.RegisteredProject
                      , CLI.Utils
                      , CLI.Tx

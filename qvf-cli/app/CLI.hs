@@ -12,21 +12,15 @@ module Main (main) where
 import Debug.Trace (trace)
 
 import           Cardano.Api
-import           Codec.Serialise            ( serialise )
 import qualified Data.Aeson                 as A
 import           Data.Aeson                 ( encode )
-import qualified Data.ByteString.Char8      as BS8
 import qualified Data.ByteString.Lazy       as LBS
-import qualified Data.Char                  as Char
-import           Data.Foldable              ( forM_ )
 import qualified Data.List                  as List
 import           Data.List                  ( sortBy )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
 import           Data.Word                  ( Word8 )
 import qualified Ledger.Address             as Addr
-import           Plutus.V1.Ledger.Api       ( toBuiltin
-                                            , BuiltinByteString )
 import           Plutus.V1.Ledger.Value     ( TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
 import           PlutusTx                   ( Data (..) )
@@ -40,6 +34,7 @@ import           Data.Datum
 import           Data.DonationInfo
 import           Data.Redeemer
 --
+import qualified CLI.Help                   as Help
 import qualified CLI.OffChainFileNames      as OCFN
 import qualified CLI.RegisteredProject      as RP
 import           CLI.Utils
@@ -122,17 +117,19 @@ main =
   in do
   allArgs <- getArgs
   case allArgs of
-    -- {{{ HELP AND MAN ENDPOINTS 
-    []                                 -> printHelp
-    "generate" : genStr : "-h"     : _ -> printGenerateHelp genStr
-    "generate" : genStr : "--help" : _ -> printGenerateHelp genStr
-    "generate" : genStr : "man"    : _ -> printGenerateHelp genStr
-    actionStr  : "-h"     : _          -> printActionHelp actionStr
-    actionStr  : "--help" : _          -> printActionHelp actionStr
-    actionStr  : "man"    : _          -> printActionHelp actionStr
-    "-h"       : _                     -> printHelp
-    "--help"   : _                     -> printHelp
-    "man"      : _                     -> printHelp
+    -- {{{ HELP, MAN, AND VERSION ENDPOINTS 
+    []                                 -> putStrLn Help.generic
+    "-h"       : _                     -> putStrLn Help.generic
+    "--help"   : _                     -> putStrLn Help.generic
+    "man"      : _                     -> putStrLn Help.generic
+    "-v"        : _                    -> putStrLn "0.2.1.0"
+    "--version" : _                    -> putStrLn "0.2.1.0" 
+    "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
+    "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
+    "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
+    actionStr  : "-h"     : _          -> putStrLn $ Help.forEndpoint actionStr
+    actionStr  : "--help" : _          -> putStrLn $ Help.forEndpoint actionStr
+    actionStr  : "man"    : _          -> putStrLn $ Help.forEndpoint actionStr
     -- }}}
     -- {{{ SMART CONTRACT INTERACTION ENDPOINTS 
     "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                        ->
@@ -207,28 +204,28 @@ main =
               case valRes of
                 Right _ -> do
                   -- {{{
-                  andPrintSuccessWithSize
+                  withSuccessMessageAndSize
                     govOF
                     (unsafeParseJSON @OutputPlutus)
                     (return ())
-                  andPrintSuccessWithSize
+                  withSuccessMessageAndSize
                     regOF
                     (unsafeParseJSON @OutputPlutus)
                     (return ())
-                  andPrintSuccessWithSize
+                  withSuccessMessageAndSize
                     donOF
                     (unsafeParseJSON @OutputPlutus)
                     (return ())
-                  andPrintSuccessWithSize
+                  withSuccessMessageAndSize
                     qvfOF
                     (unsafeParseJSON @OutputPlutus)
                     (return ())
-                  andPrintSuccess
+                  withSuccessMessage
                     dlSlotOF
                     (LBS.writeFile dlSlotOF $ encode dlSlot)
-                  andPrintSuccess dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
-                  andPrintSuccess initDatOF $ writeJSON initDatOF initialGovDatum
-                  andPrintSuccess redOF $ writeJSON redOF Gov.Initiate
+                  withSuccessMessage dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
+                  withSuccessMessage initDatOF $ writeJSON initDatOF initialGovDatum
+                  withSuccessMessage redOF $ writeJSON redOF Gov.Initiate
                   -- }}}
                 Left _  ->
                   -- {{{
@@ -284,13 +281,13 @@ main =
                     (unsafeTokenNameToHex projTokenName)
                     ocfn
               in do
-              andPrintSuccess projTokenNameFile $
+              withSuccessMessage projTokenNameFile $
                 writeTokenNameHex projTokenNameFile projTokenName
-              andPrintSuccess updatedDatumFile $
+              withSuccessMessage updatedDatumFile $
                 writeJSON updatedDatumFile updatedDatum
-              andPrintSuccess newDatumFile $
+              withSuccessMessage newDatumFile $
                 writeJSON newDatumFile newDatum
-              andPrintSuccess projInfoFile $
+              withSuccessMessage projInfoFile $
                 writeJSON projInfoFile projInfo
               -- }}}
             _                             ->
@@ -342,9 +339,9 @@ main =
                 newDatumFile     :: FilePath
                 newDatumFile     = OCFN.newDatum ocfn
               in do
-              andPrintSuccess updatedDatumFile $
+              withSuccessMessage updatedDatumFile $
                 writeJSON updatedDatumFile updatedDatum
-              andPrintSuccess newDatumFile $
+              withSuccessMessage newDatumFile $
                 writeJSON newDatumFile newDatum
               -- }}}
             _                            ->
@@ -373,7 +370,7 @@ main =
             qvfRedeemerFile = OCFN.qvfRedeemer ocfn
             qvfRedeemer     = Contribute amt
           in
-          andPrintSuccess qvfRedeemerFile $
+          withSuccessMessage qvfRedeemerFile $
             writeJSON qvfRedeemerFile qvfRedeemer
           -- }}}
         _                     ->
@@ -472,7 +469,6 @@ main =
                 in do
                 writeJSON updatedDatumFile updatedDatum
                 writeJSON newDatumFile newDatum
-                -- forM_ mNew (writeJSON newDatumFile)
                 putStrLn $ jsonToPrint ls mintAmt
                 -- }}}
               DonationFoldingProgress tot soFar ->
@@ -1024,7 +1020,7 @@ main =
       -- }}}
     "string-to-hex"      : tn : outFile : _                             ->
       -- {{{
-      andPrintSuccess outFile $ writeTokenNameHex outFile $ fromString tn
+      withSuccessMessage outFile $ writeTokenNameHex outFile $ fromString tn
       -- }}}
     "get-deadline-slot"  : currSlotStr : datumJSON : _                  -> do
       -- {{{
