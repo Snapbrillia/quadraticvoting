@@ -328,11 +328,11 @@ checkDatum =
   -- {{{
   endpointDescriptionArgs
     "datum-is"
-    (    "Check whether a given data JSON decodes to a specific `QVFDatum`\n"
-      ++ "\t(returns either \"True\" or \"False\"). Supported keywords are:\n"
-      ++ "\t\tDeadlineDatum\n"
-      ++ "\t\tProjectInfo"
-      ++ "\t\tDonationAccumulationConcluded"
+    (    "Check whether a given data JSON decodes to a specific `QVFDatum`"
+      ++ "\n\t(returns either \"True\" or \"False\"). Supported keywords are:"
+      ++ "\n\t\tDeadlineDatum"
+      ++ "\n\t\tProjectInfo"
+      ++ "\n\t\tDonationAccumulationConcluded"
     )
     "<predicate-keyword>"
     ["{current-datum-json-value}"]
