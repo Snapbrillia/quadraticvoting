@@ -1112,7 +1112,7 @@ if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $pre
   totalLovelace=$(get_total_lovelaces_from_json "$utxos")
   white="\033[97m"
   noColor="\033[0m"
-  if [ $totalLovelace -gt $minStartingLovelaces ]; then
+  if [ $totalLovelace -gt $minStartingLovelaces ] || [ -f $scriptAddressFile ]; then
     if [ $utxoCount -gt 1 ]; then
       echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
       tidy_up_wallet $keyHolder
