@@ -22,6 +22,7 @@ $qvf update-deadline          \
 generate_protocol_params
 
 $cli $BUILD_TX_CONST_ARGS                                   \
+  --required-signer-hash $keyHoldersPubKeyHash              \
   --tx-in $dlUTxO                                           \
   --spending-tx-in-reference $qvfRefUTxO                    \
   --spending-plutus-script-v2                               \
@@ -32,7 +33,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --tx-out-inline-datum-file $dlDatum                       \
   --change-address $keyHoldersAddress   
 
-sign_and_submit_tx $preDir/$sponsorWalletLabel.skey
+sign_and_submit_tx $preDir/$keyHolder.skey
 wait_for_new_slot
 store_current_slot
 wait_for_new_slot
