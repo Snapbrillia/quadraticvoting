@@ -1,6 +1,10 @@
 #!/bin/bash
 
+if [ "$ENV" == "dev" ]; then
 . $REPO/scripts/initiation.sh
+else
+. $HOME/quadraticvoting/scripts/initiation.sh
+fi
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -129,7 +133,6 @@ else
   txInUTxO=$5
   txInCollateralUTxO=$6
   txOutUTxO=$7
-  txOutCollateralUTxO=$8
 fi
 
 projectAsset="$regSym.$projectTokenName"
@@ -165,7 +168,7 @@ $cli $BUILD_TX_CONST_ARGS                                       \
   --spending-plutus-script-v2                                   \
   --spending-reference-tx-in-inline-datum-present               \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                      \
   --tx-out "$outputProjectUTxO"                                 \
   --tx-out-inline-datum-file $updatedDatumFile                  \
   --tx-out "$donationUTxO"                                      \

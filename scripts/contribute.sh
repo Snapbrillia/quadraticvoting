@@ -1,8 +1,8 @@
 #!/bin/bash
 
-. $REPO/scripts/initiation.sh
 
 if [ "$ENV" == "dev" ]; then
+. $REPO/scripts/initiation.sh
   sponsorWalletLabel=$1
   contributionAmount=$2
   sponsorInputUTxO=$(get_first_utxo_of $sponsorWalletLabel)
@@ -11,13 +11,12 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $sponsorInputUTxO"
   txOutUTxO=""
 else
-  # TODO?
+. $HOME/quadraticvoting/scripts/initiation.sh
   sponsorAddress=$1
   contributionAmount=$2
   txInUTxO=$3
   txInCollateralUTxO=$4
   txOutUTxO=$5
-  txOutCollateralUTxO=$6
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -42,17 +41,17 @@ $qvf contribute               \
 
 generate_protocol_params
 
-$cli $BUILD_TX_CONST_ARGS                                        \
-  --read-only-tx-in-reference $deadlineUTxO                      \
-  --tx-in $govUTxO                                               \
-  --spending-tx-in-reference $qvfRefUTxO                         \
-  --spending-plutus-script-v2                                    \
-  --spending-reference-tx-in-inline-datum-present                \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO  \
-  --tx-out "$govOutput"                                          \
-  --tx-out-inline-datum-file $currentDatumFile                   \
-  --invalid-hereafter $cappedSlot                                \
+$cli $BUILD_TX_CONST_ARGS                                       \
+  --read-only-tx-in-reference $deadlineUTxO                     \
+  --tx-in $govUTxO                                              \
+  --spending-tx-in-reference $qvfRefUTxO                        \
+  --spending-plutus-script-v2                                   \
+  --spending-reference-tx-in-inline-datum-present               \
+  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                      \
+  --tx-out "$govOutput"                                         \
+  --tx-out-inline-datum-file $currentDatumFile                  \
+  --invalid-hereafter $cappedSlot                               \
   --change-address $sponsorAddress      
 
 if [ "$ENV" == "dev" ]; then

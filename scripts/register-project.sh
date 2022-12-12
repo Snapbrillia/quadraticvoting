@@ -1,9 +1,8 @@
 #!/bin/bash
 
-. $REPO/scripts/initiation.sh
-
 
 if [ "$ENV" == "dev" ]; then
+. $REPO/scripts/initiation.sh
   projectOwnerWalletLabel=$1
   projectName=$2
   projectRequestedFund=$3
@@ -14,6 +13,7 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
   txOutUTxO=""
 else
+. $HOME/quadraticvoting/scripts/initiation.sh
   projectName=$1
   projectRequestedFund=$2
   projectOwnerAddress=$3
@@ -21,7 +21,6 @@ else
   txInUTxO=$5
   txInCollateralUTxO=$6
   txOutUTxO=$7
-  txOutCollateralUTxO=$8
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -62,6 +61,8 @@ projUTxO="$qvfAddress + $halfOfTheRegistrationFee lovelace + 1 $projectAsset"
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 regRefUTxO=$(cat $regRefUTxOFile)
 
+collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+
 generate_protocol_params
 
 $cli $BUILD_TX_CONST_ARGS                                        \
@@ -72,7 +73,7 @@ $cli $BUILD_TX_CONST_ARGS                                        \
   --spending-plutus-script-v2                                    \
   --spending-reference-tx-in-inline-datum-present                \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO  \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                       \
   --tx-out "$firstUTxO"                                          \
   --tx-out-inline-datum-file $updatedDatumFile                   \
   --tx-out "$projUTxO"                                           \
