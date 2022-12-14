@@ -380,3 +380,109 @@ fromGovAndInputs govInputStr inputsStr mRefsStr action =
 -- }}}
 
 
+-- SCRIPT INPUT/OUTPUT
+-- {{{
+data ScriptOutput = ScriptOutput
+  { soAddress    :: Ledger.Address
+  , soAddressStr :: String
+  , soLovelace   :: Integer
+  , soAsset      :: Asset
+  , soAssetCount :: Integer
+  , soDatum      :: QVFDatum
+  } deriving (Eq)
+
+data ScriptInput = ScriptInput
+  { siTxOutRef :: TxOutRef
+  , siResolved :: ScriptOutput
+  } deriving (Eq)
+
+
+inputToScriptInput :: Input -> Maybe ScriptInput
+inputToScriptInput Input{..} = do
+  -- {{{
+  resolved <- outputToScriptOutput iResolved
+  return $ ScriptInput
+    { siTxOutRef = iTxOutRef
+    , siResolved = resolved
+    }
+  -- }}}
+
+
+outputToScriptOutput :: Output -> Maybe ScriptOutput
+outputToScriptOutput Output{..} = do
+  -- {{{
+  (a, c, d) <- oForScript
+  return $ ScriptOutput
+    { soAddress    = oAddress
+    , soAddressStr = oAddressStr
+    , soLovelace   = oLovelace
+    , soAsset      = a
+    , soAssetCount = c
+    , soDatum      = d
+    }
+  -- }}}
+
+
+scriptOutputToOutput :: ScriptOutput -> Output
+scriptOutputToOutput ScriptOutput{..} =
+  -- {{{
+  Output
+    { oAddress    = soAddress
+    , oAddressStr = soAddressStr
+    , oLovelace   = soLovelace
+    , oForScript  = Just (soAsset, soAssetCount, soDatum)
+    }
+  -- }}}
+
+
+scriptInputToInput :: ScriptInput -> Input
+scriptInputToInput ScriptInput{..} =
+  -- {{{
+  Input
+    { iTxOutRef = siTxOutRef
+    , iResolved = scriptOutputToOutput siResolved
+    }
+  -- }}}
+
+
+compareScriptOutputs :: ScriptOutput -> ScriptOutput -> Ordering
+compareScriptOutputs ScriptOutput{soAsset = a0} ScriptOutput{soAsset = a1} =
+  -- {{{
+  compare a0 a1
+  -- }}}
+-- }}}
+
+
+-- SPECIFIC INPUTS
+-- {{{
+data MatchPoolInput = MatchPoolInput
+  { mpiTxOutRef :: TxOutRef
+  , mpiAddress  :: Ledger.Address
+  , mpiLovelace :: Integer
+  , mpiSymbol   :: CurrencySymbol
+  } deriving (Eq)
+
+data ProjectStateInput = ProjectStateInput
+  { psiTxOutRef  :: TxOutRef
+  , psiLovelace  :: Integer
+  , psiSymbol    :: CurrencySymbol
+  , psiTokenName :: TokenName
+  } deriving (Eq)
+
+data ProjectInfoInput = ProjectInfoInput
+  { piiTxOutRef  :: TxOutRef
+  , piiLovelace  :: Integer
+  , piiSymbol    :: CurrencySymbol
+  , piiTokenName :: TokenName
+  , piiDetails   :: ProjectDetails
+  } deriving (Eq)
+
+data DonationInput = DonationInput
+  { diTxOutRef  :: TxOutRef
+  , diLovelace  :: Integer
+  , diSymbol    :: CurrencySymbol
+  , diTokenName :: TokenName
+  , diDonor     :: Ledger.PubKeyHash
+  } deriving (Eq)
+-- }}}
+

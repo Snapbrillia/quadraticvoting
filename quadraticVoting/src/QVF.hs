@@ -973,113 +973,87 @@ eliminateOneProject
   ws =
   -- {{{
   let
-    kvs                                        = Map.toList ws
-    den                                        = findQVFDenominator kvs
-    findRatio (EliminationInfo req dons w)     =
-      -- {{{
-      let
-        won = 1_000_000_000 * (matchPool * w `divide` den + dons)
-      in
-      won `divide` req
-      -- }}}
-    foldFn (projID, info) (count, p, minSoFar) =
-      -- {{{
-      let
-        theRatio = findRatio info
-      in
-      if theRatio < minSoFar then
-        (count + 1, projID, theRatio)
-      else
-        (count + 1, p     , minSoFar)
-      -- }}}
+    kvs = Map.toList ws
+    den = findQVFDenominator kvs
   in
   if utxoHasOnlyX qvfSym qvfTokenName currUTxO then
     -- {{{
-    case kvs of
-      (p, t) : rest ->
-        -- {{{
-        let
-          (pCount, toBeEliminated, r) = foldr foldFn (1, p, findRatio t) rest
-        in
-        if r < 1_000_000_000 then
+    let
+      (pCount, toBeEliminated, r) = findLeastFundedProject matchPool den kvs
+    in
+    if r < decimalMultiplier then
+      -- {{{
+      let
+        newMap = Map.delete toBeEliminated ws
+        projTN = TokenName toBeEliminated
+      in
+      findOutputsFromProjectUTxOs pSym projTN inputs refs $
+        \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
           -- {{{
-          let
-            newMap = Map.delete toBeEliminated ws
-            projTN = TokenName toBeEliminated
-          in
-          findOutputsFromProjectUTxOs pSym projTN inputs refs $
-            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
-              -- {{{
-              -- Equality of project addresses is checked by
-              -- `findOutputsFromProjectUTxOs`.
-              if pAddr == scriptAddr then
+          -- Equality of project addresses is checked by
+          -- `findOutputsFromProjectUTxOs`.
+          if pAddr == scriptAddr then
+            -- {{{
+            case (getInlineDatum inP, getInlineDatum infoUTxO) of
+              (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
                 -- {{{
-                case (getInlineDatum inP, getInlineDatum infoUTxO) of
-                  (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
+                let
+                  raised   =
+                    lovelaceFromValue pVal - halfOfTheRegistrationFee
+                  (khF, b) = separateKeyHoldersFeeFrom raised
+                  outputS  =
                     -- {{{
-                    let
-                      raised   =
-                        lovelaceFromValue pVal - halfOfTheRegistrationFee
-                      (khF, b) = separateKeyHoldersFeeFrom raised
-                      outputS  =
-                        -- {{{
-                        currUTxO
-                          { txOutDatum =
-                              qvfDatumToInlineDatum $
-                                ProjectEliminationProgress matchPool newMap
-                          , txOutValue = currVal <> lovelaceValueOf khF
-                          }
-                        -- }}}
-                      outputP  =
-                        -- {{{
-                        inP
-                          { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
-                          , txOutValue =
-                              makeAuthenticValue
-                                halfOfTheRegistrationFee
-                                pSym
-                                projTN
-                                1
-                          }
-                        -- }}}
-                    in
-                    ([outputS, outputP], Just (pdPubKeyHash, b), r)
+                    currUTxO
+                      { txOutDatum =
+                          qvfDatumToInlineDatum $
+                            ProjectEliminationProgress matchPool newMap
+                      , txOutValue = currVal <> lovelaceValueOf khF
+                      }
                     -- }}}
-                  _                                                    ->
+                  outputP  =
                     -- {{{
-                    traceError "E128"
+                    inP
+                      { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
+                      , txOutValue =
+                          makeAuthenticValue
+                            halfOfTheRegistrationFee
+                            pSym
+                            projTN
+                            1
+                      }
                     -- }}}
+                in
+                ([outputS, outputP], Just (pdPubKeyHash, b), r)
                 -- }}}
-              else
+              _                                                    ->
                 -- {{{
-                traceError "E127"
+                traceError "E128"
                 -- }}}
-              -- }}}
+            -- }}}
+          else
+            -- {{{
+            traceError "E127"
+            -- }}}
           -- }}}
-        else
-          -- {{{
-          -- If all projects are eligible, then there should only be a single
-          -- UTxO going back to the script address, which is the governance
-          -- UTxO with an untouched value, and a properly updated datum.
-          ( [ currUTxO
-                { txOutDatum =
-                    qvfDatumToInlineDatum $
-                      DistributionProgress
-                        (lovelaceFromValue currVal - governanceLovelaces)
-                        pCount
-                        den
-                }
-            ]
-          , Nothing
-          , r
-          )
-          -- }}}
-        -- }}}
-      _             ->
-        -- {{{
-        -- TODO.
-        traceError "E1"
-        -- }}}
+      -- }}}
+    else
+      -- {{{
+      -- If all projects are eligible, then there should only be a single
+      -- UTxO going back to the script address, which is the governance
+      -- UTxO with an untouched value, and a properly updated datum.
+      ( [ currUTxO
+            { txOutDatum =
+                qvfDatumToInlineDatum $
+                  DistributionProgress
+                    (lovelaceFromValue currVal - governanceLovelaces)
+                    pCount
+                    den
+            }
+        ]
+      , Nothing
+      , r
+      )
+      -- }}}
     -- }}}
   else
     -- {{{
@@ -1116,7 +1090,8 @@ distributePrize
         (PrizeWeight w True, ProjectInfo ProjectDetails{..}) ->
           -- {{{
           let
-            mpPortion     = (matchPool * w) `divide` den
+            -- mpPortion     = (matchPool * w) `divide` den
+            mpPortion     = findMatchPoolPortion matchPool den w
             raised        = lovelaceFromValue pVal - halfOfTheRegistrationFee
             (donFee, don) = separateKeyHoldersFeeFrom raised
             (mpFee, won)  = separateKeyHoldersFeeFrom mpPortion

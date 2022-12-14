@@ -473,11 +473,65 @@ foldDonationInputs donationSymbol donationTN inputs =
 -- | Given the match pool's Lovelace count, sum of all the prize weights, and
 --   a project's prize weight, this function finds the portion of the match
 --   pool won by the project.
-{-# INLINABLE findProjectsWonPortion #-}
-findProjectsWonPortion :: Integer -> Integer -> Integer -> Integer
-findProjectsWonPortion matchPool sumW w =
+{-# INLINABLE findMatchPoolPortion #-}
+findMatchPoolPortion :: Integer -> Integer -> Integer -> Integer
+findMatchPoolPortion matchPool sumW w =
   -- {{{
   (w * matchPool) `divide` sumW
+  -- }}}
+
+
+{-# INLINABLE findFundedToRequestedRatio #-}
+findFundedToRequestedRatio :: Integer
+                           -> Integer
+                           -> EliminationInfo
+                           -> Integer
+findFundedToRequestedRatio
+  matchPool
+  denominator
+  (EliminationInfo req raised w) =
+  -- {{{
+  let
+    won =
+        decimalMultiplier
+      * (findMatchPoolPortion matchPool denominator w + raised)
+  in
+  won `divide` req
+  -- }}}
+
+
+{-# INLINABLE findLeastFundedProject #-}
+findLeastFundedProject :: Integer
+                       -> Integer
+                       -> [(BuiltinByteString, EliminationInfo)]
+                       -> (Integer, BuiltinByteString, Integer)
+findLeastFundedProject matchPool denominator elimInfos =
+  -- {{{
+  case elimInfos of
+    (p, t) : rest ->
+      -- {{{
+      let
+        foldFn (projID, info) (count, p', minSoFar) =
+          -- {{{
+          let
+            theRatio = findFundedToRequestedRatio matchPool denominator info
+          in
+          if theRatio < minSoFar then
+            (count + 1, projID, theRatio)
+          else
+            (count + 1, p'    , minSoFar)
+          -- }}}
+      in
+      foldr
+        foldFn
+        (1, p, findFundedToRequestedRatio matchPool denominator t)
+        rest
+      -- }}}
+    _             ->
+      -- {{{
+      -- TODO.
+      traceError "E1"
+      -- }}}
   -- }}}
 
 
@@ -560,6 +614,9 @@ minDonationAmount = 2_000_000
 
 minRequestable :: Integer
 minRequestable = 5_000_000
+
+decimalMultiplier :: Integer
+decimalMultiplier = 1_000_000_000
 -- }}}
 
 

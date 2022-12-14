@@ -254,6 +254,8 @@ sumSquareRoots dsMap =
   foldr foldFn 0 ds
 
   -- }}}
+
+
 {-# INLINABLE foldDonationsMap #-}
 -- | Notating Lovelace contributions to each project as \(v\), this is the
 --   quadratic formula to represent individual prize weights (\(w_p\)):
