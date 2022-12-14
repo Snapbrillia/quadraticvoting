@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
@@ -10,11 +12,13 @@ module CLI.Tx where
 import qualified Control.Monad.Fail          as M
 import qualified Data.Aeson                  as A
 import           Data.Aeson                  ( FromJSON(..)
+                                             , ToJSON(..)
                                              , (.:)
                                              , (.:?) )
 import           Data.Aeson.Types            ( Parser )
 import           Data.Text                   ( Text )
 import qualified Data.Text                   as Text
+import           GHC.Generics                ( Generic )
 import qualified Ledger.Ada                  as Ada
 import qualified Plutus.V1.Ledger.Value      as Value
 import           Plutus.V1.Ledger.Value      ( CurrencySymbol(..)
@@ -28,6 +32,7 @@ import           Prelude
 
 import           CLI.Utils
 import           Data.Datum
+import qualified QVF                         as OC
 import           Utils
 -- }}}
 
@@ -484,5 +489,40 @@ data DonationInput = DonationInput
   , diTokenName :: TokenName
   , diDonor     :: Ledger.PubKeyHash
   } deriving (Eq)
+-- }}}
+
+
+-- DISTRIBUTION INFO
+-- {{{
+data DistributionInfo = DistributionInfo
+  { diRequested :: Integer
+  , diRaised    :: Integer
+  , diBelonging :: Integer
+  , diAfterFee  :: Integer
+  , diRatioNum  :: Integer
+  , diRatioDen  :: Integer
+  } deriving (Eq, Generic, ToJSON)
+
+eliminationInfoToDistributionInfo :: Integer
+                                  -> Integer
+                                  -> EliminationInfo
+                                  -> DistributionInfo
+eliminationInfoToDistributionInfo matchPool sumW ei =
+  let
+    ratioNum  = findFundedToRequestedRatio matchPool sumW ei
+    belonging =
+      if ratioNum > decimalMultiplier then
+        eiRaised ei + findMatchPoolPortion matchPool sumW (eiWeight ei)
+      else
+        eiRaised ei
+  in
+  DistributionInfo
+    { diRequested = eiRequested ei
+    , diRaised    = eiRaised ei
+    , diBelonging = belonging
+    , diAfterFee  = snd $ OC.separateKeyHoldersFeeFrom belonging
+    , diRatioNum  = ratioNum
+    , diRatioDen  = decimalMultiplier
+    }
 -- }}}
 

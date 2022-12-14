@@ -125,8 +125,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.1.1"
-    "--version" : _                    -> putStrLn "0.2.1.1" 
+    "-v"        : _                    -> putStrLn "0.2.2.0"
+    "--version" : _                    -> putStrLn "0.2.2.0" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -1189,10 +1189,9 @@ main =
                 go _        _        _    = Nothing
                 mElimMap                  = go pStates pInfos (Just Map.empty)
                 eliminateAll :: Map Ledger.BuiltinByteString EliminationInfo
-                             -> Map Ledger.BuiltinByteString EliminationInfo
-                             -> ( Map Ledger.BuiltinByteString EliminationInfo
-                                , Map Ledger.BuiltinByteString EliminationInfo
-                                , Integer -- ^ The QVF denominator.
+                             -> Map Ledger.BuiltinByteString Tx.DistributionInfo
+                             -> ( Map Ledger.BuiltinByteString Tx.DistributionInfo
+                                , Map Ledger.BuiltinByteString Tx.DistributionInfo
                                 )
                 eliminateAll eMap elims   =
                   -- {{{
@@ -1200,6 +1199,8 @@ main =
                     kvs          = Map.toList eMap
                     den          = findQVFDenominator kvs
                     (_, tnBS, r) = findLeastFundedProject matchPool den kvs
+                    toDistrInfo  =
+                      Tx.eliminationInfoToDistributionInfo matchPool den
                   in
                   if r < decimalMultiplier then
                     -- WARNING: Take caution. Here we've carefully used
@@ -1208,32 +1209,22 @@ main =
                     -- emulation.
                     eliminateAll
                       (Map.delete tnBS eMap)
-                      (Map.insert tnBS (fromJust $ Map.lookup tnBS eMap) elims)
+                      ( let
+                          elimInfo  = fromJust $ Map.lookup tnBS eMap
+                        in
+                        Map.insert tnBS (toDistrInfo elimInfo) elims
+                      )
                   else
-                  (eMap, elims, den)
+                    (Map.mapWithKey (\_ -> toDistrInfo) eMap, elims)
                   -- }}}
               in
               case mElimMap of
                 Just elimMap ->
                   -- {{{
                   let
-                    (eligs, elims, den)   = eliminateAll elimMap Map.empty
-                    mapFn isEliminated ei =
-                      -- {{{
-                      if isEliminated then
-                        snd $ OC.separateKeyHoldersFeeFrom $ eiRaised ei
-                      else
-                        snd $ OC.separateKeyHoldersFeeFrom
-                          (   eiRaised ei
-                            + findMatchPoolPortion matchPool den (eiWeight ei)
-                          )
-                      -- }}}
-                    eligibles             =
-                      Map.mapWithKey (\_ -> mapFn False) eligs
-                    nonEligibles          =
-                      Map.mapWithKey (\_ -> mapFn True) elims
+                    (eligs, elims) = eliminateAll elimMap Map.empty
                   in
-                  print $ encode $ Map.unionWith const eligibles nonEligibles
+                  print $ encode $ Map.unionWith const eligs elims
                   -- }}}
                 Nothing      ->
                   -- {{{

@@ -11,36 +11,39 @@ import qualified Data.List as List
 generic :: String
 generic =
   -- {{{
-     "\nQVF off-chain assistive CLI application.\n\n"
-
-  ++ "You can separately print the guide for each endpoint with\n"
-  ++ "(-h|--help|man) following the desired action. Available\n"
-  ++ "endpoints are:\n"
-
-  ++ "\nSmart Contract Initiation:\n"
-  ++ "\tqvf-cli generate scripts --help\n"
-
-  ++ "\nSmart Contract Interaction:\n"
-  ++ "\tqvf-cli register-project         --help\n"
-  ++ "\tqvf-cli donate-to-project        --help\n"
-  ++ "\tqvf-cli contribute               --help\n"
-  ++ "\tqvf-cli fold-donations           --help\n"
-  ++ "\tqvf-cli consolidate-donations    --help\n"
-  ++ "\tqvf-cli traverse-donations       --help\n"
-  ++ "\tqvf-cli accumulate-prize-weights --help\n"
-  ++ "\tqvf-cli eliminate-one-project    --help\n"
-  ++ "\tqvf-cli distribute-prize         --help\n"
-
-  ++ "\nUtility:\n"
-  ++ "\tqvf-cli pretty-datum      --help\n"
-  ++ "\tqvf-cli datum-is          --help\n"
-  ++ "\tqvf-cli get-constr-index  --help\n"
-  ++ "\tqvf-cli data-to-cbor      --help\n"
-  ++ "\tqvf-cli cbor-to-data      --help\n"
-  ++ "\tqvf-cli string-to-hex     --help\n"
-  ++ "\tqvf-cli get-deadline-slot --help\n\n"
-
-  ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
+     "\nQVF off-chain assistive CLI application."
+  ++ "\n"
+  ++ "\nYou can separately print the guide for each endpoint with"
+  ++ "\n(-h|--help|man) following the desired action. Available"
+  ++ "\nendpoints are:"
+  ++ "\n"
+  ++ "\nSmart Contract Initiation:"
+  ++ "\n\tqvf-cli generate scripts --help"
+  ++ "\n"
+  ++ "\nSmart Contract Interaction:"
+  ++ "\n\tqvf-cli register-project         --help"
+  ++ "\n\tqvf-cli donate-to-project        --help"
+  ++ "\n\tqvf-cli contribute               --help"
+  ++ "\n\tqvf-cli fold-donations           --help"
+  ++ "\n\tqvf-cli consolidate-donations    --help"
+  ++ "\n\tqvf-cli traverse-donations       --help"
+  ++ "\n\tqvf-cli accumulate-prize-weights --help"
+  ++ "\n\tqvf-cli eliminate-one-project    --help"
+  ++ "\n\tqvf-cli distribute-prize         --help"
+  ++ "\n"
+  ++ "\nUtility:"
+  ++ "\n\tqvf-cli pretty-datum      --help"
+  ++ "\n\tqvf-cli datum-is          --help"
+  ++ "\n\tqvf-cli get-constr-index  --help"
+  ++ "\n\tqvf-cli data-to-cbor      --help"
+  ++ "\n\tqvf-cli cbor-to-data      --help"
+  ++ "\n\tqvf-cli string-to-hex     --help"
+  ++ "\n\tqvf-cli get-deadline-slot --help"
+  ++ "\n\tqvf-cli emulate-outcome   --help"
+  ++ "\n"
+  ++ "\nOr simply use (-h|--help|man) to print this help text."
+  ++ "\n"
+  ++ "\n"
   -- }}}
 
 
@@ -72,6 +75,7 @@ forEndpoint action =
     "cbor-to-data"             -> cborToData
     "string-to-hex"            -> stringToHex
     "get-deadline-slot"        -> deadlineToSlot
+    "emulate-outcome"          -> emulateOutcome
     _                          -> generic
   -- }}}
 
@@ -393,5 +397,26 @@ deadlineToSlot =
     "Convert the deadline in a given datum to the slot number:"
     "<current-slot-number>"
     ["<current.datum>"]
+  -- }}}
+
+emulateOutcome :: String
+emulateOutcome =
+  -- {{{
+  endpointDescriptionArgs
+    "emulate-outcome"
+    (    "Given all of the authentic UTxOs sitting at the script address, this"
+      ++ "\n\tendpoint returns an array of maps from projects' token names, to"
+      ++ "\n\tobjects that carry distribution information:"
+      ++ "\n\t\tDistributionInformation"
+      ++ "\n\t\t  { \"diRequested\" :: Integer"
+      ++ "\n\t\t  , \"diRaised\"    :: Integer"
+      ++ "\n\t\t  , \"diBelonging\" :: Integer"
+      ++ "\n\t\t  , \"diAfterFee\"  :: Integer"
+      ++ "\n\t\t  , \"diRatioNum\"  :: Integer"
+      ++ "\n\t\t  , \"diRatioDen\"  :: Integer"
+      ++ "\n\t\t  }"
+    )
+    "[{script-utxo}]"
+    []
   -- }}}
 -- }}}
