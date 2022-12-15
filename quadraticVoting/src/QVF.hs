@@ -377,7 +377,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
          signedByKeyHolder
       && traceIfFalse
            "E075"
-           (deadlineReached newDl)
+           (deadlineNotReached newDl)
       && traceIfFalse
            "E076"
            (currUTxOHasX qvfSymbol qvfTokenName)
