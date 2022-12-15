@@ -32,14 +32,15 @@ generic =
   ++ "\n\tqvf-cli distribute-prize         --help"
   ++ "\n"
   ++ "\nUtility:"
-  ++ "\n\tqvf-cli pretty-datum      --help"
-  ++ "\n\tqvf-cli datum-is          --help"
-  ++ "\n\tqvf-cli get-constr-index  --help"
-  ++ "\n\tqvf-cli data-to-cbor      --help"
-  ++ "\n\tqvf-cli cbor-to-data      --help"
-  ++ "\n\tqvf-cli string-to-hex     --help"
-  ++ "\n\tqvf-cli get-deadline-slot --help"
-  ++ "\n\tqvf-cli emulate-outcome   --help"
+  ++ "\n\tqvf-cli pretty-datum       --help"
+  ++ "\n\tqvf-cli datum-is           --help"
+  ++ "\n\tqvf-cli get-constr-index   --help"
+  ++ "\n\tqvf-cli data-to-cbor       --help"
+  ++ "\n\tqvf-cli cbor-to-data       --help"
+  ++ "\n\tqvf-cli string-to-hex      --help"
+  ++ "\n\tqvf-cli get-deadline-slot  --help"
+  ++ "\n\tqvf-cli emulate-outcome    --help"
+  ++ "\n\tqvf-cli pretty-leaderboard --help"
   ++ "\n"
   ++ "\nOr simply use (-h|--help|man) to print this help text."
   ++ "\n"
@@ -76,6 +77,7 @@ forEndpoint action =
     "string-to-hex"            -> stringToHex
     "get-deadline-slot"        -> deadlineToSlot
     "emulate-outcome"          -> emulateOutcome
+    "pretty-leaderboard"       -> prettyLeaderboard
     _                          -> generic
   -- }}}
 
@@ -408,13 +410,26 @@ emulateOutcome =
       ++ "\n\tendpoint returns an array of maps from projects' token names, to"
       ++ "\n\tobjects that carry distribution information:"
       ++ "\n\t\tDistributionInformation"
-      ++ "\n\t\t  { \"diRequested\" :: Integer"
-      ++ "\n\t\t  , \"diRaised\"    :: Integer"
-      ++ "\n\t\t  , \"diBelonging\" :: Integer"
-      ++ "\n\t\t  , \"diAfterFee\"  :: Integer"
-      ++ "\n\t\t  , \"diRatioNum\"  :: Integer"
-      ++ "\n\t\t  , \"diRatioDen\"  :: Integer"
+      ++ "\n\t\t  { \"tn\"        :: BuiltinByteString"
+      ++ "\n\t\t  , \"requested\" :: Integer"
+      ++ "\n\t\t  , \"raised\"    :: Integer"
+      ++ "\n\t\t  , \"belonging\" :: Integer"
+      ++ "\n\t\t  , \"afterFee\"  :: Integer"
+      ++ "\n\t\t  , \"ratio\"     :: Double"
       ++ "\n\t\t  }"
+    )
+    "[{script-utxo}]"
+    []
+  -- }}}
+
+prettyLeaderboard :: String
+prettyLeaderboard =
+  -- {{{
+  endpointDescriptionArgs
+    "pretty-leaderboard"
+    (    "Given all of the authentic UTxOs sitting at the script address, this"
+      ++ "\n\tendpoint prints a \"prettified\" representation of the current"
+      ++ "\n\toutcome of the funding round:"
     )
     "[{script-utxo}]"
     []

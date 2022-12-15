@@ -1,8 +1,7 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module CLI.Tx where
 
@@ -12,13 +11,11 @@ module CLI.Tx where
 import qualified Control.Monad.Fail          as M
 import qualified Data.Aeson                  as A
 import           Data.Aeson                  ( FromJSON(..)
-                                             , ToJSON(..)
                                              , (.:)
                                              , (.:?) )
 import           Data.Aeson.Types            ( Parser )
 import           Data.Text                   ( Text )
 import qualified Data.Text                   as Text
-import           GHC.Generics                ( Generic )
 import qualified Ledger.Ada                  as Ada
 import qualified Plutus.V1.Ledger.Value      as Value
 import           Plutus.V1.Ledger.Value      ( CurrencySymbol(..)
@@ -495,19 +492,69 @@ data DonationInput = DonationInput
 -- DISTRIBUTION INFO
 -- {{{
 data DistributionInfo = DistributionInfo
-  { diRequested :: Integer
+  { diProjectID :: Ledger.BuiltinByteString
+  , diRequested :: Integer
   , diRaised    :: Integer
   , diBelonging :: Integer
   , diAfterFee  :: Integer
   , diRatioNum  :: Integer
   , diRatioDen  :: Integer
-  } deriving (Eq, Generic, ToJSON)
+  } deriving (Eq)
+
+instance Show DistributionInfo where
+  show DistributionInfo{..} =
+    -- {{{
+    let
+      theRatio :: Double
+      theRatio = fromIntegral diRatioNum / fromIntegral diRatioDen
+    in
+       "{\"tn\":"        ++ "\"" ++ builtinByteStringToString diProjectID ++ "\""
+    ++ ",\"requested\":" ++ show diRequested
+    ++ ",\"raised\":"    ++ show diRaised
+    ++ ",\"belonging\":" ++ show diBelonging
+    ++ ",\"afterFee\":"  ++ show diAfterFee
+    ++ ",\"ratio\":"     ++ show theRatio
+    ++ "}"
+  -- }}}
+
+prettyDistributionInfo :: DistributionInfo -> String
+prettyDistributionInfo DistributionInfo{..} =
+  -- {{{
+  let
+    fI             = fromIntegral
+    showAda ls     = show (fI ls / 1_000_000)
+    toPercent      :: Integral a => Double -> a
+    toPercent      = min 100 . round . (100 *)
+    raisedAfterFee = snd $ OC.separateKeyHoldersFeeFrom diRaised
+    ratioPercent   = toPercent (fI diRatioNum / fI diRatioDen)
+    raisedPercent  = toPercent (fI raisedAfterFee / fI diRequested)
+    mpPercent      = max 0 (ratioPercent - raisedPercent)
+    raisedChars    = replicate raisedPercent          '='
+    mpChars        = replicate mpPercent              '='
+    spaces         = replicate (100 - ratioPercent) ' '
+    isEliminated   = ratioPercent < 100
+    labelDen       = showAda diRequested
+    mainColor      = if isEliminated then red else green
+    labelNum       =
+      if isEliminated then
+        showAda diAfterFee
+      else
+           "(" ++ showAda raisedAfterFee
+        ++ purple ++ " + " ++ showAda (diAfterFee - raisedAfterFee) ++ mainColor
+        ++ ")"
+  in
+     mainColor
+  ++ builtinByteStringToString diProjectID ++ ":\t"
+  ++ "[" ++ raisedChars ++ purple ++ mpChars ++ mainColor ++ spaces ++ "]"
+  ++ "\t" ++ labelNum ++ " / " ++ labelDen
+  ++ noColor
+  -- }}}
 
 eliminationInfoToDistributionInfo :: Integer
                                   -> Integer
-                                  -> EliminationInfo
+                                  -> (Ledger.BuiltinByteString, EliminationInfo)
                                   -> DistributionInfo
-eliminationInfoToDistributionInfo matchPool sumW ei =
+eliminationInfoToDistributionInfo matchPool sumW (tn, ei) =
   let
     ratioNum  = findFundedToRequestedRatio matchPool sumW ei
     belonging =
@@ -517,7 +564,8 @@ eliminationInfoToDistributionInfo matchPool sumW ei =
         eiRaised ei
   in
   DistributionInfo
-    { diRequested = eiRequested ei
+    { diProjectID = tn
+    , diRequested = eiRequested ei
     , diRaised    = eiRaised ei
     , diBelonging = belonging
     , diAfterFee  = snd $ OC.separateKeyHoldersFeeFrom belonging

@@ -20,7 +20,6 @@ import           Data.List                  ( sortBy )
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
-import           Data.Word                  ( Word8 )
 import qualified Ledger.Address             as Addr
 import           Plutus.V1.Ledger.Value     ( TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
@@ -117,6 +116,169 @@ main =
       in
       go (sortFn projs) (sortFn refs) ([], [])
       -- }}}
+    emulateFromInputs :: [Input] -> Either String [Tx.DistributionInfo]
+    emulateFromInputs allInputs =
+      -- {{{
+      let
+        mSeparated :: Maybe
+                        ( [Tx.ProjectStateInput]
+                        , [Tx.ProjectInfoInput]
+                        , [Tx.DonationInput]
+                        , Tx.MatchPoolInput
+                        )
+        mSeparated = do
+          -- {{{
+          allSIs <- traverse Tx.inputToScriptInput allInputs
+          let foldFn si acc@(states, infos, dons, mMPO) =
+                -- {{{
+                let
+                  ref = siTxOutRef si
+                  so  = siResolved si
+                  ls  = soLovelace so
+                  sym = assetSymbol    $ soAsset so
+                  tn  = assetTokenName $ soAsset so
+                in
+                case soDatum so of
+                  RegisteredProjectsCount _ ->
+                    ( states
+                    , infos
+                    , dons
+                    , Just $ Tx.MatchPoolInput
+                        { mpiTxOutRef = ref
+                        , mpiAddress  = soAddress so
+                        , mpiLovelace = soLovelace so - governanceLovelaces
+                        , mpiSymbol   = sym
+                        }
+                    )
+                  ReceivedDonationsCount _  ->
+                    ( Tx.ProjectStateInput ref ls sym tn : states
+                    , infos
+                    , dons
+                    , mMPO
+                    )
+                  ProjectInfo ds            ->
+                    ( states
+                    , Tx.ProjectInfoInput ref ls sym tn ds : infos
+                    , dons
+                    , mMPO
+                    )
+                  Donation donor            ->
+                    ( states
+                    , infos
+                    , Tx.DonationInput ref ls sym tn donor : dons
+                    , mMPO
+                    )
+                  _                         ->
+                    acc
+                -- }}}
+              (initStates, initInfos, initDons, mGov)   =
+                foldr foldFn ([], [], [], Nothing) allSIs
+          matchPoolInput <- mGov
+          return
+            ( sortBy
+                ( \s0 s1 ->
+                    compare (Tx.psiTokenName s0) (Tx.psiTokenName s1)
+                )
+                initStates
+            , sortBy
+                ( \i0 i1 ->
+                    compare (Tx.piiTokenName i0) (Tx.piiTokenName i1)
+                )
+                initInfos
+            , sortBy
+                ( \d0 d1 ->
+                    compare (Tx.diTokenName d0) (Tx.diTokenName d1)
+                )
+                initDons
+            , matchPoolInput
+            )
+          -- }}}
+      in
+      case mSeparated of
+        Just (pStates, pInfos, allDons, mpi) ->
+          -- {{{
+          let
+            -- Note that the `Tx.MatchPoolInput` value was constructed such
+            -- that its Lovelace count directly represented the match pool
+            -- amount (i.e. excluding the initial governance Lovelaces).
+            matchPool                 = Tx.mpiLovelace mpi
+            go :: [Tx.ProjectStateInput]
+               -> [Tx.ProjectInfoInput]
+               -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
+               -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
+            go (p : ps) (i : is) mAcc = do
+              -- {{{
+              elimMap <- mAcc
+              let tn@(TokenName tnBS)  = Tx.psiTokenName p
+                  dons                 =
+                    filter (\di -> Tx.diTokenName di == tn) allDons
+                  foldFn d (tot, dMap) =
+                    -- {{{
+                    ( tot + Tx.diLovelace d
+                    , Map.insert (Tx.diDonor d) (Tx.diLovelace d) dMap
+                    )
+                    -- }}}
+                  (totDs, donMap)      = foldr foldFn (0, Map.empty) dons
+                  prizeWeight          = Don.foldDonationsMap donMap
+                  eliminationInfo      =
+                    -- {{{
+                    EliminationInfo
+                      { eiRequested = pdRequested $ Tx.piiDetails i
+                      , eiRaised    = totDs
+                      , eiWeight    = prizeWeight
+                      }
+                    -- }}}
+              go ps is $ Just $ Map.insert tnBS eliminationInfo elimMap
+              -- }}}
+            go []       []       mAcc = mAcc
+            go _        _        _    = Nothing
+            mElimMap                  = go pStates pInfos (Just Map.empty)
+            eliminateAll :: Map Ledger.BuiltinByteString EliminationInfo
+                         -> [Tx.DistributionInfo]
+                         -> ([Tx.DistributionInfo], [Tx.DistributionInfo])
+            eliminateAll eMap elims   =
+              -- {{{
+              let
+                kvs          = Map.toList eMap
+                den          = findQVFDenominator kvs
+                (_, tnBS, r) = findLeastFundedProject matchPool den kvs
+                toDistrInfo  =
+                  Tx.eliminationInfoToDistributionInfo matchPool den
+              in
+              if r < decimalMultiplier then
+                -- WARNING: Take caution. Here we've carefully used
+                -- `fromJust` to prevent further bloating of the on-chain
+                -- code, and further complexity for this part of the
+                -- emulation.
+                eliminateAll
+                  (Map.delete tnBS eMap)
+                  ( let
+                      elimInfo  = fromJust $ Map.lookup tnBS eMap
+                    in
+                    toDistrInfo (tnBS, elimInfo) : elims
+                  )
+              else
+                (toDistrInfo <$> Map.toList eMap, elims)
+              -- }}}
+          in
+          case mElimMap of
+            Just elimMap ->
+              -- {{{
+              let
+                (eligs, elims) = eliminateAll elimMap []
+              in
+              Right $ eligs ++ elims
+              -- }}}
+            Nothing      ->
+              -- {{{
+              Left "Couldn't find the elimination map."
+              -- }}}
+          -- }}}
+        Nothing                              ->
+          -- {{{
+          Left "Provided inputs don't present a valid state for a running funding round."
+          -- }}}
+      -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
@@ -166,18 +328,6 @@ main =
               --
               donPolicy = Don.donationPolicy pkh regSymbol
               donSymbol = mintingPolicyToSymbol donPolicy
-              --
-              mkRGBColor :: Word8 -> Word8 -> Word8 -> String
-              mkRGBColor r g b =
-                "\ESC[38;2;"
-                ++ show r ++ ";"
-                ++ show g ++ ";"
-                ++ show b ++ "m"
-              yellow    = mkRGBColor 252 209 47
-              red       = mkRGBColor 239 76  40
-              green     = mkRGBColor 25  176 92
-              purple    = mkRGBColor 155 39  255
-              noColor   = "\ESC[0m"
 
           putStrLn $ yellow ++ "\nGov. Symbol:"
           print govSymbol
@@ -1073,167 +1223,33 @@ main =
       -- {{{
       case decodeString @[Input] scriptInputsStr of
         Just allInputs ->
+          case emulateFromInputs allInputs of
+            Right distInfos -> print distInfos
+            Left err        -> putStrLn $ "FAILED: " ++ err
+        Nothing        ->
           -- {{{
-          let
-            mSeparated :: Maybe
-                            ( [Tx.ProjectStateInput]
-                            , [Tx.ProjectInfoInput]
-                            , [Tx.DonationInput]
-                            , Tx.MatchPoolInput
-                            )
-            mSeparated = do
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ scriptInputsStr
+          -- }}}
+      -- }}}
+    "pretty-leaderboard" : scriptInputsStr : _                          -> do
+      -- {{{
+      case decodeString @[Input] scriptInputsStr of
+        Just allInputs ->
+          -- {{{
+          case emulateFromInputs allInputs of
+            Right distInfos ->
               -- {{{
-              allSIs <- traverse Tx.inputToScriptInput allInputs
-              let foldFn si acc@(states, infos, dons, mMPO) =
-                    -- {{{
-                    let
-                      ref = siTxOutRef si
-                      so  = siResolved si
-                      ls  = soLovelace so
-                      sym = assetSymbol    $ soAsset so
-                      tn  = assetTokenName $ soAsset so
-                    in
-                    case soDatum so of
-                      RegisteredProjectsCount _ ->
-                        ( states
-                        , infos
-                        , dons
-                        , Just $ Tx.MatchPoolInput
-                            { mpiTxOutRef = ref
-                            , mpiAddress  = soAddress so
-                            , mpiLovelace = soLovelace so - governanceLovelaces
-                            , mpiSymbol   = sym
-                            }
-                        )
-                      ReceivedDonationsCount _  ->
-                        ( Tx.ProjectStateInput ref ls sym tn : states
-                        , infos
-                        , dons
-                        , mMPO
-                        )
-                      ProjectInfo ds            ->
-                        ( states
-                        , Tx.ProjectInfoInput ref ls sym tn ds : infos
-                        , dons
-                        , mMPO
-                        )
-                      Donation donor            ->
-                        ( states
-                        , infos
-                        , Tx.DonationInput ref ls sym tn donor : dons
-                        , mMPO
-                        )
-                      _                         ->
-                        acc
-                    -- }}}
-                  (initStates, initInfos, initDons, mGov)   =
-                    foldr foldFn ([], [], [], Nothing) allSIs
-              matchPoolInput <- mGov
-              return
-                ( sortBy
-                    ( \s0 s1 ->
-                        compare (Tx.psiTokenName s0) (Tx.psiTokenName s1)
-                    )
-                    initStates
-                , sortBy
-                    ( \i0 i1 ->
-                        compare (Tx.piiTokenName i0) (Tx.piiTokenName i1)
-                    )
-                    initInfos
-                , sortBy
-                    ( \d0 d1 ->
-                        compare (Tx.diTokenName d0) (Tx.diTokenName d1)
-                    )
-                    initDons
-                , matchPoolInput
-                )
+                putStrLn
+              $ List.intercalate "\n"
+              $ fmap Tx.prettyDistributionInfo
+              $ sortBy
+                  (\di0 di1 -> compare (Tx.diRatioNum di1) (Tx.diRatioNum di0))
+                  distInfos
               -- }}}
-          in
-          case mSeparated of
-            Just (pStates, pInfos, allDons, mpi) ->
+            Left err        ->
               -- {{{
-              let
-                -- Note that the `Tx.MatchPoolInput` value was constructed such
-                -- that its Lovelace count directly represented the match pool
-                -- amount (i.e. excluding the initial governance Lovelaces).
-                matchPool                 = Tx.mpiLovelace mpi
-                go :: [Tx.ProjectStateInput]
-                   -> [Tx.ProjectInfoInput]
-                   -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
-                   -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
-                go (p : ps) (i : is) mAcc = do
-                  -- {{{
-                  elimMap <- mAcc
-                  let tn@(TokenName tnBS)  = Tx.psiTokenName p
-                      dons                 =
-                        filter (\di -> Tx.diTokenName di == tn) allDons
-                      foldFn d (tot, dMap) =
-                        -- {{{
-                        ( tot + Tx.diLovelace d
-                        , Map.insert (Tx.diDonor d) (Tx.diLovelace d) dMap
-                        )
-                        -- }}}
-                      (totDs, donMap)      = foldr foldFn (0, Map.empty) dons
-                      prizeWeight          = Don.foldDonationsMap donMap
-                      eliminationInfo      =
-                        -- {{{
-                        EliminationInfo
-                          { eiRequested = pdRequested $ Tx.piiDetails i
-                          , eiRaised    = totDs
-                          , eiWeight    = prizeWeight
-                          }
-                        -- }}}
-                  go ps is $ Just $ Map.insert tnBS eliminationInfo elimMap
-                  -- }}}
-                go []       []       mAcc = mAcc
-                go _        _        _    = Nothing
-                mElimMap                  = go pStates pInfos (Just Map.empty)
-                eliminateAll :: Map Ledger.BuiltinByteString EliminationInfo
-                             -> Map Ledger.BuiltinByteString Tx.DistributionInfo
-                             -> ( Map Ledger.BuiltinByteString Tx.DistributionInfo
-                                , Map Ledger.BuiltinByteString Tx.DistributionInfo
-                                )
-                eliminateAll eMap elims   =
-                  -- {{{
-                  let
-                    kvs          = Map.toList eMap
-                    den          = findQVFDenominator kvs
-                    (_, tnBS, r) = findLeastFundedProject matchPool den kvs
-                    toDistrInfo  =
-                      Tx.eliminationInfoToDistributionInfo matchPool den
-                  in
-                  if r < decimalMultiplier then
-                    -- WARNING: Take caution. Here we've carefully used
-                    -- `fromJust` to prevent further bloating of the on-chain
-                    -- code, and further complexity for this part of the
-                    -- emulation.
-                    eliminateAll
-                      (Map.delete tnBS eMap)
-                      ( let
-                          elimInfo  = fromJust $ Map.lookup tnBS eMap
-                        in
-                        Map.insert tnBS (toDistrInfo elimInfo) elims
-                      )
-                  else
-                    (Map.mapWithKey (\_ -> toDistrInfo) eMap, elims)
-                  -- }}}
-              in
-              case mElimMap of
-                Just elimMap ->
-                  -- {{{
-                  let
-                    (eligs, elims) = eliminateAll elimMap Map.empty
-                  in
-                  print $ encode $ Map.unionWith const eligs elims
-                  -- }}}
-                Nothing      ->
-                  -- {{{
-                  putStrLn "FAILED: Couldn't find the elimination map."
-                  -- }}}
-              -- }}}
-            Nothing                              ->
-              -- {{{
-              putStrLn "FAILED: Provided inputs don't present a valid state for a running funding round."
+              putStrLn $ "FAILED: " ++ err
               -- }}}
           -- }}}
         Nothing        ->
