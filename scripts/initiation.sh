@@ -12,7 +12,7 @@ startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-export deadline=1670968996000
+export deadline=1671559806000
 
 govSym=""
 
