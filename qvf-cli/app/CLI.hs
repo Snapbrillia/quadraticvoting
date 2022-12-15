@@ -122,8 +122,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.1.0"
-    "--version" : _                    -> putStrLn "0.2.1.0" 
+    "-v"        : _                    -> putStrLn "0.2.1.1"
+    "--version" : _                    -> putStrLn "0.2.1.1" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -238,9 +238,32 @@ main =
               -- }}}
           -- }}}
       -- }}}
+    "update-deadline"          : deadlineStr : fileNamesJSON : _                                                      ->
+      -- {{{
+      case (Ledger.POSIXTime <$> readMaybe deadlineStr, decodeString fileNamesJSON) of
+        (Just newDL, Just ocfn) ->
+          -- {{{
+          let
+            qvfDatumFile    = OCFN.deadlineDatum ocfn
+            qvfDatum        = DeadlineDatum newDL
+            qvfRedeemerFile = OCFN.qvfRedeemer ocfn
+            qvfRedeemer     = UpdateDeadline newDL
+          in do
+          withSuccessMessage qvfDatumFile $
+            writeJSON qvfDatumFile qvfDatum
+          withSuccessMessage qvfRedeemerFile $
+            writeJSON qvfRedeemerFile qvfRedeemer
+          -- }}}
+        _                       ->
+          -- {{{
+          putStrLn $ "FAILED with bad arguments:"
+            ++ "\n\t" ++ deadlineStr
+            ++ "\n\t" ++ fileNamesJSON
+          -- }}}
+      -- }}}
     "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                                        ->
       -- {{{
-      case (readMaybe reqFundStr, A.decode $ fromString fileNamesJSON) of
+      case (readMaybe reqFundStr, decodeString fileNamesJSON) of
         (Just reqFund, Just ocfn) ->
           -- {{{
           let
@@ -309,7 +332,7 @@ main =
       -- }}}
     "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _                                      ->
       -- {{{
-      case (hexStringToBuiltinByteString projIDStr, readMaybe amtStr, A.decode $ fromString fileNamesJSON) of
+      case (hexStringToBuiltinByteString projIDStr, readMaybe amtStr, decodeString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
           -- {{{
           let
