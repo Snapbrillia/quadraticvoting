@@ -1,6 +1,10 @@
 #!/bin/bash
 
+if [ "$ENV" == "dev" ]; then
 . $REPO/scripts/initiation.sh
+else
+. $HOME/quadraticvoting/scripts/initiation.sh
+fi
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -127,9 +131,7 @@ else
   donorPKH=$3
   donorAddress=$4
   txInUTxO=$5
-  txInCollateralUTxO=$6
-  txOutUTxO=$7
-  txOutCollateralUTxO=$8
+  txOutUTxO=$6
 fi
 
 projectAsset="$regSym.$projectTokenName"
@@ -154,6 +156,8 @@ donationUTxO="$qvfAddress + $donationAmount lovelace + 1 $donAsset"
 
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 donRefUTxO=$(cat $donRefUTxOFile)
+collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+
 
 generate_protocol_params
 
@@ -165,7 +169,9 @@ $cli $BUILD_TX_CONST_ARGS                                       \
   --spending-plutus-script-v2                                   \
   --spending-reference-tx-in-inline-datum-present               \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO \
+  $txInUTxO                                                     \
+  --tx-in-collateral "$collateralUTxO"                          \
+  $txOutUTxO                                                    \
   --tx-out "$outputProjectUTxO"                                 \
   --tx-out-inline-datum-file $updatedDatumFile                  \
   --tx-out "$donationUTxO"                                      \
@@ -186,8 +192,8 @@ if [ "$ENV" == "dev" ]; then
 else
   store_current_slot
   JSON_STRING=$( jq -n                         \
-    --arg bn "$(cat $txBody | jq -r .cborHex)" \
-    '{transaction: $bn }' )
+    --arg tu "$(cat $txBody | jq -r .cborHex)" \
+    '{unsignedTx: $tu }' )
   echo "---$JSON_STRING"
 fi
 # }}}

@@ -1,9 +1,8 @@
 #!/bin/bash
 
-. $REPO/scripts/initiation.sh
-
 
 if [ "$ENV" == "dev" ]; then
+. $REPO/scripts/initiation.sh
   projectOwnerWalletLabel=$1
   projectName=$2
   projectRequestedFund=$3
@@ -16,14 +15,13 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $keyHoldersInUTxO"
   txOutUTxO=""
 else
+. $HOME/quadraticvoting/scripts/initiation.sh
   projectName=$1
   projectRequestedFund=$2
   projectOwnerAddress=$3
   projectOwnerPKH=$4
   txInUTxO=$5
-  txInCollateralUTxO=$6
-  txOutUTxO=$7
-  txOutCollateralUTxO=$8
+  txOutUTxO=$6
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -64,6 +62,8 @@ projUTxO="$qvfAddress + $halfOfTheRegistrationFee lovelace + 1 $projectAsset"
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 regRefUTxO=$(cat $regRefUTxOFile)
 
+collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+
 generate_protocol_params
 
 $cli $BUILD_TX_CONST_ARGS                                        \
@@ -74,7 +74,9 @@ $cli $BUILD_TX_CONST_ARGS                                        \
   --spending-plutus-script-v2                                    \
   --spending-reference-tx-in-inline-datum-present                \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO $txOutCollateralUTxO  \
+  $txInUTxO                                                      \
+  --tx-in-collateral "$collateralUTxO"                           \
+  $txOutUTxO                                                     \
   --tx-out "$firstUTxO"                                          \
   --tx-out-inline-datum-file $updatedDatumFile                   \
   --tx-out "$projUTxO"                                           \
@@ -95,11 +97,12 @@ if [ "$ENV" == "dev" ]; then
   store_current_slot
   wait_for_new_slot
 else
-  store_current_slot
-  JSON_STRING=$( jq -n                         \
-    --arg bn "$(cat $txBody | jq -r .cborHex)" \
-    --arg on "$(cat $projectTokenNameFile)"    \
-    '{transaction: $bn, projectTokenName: $on}' )
+  JSON_STRING=$( jq -n                                                \
+    --arg tu "$(cat $txBody | jq -r .cborHex)"                        \
+    --arg on "$(cat $projectTokenNameFile)"                           \
+    --arg ts "$(cat $txSigned)"                                       \
+    '{unsignedTx: $tu, projectTokenName: $on ,signedTx: $ts }' )
   echo "---$JSON_STRING"
+  store_current_slot
 fi
 # }}}
