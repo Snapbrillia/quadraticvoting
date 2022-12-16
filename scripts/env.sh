@@ -1090,8 +1090,11 @@ donate_to_smart_contract() {
 
 export referenceWallet="referenceWallet"
 export keyHolder="keyHolder"
+export collateralKeyHolder="collateralKeyHolder"
 minStartingLovelaces=300000000
 minStartingAda=300
+minCollateralLovelaces=5000000
+minCollateralAda=5
 
 # Checks if the $keyHolder wallet exists (properly), and that it has a single
 # UTxO with enough Ada inside.
@@ -1140,6 +1143,54 @@ else
   return 1
 fi
 # }}}
+
+# Checks if the $collateralKeyHolder wallet exists (properly), and that it has a single
+# UTxO with enough Ada inside.
+#
+# If the wallet files exist partially, this
+# function terminates the script without any changes. If there are no wallet
+# files, the $collateralKeyHolder wallet is generated, but the script is terminated,
+# prompting the user to send some Ada to the wallet.
+#
+# If the wallet is present, it's made sure the total Lovelace count is more
+# than the minimum, and if they are spread out between multiple UTxOs, it'll
+# invoke the `tidy_up_wallet` function so that all the money is collected
+# inside a single UTxO.
+# {{{
+
+if [ -f $preDir/$collateralKeyHolder.vkey ] && [ -f $preDir/$collateralKeyHolder.skey ] && [ -f $preDir/$collateralKeyHolder.addr ] && [ -f $preDir/$collateralKeyHolder.pkh ]; then
+  utxos=$(get_wallet_lovelace_utxos $collateralKeyHolder)
+  utxoCount=$(echo "$utxos" | jq length)
+  totalLovelace=$(get_total_lovelaces_from_json "$utxos")
+  white="\033[97m"
+  noColor="\033[0m"
+  if [ $totalLovelace -gt $minCollateralLovelaces ]; then
+    if [ $utxoCount -gt 1 ]; then
+      echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
+      tidy_up_wallet $collateralKeyHolder
+      echo "Done. The key holder wallet is ready."
+    fi
+    export collateralKeyHoldersAddress=$(cat "$preDir/$collateralKeyHolder.addr")
+    export collateralKeyHoldersPubKeyHash=$(cat "$preDir/$collateralKeyHolder.pkh")
+    export collateralKeyHoldersSigningKeyFile="$preDir/$collateralKeyHolder.skey"
+  else
+    echo "The collateral key holder wallet doesn't have enough Ada. Please make sure a"
+    echo -e "minimum of $white$minCollateralAda Ada$noColor is available:"
+    echo ""
+    echo -e "$white$(cat $preDir/$collateralKeyHolder.addr)$noColor"
+    return 1
+  fi
+elif [ -f $preDir/$collateralKeyHolder.vkey ] || [ -f $preDir/$collateralKeyHolder.skey ] || [ -f $preDir/$collateralKeyHolder.addr ] || [ -f $preDir/$collateralKeyHolder.pkh ]; then
+  echo "Some key holder wallet files are missing."
+  return 1
+else
+  generate_wallet $collateralKeyHolder
+  echo "No collateral key holder wallet was found. The wallet is generated for you."
+  echo -e "Please deposit a minimum of $white$minCollateralAda Ada$noColor before proceeding:"
+  echo ""
+  echo -e "$white$(cat $preDir/$collateralKeyHolder.addr)$noColor"
+  return 1
+fi
 
 
 # Consumes all the UTxOs sitting at the $referenceWallet, and sends them to the

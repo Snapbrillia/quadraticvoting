@@ -1,13 +1,18 @@
 #!/bin/bash
 
-# . $HOME/quadraticVoting/scripts/env.sh
+if [ "$ENV" == "dev" ]; then
 . scripts/env.sh
+else 
+. $HOME/quadraticvoting/scripts/local-env.sh
+. $HOME/quadraticvoting/scripts/env.sh
+fi
+
 
 startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-export deadline=1670284800000
+export deadline=1671559806000
 
 govSym=""
 
