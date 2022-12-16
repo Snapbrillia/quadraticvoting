@@ -1,8 +1,16 @@
 #!/bin/bash
 
+if [ -z $REPO ]; then
+  echo "error"
+  return 1
+else
+. $REPO/scripts/local-env.sh
+fi
+
+. $REPO/scripts/initiation.sh
+
 
 if [ "$ENV" == "dev" ]; then
-. $REPO/scripts/initiation.sh
   sponsorWalletLabel=$1
   contributionAmount=$2
   sponsorInputUTxO=$(get_first_utxo_of $sponsorWalletLabel)
@@ -11,7 +19,6 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $sponsorInputUTxO"
   txOutUTxO=""
 else
-. $HOME/quadraticvoting/scripts/initiation.sh
   sponsorAddress=$1
   contributionAmount=$2
   txInUTxO=$3

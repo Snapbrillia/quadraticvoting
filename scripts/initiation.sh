@@ -1,11 +1,6 @@
 #!/bin/bash
 
-if [ "$ENV" == "dev" ]; then
-. scripts/env.sh
-else 
-. $HOME/quadraticvoting/scripts/local-env.sh
-. $HOME/quadraticvoting/scripts/env.sh
-fi
+. $REPO/scripts/env.sh
 
 
 startingWallet=1

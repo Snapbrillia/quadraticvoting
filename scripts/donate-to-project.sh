@@ -1,10 +1,13 @@
 #!/bin/bash
 
-if [ "$ENV" == "dev" ]; then
-. $REPO/scripts/initiation.sh
+if [ -z $REPO ]; then
+  echo "error"
+  return 1
 else
-. $HOME/quadraticvoting/scripts/initiation.sh
+. $REPO/scripts/local-env.sh
 fi
+
+. $REPO/scripts/initiation.sh
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
