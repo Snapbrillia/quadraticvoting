@@ -532,8 +532,8 @@ prettyDistributionInfo DistributionInfo{..} =
     ratioPercent   = toPercent (fI diRatioNum / fI diRatioDen)
     raisedPercent  = toPercent (fI diRaised / fI diRequested)
     mpPercent      = max 0 (ratioPercent - raisedPercent)
-    raisedChars    = replicate raisedPercent        '='
-    mpChars        = replicate mpPercent            '='
+    raisedChars    = replicate raisedPercent        '═'
+    mpChars        = replicate mpPercent            '═'
     spaces         = replicate (100 - ratioPercent) ' '
     isEliminated   = ratioPercent < 100
     labelDen       = showAda diRequested
