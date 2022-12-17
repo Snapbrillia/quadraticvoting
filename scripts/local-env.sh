@@ -6,9 +6,6 @@ export MAGIC='--testnet-magic 1'
 # Path to the socket file used by the running node:
 export CARDANO_NODE_SOCKET_PATH="$HOME/preprod-testnet/node.socket"
 
-# Absolute path to the quadraticvoting home directory:
-export REPO="$HOME/code/quadraticvoting"
-
 # The `cardano-cli` binary:
 export cli="cardano-cli"
 
