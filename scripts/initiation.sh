@@ -1,10 +1,10 @@
 #!/bin/bash
 
 if [ "$ENV" == "dev" ]; then
-. scripts/env.sh
+  . $REPO/scripts/env.sh
 else 
-. $HOME/quadraticvoting/scripts/local-env.sh
-. $HOME/quadraticvoting/scripts/env.sh
+  . $HOME/quadraticvoting/scripts/local-env.sh
+  . $HOME/quadraticvoting/scripts/env.sh
 fi
 
 
@@ -57,7 +57,7 @@ get_script_data_hash() {
 
 initiate_fund() {
   # {{{
-  for proj in $(cat $registeredProjectsFile); do
+  for proj in $(cat $registeredProjectsFile | jq 'map(.tn) | .[]'); do
     rm -f $preDir/$proj
   done
   rm -f $registeredProjectsFile

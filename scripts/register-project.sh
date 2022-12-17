@@ -11,8 +11,7 @@ if [ "$ENV" == "dev" ]; then
   ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
   txInUTxO="--tx-in $ownerInputUTxO"
   # txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
-  keyHoldersInUTxO=$(get_first_utxo_of $keyHolder)
-  txInCollateralUTxO="--tx-in-collateral $keyHoldersInUTxO"
+  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
 else
 . $HOME/quadraticvoting/scripts/initiation.sh
@@ -92,7 +91,7 @@ $cli $BUILD_TX_CONST_ARGS                                        \
   --change-address $projectOwnerAddress
 
 if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$keyHolder.skey
+  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$collateralKeyHolder.skey
   wait_for_new_slot
   store_current_slot
   wait_for_new_slot

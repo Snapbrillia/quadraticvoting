@@ -492,13 +492,15 @@ data DonationInput = DonationInput
 -- DISTRIBUTION INFO
 -- {{{
 data DistributionInfo = DistributionInfo
-  { diProjectID :: Ledger.BuiltinByteString
-  , diRequested :: Integer
-  , diRaised    :: Integer
-  , diBelonging :: Integer
-  , diAfterFee  :: Integer
-  , diRatioNum  :: Integer
-  , diRatioDen  :: Integer
+  { diProjectID         :: Ledger.BuiltinByteString
+  , diRequested         :: Integer
+  , diRaised            :: Integer
+  , diRaisedAfterFee    :: Integer
+  , diMatchPool         :: Integer
+  , diMatchPoolAfterFee :: Integer
+  , diPrizeWeight       :: Integer
+  , diRatioNum          :: Integer
+  , diRatioDen          :: Integer
   } deriving (Eq)
 
 instance Show DistributionInfo where
@@ -508,12 +510,14 @@ instance Show DistributionInfo where
       theRatio :: Double
       theRatio = fromIntegral diRatioNum / fromIntegral diRatioDen
     in
-       "{\"tn\":"        ++ "\"" ++ builtinByteStringToString diProjectID ++ "\""
-    ++ ",\"requested\":" ++ show diRequested
-    ++ ",\"raised\":"    ++ show diRaised
-    ++ ",\"belonging\":" ++ show diBelonging
-    ++ ",\"afterFee\":"  ++ show diAfterFee
-    ++ ",\"ratio\":"     ++ show theRatio
+       "{\"tn\":"                ++ "\"" ++ builtinByteStringToString diProjectID ++ "\""
+    ++ ",\"requested\":"         ++ show diRequested
+    ++ ",\"raised\":"            ++ show diRaised
+    ++ ",\"raisedAfterFee\":"    ++ show diRaisedAfterFee
+    ++ ",\"matchPool\":"         ++ show diMatchPool
+    ++ ",\"matchPoolAfterFee\":" ++ show diMatchPoolAfterFee
+    ++ ",\"prizeWeight\":"       ++ show diPrizeWeight
+    ++ ",\"ratio\":"             ++ show theRatio
     ++ "}"
   -- }}}
 
@@ -525,22 +529,21 @@ prettyDistributionInfo DistributionInfo{..} =
     showAda ls     = show (fI ls / 1_000_000)
     toPercent      :: Integral a => Double -> a
     toPercent      = min 100 . round . (100 *)
-    raisedAfterFee = snd $ OC.separateKeyHoldersFeeFrom diRaised
     ratioPercent   = toPercent (fI diRatioNum / fI diRatioDen)
-    raisedPercent  = toPercent (fI raisedAfterFee / fI diRequested)
+    raisedPercent  = toPercent (fI diRaised / fI diRequested)
     mpPercent      = max 0 (ratioPercent - raisedPercent)
-    raisedChars    = replicate raisedPercent          '='
-    mpChars        = replicate mpPercent              '='
+    raisedChars    = replicate raisedPercent        '='
+    mpChars        = replicate mpPercent            '='
     spaces         = replicate (100 - ratioPercent) ' '
     isEliminated   = ratioPercent < 100
     labelDen       = showAda diRequested
     mainColor      = if isEliminated then red else green
     labelNum       =
       if isEliminated then
-        showAda diAfterFee
+        showAda diRaisedAfterFee
       else
-           "(" ++ showAda raisedAfterFee
-        ++ purple ++ " + " ++ showAda (diAfterFee - raisedAfterFee) ++ mainColor
+           "(" ++ showAda diRaisedAfterFee
+        ++ purple ++ " + " ++ showAda diMatchPoolAfterFee ++ mainColor
         ++ ")"
   in
      mainColor
@@ -556,21 +559,18 @@ eliminationInfoToDistributionInfo :: Integer
                                   -> DistributionInfo
 eliminationInfoToDistributionInfo matchPool sumW (tn, ei) =
   let
-    ratioNum  = findFundedToRequestedRatio matchPool sumW ei
-    belonging =
-      if ratioNum > decimalMultiplier then
-        eiRaised ei + findMatchPoolPortion matchPool sumW (eiWeight ei)
-      else
-        eiRaised ei
+    mpPortion = findMatchPoolPortion matchPool sumW (eiWeight ei)
   in
   DistributionInfo
-    { diProjectID = tn
-    , diRequested = eiRequested ei
-    , diRaised    = eiRaised ei
-    , diBelonging = belonging
-    , diAfterFee  = snd $ OC.separateKeyHoldersFeeFrom belonging
-    , diRatioNum  = ratioNum
-    , diRatioDen  = decimalMultiplier
+    { diProjectID         = tn
+    , diRequested         = eiRequested ei
+    , diRaised            = eiRaised ei
+    , diRaisedAfterFee    = snd $ OC.separateKeyHoldersFeeFrom $ eiRaised ei
+    , diMatchPool         = mpPortion
+    , diMatchPoolAfterFee = snd $ OC.separateKeyHoldersFeeFrom mpPortion
+    , diPrizeWeight       = eiWeight ei
+    , diRatioNum          = findFundedToRequestedRatio matchPool sumW ei
+    , diRatioDen          = decimalMultiplier
     }
 -- }}}
 
