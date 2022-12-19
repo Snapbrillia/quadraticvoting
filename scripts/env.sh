@@ -118,6 +118,10 @@ export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
 
+
+# bounty escrow wallet address
+export bountyEscrowWalletAddress="addr_test1qp3q7xj0t56zkprcrazca9lknghrmtjk8vgz0nldrec67gln8df7mlcw5kv8ay6vpewqalu8ktqmtt5696mp4nt4js0qk3y9zw"
+
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
   # {{{
