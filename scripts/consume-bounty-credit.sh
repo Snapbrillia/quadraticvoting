@@ -34,10 +34,7 @@ collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 
 
-escrowWalletUTxO="$bountyEscrowWalletAddress+$consumeAmount"
-
-# what are the parameters that needs to be passed to qvf-cli to generate 
-# the bounty credit redeemer 
+escrowWalletUTxO="$bountyEscrowWalletAddress+$consumeAmount" 
 
 generate_protocol_params
 
