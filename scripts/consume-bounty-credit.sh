@@ -21,20 +21,18 @@ deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
 projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-echo `$projectUTxOObj projectUTxOObj`
 projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
 projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
 projectAsset=$(remove_quotes $(echo $projectUTxOObj | jq -c .asset))
 echo "$projectCurrDatum" > $currentDatumFile
 
 projectLovelaceAmount=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
-returnLovelaceAmount=$(($projectLovelaceAmount - $consumeAmount + $halfOfTheRegistrationFee))
-returnedUTxO=""$qvfAddress" + $returnLovelaceAmount lovelace + 1 $projectAsset"
-collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+returnLovelaceAmount=$(($projectLovelaceAmount - $consumeAmount))
+returnedUTxO="$qvfAddress + $returnLovelaceAmount lovelace + 1 $projectAsset"
+collateralUTxO=$(get_first_utxo_of $keyHolder)
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 
-
-escrowWalletUTxO="$bountyEscrowWalletAddress+$consumeAmount" 
+escrowWalletUTxO="$bountyEscrowWalletAddress + $consumeAmount lovelace + 1 $projectAsset" 
 
 generate_protocol_params
 
@@ -48,17 +46,12 @@ $cli $BUILD_TX_CONST_ARGS                                            \
   $txInUTxO                                                          \
   --tx-in-collateral "$collateralUTxO"                               \
   $txOutUTxO                                                         \
-  --tx-out "$returnedUTxO"                                           \
-  --tx-out-inline-datum-file $currentDatumFile                       \
   --tx-out "$escrowWalletUTxO"                                       \
   --invalid-hereafter $cappedSlot                                    \
-  --change-address $projectWalletAddress                             
+  --change-address $bountyEscrowWalletAddress                             
 
+sign_and_submit_tx $preDir/$keyHolder.skey
 
-JSON_STRING=$( jq -n \
-                  --arg bn "$(cat $txBody | jq -r .cborHex)" \
-                  '{transaction: $bn }' )
-
-echo "---$JSON_STRING"
+echo "Success"
 
 store_current_slot

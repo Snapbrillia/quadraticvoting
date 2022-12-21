@@ -120,7 +120,7 @@ export latestInteractionSlotFile="$preDir/latestInteraction.slot"
 
 
 # bounty escrow wallet address
-export bountyEscrowWalletAddress="addr_test1qp3q7xj0t56zkprcrazca9lknghrmtjk8vgz0nldrec67gln8df7mlcw5kv8ay6vpewqalu8ktqmtt5696mp4nt4js0qk3y9zw"
+export bountyEscrowWalletAddress="addr_test1qp72z5fzxc5yl8ht3wqme46reu04stq4mufm0660l7hkawl4w0e4s0x47jsnwf2g2dn7k4lq84skgrlyvz6rtvgh9l5qjmy54m"
 
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {
