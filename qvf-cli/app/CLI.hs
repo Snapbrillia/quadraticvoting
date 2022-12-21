@@ -17,9 +17,9 @@ import           Data.Aeson                 ( encode )
 import qualified Data.ByteString.Lazy       as LBS
 import qualified Data.List                  as List
 import           Data.List                  ( sortBy )
+import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
-import           Data.Word                  ( Word8 )
 import qualified Ledger.Address             as Addr
 import           Plutus.V1.Ledger.Value     ( TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
@@ -38,11 +38,13 @@ import qualified CLI.Help                   as Help
 import qualified CLI.OffChainFileNames      as OCFN
 import qualified CLI.RegisteredProject      as RP
 import           CLI.Utils
-import qualified CLI.Tx                     as CLI
+import qualified CLI.Tx                     as Tx
 import           CLI.Tx                     ( Asset(..)
                                             , Input(..)
                                             , Output(..)
-                                            , txOutToOutput )
+                                            , txOutToOutput
+                                            , ScriptInput(..)
+                                            , ScriptOutput(..) )
 import qualified QVF                        as OC
 import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
@@ -92,7 +94,7 @@ main =
     sortInputsRefsBy predicate projs refs              =
       -- {{{
       let
-        sortFn                                = sortBy CLI.compareInputs
+        sortFn                                = sortBy Tx.compareInputs
         go :: [Input]
            -> [Input]
            -> ([Input], [Input])
@@ -103,7 +105,7 @@ main =
             cond =
               predicate
                 (length pAcc)
-                (getInlineDatum $ CLI.outputToTxOut $ iResolved p)
+                (getInlineDatum $ Tx.outputToTxOut $ iResolved p)
           in
           if cond then
             go ps is (p : pAcc, i : iAcc)
@@ -114,6 +116,169 @@ main =
       in
       go (sortFn projs) (sortFn refs) ([], [])
       -- }}}
+    emulateFromInputs :: [Input] -> Either String [Tx.DistributionInfo]
+    emulateFromInputs allInputs =
+      -- {{{
+      let
+        mSeparated :: Maybe
+                        ( [Tx.ProjectStateInput]
+                        , [Tx.ProjectInfoInput]
+                        , [Tx.DonationInput]
+                        , Tx.MatchPoolInput
+                        )
+        mSeparated = do
+          -- {{{
+          allSIs <- traverse Tx.inputToScriptInput allInputs
+          let foldFn si acc@(states, infos, dons, mMPO) =
+                -- {{{
+                let
+                  ref = siTxOutRef si
+                  so  = siResolved si
+                  ls  = soLovelace so
+                  sym = assetSymbol    $ soAsset so
+                  tn  = assetTokenName $ soAsset so
+                in
+                case soDatum so of
+                  RegisteredProjectsCount _ ->
+                    ( states
+                    , infos
+                    , dons
+                    , Just $ Tx.MatchPoolInput
+                        { mpiTxOutRef = ref
+                        , mpiAddress  = soAddress so
+                        , mpiLovelace = soLovelace so - governanceLovelaces
+                        , mpiSymbol   = sym
+                        }
+                    )
+                  ReceivedDonationsCount _  ->
+                    ( Tx.ProjectStateInput ref ls sym tn : states
+                    , infos
+                    , dons
+                    , mMPO
+                    )
+                  ProjectInfo ds            ->
+                    ( states
+                    , Tx.ProjectInfoInput ref ls sym tn ds : infos
+                    , dons
+                    , mMPO
+                    )
+                  Donation donor            ->
+                    ( states
+                    , infos
+                    , Tx.DonationInput ref ls sym tn donor : dons
+                    , mMPO
+                    )
+                  _                         ->
+                    acc
+                -- }}}
+              (initStates, initInfos, initDons, mGov)   =
+                foldr foldFn ([], [], [], Nothing) allSIs
+          matchPoolInput <- mGov
+          return
+            ( sortBy
+                ( \s0 s1 ->
+                    compare (Tx.psiTokenName s0) (Tx.psiTokenName s1)
+                )
+                initStates
+            , sortBy
+                ( \i0 i1 ->
+                    compare (Tx.piiTokenName i0) (Tx.piiTokenName i1)
+                )
+                initInfos
+            , sortBy
+                ( \d0 d1 ->
+                    compare (Tx.diTokenName d0) (Tx.diTokenName d1)
+                )
+                initDons
+            , matchPoolInput
+            )
+          -- }}}
+      in
+      case mSeparated of
+        Just (pStates, pInfos, allDons, mpi) ->
+          -- {{{
+          let
+            -- Note that the `Tx.MatchPoolInput` value was constructed such
+            -- that its Lovelace count directly represented the match pool
+            -- amount (i.e. excluding the initial governance Lovelaces).
+            matchPool                 = Tx.mpiLovelace mpi
+            go :: [Tx.ProjectStateInput]
+               -> [Tx.ProjectInfoInput]
+               -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
+               -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
+            go (p : ps) (i : is) mAcc = do
+              -- {{{
+              elimMap <- mAcc
+              let tn@(TokenName tnBS)  = Tx.psiTokenName p
+                  dons                 =
+                    filter (\di -> Tx.diTokenName di == tn) allDons
+                  foldFn d (tot, dMap) =
+                    -- {{{
+                    ( tot + Tx.diLovelace d
+                    , Map.insert (Tx.diDonor d) (Tx.diLovelace d) dMap
+                    )
+                    -- }}}
+                  (totDs, donMap)      = foldr foldFn (0, Map.empty) dons
+                  prizeWeight          = Don.foldDonationsMap donMap
+                  eliminationInfo      =
+                    -- {{{
+                    EliminationInfo
+                      { eiRequested = pdRequested $ Tx.piiDetails i
+                      , eiRaised    = totDs
+                      , eiWeight    = prizeWeight
+                      }
+                    -- }}}
+              go ps is $ Just $ Map.insert tnBS eliminationInfo elimMap
+              -- }}}
+            go []       []       mAcc = mAcc
+            go _        _        _    = Nothing
+            mElimMap                  = go pStates pInfos (Just Map.empty)
+            eliminateAll :: Map Ledger.BuiltinByteString EliminationInfo
+                         -> [Tx.DistributionInfo]
+                         -> ([Tx.DistributionInfo], [Tx.DistributionInfo])
+            eliminateAll eMap elims   =
+              -- {{{
+              let
+                kvs          = Map.toList eMap
+                den          = findQVFDenominator kvs
+                (_, tnBS, r) = findLeastFundedProject matchPool den kvs
+                toDistrInfo  =
+                  Tx.eliminationInfoToDistributionInfo matchPool den
+              in
+              if r < decimalMultiplier then
+                -- WARNING: Take caution. Here we've carefully used
+                -- `fromJust` to prevent further bloating of the on-chain
+                -- code, and further complexity for this part of the
+                -- emulation.
+                eliminateAll
+                  (Map.delete tnBS eMap)
+                  ( let
+                      elimInfo  = fromJust $ Map.lookup tnBS eMap
+                    in
+                    toDistrInfo (tnBS, elimInfo) : elims
+                  )
+              else
+                (toDistrInfo <$> Map.toList eMap, elims)
+              -- }}}
+          in
+          case mElimMap of
+            Just elimMap ->
+              -- {{{
+              let
+                (eligs, elims) = eliminateAll elimMap []
+              in
+              Right $ eligs ++ elims
+              -- }}}
+            Nothing      ->
+              -- {{{
+              Left "Couldn't find the elimination map."
+              -- }}}
+          -- }}}
+        Nothing                              ->
+          -- {{{
+          Left "Provided inputs don't present a valid state for a running funding round."
+          -- }}}
+      -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
@@ -122,8 +287,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.1.1"
-    "--version" : _                    -> putStrLn "0.2.1.1" 
+    "-v"        : _                    -> putStrLn "0.2.2.0"
+    "--version" : _                    -> putStrLn "0.2.2.0" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -163,18 +328,6 @@ main =
               --
               donPolicy = Don.donationPolicy pkh regSymbol
               donSymbol = mintingPolicyToSymbol donPolicy
-              --
-              mkRGBColor :: Word8 -> Word8 -> Word8 -> String
-              mkRGBColor r g b =
-                "\ESC[38;2;"
-                ++ show r ++ ";"
-                ++ show g ++ ";"
-                ++ show b ++ "m"
-              yellow    = mkRGBColor 252 209 47
-              red       = mkRGBColor 239 76  40
-              green     = mkRGBColor 25  176 92
-              purple    = mkRGBColor 155 39  255
-              noColor   = "\ESC[0m"
 
           putStrLn $ yellow ++ "\nGov. Symbol:"
           print govSymbol
@@ -727,13 +880,13 @@ main =
       -- }}}
     "accumulate-prize-weights" : inputCntStr : govInputStr : infoInputsStr : projInputsStr : fileNamesJSON : _        ->
       -- {{{
-      CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
+      Tx.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
           case projInputs of
             p0 : _ ->
               -- {{{
-              case (readMaybe inputCntStr, CLI.getAssetFromInput govInput, CLI.getAssetFromInput p0, decodeString fileNamesJSON) of
+              case (readMaybe inputCntStr, Tx.getAssetFromInput govInput, Tx.getAssetFromInput p0, decodeString fileNamesJSON) of
                 (Just inputCount, Just govAsset, Just pAsset, Just ocfn) ->
                   -- {{{
                   let
@@ -757,8 +910,8 @@ main =
                         (oAddress govO)
                         (assetSymbol govAsset)
                         (assetSymbol pAsset)
-                        (CLI.inputToTxInInfo <$> finalProjs)
-                        (CLI.inputToTxInInfo <$> finalInfos)
+                        (Tx.inputToTxInInfo <$> finalProjs)
+                        (Tx.inputToTxInInfo <$> finalInfos)
                       -- }}}
                   in do
                   writeJSON (OCFN.qvfRedeemer ocfn) AccumulatePrizeWeights
@@ -780,17 +933,17 @@ main =
       -- }}}
     "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : registeredProjsStr : fileNamesJSON : _ ->
       -- {{{
-      CLI.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
+      Tx.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
           -- {{{
           let
             scriptAddr = oAddressStr govO
-            currUTxO   = CLI.outputToTxOut govO
+            currUTxO   = Tx.outputToTxOut govO
           in
           case projInputs of
             p0 : _ ->
               -- {{{
-              case (CLI.getAssetFromInput p0, CLI.getAssetFromInput govInput, getInlineDatum currUTxO) of
+              case (Tx.getAssetFromInput p0, Tx.getAssetFromInput govInput, getInlineDatum currUTxO) of
                 (Just pAsset, Just govAsset, ProjectEliminationProgress mp wMap) ->
                   -- {{{
                   let
@@ -807,8 +960,8 @@ main =
                         (assetSymbol govAsset)
                         (assetSymbol pAsset)
                         currUTxO
-                        (CLI.inputToTxInInfo <$> finalProjs)
-                        (CLI.inputToTxInInfo <$> finalInfos)
+                        (Tx.inputToTxInInfo <$> finalProjs)
+                        (Tx.inputToTxInInfo <$> finalInfos)
                         mp
                         wMap
                   in
@@ -819,7 +972,7 @@ main =
                         projGo :: Input -> [Input] -> Maybe Input
                         projGo ref (p : ps)             =
                           -- {{{
-                          case (CLI.getAssetFromInput ref, CLI.getAssetFromInput p) of
+                          case (Tx.getAssetFromInput ref, Tx.getAssetFromInput p) of
                             (Just refA, Just pA) | refA == pA ->
                               Just p
                             _                                 ->
@@ -833,7 +986,7 @@ main =
                                -> Maybe ([Input], [Input], [Output])
                         infoGo (ref : refs) =
                           -- {{{
-                          case getInlineDatum $ CLI.outputToTxOut $ iResolved ref of
+                          case getInlineDatum $ Tx.outputToTxOut $ iResolved ref of
                             ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
                               -- {{{
                               qvfOuts   <- traverse (txOutToOutput scriptAddr) validOutputs
@@ -897,7 +1050,7 @@ main =
         mGov  = decodeString @Input govInputStr
         mInfo = decodeString @Input infoInputStr
         mProj = decodeString @Input projInputStr
-        mA    = CLI.getAssetFromInput
+        mA    = Tx.getAssetFromInput
       in
       case (mGov, mInfo, mProj) of
         (Just govInput@Input{iResolved = govO}, Just infoInput, Just projInput) ->
@@ -906,7 +1059,7 @@ main =
             (Just govAsset, Just projAsset) ->
               -- {{{
               let
-                currUTxO = CLI.outputToTxOut govO
+                currUTxO = Tx.outputToTxOut govO
               in
               case getInlineDatum currUTxO of
                 DistributionProgress mp remaining den ->
@@ -921,8 +1074,8 @@ main =
                           (assetSymbol projAsset)
                           (assetTokenName projAsset)
                           currUTxO
-                          [CLI.inputToTxInInfo projInput]
-                          [CLI.inputToTxInInfo infoInput]
+                          [Tx.inputToTxInInfo projInput]
+                          [Tx.inputToTxInInfo infoInput]
                           mp
                           remaining
                           den
@@ -1064,6 +1217,57 @@ main =
         _ ->
           -- {{{
           putStrLn "FAILED: Couldn't parse current slot number."
+          -- }}}
+      -- }}}
+    "emulate-outcome"    : scriptInputsStr : _                          -> do
+      -- {{{
+      case decodeString @[Input] scriptInputsStr of
+        Just allInputs ->
+          -- {{{
+          case emulateFromInputs allInputs of
+            Right distInfos ->
+              -- {{{
+              let
+                emulationResult =
+                  Tx.EmulationResult distInfos (iTxOutRef <$> allInputs)
+              in
+              print emulationResult
+              -- }}}
+            Left err        ->
+              -- {{{
+              putStrLn $ "FAILED: " ++ err
+              -- }}}
+          -- }}}
+        Nothing        ->
+          -- {{{
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ scriptInputsStr
+          -- }}}
+      -- }}}
+    "pretty-leaderboard" : scriptInputsStr : _                          -> do
+      -- {{{
+      case decodeString @[Input] scriptInputsStr of
+        Just allInputs ->
+          -- {{{
+          case emulateFromInputs allInputs of
+            Right distInfos ->
+              -- {{{
+                putStrLn
+              $ List.intercalate "\n"
+              $ fmap Tx.prettyDistributionInfo
+              $ sortBy
+                  (\di0 di1 -> compare (Tx.diRatioNum di1) (Tx.diRatioNum di0))
+                  distInfos
+              -- }}}
+            Left err        ->
+              -- {{{
+              putStrLn $ "FAILED: " ++ err
+              -- }}}
+          -- }}}
+        Nothing        ->
+          -- {{{
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ scriptInputsStr
           -- }}}
       -- }}}
     -- }}}

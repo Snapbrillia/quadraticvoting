@@ -35,6 +35,7 @@ import           Data.Maybe                  ( fromJust )
 import           Data.String                 ( fromString )
 import           Data.Text                   ( Text )
 import           Data.Time.Clock.POSIX       ( getPOSIXTime )
+import           Data.Word                   ( Word8 )
 import           GHC.Generics                ( Generic )
 import           Plutus.V1.Ledger.Api        ( fromBuiltin
                                              , toBuiltin
@@ -719,6 +720,21 @@ handleScriptGenerationArguments results handler =
     Left errMsg                       ->
       putStrLn errMsg
   -- }}}
+
+
+mkRGBColor :: Word8 -> Word8 -> Word8 -> String
+mkRGBColor r g b =
+  "\ESC[38;2;" ++ show r ++ ";" ++ show g ++ ";" ++ show b ++ "m"
+yellow  :: String
+yellow  = mkRGBColor 252 209 47
+red     :: String
+red     = mkRGBColor 239 76  40
+green   :: String
+green   = mkRGBColor 25  176 92
+purple  :: String
+purple  = mkRGBColor 155 39  255
+noColor :: String
+noColor = "\ESC[0m"
 -- }}}
 
 

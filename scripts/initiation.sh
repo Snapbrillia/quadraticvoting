@@ -1,5 +1,14 @@
 #!/bin/bash
 
+if [ -z $REPO ]; then
+  echo "The \$REPO environment variable is not defined. Please review the script at"
+  echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
+  echo "absolute path to this repository to \$REPO before proceeding."
+  return 1
+else
+  . $REPO/scripts/local-env.sh
+fi
+
 . $REPO/scripts/env.sh
 
 
@@ -52,7 +61,7 @@ get_script_data_hash() {
 
 initiate_fund() {
   # {{{
-  for proj in $(cat $registeredProjectsFile); do
+  for proj in $(cat $registeredProjectsFile | jq 'map(.tn) | .[]'); do
     rm -f $preDir/$proj
   done
   rm -f $registeredProjectsFile

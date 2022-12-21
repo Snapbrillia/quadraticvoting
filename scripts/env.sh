@@ -1,10 +1,13 @@
+export WHITE="\033[97m"
+export NO_COLOR="\033[0m"
+
 if [ -z $REPO ]; then
   echo "The \$REPO environment variable is not defined. Please review the script at"
   echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
   echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
 # Removes the single quotes.
@@ -1102,13 +1105,14 @@ minStartingAda=300
 minCollateralLovelaces=5000000
 minCollateralAda=5
 
+
 # Checks if the $keyHolder wallet exists (properly), and that it has a single
 # UTxO with enough Ada inside.
 #
-# If the wallet files exist partially, this
-# function terminates the script without any changes. If there are no wallet
-# files, the $keyHolder wallet is generated, but the script is terminated,
-# prompting the user to send some Ada to the wallet.
+# If the wallet files exist partially, this function terminates the script
+# without any changes. If there are no wallet files, the $keyHolder wallet is
+# generated, but the script is terminated, prompting the user to send some Ada
+# to the wallet.
 #
 # If the wallet is present, it's made sure the total Lovelace count is more
 # than the minimum, and if they are spread out between multiple UTxOs, it'll
@@ -1119,9 +1123,7 @@ if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $pre
   utxos=$(get_wallet_lovelace_utxos $keyHolder)
   utxoCount=$(echo "$utxos" | jq length)
   totalLovelace=$(get_total_lovelaces_from_json "$utxos")
-  white="\033[97m"
-  noColor="\033[0m"
-  if [ $totalLovelace -gt $minStartingLovelaces ] || [ -f $scriptAddressFile ]; then
+  if [ $totalLovelace -ge $minStartingLovelaces ] || [ -f $scriptAddressFile ]; then
     if [ $utxoCount -gt 1 ]; then
       echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
       tidy_up_wallet $keyHolder
@@ -1132,9 +1134,9 @@ if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $pre
     export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
   else
     echo "The key holder wallet doesn't have enough Ada. Please make sure a"
-    echo -e "minimum of $white$minStartingAda Ada$noColor is available:"
+    echo -e "minimum of $WHITE$minStartingAda Ada$NO_COLOR is available:"
     echo ""
-    echo -e "$white$(cat $preDir/$keyHolder.addr)$noColor"
+    echo -e "$WHITE$(cat $preDir/$keyHolder.addr)$NO_COLOR"
     return 1
   fi
 elif [ -f $preDir/$keyHolder.vkey ] || [ -f $preDir/$keyHolder.skey ] || [ -f $preDir/$keyHolder.addr ] || [ -f $preDir/$keyHolder.pkh ]; then
@@ -1143,34 +1145,23 @@ elif [ -f $preDir/$keyHolder.vkey ] || [ -f $preDir/$keyHolder.skey ] || [ -f $p
 else
   generate_wallet $keyHolder
   echo "No key holder wallet was found. The wallet is generated for you."
-  echo -e "Please deposit a minimum of $white$minStartingAda Ada$noColor before proceeding:"
+  echo -e "Please deposit a minimum of $WHITE$minStartingAda Ada$NO_COLOR before proceeding:"
   echo ""
-  echo -e "$white$(cat $preDir/$keyHolder.addr)$noColor"
+  echo -e "$WHITE$(cat $preDir/$keyHolder.addr)$NO_COLOR"
   return 1
 fi
 # }}}
 
-# Checks if the $collateralKeyHolder wallet exists (properly), and that it has a single
-# UTxO with enough Ada inside.
-#
-# If the wallet files exist partially, this
-# function terminates the script without any changes. If there are no wallet
-# files, the $collateralKeyHolder wallet is generated, but the script is terminated,
-# prompting the user to send some Ada to the wallet.
-#
-# If the wallet is present, it's made sure the total Lovelace count is more
-# than the minimum, and if they are spread out between multiple UTxOs, it'll
-# invoke the `tidy_up_wallet` function so that all the money is collected
-# inside a single UTxO.
-# {{{
 
+# A similar check for $collateralKeyHolder. This wallet is meant for providing
+# the collateral for user-facing endpoints to provide a more "approachable"
+# experience for non-technical users.
+# {{{
 if [ -f $preDir/$collateralKeyHolder.vkey ] && [ -f $preDir/$collateralKeyHolder.skey ] && [ -f $preDir/$collateralKeyHolder.addr ] && [ -f $preDir/$collateralKeyHolder.pkh ]; then
   utxos=$(get_wallet_lovelace_utxos $collateralKeyHolder)
   utxoCount=$(echo "$utxos" | jq length)
   totalLovelace=$(get_total_lovelaces_from_json "$utxos")
-  white="\033[97m"
-  noColor="\033[0m"
-  if [ $totalLovelace -gt $minCollateralLovelaces ]; then
+  if [ $totalLovelace -ge $minCollateralLovelaces ]; then
     if [ $utxoCount -gt 1 ]; then
       echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
       tidy_up_wallet $collateralKeyHolder
@@ -1181,9 +1172,9 @@ if [ -f $preDir/$collateralKeyHolder.vkey ] && [ -f $preDir/$collateralKeyHolder
     export collateralKeyHoldersSigningKeyFile="$preDir/$collateralKeyHolder.skey"
   else
     echo "The collateral key holder wallet doesn't have enough Ada. Please make sure a"
-    echo -e "minimum of $white$minCollateralAda Ada$noColor is available:"
+    echo -e "minimum of $WHITE$minCollateralAda Ada$NO_COLOR is available:"
     echo ""
-    echo -e "$white$(cat $preDir/$collateralKeyHolder.addr)$noColor"
+    echo -e "$WHITE$(cat $preDir/$collateralKeyHolder.addr)$NO_COLOR"
     return 1
   fi
 elif [ -f $preDir/$collateralKeyHolder.vkey ] || [ -f $preDir/$collateralKeyHolder.skey ] || [ -f $preDir/$collateralKeyHolder.addr ] || [ -f $preDir/$collateralKeyHolder.pkh ]; then
@@ -1192,11 +1183,12 @@ elif [ -f $preDir/$collateralKeyHolder.vkey ] || [ -f $preDir/$collateralKeyHold
 else
   generate_wallet $collateralKeyHolder
   echo "No collateral key holder wallet was found. The wallet is generated for you."
-  echo -e "Please deposit a minimum of $white$minCollateralAda Ada$noColor before proceeding:"
+  echo -e "Please deposit a minimum of $WHITE$minCollateralAda Ada$NO_COLOR before proceeding:"
   echo ""
-  echo -e "$white$(cat $preDir/$collateralKeyHolder.addr)$noColor"
+  echo -e "$WHITE$(cat $preDir/$collateralKeyHolder.addr)$NO_COLOR"
   return 1
 fi
+# }}}
 
 
 # Consumes all the UTxOs sitting at the $referenceWallet, and sends them to the
@@ -1219,9 +1211,14 @@ deplete_reference_wallet() {
 }
 
 
-# A similar check for the $referencWallet. The difference being that the wallet
-# needs to be empty. So if any Lovelaces are spotted in an existing wallet,
-# they will all get transferred to the $keyHolder wallet.
+# A similar check for the $referencWallet. There are 3 circumstances that lead
+# to an automated depletion of the $referenceWallet into $keyHolder:
+#   - There are some Lovelaces in the wallet, but the UTxO count is not exactly
+#     the same as the $scriptCount,
+#   - There are exactly $scriptCount UTxOs in the wallet, but there is no
+#     $scriptAddressFile,
+#   - There are exactly $scriptCount UTxOs in the wallet, but there are no
+#     Lovelaces stored at the found script address.
 # {{{
 if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] && [ -f $preDir/$referenceWallet.addr ] && [ -f $preDir/$referenceWallet.pkh ]; then
   utxos=$(get_wallet_lovelace_utxos $referenceWallet)

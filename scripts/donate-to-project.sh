@@ -128,7 +128,7 @@ if [ "$ENV" == "dev" ]; then
   donorAddress=$(cat $preDir/$donorWalletLabel.addr)
   donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
   txInUTxO="--tx-in $donorInUTxO"
-  txInCollateralUTxO="--tx-in-collateral $donorInUTxO"
+  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
 else
   projectTokenName=$1
@@ -190,7 +190,7 @@ $cli $BUILD_TX_CONST_ARGS                                       \
   --change-address $donorAddress
 
 if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$donorWalletLabel.skey
+  sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
   wait_for_new_slot
   store_current_slot
   wait_for_new_slot

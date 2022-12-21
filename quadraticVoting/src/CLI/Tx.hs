@@ -1,6 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TypeApplications   #-}
+{-# LANGUAGE NumericUnderscores #-}
 
 module CLI.Tx where
 
@@ -28,6 +29,7 @@ import           Prelude
 
 import           CLI.Utils
 import           Data.Datum
+import qualified QVF                         as OC
 import           Utils
 -- }}}
 
@@ -379,4 +381,211 @@ fromGovAndInputs govInputStr inputsStr mRefsStr action =
   -- }}}
 -- }}}
 
+
+-- SCRIPT INPUT/OUTPUT
+-- {{{
+data ScriptOutput = ScriptOutput
+  { soAddress    :: Ledger.Address
+  , soAddressStr :: String
+  , soLovelace   :: Integer
+  , soAsset      :: Asset
+  , soAssetCount :: Integer
+  , soDatum      :: QVFDatum
+  } deriving (Eq)
+
+data ScriptInput = ScriptInput
+  { siTxOutRef :: TxOutRef
+  , siResolved :: ScriptOutput
+  } deriving (Eq)
+
+
+inputToScriptInput :: Input -> Maybe ScriptInput
+inputToScriptInput Input{..} = do
+  -- {{{
+  resolved <- outputToScriptOutput iResolved
+  return $ ScriptInput
+    { siTxOutRef = iTxOutRef
+    , siResolved = resolved
+    }
+  -- }}}
+
+
+outputToScriptOutput :: Output -> Maybe ScriptOutput
+outputToScriptOutput Output{..} = do
+  -- {{{
+  (a, c, d) <- oForScript
+  return $ ScriptOutput
+    { soAddress    = oAddress
+    , soAddressStr = oAddressStr
+    , soLovelace   = oLovelace
+    , soAsset      = a
+    , soAssetCount = c
+    , soDatum      = d
+    }
+  -- }}}
+
+
+scriptOutputToOutput :: ScriptOutput -> Output
+scriptOutputToOutput ScriptOutput{..} =
+  -- {{{
+  Output
+    { oAddress    = soAddress
+    , oAddressStr = soAddressStr
+    , oLovelace   = soLovelace
+    , oForScript  = Just (soAsset, soAssetCount, soDatum)
+    }
+  -- }}}
+
+
+scriptInputToInput :: ScriptInput -> Input
+scriptInputToInput ScriptInput{..} =
+  -- {{{
+  Input
+    { iTxOutRef = siTxOutRef
+    , iResolved = scriptOutputToOutput siResolved
+    }
+  -- }}}
+
+
+compareScriptOutputs :: ScriptOutput -> ScriptOutput -> Ordering
+compareScriptOutputs ScriptOutput{soAsset = a0} ScriptOutput{soAsset = a1} =
+  -- {{{
+  compare a0 a1
+  -- }}}
+-- }}}
+
+
+-- SPECIFIC INPUTS
+-- {{{
+data MatchPoolInput = MatchPoolInput
+  { mpiTxOutRef :: TxOutRef
+  , mpiAddress  :: Ledger.Address
+  , mpiLovelace :: Integer
+  , mpiSymbol   :: CurrencySymbol
+  } deriving (Eq)
+
+data ProjectStateInput = ProjectStateInput
+  { psiTxOutRef  :: TxOutRef
+  , psiLovelace  :: Integer
+  , psiSymbol    :: CurrencySymbol
+  , psiTokenName :: TokenName
+  } deriving (Eq)
+
+data ProjectInfoInput = ProjectInfoInput
+  { piiTxOutRef  :: TxOutRef
+  , piiLovelace  :: Integer
+  , piiSymbol    :: CurrencySymbol
+  , piiTokenName :: TokenName
+  , piiDetails   :: ProjectDetails
+  } deriving (Eq)
+
+data DonationInput = DonationInput
+  { diTxOutRef  :: TxOutRef
+  , diLovelace  :: Integer
+  , diSymbol    :: CurrencySymbol
+  , diTokenName :: TokenName
+  , diDonor     :: Ledger.PubKeyHash
+  } deriving (Eq)
+-- }}}
+
+
+-- DISTRIBUTION INFO
+-- {{{
+data DistributionInfo = DistributionInfo
+  { diProjectID         :: Ledger.BuiltinByteString
+  , diRequested         :: Integer
+  , diRaised            :: Integer
+  , diRaisedAfterFee    :: Integer
+  , diMatchPool         :: Integer
+  , diMatchPoolAfterFee :: Integer
+  , diPrizeWeight       :: Integer
+  , diRatioNum          :: Integer
+  , diRatioDen          :: Integer
+  } deriving (Eq)
+
+instance Show DistributionInfo where
+  show DistributionInfo{..} =
+    -- {{{
+    let
+      theRatio :: Double
+      theRatio = fromIntegral diRatioNum / fromIntegral diRatioDen
+    in
+       "{\"tn\":"                ++ "\"" ++ builtinByteStringToString diProjectID ++ "\""
+    ++ ",\"requested\":"         ++ show diRequested
+    ++ ",\"raised\":"            ++ show diRaised
+    ++ ",\"raisedAfterFee\":"    ++ show diRaisedAfterFee
+    ++ ",\"matchPool\":"         ++ show diMatchPool
+    ++ ",\"matchPoolAfterFee\":" ++ show diMatchPoolAfterFee
+    ++ ",\"prizeWeight\":"       ++ show diPrizeWeight
+    ++ ",\"ratio\":"             ++ show theRatio
+    ++ "}"
+  -- }}}
+
+prettyDistributionInfo :: DistributionInfo -> String
+prettyDistributionInfo DistributionInfo{..} =
+  -- {{{
+  let
+    fI             = fromIntegral
+    showAda ls     = show (fI ls / 1_000_000)
+    toPercent      :: Integral a => Double -> a
+    toPercent      = min 100 . round . (100 *)
+    ratioPercent   = toPercent (fI diRatioNum / fI diRatioDen)
+    raisedPercent  = toPercent (fI diRaised / fI diRequested)
+    mpPercent      = max 0 (ratioPercent - raisedPercent)
+    raisedChars    = replicate raisedPercent        '═'
+    mpChars        = replicate mpPercent            '═'
+    spaces         = replicate (100 - ratioPercent) ' '
+    isEliminated   = ratioPercent < 100
+    labelDen       = showAda diRequested
+    mainColor      = if isEliminated then red else green
+    labelNum       =
+      if isEliminated then
+        showAda diRaisedAfterFee
+      else
+           "(" ++ showAda diRaisedAfterFee
+        ++ purple ++ " + " ++ showAda diMatchPoolAfterFee ++ mainColor
+        ++ ")"
+  in
+     mainColor
+  ++ builtinByteStringToString diProjectID ++ ":\t"
+  ++ "[" ++ raisedChars ++ purple ++ mpChars ++ mainColor ++ spaces ++ "]"
+  ++ "\t" ++ labelNum ++ " / " ++ labelDen
+  ++ noColor
+  -- }}}
+
+eliminationInfoToDistributionInfo :: Integer
+                                  -> Integer
+                                  -> (Ledger.BuiltinByteString, EliminationInfo)
+                                  -> DistributionInfo
+eliminationInfoToDistributionInfo matchPool sumW (tn, ei) =
+  let
+    mpPortion = findMatchPoolPortion matchPool sumW (eiWeight ei)
+  in
+  DistributionInfo
+    { diProjectID         = tn
+    , diRequested         = eiRequested ei
+    , diRaised            = eiRaised ei
+    , diRaisedAfterFee    = snd $ OC.separateKeyHoldersFeeFrom $ eiRaised ei
+    , diMatchPool         = mpPortion
+    , diMatchPoolAfterFee = snd $ OC.separateKeyHoldersFeeFrom mpPortion
+    , diPrizeWeight       = eiWeight ei
+    , diRatioNum          = findFundedToRequestedRatio matchPool sumW ei
+    , diRatioDen          = decimalMultiplier
+    }
+-- }}}
+
+
+-- EMULATION RESULT
+-- {{{
+data EmulationResult = EmulationResult
+  { erDistributionInfos :: [DistributionInfo]
+  , erInputUTxOs        :: [TxOutRef]
+  } deriving (Eq)
+
+instance Show EmulationResult where
+  show EmulationResult{..} =
+       "{\"infos\":"  ++ show erDistributionInfos
+    ++ ",\"inputs\":" ++ show (showTxOutRef <$> erInputUTxOs)
+    ++ "}"
+-- }}}
 

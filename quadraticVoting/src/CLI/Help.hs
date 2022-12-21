@@ -11,36 +11,40 @@ import qualified Data.List as List
 generic :: String
 generic =
   -- {{{
-     "\nQVF off-chain assistive CLI application.\n\n"
-
-  ++ "You can separately print the guide for each endpoint with\n"
-  ++ "(-h|--help|man) following the desired action. Available\n"
-  ++ "endpoints are:\n"
-
-  ++ "\nSmart Contract Initiation:\n"
-  ++ "\tqvf-cli generate scripts --help\n"
-
-  ++ "\nSmart Contract Interaction:\n"
-  ++ "\tqvf-cli register-project         --help\n"
-  ++ "\tqvf-cli donate-to-project        --help\n"
-  ++ "\tqvf-cli contribute               --help\n"
-  ++ "\tqvf-cli fold-donations           --help\n"
-  ++ "\tqvf-cli consolidate-donations    --help\n"
-  ++ "\tqvf-cli traverse-donations       --help\n"
-  ++ "\tqvf-cli accumulate-prize-weights --help\n"
-  ++ "\tqvf-cli eliminate-one-project    --help\n"
-  ++ "\tqvf-cli distribute-prize         --help\n"
-
-  ++ "\nUtility:\n"
-  ++ "\tqvf-cli pretty-datum      --help\n"
-  ++ "\tqvf-cli datum-is          --help\n"
-  ++ "\tqvf-cli get-constr-index  --help\n"
-  ++ "\tqvf-cli data-to-cbor      --help\n"
-  ++ "\tqvf-cli cbor-to-data      --help\n"
-  ++ "\tqvf-cli string-to-hex     --help\n"
-  ++ "\tqvf-cli get-deadline-slot --help\n\n"
-
-  ++ "Or simply use (-h|--help|man) to print this help text.\n\n"
+     "\nQVF off-chain assistive CLI application."
+  ++ "\n"
+  ++ "\nYou can separately print the guide for each endpoint with"
+  ++ "\n(-h|--help|man) following the desired action. Available"
+  ++ "\nendpoints are:"
+  ++ "\n"
+  ++ "\nSmart Contract Initiation:"
+  ++ "\n\tqvf-cli generate scripts --help"
+  ++ "\n"
+  ++ "\nSmart Contract Interaction:"
+  ++ "\n\tqvf-cli register-project         --help"
+  ++ "\n\tqvf-cli donate-to-project        --help"
+  ++ "\n\tqvf-cli contribute               --help"
+  ++ "\n\tqvf-cli fold-donations           --help"
+  ++ "\n\tqvf-cli consolidate-donations    --help"
+  ++ "\n\tqvf-cli traverse-donations       --help"
+  ++ "\n\tqvf-cli accumulate-prize-weights --help"
+  ++ "\n\tqvf-cli eliminate-one-project    --help"
+  ++ "\n\tqvf-cli distribute-prize         --help"
+  ++ "\n"
+  ++ "\nUtility:"
+  ++ "\n\tqvf-cli pretty-datum       --help"
+  ++ "\n\tqvf-cli datum-is           --help"
+  ++ "\n\tqvf-cli get-constr-index   --help"
+  ++ "\n\tqvf-cli data-to-cbor       --help"
+  ++ "\n\tqvf-cli cbor-to-data       --help"
+  ++ "\n\tqvf-cli string-to-hex      --help"
+  ++ "\n\tqvf-cli get-deadline-slot  --help"
+  ++ "\n\tqvf-cli emulate-outcome    --help"
+  ++ "\n\tqvf-cli pretty-leaderboard --help"
+  ++ "\n"
+  ++ "\nOr simply use (-h|--help|man) to print this help text."
+  ++ "\n"
+  ++ "\n"
   -- }}}
 
 
@@ -72,6 +76,8 @@ forEndpoint action =
     "cbor-to-data"             -> cborToData
     "string-to-hex"            -> stringToHex
     "get-deadline-slot"        -> deadlineToSlot
+    "emulate-outcome"          -> emulateOutcome
+    "pretty-leaderboard"       -> prettyLeaderboard
     _                          -> generic
   -- }}}
 
@@ -393,5 +399,58 @@ deadlineToSlot =
     "Convert the deadline in a given datum to the slot number:"
     "<current-slot-number>"
     ["<current.datum>"]
+  -- }}}
+
+emulateOutcome :: String
+emulateOutcome =
+  -- {{{
+  endpointDescriptionArgs
+    "emulate-outcome"
+    (    "Given all of the authentic UTxOs sitting at the script address, this"
+      ++ "\n\tendpoint returns an object with 2 fields:"
+      ++ "\n"
+      ++ "\n\t1. \"infos\": An array of objecs that each carry distribution"
+      ++ "\n\t   information of a project:"
+      ++ "\n"
+      ++ "\n\t\tDistributionInformation"
+      ++ "\n\t\t  { \"tn\"                : Hex string of project's token name"
+      ++ "\n\t\t  , \"requested\"         : Project's funding goal"
+      ++ "\n\t\t  , \"raised\"            : Donations received"
+      ++ "\n\t\t  , \"raisedAfterFee\"    : Donations after deduction of the platform fee"
+      ++ "\n\t\t  , \"matchPool\"         : Rightful portion from the match pool"
+      ++ "\n\t\t  , \"matchPoolAfterFee\" : Match pool portion after deduction of the fee"
+      ++ "\n\t\t  , \"prizeWeight\"       : Sum of the square roots of all the received donations, squared"
+      ++ "\n\t\t  , \"ratio\"             : Value showing how much of the funding goal had been reached"
+      ++ "\n\t\t  }"
+      ++ "\n"
+      ++ "\n\t   Note that if `ratio` is less than 1, it means that the project"
+      ++ "\n\t   had not been eligible to take any money from the match pool."
+      ++ "\n\t   Therefore, the net Lovelace count they are going to get is the"
+      ++ "\n\t   same as `raisedAfterFee`. Since `ratio` is found by dividing the"
+      ++ "\n\t   sum of `raised` and `matchPool` by `requested` (where `matchPool`"
+      ++ "\n\t   is found through dividing `prizeWeight` by the total sum of all"
+      ++ "\n\t   the remaining projects' prize weights) at the time of elimination,"
+      ++ "\n\t   this set of information allows a \"leaderboard\" to represent how"
+      ++ "\n\t   close an eliminated project had been at the time of elimination."
+      ++ "\n"
+      ++ "\n\t2. \"inputs\": A sorted array of UTxOs which, essentially, is a"
+      ++ "\n\t   shorter representation of the input UTxO objects that resulted"
+      ++ "\n\t   in the accompanied list of distribution information objects."
+    )
+    "[{script-utxo}]"
+    []
+  -- }}}
+
+prettyLeaderboard :: String
+prettyLeaderboard =
+  -- {{{
+  endpointDescriptionArgs
+    "pretty-leaderboard"
+    (    "Given all of the authentic UTxOs sitting at the script address, this"
+      ++ "\n\tendpoint prints a \"prettified\" representation of the current"
+      ++ "\n\toutcome of the funding round:"
+    )
+    "[{script-utxo}]"
+    []
   -- }}}
 -- }}}

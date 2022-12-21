@@ -6,9 +6,9 @@ initiate_fund
 
 . scripts/contribute.sh $keyHolder 100000000
 
-. scripts/register-project.sh 1 ProjectA 300000000
+. scripts/register-project.sh 1 ProjectA 400000000
 
-. scripts/register-project.sh 2 ProjectB 300000000
+. scripts/register-project.sh 2 ProjectB 350000000
 
 . scripts/register-project.sh 3 ProjectC 300000000
 

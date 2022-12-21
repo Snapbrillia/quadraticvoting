@@ -19,7 +19,8 @@ if [ "$ENV" == "dev" ]; then
   projectOwnerPKH=$(cat $preDir/$projectOwnerWalletLabel.pkh)
   ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
   txInUTxO="--tx-in $ownerInputUTxO"
-  txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
+  # txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
+  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
 else
   projectName=$1
@@ -38,11 +39,11 @@ deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
 govUTxOObj="$(get_governance_utxo)"
-govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
+govUTxO=$(echo $govUTxOObj | jq -r .utxo)
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
-govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
-deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
+govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
+deadlineUTxO=$(get_deadline_utxo | jq -r .utxo)
 
 $qvf register-project         \
   $projectOwnerPKH            \
@@ -54,7 +55,7 @@ $qvf register-project         \
 projectTokenName=$(cat $projectTokenNameFile)
 newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
 newRegisteredProjects=$(cat $registeredProjectsFile \
-  | jq --argjson obj "$newProjJSON"                 \
+  | jq -c --argjson obj "$newProjJSON"              \
   'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
   )
 echo $newRegisteredProjects > $registeredProjectsFile
@@ -98,7 +99,7 @@ $cli $BUILD_TX_CONST_ARGS                                        \
   --change-address $projectOwnerAddress
 
 if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey
+  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$collateralKeyHolder.skey
   wait_for_new_slot
   store_current_slot
   wait_for_new_slot
