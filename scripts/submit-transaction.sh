@@ -1,4 +1,11 @@
-. $HOME/quadraticvoting/scripts/initiation.sh
+if [ -z $REPO ]; then
+  echo "error"
+  return 1
+else
+. $REPO/scripts/local-env.sh
+fi
+
+. $REPO/scripts/initiation.sh
 
 transactionCBOR=$1
 

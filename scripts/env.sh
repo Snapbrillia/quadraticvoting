@@ -1,11 +1,13 @@
 export WHITE="\033[97m"
 export NO_COLOR="\033[0m"
 
-if [ ! -d "$preDir" ] || [ -z "$MAGIC" ] || [ -z "$CARDANO_NODE_SOCKET_PATH" ] || [ -z "$REPO" ] || [ -z "$cli" ] || [ -z "$qvf" ] || [ -z "$preDir" ] || [ -z "$ENV" ]; then
-  echo "Unassigned envrionment variables detected. Please modify your"
-  echo -e "$WHITE\`scripts/local-env.sh\`$NO_COLOR file and source it to bring the required"
-  echo "variables into scope."
+if [ -z $REPO ]; then
+  echo "The \$REPO environment variable is not defined. Please review the script at"
+  echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
+  echo "absolute path to this repository to \$REPO before proceeding."
   return 1
+else
+  . $REPO/scripts/local-env.sh
 fi
 
 # Removes the single quotes.
@@ -118,6 +120,10 @@ export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
+
+
+# bounty escrow wallet address
+export bountyEscrowWalletAddress="addr_test1qp72z5fzxc5yl8ht3wqme46reu04stq4mufm0660l7hkawl4w0e4s0x47jsnwf2g2dn7k4lq84skgrlyvz6rtvgh9l5qjmy54m"
 
 # Generate a fresh protocol parametsrs JSON file.
 generate_protocol_params() {

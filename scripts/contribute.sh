@@ -1,8 +1,18 @@
 #!/bin/bash
 
+if [ -z $REPO ]; then
+  echo "The \$REPO environment variable is not defined. Please review the script at"
+  echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
+  echo "absolute path to this repository to \$REPO before proceeding."
+  return 1
+else
+. $REPO/scripts/local-env.sh
+fi
+
+. $REPO/scripts/initiation.sh
+
 
 if [ "$ENV" == "dev" ]; then
-. $REPO/scripts/initiation.sh
   sponsorWalletLabel=$1
   contributionAmount=$2
   sponsorInputUTxO=$(get_first_utxo_of $sponsorWalletLabel)
@@ -11,7 +21,6 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $sponsorInputUTxO"
   txOutUTxO=""
 else
-. $HOME/quadraticvoting/scripts/initiation.sh
   sponsorAddress=$1
   contributionAmount=$2
   txInUTxO=$3

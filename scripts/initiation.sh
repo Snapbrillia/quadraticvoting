@@ -1,18 +1,22 @@
 #!/bin/bash
 
-if [ "$ENV" == "dev" ]; then
-  . $REPO/scripts/env.sh
-else 
-  . $HOME/quadraticvoting/scripts/local-env.sh
-  . $HOME/quadraticvoting/scripts/env.sh
+if [ -z $REPO ]; then
+  echo "The \$REPO environment variable is not defined. Please review the script at"
+  echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
+  echo "absolute path to this repository to \$REPO before proceeding."
+  return 1
+else
+  . $REPO/scripts/local-env.sh
 fi
+
+. $REPO/scripts/env.sh
 
 
 startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-export deadline=1671559806000
+export deadline=1672017020000
 
 govSym=""
 
