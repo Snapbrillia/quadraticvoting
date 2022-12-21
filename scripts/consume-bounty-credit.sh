@@ -46,6 +46,8 @@ $cli $BUILD_TX_CONST_ARGS                                            \
   $txInUTxO                                                          \
   --tx-in-collateral "$collateralUTxO"                               \
   $txOutUTxO                                                         \
+  --tx-out "$returnedUTxO"                                           \
+  --tx-out-inline-datum-file $currentDatumFile                       \
   --tx-out "$escrowWalletUTxO"                                       \
   --invalid-hereafter $cappedSlot                                    \
   --change-address $bountyEscrowWalletAddress                             
