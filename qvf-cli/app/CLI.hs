@@ -1223,9 +1223,21 @@ main =
       -- {{{
       case decodeString @[Input] scriptInputsStr of
         Just allInputs ->
+          -- {{{
           case emulateFromInputs allInputs of
-            Right distInfos -> print distInfos
-            Left err        -> putStrLn $ "FAILED: " ++ err
+            Right distInfos ->
+              -- {{{
+              let
+                emulationResult =
+                  Tx.EmulationResult distInfos (iTxOutRef <$> allInputs)
+              in
+              print emulationResult
+              -- }}}
+            Left err        ->
+              -- {{{
+              putStrLn $ "FAILED: " ++ err
+              -- }}}
+          -- }}}
         Nothing        ->
           -- {{{
           putStrLn $ "FAILED: Bad arguments:"

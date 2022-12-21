@@ -6,17 +6,16 @@ if [ -z $REPO ]; then
   echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
 . $REPO/scripts/initiation.sh
 
 projectWalletAddress=$1
 
-projectTokenName=$(remove_quotes $(cat $registeredProjectsFile | jq ". [] | select(.address == \"$projectWalletAddress\") | .tn"))
+projectTokenName=$(cat $registeredProjectsFile | jq -r ". [] | select(.address == \"$projectWalletAddress\") | .tn")
 projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-projectLovelaceAmount=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
-
+projectLovelaceAmount=$(echo $projectUTxOObj | jq -r .lovelace)
 
 echo $projectLovelaceAmount
 

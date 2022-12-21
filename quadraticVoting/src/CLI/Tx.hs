@@ -574,3 +574,18 @@ eliminationInfoToDistributionInfo matchPool sumW (tn, ei) =
     }
 -- }}}
 
+
+-- EMULATION RESULT
+-- {{{
+data EmulationResult = EmulationResult
+  { erDistributionInfos :: [DistributionInfo]
+  , erInputUTxOs        :: [TxOutRef]
+  } deriving (Eq)
+
+instance Show EmulationResult where
+  show EmulationResult{..} =
+       "{\"infos\":"  ++ show erDistributionInfos
+    ++ ",\"inputs\":" ++ show (showTxOutRef <$> erInputUTxOs)
+    ++ "}"
+-- }}}
+
