@@ -11,6 +11,8 @@ fi
 
 . $REPO/scripts/initiation.sh
 
+wait_for_new_slot
+
 if [ "$ENV" == "dev" ]; then
   projectOwnerWalletLabel=$1
   projectName=$2
