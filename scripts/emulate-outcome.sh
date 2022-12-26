@@ -10,8 +10,17 @@ fi
 
 . $REPO/scripts/env.sh
 
+scriptUTxOs=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
+
+if [ "$scriptUTxOs" == "$(cat $scriptUTxOsFile)" ]; then
+  return 0
+fi
+
+echo $scriptUTxOs > $scriptUTxOsFile
+
+
 if [ "$1" == "--pretty" ]; then
-  $qvf pretty-leaderboard "$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))"
+  $qvf pretty-leaderboard "$scriptUTxOs"
 else
-  $qvf emulate-outcome "$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))"
+  $qvf emulate-outcome "$scriptUTxOs"
 fi
