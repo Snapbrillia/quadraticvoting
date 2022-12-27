@@ -73,5 +73,5 @@ else
   JSON_STRING=$( jq -n                         \
     --arg bn "$(cat $txBody | jq -r .cborHex)" \
     '{transaction: $bn}' )
-  echo "---$JSON_STRING"
+  echo "--json--$JSON_STRING"
 fi

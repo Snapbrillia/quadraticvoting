@@ -109,9 +109,8 @@ else
   JSON_STRING=$( jq -n                                                \
     --arg tu "$(cat $txBody | jq -r .cborHex)"                        \
     --arg on "$(cat $projectTokenNameFile)"                           \
-    --arg ts "$(cat $txSigned)"                                       \
-    '{unsignedTx: $tu, projectTokenName: $on ,signedTx: $ts }' )
-  echo "---$JSON_STRING"
+    '{unsignedTx: $tu, projectTokenName: $on }' )
+  echo "--json--$JSON_STRING"
   store_current_slot
 fi
 # }}}
