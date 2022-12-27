@@ -12,15 +12,16 @@ fi
 
 scriptUTxOs=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
 
+if [ "$1" == "--pretty" ]; then
+  $qvf pretty-leaderboard "$scriptUTxOs"
+fi
+
 if [ "$scriptUTxOs" == "$(cat $scriptUTxOsFile)" ]; then
   return 0
 else 
   $qvf emulate-outcome "$scriptUTxOs"
 fi 
 
-if [ "$1" == "--pretty" ]; then
-  $qvf pretty-leaderboard "$scriptUTxOs"
-fi
 
 echo $scriptUTxOs > $scriptUTxOsFile
 
