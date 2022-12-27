@@ -73,6 +73,7 @@ echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileN
 echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
 echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
 echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
+echo ", \"ocfnScriptUTxOs\"         : \"script.utxos\""                >> $fileNamesJSONFile
 echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
 echo "}" >> $fileNamesJSONFile
 # }}}
@@ -120,6 +121,8 @@ export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
+
+export scriptUTxOsFile=$(getFileName ocfnScriptUTxOs)
 
 
 # bounty escrow wallet address
