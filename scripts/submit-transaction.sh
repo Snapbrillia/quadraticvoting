@@ -16,7 +16,7 @@ sign_tx_by $preDir/$collateralKeyHolder.skey
 JSON_STRING=$( jq -n                                 \
     --arg tu "$(cat $txSigned | jq -r .cborHex)"     \
     '{signedTx: $tu}' )
-echo "---$JSON_STRING"
+echo "--json--$JSON_STRING"
 
 store_current_slot
 

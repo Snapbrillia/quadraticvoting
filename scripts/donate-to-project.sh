@@ -201,7 +201,7 @@ else
   JSON_STRING=$( jq -n                         \
     --arg tu "$(cat $txBody | jq -r .cborHex)" \
     '{unsignedTx: $tu }' )
-  echo "---$JSON_STRING"
+  echo "--json--$JSON_STRING"
 fi
 # }}}
 
