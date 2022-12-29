@@ -43,6 +43,26 @@ remove_back_slashes() {
   # }}}
 }
 
+
+# Returns the POSIX time in milliseconds a week from now.
+#
+# Takes no arguments.
+posix_one_week_from_now() {
+  now=$(date +%s)
+  init=$(expr $now + 604800)
+  echo "$init"000
+}
+
+
+# Returns the POSIX time in milliseconds a month from now.
+#
+# Takes no arguments.
+posix_one_month_from_now() {
+  now=$(date +%s)
+  init=$(expr $now + 2628000)
+  echo "$init"000
+}
+
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 # Creating the $fileNamesJSONFile:

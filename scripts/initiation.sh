@@ -16,8 +16,6 @@ startingWallet=1
 endingWallet=20
 totalLovelaceToDistribute=4000000000 # 200 ADA per wallet.
 
-export deadline=1672017020000
-
 govSym=""
 
 generate_wallets_and_distribute() {
@@ -61,6 +59,10 @@ get_script_data_hash() {
 
 initiate_fund() {
   # {{{
+  deadline=$1
+  if [ "$1" == "dev" ]; then
+    deadline=$(posix_one_month_from_now)
+  fi
   for proj in $(cat $registeredProjectsFile | jq 'map(.tn) | .[]'); do
     rm -f $preDir/$proj
   done
@@ -78,9 +80,9 @@ initiate_fund() {
   genesisUTxO=$(get_first_utxo_of $keyHolder)
   echo $genesisUTxO > $govUTxOFile
   echo
-  echo "The UTxO is:"
-  echo -e "\033[97m$genesisUTxO"
-  echo -e "\033[0m"
+  echo -e "The UTxO is:$WHITE"
+  echo "$genesisUTxO"
+  echo -e "$NO_COLOR"
 
   # Generating the validation script, minting script, and some other files:
   echo "Finding the scripts and writing them to disk..."
