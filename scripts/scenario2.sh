@@ -2,7 +2,7 @@
 
 . scripts/initiation.sh
 
-initiate_fund
+initiate_fund dev
 
 . scripts/register-project.sh 1 ProjectA 10000000000
 
