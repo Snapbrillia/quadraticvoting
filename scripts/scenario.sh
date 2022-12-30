@@ -2,7 +2,7 @@
 
 . scripts/initiation.sh
 
-initiate_fund
+initiate_fund dev
 
 . scripts/contribute.sh $keyHolder 100000000
 
