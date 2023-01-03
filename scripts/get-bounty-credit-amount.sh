@@ -14,8 +14,12 @@ fi
 projectWalletAddress=$1
 
 projectTokenName=$(cat $registeredProjectsFile | jq -r ". [] | select(.address == \"$projectWalletAddress\") | .tn")
-projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-projectLovelaceAmount=$(echo $projectUTxOObj | jq -r .lovelace)
 
-echo $projectLovelaceAmount
+if [ -z "$projectTokenName" ]; then
+  echo "0"
+else 
+  projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+  projectLovelaceAmount=$(echo $projectUTxOObj | jq -r .lovelace)
+  echo $projectLovelaceAmount
+fi
 
