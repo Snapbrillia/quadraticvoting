@@ -139,8 +139,24 @@ export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
 export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 
+export referenceWallet="referenceWallet"
+export keyHolder="keyHolder"
+export collateralKeyHolder="collateralKeyHolder"
+minStartingLovelaces=300000000
+minStartingAda=300
+minCollateralLovelaces=5000000
+minCollateralAda=5
+
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
+touch $latestInteractionSlotFile
+if [ ! "$(cat $latestInteractionSlotFile)" ]; then
+  echo "{\"$keyHolder\":0"        > $latestInteractionSlotFile
+  echo ",\"$referenceWallet\":0" >> $latestInteractionSlotFile
+  echo ",\"$scriptLabel\":0"     >> $latestInteractionSlotFile
+  echo ",\"deadline\":0"         >> $latestInteractionSlotFile
+  echo "}"                       >> $latestInteractionSlotFile
+fi
 
 export scriptUTxOsFile=$(getFileName ocfnScriptUTxOs)
 
@@ -253,28 +269,77 @@ get_newest_slot() {
   # }}}
 }
 
+# Takes 1 argument:
+#   1. The target field to store.
 store_current_slot() {
   # {{{
-  get_current_slot > $latestInteractionSlotFile
+  newSlot=$(get_current_slot)
+  newSlotObj=$(cat $latestInteractionSlotFile \
+    | jq -c --argjson newS "$newSlot"         \
+            --arg     newF "$1"               \
+    '.[$newF] = $newS'
+    )
+  echo "$newSlotObj" > $latestInteractionSlotFile
   # }}}
 }
 
+# Takes 2 arguments:
+#   1. The target field to store,
+#   2. The second target field to store.
+store_current_slot_2() {
+  # {{{
+  newSlot=$(get_current_slot)
+  newSlotObj=$(cat $latestInteractionSlotFile \
+    | jq -c --argjson newS "$newSlot"         \
+            --arg     f0   "$1"               \
+            --arg     f1   "$2"               \
+    '.[$f0] = $newS | .[$f1] = $newS'
+    )
+  echo "$newSlotObj" > $latestInteractionSlotFile
+  # }}}
+}
+
+# Takes 3 arguments:
+#   1. The target field to store,
+#   2. The second target field to store,
+#   3. The third target field to store.
+store_current_slot_3() {
+  # {{{
+  newSlot=$(get_current_slot)
+  newSlotObj=$(cat $latestInteractionSlotFile          \
+    | jq -c --argjson newS "$newSlot"                  \
+            --arg     f0   "$1"                        \
+            --arg     f1   "$2"                        \
+            --arg     f2   "$3"                        \
+    '.[$f0] = $newS | .[$f1] = $newS | .[$f2] = $newS'
+    )
+  echo "$newSlotObj" > $latestInteractionSlotFile
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The target field to store
 wait_for_new_slot() {
   # {{{
-  latest=$(cat $latestInteractionSlotFile)
-  current=$(get_current_slot)
-  echo -e "\nWaiting for chain extension..."
-  i=1
-  sp='///---\\\|||'
-  while [ $current -eq $latest ]; do
-    printf "\b${sp:i++%${#sp}:1}"
+  latest=$(cat $latestInteractionSlotFile | jq -r --arg f "$1" '.[$f]')
+  if [ $latest == "null" ]; then
+    echo "TARGET FIELD NOT FOUND."
+  else
     current=$(get_current_slot)
-  done
-  echo
-  echo    "----------- CHAIN EXTENDED -----------"
-  echo    "Latest interaction slot:      $latest"
-  echo    "Current slot after extension: $current"
-  echo -e "--------------------------------------\n"
+    echo -e "\nWaiting for chain extension..."
+    i=1
+    sp='///---\\\|||'
+    while [ $current -eq $latest ]; do
+      printf "\b${sp:i++%${#sp}:1}"
+      current=$(get_current_slot)
+    done
+    echo
+    echo    "----------- CHAIN EXTENDED -----------"
+    echo    "Latest interaction slot:      $latest"
+    echo    "Current slot after extension: $current"
+    echo -e "--------------------------------------\n"
+  fi
   # }}}
 }
 
@@ -282,7 +347,6 @@ sign_and_submit_tx() {
   # {{{
   sign_tx_by "$@"
   submit_tx
-  store_current_slot
   # }}}
 }
 
@@ -314,7 +378,8 @@ tidy_up_wallet() {
   inputs=$(get_all_input_utxos_at $1)
   $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
   sign_and_submit_tx $preDir/$1.skey
-  wait_for_new_slot
+  store_current_slot "dev"
+  wait_for_new_slot "dev"
   show_utxo_tables $1
   # }}}
 }
@@ -1120,15 +1185,6 @@ donate_to_smart_contract() {
 }
 
 
-export referenceWallet="referenceWallet"
-export keyHolder="keyHolder"
-export collateralKeyHolder="collateralKeyHolder"
-minStartingLovelaces=300000000
-minStartingAda=300
-minCollateralLovelaces=5000000
-minCollateralAda=5
-
-
 # Checks if the $keyHolder wallet exists (properly), and that it has a single
 # UTxO with enough Ada inside.
 #
@@ -1228,7 +1284,8 @@ deplete_reference_wallet() {
     $(get_all_input_utxos_at $referenceWallet) \
     --change-address $keyHoldersAddress
   sign_and_submit_tx $preDir/$referenceWallet.skey
-  wait_for_new_slot
+  store_current_slot $referenceWallet
+  wait_for_new_slot $referenceWallet
   show_utxo_tables $referenceWallet
   # }}}
 }

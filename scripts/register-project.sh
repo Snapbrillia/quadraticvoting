@@ -11,7 +11,8 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-wait_for_new_slot
+# Is this needed?
+# wait_for_new_slot
 
 if [ "$ENV" == "dev" ]; then
   projectOwnerWalletLabel=$1
@@ -102,15 +103,16 @@ $cli $BUILD_TX_CONST_ARGS                                        \
 
 if [ "$ENV" == "dev" ]; then
   sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$collateralKeyHolder.skey
-  wait_for_new_slot
-  store_current_slot
-  wait_for_new_slot
+  store_current_slot_2 $projectTokenName $scriptLabel
+  wait_for_new_slot $projectTokenName
+  store_current_slot_2 $projectTokenName $scriptLabel
+  wait_for_new_slot $projectTokenName
 else
-  JSON_STRING=$( jq -n                                                \
-    --arg tu "$(cat $txBody | jq -r .cborHex)"                        \
-    --arg on "$(cat $projectTokenNameFile)"                           \
+  JSON_STRING=$( jq -n                            \
+    --arg tu "$(cat $txBody | jq -r .cborHex)"    \
+    --arg on "$(cat $projectTokenNameFile)"       \
     '{unsignedTx: $tu, projectTokenName: $on }' )
   echo "--json--$JSON_STRING"
-  store_current_slot
+  store_current_slot_2 $projectTokenName $scriptLabel
 fi
 # }}}

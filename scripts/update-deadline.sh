@@ -34,6 +34,7 @@ $cli $BUILD_TX_CONST_ARGS                                   \
   --change-address $keyHoldersAddress   
 
 sign_and_submit_tx $preDir/$keyHolder.skey
-wait_for_new_slot
-store_current_slot
-wait_for_new_slot
+store_current_slot_2 "deadline" $keyHolder
+wait_for_new_slot "deadline"
+store_current_slot_2 "deadline" $keyHolder
+wait_for_new_slot "deadline"
