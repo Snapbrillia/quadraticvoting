@@ -156,9 +156,9 @@ initiate_fund() {
     --change-address $keyHoldersAddress
 
   sign_and_submit_tx $keyHoldersSigningKeyFile
-  store_current_slot_2 $keyHolder $referenceWalletAddress
+  store_current_slot_2 $keyHolder $referenceWallet
   wait_for_new_slot $keyHolder
-  store_current_slot_2 $keyHolder $referenceWalletAddress
+  store_current_slot_2 $keyHolder $referenceWallet
   wait_for_new_slot $keyHolder
 
   # At this point there is only one UTxO sitting at the reference wallet:
@@ -185,9 +185,9 @@ initiate_fund() {
     --change-address $keyHoldersAddress
 
   sign_and_submit_tx $keyHoldersSigningKeyFile
-  store_current_slot_2 $keyHolder $referenceWalletAddress
+  store_current_slot_2 $keyHolder $referenceWallet
   wait_for_new_slot $keyHolder
-  store_current_slot_2 $keyHolder $referenceWalletAddress
+  store_current_slot_2 $keyHolder $referenceWallet
   wait_for_new_slot $keyHolder
 
   regRefUTxO=$(get_first_utxo_of $referenceWallet)
