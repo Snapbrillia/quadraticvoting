@@ -55,10 +55,10 @@ build_submit_wait() {
   . $tempBashFile
   
   sign_and_submit_tx $preDir/$keyHolder.skey
-  store_current_slot
-  wait_for_new_slot
-  store_current_slot
-  wait_for_new_slot
+  store_current_slot_2 $scriptLabel $keyHolder
+  wait_for_new_slot $scriptLabel
+  store_current_slot_2 $scriptLabel $keyHolder
+  wait_for_new_slot $scriptLabel
   # }}}
 }
 
@@ -240,10 +240,10 @@ if [ $finished == "False" ]; then
         . $tempBashFile
         
         sign_and_submit_tx $preDir/$keyHolder.skey
-        store_current_slot
-        wait_for_new_slot
-        store_current_slot
-        wait_for_new_slot
+        store_current_slot_2 $scriptLabel $keyHolder
+        wait_for_new_slot $scriptLabel
+        store_current_slot_2 $scriptLabel $keyHolder
+        wait_for_new_slot $scriptLabel
         allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
         allDonationsCount=$(echo "$allDonations" | jq length)
         i=0

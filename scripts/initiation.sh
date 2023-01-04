@@ -132,11 +132,12 @@ initiate_fund() {
     --change-address $keyHoldersAddress
   
   sign_and_submit_tx $keyHoldersSigningKeyFile
-  wait_for_new_slot
+  store_current_slot_2 $scriptLabel $keyHolder
+  wait_for_new_slot $scriptLabel
   # }}}
 
-  store_current_slot
-  wait_for_new_slot
+  store_current_slot_2 $scriptLabel $keyHolder
+  wait_for_new_slot $scriptLabel
 
   # STORING SCRIPTS ON-CHAIN #
   # {{{
@@ -155,10 +156,10 @@ initiate_fund() {
     --change-address $keyHoldersAddress
 
   sign_and_submit_tx $keyHoldersSigningKeyFile
-  wait_for_new_slot
-
-  store_current_slot
-  wait_for_new_slot
+  store_current_slot_2 $keyHolder $referenceWalletAddress
+  wait_for_new_slot $keyHolder
+  store_current_slot_2 $keyHolder $referenceWalletAddress
+  wait_for_new_slot $keyHolder
 
   # At this point there is only one UTxO sitting at the reference wallet:
   qvfRefUTxO=$(get_first_utxo_of $referenceWallet)
@@ -184,10 +185,10 @@ initiate_fund() {
     --change-address $keyHoldersAddress
 
   sign_and_submit_tx $keyHoldersSigningKeyFile
-  wait_for_new_slot
-
-  store_current_slot
-  wait_for_new_slot
+  store_current_slot_2 $keyHolder $referenceWalletAddress
+  wait_for_new_slot $keyHolder
+  store_current_slot_2 $keyHolder $referenceWalletAddress
+  wait_for_new_slot $keyHolder
 
   regRefUTxO=$(get_first_utxo_of $referenceWallet)
   if [ $regRefUTxO == $qvfRefUTxO ]; then
@@ -202,7 +203,7 @@ initiate_fund() {
   echo $donRefUTxO > $donRefUTxOFile
   # }}}
 
-  store_current_slot
+  store_current_slot_2 $scriptLabel $keyHolder
 
   # }}}
 }
@@ -262,7 +263,8 @@ dev_depletion() {
   echo $buildTx > $tempBashFile
   . $tempBashFile
   sign_and_submit_tx $preDir/$keyHolder.skey
-  wait_for_new_slot
+  store_current_slot $keyHolder
+  wait_for_new_slot $keyHolder
   show_utxo_tables $scriptLabel
   # }}}
 }
@@ -273,7 +275,8 @@ deplete_reference_wallet() {
     $(get_all_input_utxos_at $referenceWallet) \
     --change-address $keyHoldersAddress
   sign_and_submit_tx $preDir/$referenceWallet.skey
-  wait_for_new_slot
+  store_current_slot $referenceWallet
+  wait_for_new_slot $referenceWallet
   show_utxo_tables $referenceWallet
   # }}}
 }

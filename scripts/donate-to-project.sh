@@ -11,7 +11,7 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-wait_for_new_slot
+# wait_for_new_slot
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -108,10 +108,10 @@ dev() {
     . $tempBashFile
     
     sign_and_submit_tx $preDir/$keyHolder.skey
-    store_current_slot
-    wait_for_new_slot
-    store_current_slot
-    wait_for_new_slot
+    store_current_slot $projectTokenName
+    wait_for_new_slot $projectTokenName
+    store_current_slot $projectTokenName
+    wait_for_new_slot $projectTokenName
   done
   # }}}
 }
@@ -193,11 +193,12 @@ $cli $BUILD_TX_CONST_ARGS                                       \
 
 if [ "$ENV" == "dev" ]; then
   sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
-  wait_for_new_slot
-  store_current_slot
-  wait_for_new_slot
+  store_current_slot $projectTokenName
+  wait_for_new_slot $projectTokenName
+  store_current_slot $projectTokenName
+  wait_for_new_slot $projectTokenName
 else
-  store_current_slot
+  store_current_slot $projectTokenName
   JSON_STRING=$( jq -n                         \
     --arg tu "$(cat $txBody | jq -r .cborHex)" \
     '{unsignedTx: $tu }' )

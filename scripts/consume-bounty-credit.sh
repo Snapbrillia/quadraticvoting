@@ -53,7 +53,6 @@ $cli $BUILD_TX_CONST_ARGS                                            \
   --change-address $bountyEscrowWalletAddress                             
 
 sign_and_submit_tx $preDir/$keyHolder.skey
+store_current_slot $keyHolder
 
 echo "Success"
-
-store_current_slot
