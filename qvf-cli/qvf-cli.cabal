@@ -16,8 +16,7 @@ Maintainer:          andysizer@snapbrillia.com
                    , tasosvaltinos@snapbrillia.com
 Build-Type:          Simple
 Copyright:           © 2022 Snapbrillia
-License:             Apache-2.0
-License-files:       LICENSE
+License-files:       LICENSE.md
 
 executable qvf-cli
   hs-source-dirs:      app
