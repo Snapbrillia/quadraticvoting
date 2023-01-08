@@ -152,71 +152,77 @@ else
   changeAddress=$donorAddress
 fi
 
-projectAsset="$regSym.$projectTokenName"
-donAsset="$donSym.$projectTokenName"
+# checks if you can interact with the contract, if not echo "0"
+differenceBetweenSlots=$(get_slot_difference $scriptLabel)
+if [ $differenceBetweenSlots -lt 100 ]; then
+  echo "1"
+else 
+  projectAsset="$regSym.$projectTokenName"
+  donAsset="$donSym.$projectTokenName"
 
-projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
-projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
-echo "$projectCurrDatum" > $currentDatumFile
-projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+  projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
+  echo "$projectCurrDatum" > $currentDatumFile
+  projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
-deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
+  deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
-$qvf donate-to-project        \
-  $donorPKH                   \
-  $projectTokenName           \
-	$donationAmount             \
-  "$(cat $fileNamesJSONFile)"
+  $qvf donate-to-project        \
+    $donorPKH                   \
+    $projectTokenName           \
+    $donationAmount             \
+    "$(cat $fileNamesJSONFile)"
 
-outputProjectUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
-donationUTxO="$qvfAddress + $donationAmount lovelace + 1 $donAsset"
+  outputProjectUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
+  donationUTxO="$qvfAddress + $donationAmount lovelace + 1 $donAsset"
 
-qvfRefUTxO=$(cat $qvfRefUTxOFile)
-donRefUTxO=$(cat $donRefUTxOFile)
-collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  qvfRefUTxO=$(cat $qvfRefUTxOFile)
+  donRefUTxO=$(cat $donRefUTxOFile)
+  collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
 
 
-generate_protocol_params
+  generate_protocol_params
 
-$cli $BUILD_TX_CONST_ARGS                                       \
-  --required-signer-hash $donorPKH                              \
-  --read-only-tx-in-reference $deadlineUTxO                     \
-  --tx-in $projectUTxO                                          \
-  --spending-tx-in-reference $qvfRefUTxO                        \
-  --spending-plutus-script-v2                                   \
-  --spending-reference-tx-in-inline-datum-present               \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-  $txInUTxO                                                     \
-  --tx-in-collateral "$collateralUTxO"                          \
-  $txOutUTxO                                                    \
-  --tx-out "$outputProjectUTxO"                                 \
-  --tx-out-inline-datum-file $updatedDatumFile                  \
-  --tx-out "$donationUTxO"                                      \
-  --tx-out-inline-datum-file $newDatumFile                      \
-  --invalid-hereafter $cappedSlot                               \
-  --mint "1 $donAsset"                                          \
-  --mint-tx-in-reference $donRefUTxO                            \
-  --mint-plutus-script-v2                                       \
-  --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
-  --policy-id $donSym                                           \
-  --change-address $changeAddress
+  $cli $BUILD_TX_CONST_ARGS                                       \
+    --required-signer-hash $donorPKH                              \
+    --read-only-tx-in-reference $deadlineUTxO                     \
+    --tx-in $projectUTxO                                          \
+    --spending-tx-in-reference $qvfRefUTxO                        \
+    --spending-plutus-script-v2                                   \
+    --spending-reference-tx-in-inline-datum-present               \
+    --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
+    $txInUTxO                                                     \
+    --tx-in-collateral "$collateralUTxO"                          \
+    $txOutUTxO                                                    \
+    --tx-out "$outputProjectUTxO"                                 \
+    --tx-out-inline-datum-file $updatedDatumFile                  \
+    --tx-out "$donationUTxO"                                      \
+    --tx-out-inline-datum-file $newDatumFile                      \
+    --invalid-hereafter $cappedSlot                               \
+    --mint "1 $donAsset"                                          \
+    --mint-tx-in-reference $donRefUTxO                            \
+    --mint-plutus-script-v2                                       \
+    --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
+    --policy-id $donSym                                           \
+    --change-address $changeAddress
 
-if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
-  store_current_slot $projectTokenName
-  wait_for_new_slot $projectTokenName
-  store_current_slot $projectTokenName
-  wait_for_new_slot $projectTokenName
-else if [ "$QUEUE" == "true" ]; then
-  sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
-  store_current_slot $projectTokenName
-else
-  store_current_slot $projectTokenName
-  JSON_STRING=$( jq -n                         \
-    --arg tu "$(cat $txBody | jq -r .cborHex)" \
-    '{unsignedTx: $tu }' )
-  echo "--json--$JSON_STRING"
+  if [ "$ENV" == "dev" ]; then
+    sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
+    store_current_slot $projectTokenName
+    wait_for_new_slot $projectTokenName
+    store_current_slot $projectTokenName
+    wait_for_new_slot $projectTokenName
+  else if [ "$QUEUE" == "true" ]; then
+    sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
+    store_current_slot $projectTokenName
+  else
+    store_current_slot $projectTokenName
+    JSON_STRING=$( jq -n                         \
+      --arg tu "$(cat $txBody | jq -r .cborHex)" \
+      '{unsignedTx: $tu }' )
+    echo "--json--$JSON_STRING"
+  fi
+  # }}}
 fi
-# }}}
 
