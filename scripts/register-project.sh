@@ -11,8 +11,7 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-# Is this needed?
-# wait_for_new_slot
+wait_for_new_slot
 
 if [ "$ENV" == "dev" ]; then
   projectOwnerWalletLabel=$1
@@ -25,94 +24,119 @@ if [ "$ENV" == "dev" ]; then
   # txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
-else
+  changeAddress=$projectOwnerAddress
+else if [ "$QUEUE" == "true" ]; then
+  projectName=$1
+  projectRequestedFund=$2
+  walletLabel=$3
+  projectOwnerAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
+  projectOwnerPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
+  txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
+  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
+  txOutUTxO=""
+  changeAddress=$(cat $preDir/$keyHolder.addr)
+else 
   projectName=$1
   projectRequestedFund=$2
   projectOwnerAddress=$3
   projectOwnerPKH=$4
   txInUTxO=$5
   txOutUTxO=$6
+  changeAddress=$projectOwnerAddress
 fi
 
-qvfAddress=$(cat $scriptAddressFile)
-govAsset=$(cat $govSymFile)
-regSym=$(cat $regSymFile)
-donSym=$(cat $donSymFile)
-deadlineSlot=$(cat $deadlineSlotFile)
-cappedSlot=$(cap_deadline_slot $deadlineSlot)
+# checks if you can interact with the contract, if not echo "0"
+differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 
-govUTxOObj="$(get_governance_utxo)"
-govUTxO=$(echo $govUTxOObj | jq -r .utxo)
-govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
-echo "$govCurrDatum" > $currentDatumFile
-govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
-deadlineUTxO=$(get_deadline_utxo | jq -r .utxo)
+if [ $differenceBetweenSlots -lt 100 ]; then
+  echo "1"
+else 
+  qvfAddress=$(cat $scriptAddressFile)
+  govAsset=$(cat $govSymFile)
+  regSym=$(cat $regSymFile)
+  donSym=$(cat $donSymFile)
+  deadlineSlot=$(cat $deadlineSlotFile)
+  cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
-$qvf register-project         \
-  $projectOwnerPKH            \
-	$projectName                \
-	$projectRequestedFund       \
-  "$(cat $fileNamesJSONFile)"
+  govUTxOObj="$(get_governance_utxo)"
+  govUTxO=$(echo $govUTxOObj | jq -r .utxo)
+  govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
+  echo "$govCurrDatum" > $currentDatumFile
+  govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
+  deadlineUTxO=$(get_deadline_utxo | jq -r .utxo)
 
-# {{{
-projectTokenName=$(cat $projectTokenNameFile)
-newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
-newRegisteredProjects=$(cat $registeredProjectsFile \
-  | jq -c --argjson obj "$newProjJSON"              \
-  'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
-  )
-echo $newRegisteredProjects > $registeredProjectsFile
-projectAsset="$regSym.$projectTokenName"
-projectDatumFile="$newDatumFile"
-projectInfoDatumFile="$preDir/$projectTokenName"
+  $qvf register-project         \
+    $projectOwnerPKH            \
+    $projectName                \
+    $projectRequestedFund       \
+    "$(cat $fileNamesJSONFile)"
 
-firstUTxO="$qvfAddress + $govLovelaces lovelace + 1 $govAsset"
-projUTxO="$qvfAddress + $halfOfTheRegistrationFee lovelace + 1 $projectAsset"
+  # {{{
+  projectTokenName=$(cat $projectTokenNameFile)
+  newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
+  newRegisteredProjects=$(cat $registeredProjectsFile \
+    | jq -c --argjson obj "$newProjJSON"              \
+    'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
+    )
+  echo $newRegisteredProjects > $registeredProjectsFile
+  projectAsset="$regSym.$projectTokenName"
+  projectDatumFile="$newDatumFile"
+  projectInfoDatumFile="$preDir/$projectTokenName"
 
-qvfRefUTxO=$(cat $qvfRefUTxOFile)
-regRefUTxO=$(cat $regRefUTxOFile)
+  firstUTxO="$qvfAddress + $govLovelaces lovelace + 1 $govAsset"
+  projUTxO="$qvfAddress + $halfOfTheRegistrationFee lovelace + 1 $projectAsset"
 
-collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  qvfRefUTxO=$(cat $qvfRefUTxOFile)
+  regRefUTxO=$(cat $regRefUTxOFile)
 
-generate_protocol_params
+  collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
 
-$cli $BUILD_TX_CONST_ARGS                                        \
-  --required-signer-hash $projectOwnerPKH                        \
-  --read-only-tx-in-reference $deadlineUTxO                      \
-  --tx-in $govUTxO                                               \
-  --spending-tx-in-reference $qvfRefUTxO                         \
-  --spending-plutus-script-v2                                    \
-  --spending-reference-tx-in-inline-datum-present                \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
-  $txInUTxO                                                      \
-  --tx-in-collateral "$collateralUTxO"                           \
-  $txOutUTxO                                                     \
-  --tx-out "$firstUTxO"                                          \
-  --tx-out-inline-datum-file $updatedDatumFile                   \
-  --tx-out "$projUTxO"                                           \
-  --tx-out-inline-datum-file $projectInfoDatumFile               \
-  --tx-out "$projUTxO"                                           \
-  --tx-out-inline-datum-file $projectDatumFile                   \
-  --invalid-hereafter $cappedSlot                                \
-  --mint "2 $projectAsset"                                       \
-  --mint-tx-in-reference $regRefUTxO                             \
-  --mint-plutus-script-v2                                        \
-  --mint-reference-tx-in-redeemer-file $minterRedeemerFile       \
-  --policy-id $regSym                                            \
-  --change-address $projectOwnerAddress
+  generate_protocol_params
 
-if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$collateralKeyHolder.skey
-  store_current_slot_2 $projectTokenName $scriptLabel
-  wait_for_new_slot $projectTokenName
-  store_current_slot_2 $projectTokenName $scriptLabel
-  wait_for_new_slot $projectTokenName
-else
-  JSON_STRING=$( jq -n                            \
-    --arg tu "$(cat $txBody | jq -r .cborHex)"    \
-    --arg on "$(cat $projectTokenNameFile)"       \
-    '{unsignedTx: $tu, projectTokenName: $on }' )
-  echo "--json--$JSON_STRING"
-  store_current_slot_2 $projectTokenName $scriptLabel
+  $cli $BUILD_TX_CONST_ARGS                                        \
+    --required-signer-hash $projectOwnerPKH                        \
+    --read-only-tx-in-reference $deadlineUTxO                      \
+    --tx-in $govUTxO                                               \
+    --spending-tx-in-reference $qvfRefUTxO                         \
+    --spending-plutus-script-v2                                    \
+    --spending-reference-tx-in-inline-datum-present                \
+    --spending-reference-tx-in-redeemer-file $qvfRedeemerFile      \
+    $txInUTxO                                                      \
+    --tx-in-collateral "$collateralUTxO"                           \
+    $txOutUTxO                                                     \
+    --tx-out "$firstUTxO"                                          \
+    --tx-out-inline-datum-file $updatedDatumFile                   \
+    --tx-out "$projUTxO"                                           \
+    --tx-out-inline-datum-file $projectInfoDatumFile               \
+    --tx-out "$projUTxO"                                           \
+    --tx-out-inline-datum-file $projectDatumFile                   \
+    --invalid-hereafter $cappedSlot                                \
+    --mint "2 $projectAsset"                                       \
+    --mint-tx-in-reference $regRefUTxO                             \
+    --mint-plutus-script-v2                                        \
+    --mint-reference-tx-in-redeemer-file $minterRedeemerFile       \
+    --policy-id $regSym                                            \
+    --change-address $changeAddress
+
+  if [ "$ENV" == "dev" ]; then
+    sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$collateralKeyHolder.skey
+    store_current_slot_2 $projectTokenName $scriptLabel
+    wait_for_new_slot $projectTokenName
+    store_current_slot_2 $projectTokenName $scriptLabel
+    wait_for_new_slot $projectTokenName
+  else if [ "$QUEUE" == "true" ]; then
+    sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
+    store_current_slot_2 $projectTokenName $scriptLabel
+  else
+    JSON_STRING=$( jq -n                            \
+      --arg tu "$(cat $txBody | jq -r .cborHex)"    \
+      --arg on "$(cat $projectTokenNameFile)"       \
+      '{unsignedTx: $tu, projectTokenName: $on }' )
+    echo "--json--$JSON_STRING"
+    store_current_slot_2 $projectTokenName $scriptLabel
+    wait_for_new_slot
+  fi
 fi
+
+
 # }}}

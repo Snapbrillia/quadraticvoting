@@ -11,7 +11,7 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-# wait_for_new_slot
+wait_for_new_slot
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -132,6 +132,16 @@ if [ "$ENV" == "dev" ]; then
   txInUTxO="--tx-in $donorInUTxO"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
+  changeAddress=$donorAddress
+else if [ "$QUEUE" == "true" ]; then
+  projectTokenName=$1
+  donationAmount=$2
+  walletLabel=$3
+  donorPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
+  donorAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
+  txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
+  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
+  changeAddress=$donorAddress
 else
   projectTokenName=$1
   donationAmount=$2
@@ -139,6 +149,7 @@ else
   donorAddress=$4
   txInUTxO=$5
   txOutUTxO=$6
+  changeAddress=$donorAddress
 fi
 
 projectAsset="$regSym.$projectTokenName"
@@ -189,7 +200,7 @@ $cli $BUILD_TX_CONST_ARGS                                       \
   --mint-plutus-script-v2                                       \
   --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
   --policy-id $donSym                                           \
-  --change-address $donorAddress
+  --change-address $changeAddress
 
 if [ "$ENV" == "dev" ]; then
   sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
@@ -197,6 +208,9 @@ if [ "$ENV" == "dev" ]; then
   wait_for_new_slot $projectTokenName
   store_current_slot $projectTokenName
   wait_for_new_slot $projectTokenName
+else if [ "$QUEUE" == "true" ]; then
+  sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
+  store_current_slot $projectTokenName
 else
   store_current_slot $projectTokenName
   JSON_STRING=$( jq -n                         \
