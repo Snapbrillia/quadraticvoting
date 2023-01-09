@@ -42,9 +42,6 @@ else
   changeAddress=$projectOwnerAddress
 fi
 
-wait_for_new_slot $scriptLabel
-
-
 # checks if you can interact with the contract, if not echo "0"
 differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 
