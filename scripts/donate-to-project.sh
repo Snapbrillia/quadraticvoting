@@ -151,7 +151,7 @@ else
   changeAddress=$donorAddress
 fi
 
-# checks if you can interact with the contract, if not echo "0"
+# checks if you can interact with the contract, if not echo "1"
 differenceBetweenSlots=$(get_slot_difference $projectTokenName)
 
 if [ $differenceBetweenSlots -lt 100 ]; then
