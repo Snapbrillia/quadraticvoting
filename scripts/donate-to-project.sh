@@ -11,7 +11,6 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-wait_for_new_slot
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
