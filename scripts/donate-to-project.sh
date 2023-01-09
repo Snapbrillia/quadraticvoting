@@ -133,7 +133,7 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$donorAddress
-else if [ "$QUEUE" == "true" ]; then
+elif [ "$QUEUE" == "true" ]; then
   projectTokenName=$1
   donationAmount=$2
   walletLabel=$3
@@ -153,7 +153,8 @@ else
 fi
 
 # checks if you can interact with the contract, if not echo "0"
-differenceBetweenSlots=$(get_slot_difference $scriptLabel)
+differenceBetweenSlots=$(get_slot_difference $projectTokenName)
+
 if [ $differenceBetweenSlots -lt 100 ]; then
   echo "1"
 else 
@@ -213,7 +214,7 @@ else
     wait_for_new_slot $projectTokenName
     store_current_slot $projectTokenName
     wait_for_new_slot $projectTokenName
-  else if [ "$QUEUE" == "true" ]; then
+  elif [ "$QUEUE" == "true" ]; then
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     store_current_slot $projectTokenName
   else

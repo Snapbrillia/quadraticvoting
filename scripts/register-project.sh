@@ -11,8 +11,6 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-wait_for_new_slot
-
 if [ "$ENV" == "dev" ]; then
   projectOwnerWalletLabel=$1
   projectName=$2
@@ -24,8 +22,8 @@ if [ "$ENV" == "dev" ]; then
   # txInCollateralUTxO="--tx-in-collateral $ownerInputUTxO"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
-  changeAddress=$projectOwnerAddress
-else if [ "$QUEUE" == "true" ]; then
+  changeAddress=$projectOwnerAddress1
+elif [ "$QUEUE" == "true" ]; then
   projectName=$1
   projectRequestedFund=$2
   walletLabel=$3
@@ -33,7 +31,6 @@ else if [ "$QUEUE" == "true" ]; then
   projectOwnerPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
   txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
-  txOutUTxO=""
   changeAddress=$(cat $preDir/$keyHolder.addr)
 else 
   projectName=$1
@@ -44,6 +41,7 @@ else
   txOutUTxO=$6
   changeAddress=$projectOwnerAddress
 fi
+
 
 # checks if you can interact with the contract, if not echo "0"
 differenceBetweenSlots=$(get_slot_difference $scriptLabel)
@@ -65,10 +63,10 @@ else
   govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
   deadlineUTxO=$(get_deadline_utxo | jq -r .utxo)
 
-  $qvf register-project         \
-    $projectOwnerPKH            \
-    $projectName                \
-    $projectRequestedFund       \
+  $qvf register-project           \
+    $projectOwnerPKH              \
+    "$projectName"                \
+    $projectRequestedFund         \
     "$(cat $fileNamesJSONFile)"
 
   # {{{
@@ -124,7 +122,7 @@ else
     wait_for_new_slot $projectTokenName
     store_current_slot_2 $projectTokenName $scriptLabel
     wait_for_new_slot $projectTokenName
-  else if [ "$QUEUE" == "true" ]; then
+  elif [ "$QUEUE" == "true" ]; then
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     store_current_slot_2 $projectTokenName $scriptLabel
   else
@@ -134,9 +132,7 @@ else
       '{unsignedTx: $tu, projectTokenName: $on }' )
     echo "--json--$JSON_STRING"
     store_current_slot_2 $projectTokenName $scriptLabel
-    wait_for_new_slot
   fi
 fi
 
 
-# }}}
