@@ -23,7 +23,7 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$projectOwnerAddress1
-elif [ "$QUEUE" == "true" ]; then
+elif [ "$QUEUE" == "1" ]; then
   projectName=$1
   projectRequestedFund=$2
   walletLabel=$3
@@ -31,7 +31,7 @@ elif [ "$QUEUE" == "true" ]; then
   projectOwnerPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
   txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
-  changeAddress=$(cat $preDir/$keyHolder.addr)
+  changeAddress=$keyHoldersAddress
 else 
   projectName=$1
   projectRequestedFund=$2
@@ -122,7 +122,7 @@ else
     wait_for_new_slot $projectTokenName
     store_current_slot_2 $projectTokenName $scriptLabel
     wait_for_new_slot $projectTokenName
-  elif [ "$QUEUE" == "true" ]; then
+  elif [ "$QUEUE" == "1" ]; then
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     JSON_STRING=$( jq -n                            \
       --arg on "$(cat $projectTokenNameFile)"       \

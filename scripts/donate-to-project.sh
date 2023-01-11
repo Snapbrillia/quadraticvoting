@@ -132,7 +132,7 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$donorAddress
-elif [ "$QUEUE" == "true" ]; then
+elif [ "$QUEUE" == "1" ]; then
   projectTokenName=$1
   donationAmount=$2
   walletLabel=$3
@@ -213,7 +213,7 @@ else
     wait_for_new_slot $projectTokenName
     store_current_slot $projectTokenName
     wait_for_new_slot $projectTokenName
-  elif [ "$QUEUE" == "true" ]; then
+  elif [ "$QUEUE" == "1" ]; then
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     store_current_slot $projectTokenName
   else
