@@ -140,7 +140,7 @@ elif [ "$QUEUE" == "true" ]; then
   donorAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
   txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
-  changeAddress=$donorAddress
+  changeAddress=$keyHoldersAddress
 else
   projectTokenName=$1
   donationAmount=$2

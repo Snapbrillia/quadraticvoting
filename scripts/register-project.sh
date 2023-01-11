@@ -124,6 +124,10 @@ else
     wait_for_new_slot $projectTokenName
   elif [ "$QUEUE" == "true" ]; then
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
+    JSON_STRING=$( jq -n                            \
+      --arg on "$(cat $projectTokenNameFile)"       \
+      '{projectTokenName: $on }' )
+    echo "--json--$JSON_STRING"
     store_current_slot_2 $projectTokenName $scriptLabel
   else
     JSON_STRING=$( jq -n                            \
