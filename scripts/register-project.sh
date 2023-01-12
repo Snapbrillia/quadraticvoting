@@ -23,7 +23,7 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$projectOwnerAddress1
-elif [ "$QUEUE" == "1" ]; then
+elif [ "$QUEUE" == "True" ]; then
   projectName=$1
   projectRequestedFund=$2
   walletLabel=$3
@@ -47,7 +47,7 @@ fi
 differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 
 if [ $differenceBetweenSlots -lt 100 ]; then
-  echo "1"
+  echo "NetworkBusy"
 else 
   qvfAddress=$(cat $scriptAddressFile)
   govAsset=$(cat $govSymFile)
@@ -122,7 +122,7 @@ else
     wait_for_new_slot $projectTokenName
     store_current_slot_2 $projectTokenName $scriptLabel
     wait_for_new_slot $projectTokenName
-  elif [ "$QUEUE" == "1" ]; then
+  elif [ "$QUEUE" == "True" ]; then
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     JSON_STRING=$( jq -n                            \
       --arg on "$(cat $projectTokenNameFile)"       \

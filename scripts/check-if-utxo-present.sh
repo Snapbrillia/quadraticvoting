@@ -13,7 +13,7 @@ fi
 walletLabel=$1
 UTxOPresent=$(get_first_utxo_of $custodialWalletLabel/$walletLabel)
 if [ -z "$UTxOPresent" ]; then
-  echo "1"
+  echo "True"
 else 
-  echo "0"
+  echo "False"
 fi
