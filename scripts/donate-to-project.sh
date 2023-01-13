@@ -208,7 +208,7 @@ build_tx_with() {
 
   generate_protocol_params
 
-  $cli $1                                                         \
+  res=$($cli $1                                                   \
     --required-signer-hash $3                                     \
     --read-only-tx-in-reference $deadlineUTxO                     \
     --tx-in $projectUTxO                                          \
@@ -216,9 +216,9 @@ build_tx_with() {
     --spending-plutus-script-v2                                   \
     --spending-reference-tx-in-inline-datum-present               \
     --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-    "$4"                                                          \
+    $4                                                            \
     --tx-in-collateral "$collateralUTxO"                          \
-    "$5"                                                          \
+    $5                                                            \
     --tx-out "$outputProjectUTxO"                                 \
     --tx-out-inline-datum-file $updatedDatumFile                  \
     --tx-out "$donationUTxO"                                      \
@@ -230,6 +230,10 @@ build_tx_with() {
     --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
     --policy-id $donSym                                           \
     --change-address $6
+  )
+  if [ "$estimate" == "True" ]; then
+    echo $res | tr -d -c 0-9
+  fi
   # }}}
 }
 
@@ -258,7 +262,7 @@ else
       $keyHoldersPubKeyHash                                  \
       "--tx-in $khsUTxO --tx-in $ckhsUTxO"                   \
       ""                                                     \
-      $keyHoldersAddress | tr -d -c 0-9
+      $keyHoldersAddress
     # }}}
   else
     # {{{
