@@ -233,15 +233,18 @@ get_deadline_slot() {
   # }}}
 }
 
+
 get_current_slot() {
   # {{{
   $cli query tip $MAGIC | jq '.slot|tonumber'
   # }}}
 }
 
+
 # Gets the difference between current slot and latest interaction slot.
+#
 # Takes 1 argument:
-#   1. Field of slot
+#   1. Field of slot.
 get_slot_difference(){
   # {{{
   currentSlot=$(get_current_slot)
@@ -249,6 +252,28 @@ get_slot_difference(){
   echo $(expr $currentSlot - $latest)
   # }}}
 }
+
+
+# Returns the minimum of interaction slot count differences between 2 fields.
+#
+# Takes 2 argument:
+#   1. Field of slot,
+#   2. Second field.
+get_slot_difference_2(){
+  # {{{
+  currentSlot=$(get_current_slot)
+  latest1=$(cat $latestInteractionSlotFile | jq -r --arg f "$1" '.[$f]')
+  latest2=$(cat $latestInteractionSlotFile | jq -r --arg f "$2" '.[$f]')
+  diff1=$(expr $currentSlot - $latest1)
+  diff2=$(expr $currentSlot - $latest2)
+  if [ $diff1 -lt $diff2 ]; then
+    echo $diff1
+  else
+    echo $diff2
+  fi
+  # }}}
+}
+
 
 # Picks the min value between a given slot, and 500 slots after the current
 # slot. Meant to be used for `invalid-hereafter` argument of `cardano-cli`.

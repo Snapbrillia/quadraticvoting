@@ -132,8 +132,11 @@ build_tx_with() {
 
 # Checks if project's UTxO is free for interaction (i.e. making sure it hasn't
 # been consumed recently). Echos "NetworkBusy" if it's not.
-# TODO: Check for key holder's as well in case of $QUEUE.
-differenceBetweenSlots=$(get_slot_difference $scriptLabel)
+if [ "$QUEUE" == "True" ]; then
+  differenceBetweenSlots=$(get_slot_difference_2 $keyHolder $scriptLabel)
+else
+  differenceBetweenSlots=$(get_slot_difference $scriptLabel)
+fi
 
 if [ $differenceBetweenSlots -lt 100 ]; then
   # {{{
