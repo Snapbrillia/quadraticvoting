@@ -172,13 +172,15 @@ generate_protocol_params() {
 }
 export protocolsFile="$preDir/protocol.json"
 generate_protocol_params
+export dummyTx="$preDir/tx.dummy"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
 # }}}
 
 # Convenient variable to replace the constant arguemnts for constructing a
 # transaction.
-export BUILD_TX_CONST_ARGS="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --out-file $txBody --cddl-format"
+export BUILD_TX_CONST_ARGS_NO_OUT_FILE="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --cddl-format"
+export BUILD_TX_CONST_ARGS="$BUILD_TX_CONST_ARGS_NO_OUT_FILE --out-file $txBody"
 
 
 # CONTRACT'S CONSTANTS ================

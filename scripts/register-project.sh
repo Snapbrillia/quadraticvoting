@@ -6,10 +6,14 @@ if [ -z $REPO ]; then
   echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
 . $REPO/scripts/initiation.sh
+
+
+estimate="False"
+
 
 if [ "$ENV" == "dev" ]; then
   projectOwnerWalletLabel=$1
@@ -24,6 +28,7 @@ if [ "$ENV" == "dev" ]; then
   txOutUTxO=""
   changeAddress=$projectOwnerAddress1
 elif [ "$QUEUE" == "True" ]; then
+  # {{{
   projectName=$1
   projectRequestedFund=$2
   walletLabel=$3
@@ -32,6 +37,13 @@ elif [ "$QUEUE" == "True" ]; then
   txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   changeAddress=$keyHoldersAddress
+  # }}}
+elif [ "$3" == "--estimate-fee" ]; then
+  # {{{
+  projectName=$1
+  projectRequestedFund=$2
+  estimate="True"
+  # }}}
 else 
   projectName=$1
   projectRequestedFund=$2
@@ -43,12 +55,16 @@ else
 fi
 
 
-# checks if you can interact with the contract, if not echo "1"
+# Checks if project's UTxO is free for interaction (i.e. making sure it hasn't
+# been consumed recently). Echos "NetworkBusy" if it's not.
 differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 
 if [ $differenceBetweenSlots -lt 100 ]; then
+  # {{{
   echo "NetworkBusy"
+  # }}}
 else 
+  # {{{
   qvfAddress=$(cat $scriptAddressFile)
   govAsset=$(cat $govSymFile)
   regSym=$(cat $regSymFile)
@@ -69,7 +85,6 @@ else
     $projectRequestedFund         \
     "$(cat $fileNamesJSONFile)"
 
-  # {{{
   projectTokenName=$(cat $projectTokenNameFile)
   newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
   newRegisteredProjects=$(cat $registeredProjectsFile \
@@ -137,6 +152,7 @@ else
     echo "--json--$JSON_STRING"
     store_current_slot_2 $projectTokenName $scriptLabel
   fi
+  # }}}
 fi
 
 
