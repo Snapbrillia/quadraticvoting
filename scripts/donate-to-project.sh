@@ -11,7 +11,6 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-# wait_for_new_slot
 
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
@@ -132,6 +131,16 @@ if [ "$ENV" == "dev" ]; then
   txInUTxO="--tx-in $donorInUTxO"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
+  changeAddress=$donorAddress
+elif [ "$QUEUE" == "True" ]; then
+  projectTokenName=$1
+  donationAmount=$2
+  walletLabel=$3
+  donorPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
+  donorAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
+  txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
+  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
+  changeAddress=$keyHoldersAddress
 else
   projectTokenName=$1
   donationAmount=$2
@@ -139,70 +148,81 @@ else
   donorAddress=$4
   txInUTxO=$5
   txOutUTxO=$6
+  changeAddress=$donorAddress
 fi
 
-projectAsset="$regSym.$projectTokenName"
-donAsset="$donSym.$projectTokenName"
+# checks if you can interact with the contract, if not echo "1"
+differenceBetweenSlots=$(get_slot_difference $projectTokenName)
 
-projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
-projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
-echo "$projectCurrDatum" > $currentDatumFile
-projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+if [ $differenceBetweenSlots -lt 100 ]; then
+  echo "NetworkBusy"
+else 
+  projectAsset="$regSym.$projectTokenName"
+  donAsset="$donSym.$projectTokenName"
 
-deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
+  projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
+  echo "$projectCurrDatum" > $currentDatumFile
+  projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
 
-$qvf donate-to-project        \
-  $donorPKH                   \
-  $projectTokenName           \
-	$donationAmount             \
-  "$(cat $fileNamesJSONFile)"
+  deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
 
-outputProjectUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
-donationUTxO="$qvfAddress + $donationAmount lovelace + 1 $donAsset"
+  $qvf donate-to-project        \
+    $donorPKH                   \
+    $projectTokenName           \
+    $donationAmount             \
+    "$(cat $fileNamesJSONFile)"
 
-qvfRefUTxO=$(cat $qvfRefUTxOFile)
-donRefUTxO=$(cat $donRefUTxOFile)
-collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  outputProjectUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
+  donationUTxO="$qvfAddress + $donationAmount lovelace + 1 $donAsset"
+
+  qvfRefUTxO=$(cat $qvfRefUTxOFile)
+  donRefUTxO=$(cat $donRefUTxOFile)
+  collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
 
 
-generate_protocol_params
+  generate_protocol_params
 
-$cli $BUILD_TX_CONST_ARGS                                       \
-  --required-signer-hash $donorPKH                              \
-  --read-only-tx-in-reference $deadlineUTxO                     \
-  --tx-in $projectUTxO                                          \
-  --spending-tx-in-reference $qvfRefUTxO                        \
-  --spending-plutus-script-v2                                   \
-  --spending-reference-tx-in-inline-datum-present               \
-  --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-  $txInUTxO                                                     \
-  --tx-in-collateral "$collateralUTxO"                          \
-  $txOutUTxO                                                    \
-  --tx-out "$outputProjectUTxO"                                 \
-  --tx-out-inline-datum-file $updatedDatumFile                  \
-  --tx-out "$donationUTxO"                                      \
-  --tx-out-inline-datum-file $newDatumFile                      \
-  --invalid-hereafter $cappedSlot                               \
-  --mint "1 $donAsset"                                          \
-  --mint-tx-in-reference $donRefUTxO                            \
-  --mint-plutus-script-v2                                       \
-  --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
-  --policy-id $donSym                                           \
-  --change-address $donorAddress
+  $cli $BUILD_TX_CONST_ARGS                                       \
+    --required-signer-hash $donorPKH                              \
+    --read-only-tx-in-reference $deadlineUTxO                     \
+    --tx-in $projectUTxO                                          \
+    --spending-tx-in-reference $qvfRefUTxO                        \
+    --spending-plutus-script-v2                                   \
+    --spending-reference-tx-in-inline-datum-present               \
+    --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
+    $txInUTxO                                                     \
+    --tx-in-collateral "$collateralUTxO"                          \
+    $txOutUTxO                                                    \
+    --tx-out "$outputProjectUTxO"                                 \
+    --tx-out-inline-datum-file $updatedDatumFile                  \
+    --tx-out "$donationUTxO"                                      \
+    --tx-out-inline-datum-file $newDatumFile                      \
+    --invalid-hereafter $cappedSlot                               \
+    --mint "1 $donAsset"                                          \
+    --mint-tx-in-reference $donRefUTxO                            \
+    --mint-plutus-script-v2                                       \
+    --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
+    --policy-id $donSym                                           \
+    --change-address $changeAddress
 
-if [ "$ENV" == "dev" ]; then
-  sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
-  store_current_slot $projectTokenName
-  wait_for_new_slot $projectTokenName
-  store_current_slot $projectTokenName
-  wait_for_new_slot $projectTokenName
-else
-  store_current_slot $projectTokenName
-  JSON_STRING=$( jq -n                         \
-    --arg tu "$(cat $txBody | jq -r .cborHex)" \
-    '{unsignedTx: $tu }' )
-  echo "--json--$JSON_STRING"
+  if [ "$ENV" == "dev" ]; then
+    sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
+    store_current_slot $projectTokenName
+    wait_for_new_slot $projectTokenName
+    store_current_slot $projectTokenName
+    wait_for_new_slot $projectTokenName
+  elif [ "$QUEUE" == "True" ]; then
+    sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
+    store_current_slot $projectTokenName
+  else
+    store_current_slot $projectTokenName
+    JSON_STRING=$( jq -n                         \
+      --arg tu "$(cat $txBody | jq -r .cborHex)" \
+      '{unsignedTx: $tu }' )
+    echo "--json--$JSON_STRING"
+  fi
+  # }}}
 fi
-# }}}
 
