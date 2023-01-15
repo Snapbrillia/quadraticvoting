@@ -19,6 +19,7 @@ donSym=$(cat $donSymFile)
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 estimate="False"
+silent="True"
 
 
 # For development:
@@ -121,7 +122,7 @@ dev() {
 }
 
 
-if [ "$1" == "dev" ]; then
+if [ "$1" == "dev" ] && [ "$ENV" == "dev" ]; then
   dev $2 $3 $4 $5
   return 0
 fi
@@ -141,6 +142,7 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$donorAddress
+  silence="False"
   # }}}
 elif [ "$QUEUE" == "True" ]; then
   # {{{
@@ -153,10 +155,9 @@ elif [ "$QUEUE" == "True" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   changeAddress=$keyHoldersAddress
   # }}}
-elif [ "$3" == "--estimate-fee" ]; then
+elif [ "$2" == "--estimate-fee" ]; then
   # {{{
   projectTokenName=$1
-  donationAmount=$2
   estimate="True"
   # }}}
 else
@@ -193,11 +194,12 @@ build_tx_with() {
 
   deadlineUTxO=$(get_deadline_utxo | jq -r '.utxo')
 
-  $qvf donate-to-project        \
-    $3                          \
-    $projectTokenName           \
-    $donAmount                  \
+  qvfRes=$($qvf donate-to-project \
+    $3                            \
+    $projectTokenName             \
+    $donAmount                    \
     "$(cat $fileNamesJSONFile)"
+  )
 
   outputProjectUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
   donationUTxO="$qvfAddress + $donAmount lovelace + 1 $donAsset"
@@ -208,7 +210,7 @@ build_tx_with() {
 
   generate_protocol_params
 
-  res=$($cli $1                                                   \
+  cliRes=$($cli $1                                                \
     --required-signer-hash $3                                     \
     --read-only-tx-in-reference $deadlineUTxO                     \
     --tx-in $projectUTxO                                          \
@@ -232,7 +234,12 @@ build_tx_with() {
     --change-address $6
   )
   if [ "$estimate" == "True" ]; then
-    echo $res | tr -d -c 0-9
+    echo $cliRes | tr -d -c 0-9
+  elif [ "$silent" == "False" ]; then
+    echo "qvf-cli log:"
+    echo $qvfRes
+    echo "cardano-cli log:"
+    echo $cliRes
   fi
   # }}}
 }

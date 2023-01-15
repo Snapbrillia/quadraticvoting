@@ -68,34 +68,36 @@ export fileNamesJSONFile="$preDir/fileNames.json"
 # Creating the $fileNamesJSONFile:
 # {{{
 touch $fileNamesJSONFile
-echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
-echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
-echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
-echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
-echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
-echo ", \"ocfnQVFGovernanceUTxO\"   : \"gov.utxo\""                    >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationMinter\"  : \"registration-policy.plutus\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationSymbol\"  : \"registration-policy.symbol\""  >> $fileNamesJSONFile
-echo ", \"ocfnRegistrationRefUTxO\" : \"registration-policy.refUTxO\"" >> $fileNamesJSONFile
-echo ", \"ocfnDonationMinter\"      : \"donation-policy.plutus\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationSymbol\"      : \"donation-policy.symbol\""      >> $fileNamesJSONFile
-echo ", \"ocfnDonationRefUTxO\"     : \"donation-policy.refUTxO\""     >> $fileNamesJSONFile
-echo ", \"ocfnQVFMainValidator\"    : \"$scriptLabel.plutus\""         >> $fileNamesJSONFile
-echo ", \"ocfnQVFRefUTxO\"          : \"$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
-echo ", \"ocfnContractAddress\"     : \"$scriptLabel.addr\""           >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineSlot\"        : \"deadline.slot\""               >> $fileNamesJSONFile
-echo ", \"ocfnDeadlineDatum\"       : \"deadline.govDatum\""           >> $fileNamesJSONFile
-echo ", \"ocfnInitialGovDatum\"     : \"initial.govDatum\""            >> $fileNamesJSONFile
-echo ", \"ocfnCurrentDatum\"        : \"current.datum\""               >> $fileNamesJSONFile
-echo ", \"ocfnUpdatedDatum\"        : \"updated.datum\""               >> $fileNamesJSONFile
-echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileNamesJSONFile
-echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
-echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
-echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
-echo ", \"ocfnScriptUTxOs\"         : \"script.utxos\""                >> $fileNamesJSONFile
-echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
-echo "}" >> $fileNamesJSONFile
+if [ ! "$(cat $fileNamesJSONFile)" ]; then
+  echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
+  echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
+  echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
+  echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
+  echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
+  echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
+  echo ", \"ocfnQVFGovernanceUTxO\"   : \"gov.utxo\""                    >> $fileNamesJSONFile
+  echo ", \"ocfnRegistrationMinter\"  : \"registration-policy.plutus\""  >> $fileNamesJSONFile
+  echo ", \"ocfnRegistrationSymbol\"  : \"registration-policy.symbol\""  >> $fileNamesJSONFile
+  echo ", \"ocfnRegistrationRefUTxO\" : \"registration-policy.refUTxO\"" >> $fileNamesJSONFile
+  echo ", \"ocfnDonationMinter\"      : \"donation-policy.plutus\""      >> $fileNamesJSONFile
+  echo ", \"ocfnDonationSymbol\"      : \"donation-policy.symbol\""      >> $fileNamesJSONFile
+  echo ", \"ocfnDonationRefUTxO\"     : \"donation-policy.refUTxO\""     >> $fileNamesJSONFile
+  echo ", \"ocfnQVFMainValidator\"    : \"$scriptLabel.plutus\""         >> $fileNamesJSONFile
+  echo ", \"ocfnQVFRefUTxO\"          : \"$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
+  echo ", \"ocfnContractAddress\"     : \"$scriptLabel.addr\""           >> $fileNamesJSONFile
+  echo ", \"ocfnDeadlineSlot\"        : \"deadline.slot\""               >> $fileNamesJSONFile
+  echo ", \"ocfnDeadlineDatum\"       : \"deadline.govDatum\""           >> $fileNamesJSONFile
+  echo ", \"ocfnInitialGovDatum\"     : \"initial.govDatum\""            >> $fileNamesJSONFile
+  echo ", \"ocfnCurrentDatum\"        : \"current.datum\""               >> $fileNamesJSONFile
+  echo ", \"ocfnUpdatedDatum\"        : \"updated.datum\""               >> $fileNamesJSONFile
+  echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileNamesJSONFile
+  echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
+  echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
+  echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
+  echo ", \"ocfnScriptUTxOs\"         : \"script.utxos\""                >> $fileNamesJSONFile
+  echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
+  echo "}" >> $fileNamesJSONFile
+fi
 # }}}
 getFileName() {
   echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
@@ -220,7 +222,10 @@ sign_tx_by() {
 # Submits $txSigned to the chain.
 submit_tx() {
   # {{{
-  $cli transaction submit $MAGIC --tx-file $txSigned
+  cliRes=$($cli transaction submit $MAGIC --tx-file $txSigned)
+  if [ "$ENV" == "dev" ]; then
+    echo $cliRes
+  fi
   # }}}
 }
 
@@ -362,21 +367,29 @@ wait_for_new_slot() {
   # {{{
   latest=$(cat $latestInteractionSlotFile | jq -r --arg f "$1" '.[$f]')
   if [ $latest == "null" ]; then
-    echo "TARGET FIELD NOT FOUND."
+    if [ "$ENV" == "dev" ]; then
+      echo "TARGET FIELD NOT FOUND."
+    fi
   else
     current=$(get_current_slot)
-    echo -e "\nWaiting for chain extension..."
+    if [ "$ENV" == "dev" ]; then
+      echo -e "\nWaiting for chain extension..."
+    fi
     i=1
     sp='///---\\\|||'
     while [ $current -eq $latest ]; do
-      printf "\b${sp:i++%${#sp}:1}"
+      if [ "$ENV" == "dev" ]; then
+        printf "\b${sp:i++%${#sp}:1}"
+      fi
       current=$(get_current_slot)
     done
-    echo
-    echo    "----------- CHAIN EXTENDED -----------"
-    echo    "Latest interaction slot:      $latest"
-    echo    "Current slot after extension: $current"
-    echo -e "--------------------------------------\n"
+    if [ "$ENV" == "dev" ]; then
+      echo
+      echo    "----------- CHAIN EXTENDED -----------"
+      echo    "Latest interaction slot:      $latest"
+      echo    "Current slot after extension: $current"
+      echo -e "--------------------------------------\n"
+    fi
   fi
   # }}}
 }

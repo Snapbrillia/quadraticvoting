@@ -19,6 +19,7 @@ donSym=$(cat $donSymFile)
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 estimate="False"
+silent="True"
 
 
 if [ "$ENV" == "dev" ]; then
@@ -32,6 +33,7 @@ if [ "$ENV" == "dev" ]; then
   txInUTxO="--tx-in $ownerInputUTxO"
   txOutUTxO=""
   changeAddress=$projectOwnerAddress1
+  silence="False"
   # }}}
 elif [ "$QUEUE" == "True" ]; then
   # {{{
@@ -77,11 +79,12 @@ build_tx_with() {
   govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
   deadlineUTxO=$(get_deadline_utxo | jq -r .utxo)
 
-  $qvf register-project         \
-    $2                          \
-    "$projectName"              \
-    $projectRequestedFund       \
+  qvfRes=$($qvf register-project \
+    $2                           \
+    "$projectName"               \
+    $projectRequestedFund        \
     "$(cat $fileNamesJSONFile)"
+  )
 
   projectTokenName=$(cat $projectTokenNameFile)
   projectAsset="$regSym.$projectTokenName"
@@ -98,7 +101,7 @@ build_tx_with() {
 
   generate_protocol_params
 
-  res=$($cli $1                                                    \
+  cliRes=$($cli $1                                                 \
     --required-signer-hash $2                                      \
     --read-only-tx-in-reference $deadlineUTxO                      \
     --tx-in $govUTxO                                               \
@@ -124,7 +127,12 @@ build_tx_with() {
     --change-address $5
   )
   if [ "$estimate" == "True" ]; then
-    echo $res | tr -d -c 0-9
+    echo $cliRes | tr -d -c 0-9
+  elif [ "$silent" == "False" ]; then
+    echo "qvf-cli log:"
+    echo $qvfRes
+    echo "cardano-cli log:"
+    echo $cliRes
   fi
   # }}}
 }
@@ -146,7 +154,6 @@ else
   # {{{
   if [ "$estimate" == "True" ]; then
     # {{{
-    khsLovelaces=$(get_first_lovelace_count_of $preDir/$keyHolder.addr)
     khsUTxO=$(get_first_utxo_of $keyHolder)
     ckhsUTxO=$(get_first_utxo_of $collateralKeyHolder)
     build_tx_with                                            \

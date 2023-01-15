@@ -6,7 +6,7 @@ if [ -z $REPO ]; then
   echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
 . $REPO/scripts/initiation.sh
