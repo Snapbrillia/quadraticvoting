@@ -188,7 +188,7 @@ else
       'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
       )
     echo $newRegisteredProjects > $registeredProjectsFile
-    # ---
+    # --------------------------
     if [ "$ENV" == "dev" ]; then
       # {{{
       sign_and_submit_tx $preDir/$projectOwnerWalletLabel.skey $preDir/$collateralKeyHolder.skey
@@ -203,7 +203,7 @@ else
       JSON_STRING=$( jq -n                            \
         --arg on "$(cat $projectTokenNameFile)"       \
         '{projectTokenName: $on }' )
-      echo "--json--$JSON_STRING"
+      echo "$JSON_STRING"
       store_current_slot_2 $projectTokenName $scriptLabel
       # }}}
     else
@@ -212,7 +212,7 @@ else
         --arg tu "$(cat $txBody | jq -r .cborHex)"    \
         --arg on "$(cat $projectTokenNameFile)"       \
         '{unsignedTx: $tu, projectTokenName: $on }' )
-      echo "--json--$JSON_STRING"
+      echo "$JSON_STRING"
       store_current_slot_2 $projectTokenName $scriptLabel
       # }}}
     fi
