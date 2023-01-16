@@ -6,7 +6,7 @@ if [ -z $REPO ]; then
   echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
 . $REPO/scripts/initiation.sh
@@ -18,13 +18,19 @@ regSym=$(cat $regSymFile)
 donSym=$(cat $donSymFile)
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
+estimate="False"
+silent="True"
 
+
+# For development:
+# {{{
 # Takes 1 argument:
 #   1. Donation count.
 mkProjectDatum() {
   constr=$($qvf get-constr-index ReceivedDonationsCount)
   echo "{\"constructor\":$constr,\"fields\":[{\"int\":$1}]}"
 }
+
 
 # Takes 1 argument:
 #   1. Donor's public key hash.
@@ -116,12 +122,16 @@ dev() {
 }
 
 
-if [ "$1" == "dev" ]; then
+if [ "$1" == "dev" ] && [ "$ENV" == "dev" ]; then
   dev $2 $3 $4 $5
   return 0
 fi
+# }}}
 
+
+# Handling arguments:
 if [ "$ENV" == "dev" ]; then
+  # {{{
   donorWalletLabel=$1
   projectTokenName=$2
   donationAmount=$3
@@ -132,7 +142,10 @@ if [ "$ENV" == "dev" ]; then
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$donorAddress
+  silence="False"
+  # }}}
 elif [ "$QUEUE" == "True" ]; then
+  # {{{
   projectTokenName=$1
   donationAmount=$2
   walletLabel=$3
@@ -141,7 +154,14 @@ elif [ "$QUEUE" == "True" ]; then
   txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
   txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   changeAddress=$keyHoldersAddress
+  # }}}
+elif [ "$2" == "--estimate-fee" ]; then
+  # {{{
+  projectTokenName=$1
+  estimate="True"
+  # }}}
 else
+  # {{{
   projectTokenName=$1
   donationAmount=$2
   donorPKH=$3
@@ -149,52 +169,58 @@ else
   txInUTxO=$5
   txOutUTxO=$6
   changeAddress=$donorAddress
+  # }}}
 fi
 
-# checks if you can interact with the contract, if not echo "1"
-differenceBetweenSlots=$(get_slot_difference $projectTokenName)
 
-if [ $differenceBetweenSlots -lt 100 ]; then
-  echo "NetworkBusy"
-else 
+# Takes 6 arguments:
+#   1. Constant arguments,
+#   2. Donation amount,
+#   3. Donor's public key hash,
+#   4. Inputs,
+#   5. Outputs,
+#   6. Change address.
+build_tx_with() {
+  # {{{
+  donAmount=$2
   projectAsset="$regSym.$projectTokenName"
   donAsset="$donSym.$projectTokenName"
 
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectUTxO=$(echo $projectUTxOObj | jq -r .utxo)
   projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
   echo "$projectCurrDatum" > $currentDatumFile
-  projectLovelaces=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+  projectLovelaces=$(echo $projectUTxOObj | jq -r .lovelace)
 
-  deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
+  deadlineUTxO=$(get_deadline_utxo | jq -r '.utxo')
 
-  $qvf donate-to-project        \
-    $donorPKH                   \
-    $projectTokenName           \
-    $donationAmount             \
+  qvfRes=$($qvf donate-to-project \
+    $3                            \
+    $projectTokenName             \
+    $donAmount                    \
     "$(cat $fileNamesJSONFile)"
+  )
 
   outputProjectUTxO="$qvfAddress + $projectLovelaces lovelace + 1 $projectAsset"
-  donationUTxO="$qvfAddress + $donationAmount lovelace + 1 $donAsset"
+  donationUTxO="$qvfAddress + $donAmount lovelace + 1 $donAsset"
 
   qvfRefUTxO=$(cat $qvfRefUTxOFile)
   donRefUTxO=$(cat $donRefUTxOFile)
   collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
 
-
   generate_protocol_params
 
-  $cli $BUILD_TX_CONST_ARGS                                       \
-    --required-signer-hash $donorPKH                              \
+  cliRes=$($cli $1                                                \
+    --required-signer-hash $3                                     \
     --read-only-tx-in-reference $deadlineUTxO                     \
     --tx-in $projectUTxO                                          \
     --spending-tx-in-reference $qvfRefUTxO                        \
     --spending-plutus-script-v2                                   \
     --spending-reference-tx-in-inline-datum-present               \
     --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-    $txInUTxO                                                     \
+    $4                                                            \
     --tx-in-collateral "$collateralUTxO"                          \
-    $txOutUTxO                                                    \
+    $5                                                            \
     --tx-out "$outputProjectUTxO"                                 \
     --tx-out-inline-datum-file $updatedDatumFile                  \
     --tx-out "$donationUTxO"                                      \
@@ -205,23 +231,87 @@ else
     --mint-plutus-script-v2                                       \
     --mint-reference-tx-in-redeemer-file $minterRedeemerFile      \
     --policy-id $donSym                                           \
-    --change-address $changeAddress
+    --change-address $6
+  )
+  if [ "$estimate" == "True" ]; then
+    echo $cliRes | tr -d -c 0-9
+  elif [ "$silent" == "False" ]; then
+    echo "qvf-cli log:"
+    echo $qvfRes
+    echo "cardano-cli log:"
+    echo $cliRes
+  fi
+  # }}}
+}
 
-  if [ "$ENV" == "dev" ]; then
+
+# Checks if project's UTxO is free for interaction (i.e. making sure it hasn't
+# been consumed recently). Echos "NetworkBusy" if it's not.
+if [ "$QUEUE" == "True" ]; then
+  differenceBetweenSlots=$(get_slot_difference_2 $keyHolder $projectTokenName)
+else
+  differenceBetweenSlots=$(get_slot_difference $projectTokenName)
+fi
+
+
+if [ $differenceBetweenSlots -lt 100 ]; then
+  # {{{
+  echo "NetworkBusy"
+  # }}}
+else
+  # {{{
+  # Build the transaction:
+  if [ "$estimate" == "True" ]; then
+    # {{{
+    khsLovelaces=$(get_first_lovelace_count_of $preDir/$keyHolder.addr)
+    khsUTxO=$(get_first_utxo_of $keyHolder)
+    ckhsUTxO=$(get_first_utxo_of $collateralKeyHolder)
+    build_tx_with                                            \
+      "$BUILD_TX_CONST_ARGS_NO_OUT_FILE --out-file $dummyTx" \
+      $khsLovelaces                                          \
+      $keyHoldersPubKeyHash                                  \
+      "--tx-in $khsUTxO --tx-in $ckhsUTxO"                   \
+      ""                                                     \
+      $keyHoldersAddress
+    # }}}
+  else
+    # {{{
+    build_tx_with            \
+      "$BUILD_TX_CONST_ARGS" \
+      $donationAmount        \
+      $donorPKH              \
+      "$txInUTxO"            \
+      "$txOutUTxO"           \
+      $changeAddress
+    # }}}
+  fi
+
+  # Sign and submit (if applicable):
+  if [ "$estimate" == "True" ]; then
+    # {{{
+    :
+    # }}}
+  elif [ "$ENV" == "dev" ]; then
+    # {{{
     sign_and_submit_tx $preDir/$donorWalletLabel.skey $preDir/$collateralKeyHolder.skey
     store_current_slot $projectTokenName
     wait_for_new_slot $projectTokenName
     store_current_slot $projectTokenName
     wait_for_new_slot $projectTokenName
+    # }}}
   elif [ "$QUEUE" == "True" ]; then
+    # {{{
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     store_current_slot $projectTokenName
+    # }}}
   else
+    # {{{
     store_current_slot $projectTokenName
     JSON_STRING=$( jq -n                         \
       --arg tu "$(cat $txBody | jq -r .cborHex)" \
       '{unsignedTx: $tu }' )
-    echo "--json--$JSON_STRING"
+    echo "$JSON_STRING"
+    # }}}
   fi
   # }}}
 fi
