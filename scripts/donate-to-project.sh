@@ -302,7 +302,8 @@ else
   elif [ "$QUEUE" == "True" ]; then
     # {{{
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
-    store_current_slot $projectTokenName
+    store_current_slot_2 $projectTokenName 
+    echo "Success"
     # }}}
   else
     # {{{
