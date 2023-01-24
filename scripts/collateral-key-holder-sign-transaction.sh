@@ -12,7 +12,7 @@ projectTokenName=$2
 
 if [ "$SIGNREGISTRATION" = 'True' ]; then
   differenceBetweenSlots=$(get_slot_difference $scriptLabel)
-elif [ "$SIGNDONATION" = 'True' ]; then
+else 
   differenceBetweenSlots=$(get_slot_difference $projectTokenName)
 fi
 
@@ -28,7 +28,7 @@ else
   echo "$JSON_STRING"
   if [ "$SIGNREGISTRATION" = 'True' ]; then 
     store_current_slot_2 $projectTokenName $scriptLabel
-  elif [ "$SIGNDONATION" = 'True' ]; then
+  else
     store_current_slot $projectTokenName 
   fi
 fi
