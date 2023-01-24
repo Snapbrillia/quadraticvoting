@@ -10,7 +10,7 @@ fi
 transactionCBOR=$1
 projectTokenName=$2
 
-if [ "$SIGN_REGISTRATION_TX" = 'True' ]; then
+if [ "$3" = '--sign-registration-tx' ]; then
   differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 else 
   differenceBetweenSlots=$(get_slot_difference $projectTokenName)
@@ -26,7 +26,7 @@ else
       --arg tu "$(cat $txSigned | jq -r .cborHex)"     \
       '{signedTx: $tu}' )
   echo "$JSON_STRING"
-  if [ "$SIGN_REGISTRATION_TX" = 'True' ]; then 
+  if [ "$3" = '--sign-registration-tx' ]; then 
     store_current_slot_2 $projectTokenName $scriptLabel
   else
     store_current_slot $projectTokenName 
