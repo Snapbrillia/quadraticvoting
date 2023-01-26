@@ -213,7 +213,6 @@ else
         --arg on "$(cat $projectTokenNameFile)"       \
         '{unsignedTx: $tu, projectTokenName: $on }' )
       echo "$JSON_STRING"
-      store_current_slot_2 $projectTokenName $scriptLabel
       # }}}
     fi
     # }}}

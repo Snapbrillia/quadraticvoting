@@ -244,7 +244,6 @@ build_tx_with() {
   # }}}
 }
 
-
 # Checks if project's UTxO is free for interaction (i.e. making sure it hasn't
 # been consumed recently). Echos "NetworkBusy" if it's not.
 if [ "$QUEUE" == "True" ]; then
@@ -252,7 +251,6 @@ if [ "$QUEUE" == "True" ]; then
 else
   differenceBetweenSlots=$(get_slot_difference $projectTokenName)
 fi
-
 
 if [ $differenceBetweenSlots -lt 100 ]; then
   # {{{
@@ -307,7 +305,6 @@ else
     # }}}
   else
     # {{{
-    store_current_slot $projectTokenName
     JSON_STRING=$( jq -n                         \
       --arg tu "$(cat $txBody | jq -r .cborHex)" \
       '{unsignedTx: $tu }' )
