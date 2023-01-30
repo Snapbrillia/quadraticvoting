@@ -20,6 +20,7 @@ deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 estimate="False"
 silent="True"
+queue="False"
 
 
 # For development:
@@ -139,21 +140,9 @@ if [ "$ENV" == "dev" ]; then
   donorAddress=$(cat $preDir/$donorWalletLabel.addr)
   donorInUTxO=$(get_first_utxo_of $donorWalletLabel)
   txInUTxO="--tx-in $donorInUTxO"
-  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
   txOutUTxO=""
   changeAddress=$donorAddress
   silence="False"
-  # }}}
-elif [ "$QUEUE" == "True" ]; then
-  # {{{
-  projectTokenName=$1
-  donationAmount=$2
-  walletLabel=$3
-  donorPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
-  donorAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
-  txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
-  txInCollateralUTxO="--tx-in-collateral $(get_first_utxo_of $collateralKeyHolder)"
-  changeAddress=$keyHoldersAddress
   # }}}
 elif [ "$2" == "--estimate-fee" ]; then
   # {{{
@@ -164,11 +153,20 @@ else
   # {{{
   projectTokenName=$1
   donationAmount=$2
-  donorPKH=$3
-  donorAddress=$4
-  txInUTxO=$5
-  txOutUTxO=$6
-  changeAddress=$donorAddress
+  if [ "$4" == "--queue" ]; then
+    queue="True"
+    walletLabel=$3
+    donorPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
+    donorAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
+    txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
+    changeAddress=$keyHoldersAddress
+  else
+    donorPKH=$3
+    donorAddress=$4
+    txInUTxO=$5
+    txOutUTxO=$6
+    changeAddress=$donorAddress
+  fi
   # }}}
 fi
 
@@ -246,7 +244,7 @@ build_tx_with() {
 
 # Checks if project's UTxO is free for interaction (i.e. making sure it hasn't
 # been consumed recently). Echos "NetworkBusy" if it's not.
-if [ "$QUEUE" == "True" ]; then
+if [ "$queue" == "True" ]; then
   differenceBetweenSlots=$(get_slot_difference_2 $keyHolder $projectTokenName)
 else
   differenceBetweenSlots=$(get_slot_difference $projectTokenName)
@@ -297,7 +295,7 @@ else
     store_current_slot $projectTokenName
     wait_for_new_slot $projectTokenName
     # }}}
-  elif [ "$QUEUE" == "True" ]; then
+  elif [ "$queue" == "True" ]; then
     # {{{
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     echo "Success"

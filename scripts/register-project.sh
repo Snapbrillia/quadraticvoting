@@ -20,6 +20,7 @@ deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 estimate="False"
 silent="True"
+queue="False"
 
 
 if [ "$ENV" == "dev" ]; then
@@ -35,16 +36,6 @@ if [ "$ENV" == "dev" ]; then
   changeAddress=$projectOwnerAddress1
   silence="False"
   # }}}
-elif [ "$QUEUE" == "True" ]; then
-  # {{{
-  projectName=$1
-  projectRequestedFund=$2
-  walletLabel=$3
-  projectOwnerAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
-  projectOwnerPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
-  txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
-  changeAddress=$keyHoldersAddress
-  # }}}
 elif [ "$3" == "--estimate-fee" ]; then
   # {{{
   projectName=$1
@@ -55,11 +46,20 @@ else
   # {{{
   projectName=$1
   projectRequestedFund=$2
-  projectOwnerAddress=$3
-  projectOwnerPKH=$4
-  txInUTxO=$5
-  txOutUTxO=$6
-  changeAddress=$projectOwnerAddress
+  if [ "$4" == "--queue" ]; then
+    queue="True"
+    walletLabel=$3
+    projectOwnerAddress=$(cat $custodialWalletsDir/$walletLabel.addr)
+    projectOwnerPKH=$(cat $custodialWalletsDir/$walletLabel.pkh)
+    txInUTxO="--tx-in $(get_first_utxo_of $custodialWalletLabel/$walletLabel) --tx-in $(get_first_utxo_of $keyHolder)"
+    changeAddress=$keyHoldersAddress
+  else
+    projectOwnerAddress=$3
+    projectOwnerPKH=$4
+    txInUTxO=$5
+    txOutUTxO=$6
+    changeAddress=$projectOwnerAddress
+  fi
   # }}}
 fi
 
@@ -140,7 +140,7 @@ build_tx_with() {
 
 # Checks if project's UTxO is free for interaction (i.e. making sure it hasn't
 # been consumed recently). Echos "NetworkBusy" if it's not.
-if [ "$QUEUE" == "True" ]; then
+if [ "$queue" == "True" ]; then
   differenceBetweenSlots=$(get_slot_difference_2 $keyHolder $scriptLabel)
 else
   differenceBetweenSlots=$(get_slot_difference $scriptLabel)
@@ -197,7 +197,7 @@ else
       store_current_slot_2 $projectTokenName $scriptLabel
       wait_for_new_slot $projectTokenName
       # }}}
-    elif [ "$QUEUE" == "True" ]; then
+    elif [ "$queue" == "True" ]; then
       # {{{
       sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
       JSON_STRING=$( jq -n                            \
