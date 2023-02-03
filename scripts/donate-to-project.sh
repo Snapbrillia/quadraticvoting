@@ -300,7 +300,8 @@ else
   elif [ "$QUEUE" == "True" ]; then
     # {{{
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
-    echo "Success"
+    transactionHash=$($cli transaction txid --tx-file $txSigned)
+    echo "$transactionHash"
     store_current_slot $projectTokenName 
     # }}}
   else
