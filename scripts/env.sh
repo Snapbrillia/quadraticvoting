@@ -161,7 +161,7 @@ if [ ! "$(cat $latestInteractionSlotFile)" ]; then
 fi
 
 export scriptUTxOsFile=$(getFileName ocfnScriptUTxOs)
-
+touch $scriptUTxOsFile
 
 # bounty escrow wallet address
 export bountyEscrowWalletAddress="addr_test1qp72z5fzxc5yl8ht3wqme46reu04stq4mufm0660l7hkawl4w0e4s0x47jsnwf2g2dn7k4lq84skgrlyvz6rtvgh9l5qjmy54m"
