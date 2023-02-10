@@ -185,7 +185,8 @@ else
     newProjJSON="{\"pkh\":\"$projectOwnerPKH\",\"address\":\"$projectOwnerAddress\",\"tn\":\"$projectTokenName\"}"
     newRegisteredProjects=$(cat $registeredProjectsFile \
       | jq -c --argjson obj "$newProjJSON"              \
-      'if (map(select(. == $obj)) == []) then . += [$obj] else . end'
+      | jq -c --arg     tn  "$projectTokenName"         \
+      'if (map(select(.tn == $tn)) == []) then . += [$obj] else (map(select(.tn != $tn) | . += [$obj]) end'
       )
     echo $newRegisteredProjects > $registeredProjectsFile
     # --------------------------
