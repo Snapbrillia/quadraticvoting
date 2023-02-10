@@ -172,6 +172,80 @@ mkRegistrationPolicy pkh sym tn action ctx =
             ProjectInfo ProjectDetails{..} ->
               -- {{{
               case getInlineDatum p1 of
+                ReceivedDonationsCount ds                ->
+                  -- {{{
+                  if ds == 0 then
+                    -- {{{
+                    let
+                      inputGovUTxO :: TxOut
+                      inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
+
+                      updatedDatum :: QVFDatum
+                      updatedDatum =
+                        -- {{{
+                        case getInputGovernanceUTxOFrom inputGovUTxO of
+                          RegisteredProjectsCount ps         ->
+                            RegisteredProjectsCount (ps - 1)
+                          PrizeWeightAccumulation ps elimMap ->
+                            PrizeWeightAccumulation (ps - 1) elimMap
+                          _                                  ->
+                            traceError "E097"
+                        -- }}}
+
+                      -- | Checks the output governance UTxO to have unchanged
+                      --   address and value, and that it also has the proper
+                      --   datum attached.
+                      --
+                      --   Raises exception on @False@.
+                      outputSIsValid :: TxOut -> Bool
+                      outputSIsValid s =
+                        -- {{{
+                        traceIfFalse
+                          "E098"
+                          ( validateGovUTxO
+                              (txOutValue inputGovUTxO)
+                              (txOutAddress inputGovUTxO)
+                              updatedDatum
+                              s
+                          )
+                        -- }}}
+
+                      -- | Validation to make sure the refund is being sent to
+                      --   the project owner.
+                      ownerIsRefunded :: TxOut -> Bool
+                      ownerIsRefunded TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue} =
+                        -- {{{
+                        let
+                          txFee = lovelaceFromValue (txInfoFee info)
+                          outL  = lovelaceFromValue txOutValue
+                        in
+                           (pdPubKeyHash == pkh')
+                        && (outL >= registrationFee - txFee)
+                        -- }}}
+                    in
+                    case outputs of
+                      [v, s]      ->
+                        -- {{{
+                           outputSIsValid s
+                        && traceIfFalse "E130" (ownerIsRefunded v)
+                        -- }}}
+                      [v0, v1, s] ->
+                        -- {{{
+                        if ownerIsRefunded v0 || ownerIsRefunded v1 then
+                          outputSIsValid s
+                        else
+                          traceError "E131"
+                        -- }}}
+                      _           ->
+                        -- {{{
+                        traceError "E099"
+                        -- }}}
+                    -- }}}
+                  else
+                    -- {{{
+                    traceError "E093"
+                    -- }}}
+                  -- }}}
                 Escrow _                                 ->
                   -- {{{
                   let

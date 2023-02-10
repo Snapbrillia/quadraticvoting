@@ -718,13 +718,13 @@ decimalMultiplier = 1_000_000_000
 -- E090: Projects UTxOs must share the same address.
 -- E091: Project UTxOs must be from the script address.
 -- E092: The redeemer is not pointing to this UTxO.
--- E093: 
+-- E093: The project must not have any donations in order to conclude/refund it.
 -- E094: Project owner must be paid accurately.
 -- E095: Both governance UTxOs must be getting spent.
 -- E096: Invalid governance UTxOs are getting spent.
--- E097: 
--- E098: 
--- E099: 
+-- E097: The governance UTxO must have the proper datum attached.
+-- E098: Invalid output governance UTxO.
+-- E099: There should be a single governance UTxO produced, along with refund of the registration fee to the project owner.
 -- E100: The governance UTxO must also be getting consumed.
 -- E101: The governance UTxO must also be getting consumed.
 -- E102: Bad reference project datum provided.
@@ -755,8 +755,8 @@ decimalMultiplier = 1_000_000_000
 -- E127: Project UTxOs must be from the script address.
 -- E128: Invalid input datums.
 -- E129: Unauthentic governance UTxO.
--- E130: 
--- E131: 
+-- E130: Project owner must be the recepient of the refund.
+-- E131: Project owner must be the recepient of the refund.
 -- E132: 
 -- E133: 
 -- E134: 

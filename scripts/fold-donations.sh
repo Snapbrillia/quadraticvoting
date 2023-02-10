@@ -16,7 +16,7 @@ donAsset="$donSym.$projectTokenName"
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 donRefUTxO=$(cat $donRefUTxOFile)
 
-deadlineUTxO=$(remove_quotes $(get_deadline_utxo | jq -c '.utxo'))
+deadlineUTxO=$(get_deadline_utxo | jq -r '.utxo')
 
 txInConstant="--spending-tx-in-reference $qvfRefUTxO --spending-plutus-script-v2 --spending-reference-tx-in-inline-datum-present --spending-reference-tx-in-redeemer-file $devRedeemer"
 
@@ -84,7 +84,7 @@ mkMintArg() {
 iteration_helper() {
   # {{{
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectUTxO=$(echo $projectUTxOObj | jq -r .utxo)
   projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
   projectInLovelace="$(echo $projectUTxOObj | jq -c .lovelace)"
   echo "$projectCurrDatum" > $currentDatumFile
@@ -99,8 +99,8 @@ iteration_helper() {
   echo $resultJSON
   lovelaceCount=$(echo "$resultJSON" | jq '(.lovelace|tonumber)')
   mintCount=$(echo "$resultJSON" | jq '(.mint|tonumber)')
-  txInArg="$(echo "$donations" | jq --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
-  txInArg=$(remove_quotes "$txInArg")
+  txInArg="$(echo "$donations" | jq -r --arg consts "$txInConstant" 'map("--tx-in " + .utxo + " " + $consts) | reduce .[] as $l (""; if . == "" then $l else . + " " + $l end)')"
+  # txInArg=$(remove_quotes "$txInArg")
   # }}}
 }
 
@@ -120,8 +120,12 @@ while [ $phase -lt 4 ]; do
   allDonations="$(get_script_utxos_datums_values $qvfAddress $donAsset)"
   donUTxOCount=$(echo "$allDonations" | jq length)
   if [ $donUTxOCount -eq 0 ]; then
-    echo "No donations found."
-    return 1
+    if [ $phase -gt 1 ]; then
+      echo "No donations found."
+      return 1
+    else
+      echo "TODO"
+    fi
   fi
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')
   txsDone=0
