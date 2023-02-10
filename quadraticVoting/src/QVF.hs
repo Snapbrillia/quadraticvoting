@@ -512,6 +512,20 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (valuePaidTo info winner == lovelaceValueOf won)
       -- }}}
 
+    (RegisteredProjectsCount _                    , ConcludeProject        ) ->
+      -- Removal of a Donation-less Project
+      -- {{{
+      projectMintIsPresent False && canFoldOrDistribute
+      -- }}}
+
+    (PrizeWeightAccumulation _                    , ConcludeProject        ) ->
+      -- Removal of a Donation-less Project
+      -- (During/after prize weight accumulation, therefore no need to check
+      -- the deadline))
+      -- {{{
+      projectMintIsPresent False
+      -- }}}
+
     (DistributionProgress _ remaining _           , ConcludeFundingRound   ) ->
       -- Conclusion of a Funding Round
       -- {{{

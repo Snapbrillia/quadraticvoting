@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 
 
 module Minter.Registration where
