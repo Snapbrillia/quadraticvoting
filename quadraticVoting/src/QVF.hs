@@ -518,10 +518,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent False && canFoldOrDistribute
       -- }}}
 
-    (PrizeWeightAccumulation _                    , ConcludeProject        ) ->
+    (PrizeWeightAccumulation _ _                  , ConcludeProject        ) ->
       -- Removal of a Donation-less Project
       -- (During/after prize weight accumulation, therefore no need to check
-      -- the deadline))
+      -- the deadline)
       -- {{{
       projectMintIsPresent False
       -- }}}
@@ -552,6 +552,18 @@ mkQVFValidator QVFParams{..} datum action ctx =
            )
       && canRegisterOrDonate
       -- }}}
+
+    (ReceivedDonationsCount _                     , ConcludeProject        ) ->
+      -- Removal of a Donation-less Project
+      -- (Delegation of logic to the governance UTxO.)
+      -- {{{ 
+        traceIfFalse "E133"
+      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
+      $ \case
+          RegisteredProjectsCount _   -> True
+          PrizeWeightAccumulation _ _ -> True
+          _                           -> False
+      -- }}} 
 
     (ReceivedDonationsCount tot                   , FoldDonations          ) ->
       -- Folding Donations

@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 
 
@@ -221,13 +222,13 @@ mkRegistrationPolicy pkh sym tn action ctx =
                            outputSIsValid s
                         && traceIfFalse "E130" (pdPubKeyHash == pkh')
                         && traceIfFalse "E131" (outL == registrationFee - txFee)
-                        && traceIfFalse "E132" (txFee < 1.7)
+                        && traceIfFalse "E132" (txFee < 1_700_000)
                         -- This last validation is put in place to prevent a
                         -- possible attack where the attacker sets the
                         -- transaction fee as high as possible to serve the
                         -- network at the expense of the project owner.
                         --
-                        -- However, this magic number (1.7) is based on the
+                        -- However, this magic number (1700000) is based on the
                         -- protocol paramaters at the time of writing, and
                         -- *can* change. TODO.
                         -- }}}

@@ -283,7 +283,7 @@ main =
                      -> (    (Input, Asset)
                           -> Input
                           -> (Input, Asset)
-                          -> OffChainFileNames
+                          -> OCFN.OffChainFileNames
                           -> IO ()
                         )
                      -> IO ()
@@ -321,7 +321,7 @@ main =
                 ++ "\n\t" ++ govInputStr
                 ++ "\n\t" ++ infoInputStr
                 ++ "\n\t" ++ projInputStr
-                ++ "\n\t" ++ fileNamesJSON
+                ++ "\n\t" ++ ocfnStr
               -- }}}
           -- }}}
         _                                                       ->
@@ -1169,10 +1169,10 @@ main =
       putStrLn "TODO."
     "withdraw-bounty"             : _                                                                                    ->
       putStrLn "TODO."
-    "remove-donationless-project" : _                                                                                    ->
+    "remove-donationless-project" : restOfArgs                                                                           ->
       -- {{{
       handleOneProject restOfArgs $
-        \(govInput, govAsset) infoInput (projInput, projAsset) ocfn ->
+        \(govInput, _) _ (projInput, projAsset) ocfn ->
           -- {{{
           let
             govO           = iResolved govInput
@@ -1201,9 +1201,14 @@ main =
               -- {{{
               if isDonationless then do
                 -- {{{
-                writeJSON (OCFN.updatedDatum ocfn)   updatedDatum
-                writeJSON (OCFN.qvfRedeemer ocfn)    ConcludeProject
-                writeJSON (OCFN.minterRedeemer ocfn) Reg.ConcludeAndRefund
+                writeJSON (OCFN.updatedDatum ocfn) updatedDatum
+                writeJSON (OCFN.qvfRedeemer ocfn)  ConcludeProject
+                writeJSON
+                  (OCFN.minterRedeemer ocfn)
+                  (   Reg.ConcludeAndRefund
+                    $ unTokenName
+                    $ assetTokenName projAsset
+                  )
                 putStrLn "Generated redeemers and the updated datum SUCCESSFULLY."
                 -- }}}
               else

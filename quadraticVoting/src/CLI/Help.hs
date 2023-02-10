@@ -21,15 +21,16 @@ generic =
   ++ "\n\tqvf-cli generate scripts --help"
   ++ "\n"
   ++ "\nSmart Contract Interaction:"
-  ++ "\n\tqvf-cli register-project         --help"
-  ++ "\n\tqvf-cli donate-to-project        --help"
-  ++ "\n\tqvf-cli contribute               --help"
-  ++ "\n\tqvf-cli fold-donations           --help"
-  ++ "\n\tqvf-cli consolidate-donations    --help"
-  ++ "\n\tqvf-cli traverse-donations       --help"
-  ++ "\n\tqvf-cli accumulate-prize-weights --help"
-  ++ "\n\tqvf-cli eliminate-one-project    --help"
-  ++ "\n\tqvf-cli distribute-prize         --help"
+  ++ "\n\tqvf-cli register-project            --help"
+  ++ "\n\tqvf-cli donate-to-project           --help"
+  ++ "\n\tqvf-cli contribute                  --help"
+  ++ "\n\tqvf-cli fold-donations              --help"
+  ++ "\n\tqvf-cli consolidate-donations       --help"
+  ++ "\n\tqvf-cli traverse-donations          --help"
+  ++ "\n\tqvf-cli accumulate-prize-weights    --help"
+  ++ "\n\tqvf-cli eliminate-one-project       --help"
+  ++ "\n\tqvf-cli distribute-prize            --help"
+  ++ "\n\tqvf-cli remove-donationless-project --help"
   ++ "\n"
   ++ "\nUtility:"
   ++ "\n\tqvf-cli pretty-datum       --help"
@@ -61,24 +62,25 @@ forEndpoint :: String -> String
 forEndpoint action =
   -- {{{
   case action of
-    "register-project"         -> projectRegistration
-    "donate-to-project"        -> donation
-    "fold-donations"           -> folding
-    "consolidate-donations"    -> consolidation
-    "traverse-donations"       -> traversal
-    "accumulate-prize-weights" -> prizeWeightAccumulation
-    "eliminate-one-project"    -> projectElimination
-    "distribute-prize"         -> distribution
-    "pretty-datum"             -> prettyDatum
-    "datum-is"                 -> checkDatum
-    "get-constr-index"         -> getConstr
-    "data-to-cbor"             -> dataToCBOR
-    "cbor-to-data"             -> cborToData
-    "string-to-hex"            -> stringToHex
-    "get-deadline-slot"        -> deadlineToSlot
-    "emulate-outcome"          -> emulateOutcome
-    "pretty-leaderboard"       -> prettyLeaderboard
-    _                          -> generic
+    "register-project"            -> projectRegistration
+    "donate-to-project"           -> donation
+    "fold-donations"              -> folding
+    "consolidate-donations"       -> consolidation
+    "traverse-donations"          -> traversal
+    "accumulate-prize-weights"    -> prizeWeightAccumulation
+    "eliminate-one-project"       -> projectElimination
+    "distribute-prize"            -> distribution
+    "remove-donationless-project" -> donationlessRemoval
+    "pretty-datum"                -> prettyDatum
+    "datum-is"                    -> checkDatum
+    "get-constr-index"            -> getConstr
+    "data-to-cbor"                -> dataToCBOR
+    "cbor-to-data"                -> cborToData
+    "string-to-hex"               -> stringToHex
+    "get-deadline-slot"           -> deadlineToSlot
+    "emulate-outcome"             -> emulateOutcome
+    "pretty-leaderboard"          -> prettyLeaderboard
+    _                             -> generic
   -- }}}
 
 

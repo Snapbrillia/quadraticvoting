@@ -758,7 +758,7 @@ decimalMultiplier = 1_000_000_000
 -- E130: Project owner must be the recepient of the refund.
 -- E131: Project owner must receive exactly the registration fee minus the transaction fee.
 -- E132: Transaction fee is set too high.
--- E133: 
+-- E133: The main UTxO must also be getting consumed.
 -- E134: 
 -- E135: 
 -- E136: 
