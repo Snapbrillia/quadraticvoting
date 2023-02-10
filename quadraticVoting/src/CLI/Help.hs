@@ -306,13 +306,31 @@ distribution :: String
 distribution =
   -- {{{
   endpointDescriptionArgs
-    -- govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON
+    -- ownerAddrStr : govInputStr : infoInputStr : projInputStr : fileNamesJSON
     "distribute-prize"
     commonDescription
+    "<project-owners-address>"
+    [ "{governance-input-utxo}"
+    , "{project-info-utxo}"
+    , "{project-state-utxo}"
+    , "{file-names-json}"
+    ]
+  -- }}}
+
+
+donationlessRemoval :: String
+donationlessRemoval =
+  -- {{{
+  endpointDescriptionArgs
+    -- govInputStr : infoInputStr : projInputStr : fileNamesJSON
+    "remove-donationless-project"
+    (    "Given properly formatted JSON representation of required UTxOs,"
+      ++ "\n\tthis endpoint writes the proper redeemers to disk, along with"
+      ++ "\n\tthe updated datum."
+    )
     "{governance-input-utxo}"
-    [ "{project-info-utxos}"
-    , "{project-state-utxos}"
-    , "<project-owners-address>"
+    [ "{project-info-utxo}"
+    , "{project-state-utxo}"
     , "{file-names-json}"
     ]
   -- }}}

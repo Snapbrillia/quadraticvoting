@@ -756,8 +756,8 @@ decimalMultiplier = 1_000_000_000
 -- E128: Invalid input datums.
 -- E129: Unauthentic governance UTxO.
 -- E130: Project owner must be the recepient of the refund.
--- E131: Project owner must be the recepient of the refund.
--- E132: 
+-- E131: Project owner must receive exactly the registration fee minus the transaction fee.
+-- E132: Transaction fee is set too high.
 -- E133: 
 -- E134: 
 -- E135: 

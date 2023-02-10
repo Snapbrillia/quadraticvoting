@@ -27,12 +27,12 @@ ownerAddrStr=$(cat $registeredProjectsFile \
   'map(select(.tn == $tn)) | .[0] | .address'
   )
 
-# govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON
-result=$($qvf distribute-prize \
-  "$govUTxOObj"                    \
-  "$projectsInfoUTxOObj"           \
-  "$projectsStateUTxOObj"          \
-  $ownerAddrStr                    \
+# ownerAddrStr : govInputStr : infoInputStr: projInputStr : fileNamesJSON
+result=$($qvf distribute-prize  \
+  $ownerAddrStr                 \
+  "$govUTxOObj"                 \
+  "$projectsInfoUTxOObj"        \
+  "$projectsStateUTxOObj"       \
   "$(cat $fileNamesJSONFile)"
   )
 

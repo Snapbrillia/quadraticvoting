@@ -184,7 +184,7 @@ mkRegistrationPolicy pkh sym tn action ctx =
                       updatedDatum :: QVFDatum
                       updatedDatum =
                         -- {{{
-                        case getInputGovernanceUTxOFrom inputGovUTxO of
+                        case getInlineDatum inputGovUTxO of
                           RegisteredProjectsCount ps         ->
                             RegisteredProjectsCount (ps - 1)
                           PrizeWeightAccumulation ps elimMap ->
@@ -210,34 +210,28 @@ mkRegistrationPolicy pkh sym tn action ctx =
                               s
                           )
                         -- }}}
-
-                      -- | Validation to make sure the refund is being sent to
-                      --   the project owner.
-                      ownerIsRefunded :: TxOut -> Bool
-                      ownerIsRefunded TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue} =
+                    in
+                    case outputs of
+                      [TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue}, s] ->
                         -- {{{
                         let
                           txFee = lovelaceFromValue (txInfoFee info)
                           outL  = lovelaceFromValue txOutValue
                         in
-                           (pdPubKeyHash == pkh')
-                        && (outL >= registrationFee - txFee)
-                        -- }}}
-                    in
-                    case outputs of
-                      [v, s]      ->
-                        -- {{{
                            outputSIsValid s
-                        && traceIfFalse "E130" (ownerIsRefunded v)
+                        && traceIfFalse "E130" (pdPubKeyHash == pkh')
+                        && traceIfFalse "E131" (outL == registrationFee - txFee)
+                        && traceIfFalse "E132" (txFee < 1.7)
+                        -- This last validation is put in place to prevent a
+                        -- possible attack where the attacker sets the
+                        -- transaction fee as high as possible to serve the
+                        -- network at the expense of the project owner.
+                        --
+                        -- However, this magic number (1.7) is based on the
+                        -- protocol paramaters at the time of writing, and
+                        -- *can* change. TODO.
                         -- }}}
-                      [v0, v1, s] ->
-                        -- {{{
-                        if ownerIsRefunded v0 || ownerIsRefunded v1 then
-                          outputSIsValid s
-                        else
-                          traceError "E131"
-                        -- }}}
-                      _           ->
+                      _                                                                        ->
                         -- {{{
                         traceError "E099"
                         -- }}}

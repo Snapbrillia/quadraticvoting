@@ -117,7 +117,7 @@ main =
       go (sortFn projs) (sortFn refs) ([], [])
       -- }}}
     emulateFromInputs :: [Input] -> Either String [Tx.DistributionInfo]
-    emulateFromInputs allInputs =
+    emulateFromInputs allInputs                        =
       -- {{{
       let
         mSeparated :: Maybe
@@ -279,6 +279,56 @@ main =
           Left "Provided inputs don't present a valid state for a running funding round."
           -- }}}
       -- }}}
+    handleOneProject :: [String]
+                     -> (    (Input, Asset)
+                          -> Input
+                          -> (Input, Asset)
+                          -> OffChainFileNames
+                          -> IO ()
+                        )
+                     -> IO ()
+    handleOneProject args handler                      =
+      -- {{{
+      case args of
+        govInputStr : infoInputStr : projInputStr : ocfnStr : _ ->
+          -- {{{
+          let
+            mGov  = decodeString @Input govInputStr
+            mInfo = decodeString @Input infoInputStr
+            mProj = decodeString @Input projInputStr
+            mA    = Tx.getAssetFromInput
+          in
+          case (mGov, mInfo, mProj, decodeString ocfnStr) of
+            (Just govInput, Just infoInput, Just projInput, Just ocfn) ->
+              -- {{{
+              case (mA govInput, mA projInput) of
+                (Just govAsset, Just projAsset) ->
+                  -- {{{
+                  handler
+                    (govInput, govAsset)
+                    infoInput
+                    (projInput, projAsset)
+                    ocfn
+                  -- }}}
+                _                               ->
+                  -- {{{
+                  putStrLn "FAILED: Bad UTxOs provided."
+                  -- }}}
+              -- }}}
+            _                                                          ->
+              -- {{{
+              putStrLn $ "FAILED: Bad arguments:"
+                ++ "\n\t" ++ govInputStr
+                ++ "\n\t" ++ infoInputStr
+                ++ "\n\t" ++ projInputStr
+                ++ "\n\t" ++ fileNamesJSON
+              -- }}}
+          -- }}}
+        _                                                       ->
+          -- {{{
+          putStrLn "FAILED: Not enough arguments provided."
+          -- }}}
+      -- }}}
   in do
   allArgs <- getArgs
   case allArgs of
@@ -287,8 +337,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.2.0"
-    "--version" : _                    -> putStrLn "0.2.2.0" 
+    "-v"        : _                    -> putStrLn "0.2.3.0"
+    "--version" : _                    -> putStrLn "0.2.3.0" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -297,7 +347,7 @@ main =
     actionStr  : "man"    : _          -> putStrLn $ Help.forEndpoint actionStr
     -- }}}
     -- {{{ SMART CONTRACT INTERACTION ENDPOINTS 
-    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                        ->
+    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                           ->
       -- {{{
       let
         results = ScriptGenerationArgumentsParseResults
@@ -391,7 +441,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "update-deadline"          : deadlineStr : fileNamesJSON : _                                                      ->
+    "update-deadline"             : deadlineStr : fileNamesJSON : _                                                      ->
       -- {{{
       case (Ledger.POSIXTime <$> readMaybe deadlineStr, decodeString fileNamesJSON) of
         (Just newDL, Just ocfn) ->
@@ -414,7 +464,7 @@ main =
             ++ "\n\t" ++ fileNamesJSON
           -- }}}
       -- }}}
-    "register-project"         : pkhStr : lbl : reqFundStr : fileNamesJSON : _                                        ->
+    "register-project"            : pkhStr : lbl : reqFundStr : fileNamesJSON : _                                        ->
       -- {{{
       case (readMaybe reqFundStr, decodeString fileNamesJSON) of
         (Just reqFund, Just ocfn) ->
@@ -483,7 +533,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "donate-to-project"        : pkhStr : projIDStr : amtStr : fileNamesJSON : _                                      ->
+    "donate-to-project"           : pkhStr : projIDStr : amtStr : fileNamesJSON : _                                      ->
       -- {{{
       case (hexStringToBuiltinByteString projIDStr, readMaybe amtStr, decodeString fileNamesJSON) of
         (Just projID, Just amt, Just ocfn) ->
@@ -537,7 +587,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "contribute"               : amtStr : fileNamesJSON : _                                                           ->
+    "contribute"                  : amtStr : fileNamesJSON : _                                                           ->
       -- {{{
       case (readMaybe amtStr, decodeString fileNamesJSON) of
         (Just amt, Just ocfn) ->
@@ -556,7 +606,7 @@ main =
             ++ "\n\t" ++ fileNamesJSON
           -- }}}
       -- }}}
-    "fold-donations"           : restOfArgs                                                                           ->
+    "fold-donations"              : restOfArgs                                                                           ->
       -- {{{
       let
         go :: String
@@ -683,7 +733,7 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "consolidate-donations"    : restOfArgs                                                                           ->
+    "consolidate-donations"       : restOfArgs                                                                           ->
       -- {{{
       let
         go :: String
@@ -798,7 +848,7 @@ main =
           putStrLn $ "FAILED: " ++ errMsg
           -- }}}
       -- }}}
-    "traverse-donations"       : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _                          ->
+    "traverse-donations"          : loveStr0 : datStr0 : loveStr1 : datStr1 : fileNamesJSON : _                          ->
       -- {{{
       case (readMaybe loveStr0, readDatum datStr0, readMaybe loveStr1, readDatum datStr1, A.decode (fromString fileNamesJSON)) of
         (Just l0, Just (Donations map0), Just l1, Just (Donations map1), Just ocfn) ->
@@ -878,7 +928,7 @@ main =
             ++ fileNamesJSON
           -- }}}
       -- }}}
-    "accumulate-prize-weights" : inputCntStr : govInputStr : infoInputsStr : projInputsStr : fileNamesJSON : _        ->
+    "accumulate-prize-weights"    : inputCntStr : govInputStr : infoInputsStr : projInputsStr : fileNamesJSON : _        ->
       -- {{{
       Tx.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
@@ -931,7 +981,7 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "eliminate-one-project"    : govInputStr : infoInputsStr : projInputsStr : registeredProjsStr : fileNamesJSON : _ ->
+    "eliminate-one-project"       : govInputStr : infoInputsStr : projInputsStr : registeredProjsStr : fileNamesJSON : _ ->
       -- {{{
       Tx.fromGovAndInputs govInputStr projInputsStr (Just infoInputsStr) $
         \govInput@Input{iResolved = govO} projInputs infoInputs ->
@@ -1044,101 +1094,129 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "distribute-prize"         : govInputStr : infoInputStr : projInputStr : ownerAddrStr : fileNamesJSON : _         ->
+    "distribute-prize"            : ownerAddrStr : restOfArgs                                                            ->
       -- {{{
-      let
-        mGov  = decodeString @Input govInputStr
-        mInfo = decodeString @Input infoInputStr
-        mProj = decodeString @Input projInputStr
-        mA    = Tx.getAssetFromInput
-      in
-      case (mGov, mInfo, mProj) of
-        (Just govInput@Input{iResolved = govO}, Just infoInput, Just projInput) ->
+      handleOneProject restOfArgs $
+        \(govInput, govAsset) infoInput (projInput, projAsset) ocfn ->
           -- {{{
-          case (mA govInput, mA projInput) of
-            (Just govAsset, Just projAsset) ->
+          let
+            govO     = iResolved govInput
+            currUTxO = Tx.outputToTxOut govO
+          in
+          case getInlineDatum currUTxO of
+            DistributionProgress mp remaining den ->
               -- {{{
-              let
-                currUTxO = Tx.outputToTxOut govO
-              in
-              case getInlineDatum currUTxO of
-                DistributionProgress mp remaining den ->
-                  -- {{{
-                  if remaining > 0 then
+              if remaining > 0 then
+                -- {{{
+                let
+                  (outputs, winner, won, interVals) =
                     -- {{{
-                    let
-                      (outputs, winner, won, interVals) =
-                        -- {{{
-                        OC.distributePrize
-                          (assetSymbol govAsset)
-                          (assetSymbol projAsset)
-                          (assetTokenName projAsset)
-                          currUTxO
-                          [Tx.inputToTxInInfo projInput]
-                          [Tx.inputToTxInInfo infoInput]
-                          mp
-                          remaining
-                          den
-                        -- }}}
-                      scriptAddrStr          = oAddressStr govO
-                      mFinalTriplet          = do
-                        -- {{{
-                        scriptTxOuts <- traverse (txOutToOutput scriptAddrStr) outputs
-                        ownerAddr    <- tryReadAddress $ T.pack ownerAddrStr
-                        ownerPKH     <- Addr.toPubKeyHash ownerAddr
-                        finalOutputs <- if ownerPKH == winner then do
-                                          let toOwner =
-                                                Output ownerAddr ownerAddrStr won Nothing
-                                          if won > 0 then
-                                            return $ toOwner : scriptTxOuts
-                                          else
-                                            return scriptTxOuts
-                                        else
-                                          Nothing
-                        return
-                          ([govInput, projInput], [infoInput], finalOutputs)
-                        -- }}}
-                    in
-                    case (mFinalTriplet, decodeString fileNamesJSON) of
-                      (Just res, Just ocfn) -> do
-                        writeJSON
-                          (OCFN.qvfRedeemer ocfn)
-                          (   DistributePrize
-                            $ unTokenName
-                            $ assetTokenName projAsset
-                          )
-                        putStrLn $ inputsRefsOutputsJSONHelper res $ Just $ show interVals
-                      _                     ->
-                        putStrLn
-                          "FAILED: Couldn't convert `TxOut` values to `Output` values, or bad JSON provided for file names."
+                    OC.distributePrize
+                      (assetSymbol govAsset)
+                      (assetSymbol projAsset)
+                      (assetTokenName projAsset)
+                      currUTxO
+                      [Tx.inputToTxInInfo projInput]
+                      [Tx.inputToTxInInfo infoInput]
+                      mp
+                      remaining
+                      den
                     -- }}}
-                  else
+                  scriptAddrStr          = oAddressStr govO
+                  mFinalTriplet          = do
                     -- {{{
-                    putStrLn "FAILED: No projects left."
+                    scriptTxOuts <- traverse (txOutToOutput scriptAddrStr) outputs
+                    ownerAddr    <- tryReadAddress $ T.pack ownerAddrStr
+                    ownerPKH     <- Addr.toPubKeyHash ownerAddr
+                    finalOutputs <- if ownerPKH == winner then do
+                                      let toOwner =
+                                            Output ownerAddr ownerAddrStr won Nothing
+                                      if won > 0 then
+                                        return $ toOwner : scriptTxOuts
+                                      else
+                                        return scriptTxOuts
+                                    else
+                                      Nothing
+                    return
+                      ([govInput, projInput], [infoInput], finalOutputs)
                     -- }}}
-                  -- }}}
-                _                                     ->
-                  -- {{{
-                  putStrLn "FAILED: Invalid input governance datum."
-                  -- }}}
+                in
+                case mFinalTriplet of
+                  Just res -> do
+                    writeJSON
+                      (OCFN.qvfRedeemer ocfn)
+                      (   DistributePrize
+                        $ unTokenName
+                        $ assetTokenName projAsset
+                      )
+                    putStrLn $ inputsRefsOutputsJSONHelper res $ Just $ show interVals
+                  _        ->
+                    putStrLn
+                      "FAILED: Couldn't convert `TxOut` values to `Output` values."
+                -- }}}
+              else
+                -- {{{
+                putStrLn "FAILED: No projects left."
+                -- }}}
               -- }}}
-            _                               ->
+            _                                     ->
               -- {{{
-              putStrLn "FAILED: Bad UTxOs provided."
+              putStrLn "FAILED: Invalid input governance datum."
               -- }}}
-          -- }}}
-        _                                                                       ->
-          -- {{{
-          putStrLn $ "FAILED: Bad arguments:"
-            ++ "\n\t" ++ govInputStr
-            ++ "\n\t" ++ infoInputStr
-            ++ "\n\t" ++ projInputStr
           -- }}}
       -- }}}
-    "unlock-bounty-for"        : _                                                                                    ->
+    "unlock-bounty-for"           : _                                                                                    ->
       putStrLn "TODO."
-    "withdraw-bounty"          : _                                                                                    ->
+    "withdraw-bounty"             : _                                                                                    ->
       putStrLn "TODO."
+    "remove-donationless-project" : _                                                                                    ->
+      -- {{{
+      handleOneProject restOfArgs $
+        \(govInput, govAsset) infoInput (projInput, projAsset) ocfn ->
+          -- {{{
+          let
+            govO           = iResolved govInput
+            projO          = iResolved projInput
+            currUTxO       = Tx.outputToTxOut govO
+            projUTxO       = Tx.outputToTxOut projO
+            mUpdatedDatum  =
+              -- {{{
+              case getInlineDatum currUTxO of
+                RegisteredProjectsCount ps         ->
+                  Just $ RegisteredProjectsCount (ps - 1)
+                PrizeWeightAccumulation ps elimMap ->
+                  Just $ PrizeWeightAccumulation (ps - 1) elimMap
+                _                                  ->
+                  Nothing
+              -- }}}
+            isDonationless =
+              -- {{{
+              case getInlineDatum projUTxO of
+                ReceivedDonationsCount 0 -> True
+                _                        -> False
+              -- }}}
+          in
+          case mUpdatedDatum of
+            Just updatedDatum ->
+              -- {{{
+              if isDonationless then do
+                -- {{{
+                writeJSON (OCFN.updatedDatum ocfn)   updatedDatum
+                writeJSON (OCFN.qvfRedeemer ocfn)    ConcludeProject
+                writeJSON (OCFN.minterRedeemer ocfn) Reg.ConcludeAndRefund
+                putStrLn "Generated redeemers and the updated datum SUCCESSFULLY."
+                -- }}}
+              else
+                -- {{{
+                putStrLn "FAILED: Provided project doesn't have the proper datum."
+                -- }}}
+              -- }}}
+            Nothing           ->
+              -- {{{
+              putStrLn "FAILED: Invalid input governance datum."
+              -- }}}
+          -- }}}
+      -- }}}
     -- }}}
     -- {{{ UTILITY ENDPOINTS 
     "pretty-datum"       : datumJSONStr : _                             ->
