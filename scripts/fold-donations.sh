@@ -157,6 +157,7 @@ while [ $phase -lt 4 ]; do
         --tx-in $projectsInfoUTxO  $txInConstant
         --tx-in $projectsStateUTxO $txInConstant
         --tx-in-collateral $collateralUTxO
+        $mintArg
         --tx-out \"$qvfAddress + $govLovelaces lovelace + 1 $govAsset\"
         --tx-out-inline-datum-file $updatedDatumFile
         --change-address $ownerAddrStr
