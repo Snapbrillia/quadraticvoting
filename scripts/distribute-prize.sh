@@ -15,17 +15,14 @@ regSym=$(cat $regSymFile)
 qvfRefUTxO=$(cat $qvfRefUTxOFile)
 
 govUTxOObj="$(get_governance_utxo)"
-govUTxO=$(remove_quotes $(echo $govUTxOObj | jq -c .utxo))
+govUTxO=$(echo $govUTxOObj | jq -r .utxo)
 govCurrDatum="$(echo $govUTxOObj | jq -c .datum)"
 echo "$govCurrDatum" > $currentDatumFile
-govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
+govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
 
 projectsInfoUTxOObj="$(get_projects_info_utxo $projectTokenName)"
 projectsStateUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-ownerAddrStr=$(cat $registeredProjectsFile \
-  | jq -r --arg tn "$projectTokenName"     \
-  'map(select(.tn == $tn)) | .[0] | .address'
-  )
+ownerAddrStr=$(get_projects_owner_address "$projectTokenName")
 
 # ownerAddrStr : govInputStr : infoInputStr: projInputStr : fileNamesJSON
 result=$($qvf distribute-prize  \

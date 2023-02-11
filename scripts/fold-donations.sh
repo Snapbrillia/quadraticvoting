@@ -124,7 +124,50 @@ while [ $phase -lt 4 ]; do
       echo "No donations found."
       return 1
     else
-      echo "TODO"
+      govUTxOObj="$(get_governance_utxo)"
+      projectsInfoUTxOObj="$(get_projects_info_utxo $projectTokenName)"
+      projectsStateUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+
+      govUTxO=$(echo $govUTxOObj | jq -r .utxo)
+      govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
+      projectsInfoUTxO=$(echo $projectsInfoUTxOObj | jq -r .utxo)
+      projectsStateUTxO=$(echo $projectsStateUTxOObj | jq -r .utxo)
+
+      ownerAddrStr=$(get_projects_owner_address "$projectTokenName")
+      qvfRes=$($qvf remove-donationless-project \
+        "$govUTxOObj"                           \
+        "$projectsInfoUTxOObj"                  \
+        "$projectsStateUTxOObj"                 \
+        "$(cat $fileNamesJSONFile)"
+      )
+      if [ "$ENV" == "dev" ]; then
+        echo $qvfRes
+      fi
+      mintArg="
+        --mint \"-2 $projectAsset\"
+        --mint-tx-in-reference $(cat $regRefUTxOFile)
+        --mint-plutus-script-v2
+        --mint-reference-tx-in-redeemer-file $minterRedeemerFile
+        --policy-id $regSym
+      "
+      collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+      generate_protocol_params
+      buildTx="$cli $BUILD_TX_CONST_ARGS
+        --tx-in $govUTxO           $txInConstant
+        --tx-in $projectsInfoUTxO  $txInConstant
+        --tx-in $projectsStateUTxO $txInConstant
+        --tx-in-collateral $collateralUTxO
+        --tx-out \"$qvfAddress + $govLovelaces lovelace + 1 $govAsset\"
+        --tx-out-inline-datum-file $updatedDatumFile
+        --change-address $ownerAddrStr
+      "
+      echo $buildTx > $tempBashFile
+      . $tempBashFile
+      sign_and_submit_tx $preDir/$collateralKeyHolder.skey
+      store_current_slot_2 $scriptLabel $collateralKeyHolder
+      wait_for_new_slot $scriptLabel
+      store_current_slot_2 $scriptLabel $collateralKeyHolder
+      wait_for_new_slot $scriptLabel
     fi
   fi
   txsNeeded=$(echo $donUTxOCount | jq --arg b "$b" '(. / ($b|tonumber)) | ceil')

@@ -1072,6 +1072,15 @@ get_nth_projects_donation_utxos() {
   get_projects_donation_utxos $(project_index_to_token_name $1)
   # }}}
 }
+
+
+# Takes 1 argument:
+#   1. The token name of the project.
+get_projects_owner_address() {
+  # {{{
+  cat $registeredProjectsFile | jq -r --arg tn "$1" 'map(select(.tn == $tn)) | .[0] | .address'
+  # }}}
+}
 #########################################################################
 
 
