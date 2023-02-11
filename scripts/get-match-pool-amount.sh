@@ -1,5 +1,4 @@
 if [ -z $REPO ]; then
-  echo
   echo "The \$REPO environment variable is not defined. Please review the script at"
   echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
   echo "absolute path to this repository to \$REPO before proceeding."
@@ -10,18 +9,7 @@ fi
 
 . $REPO/scripts/env.sh
 
-scriptUTxOs=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
+govUTxOObj="$(get_governance_utxo)"
+govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
 
-if [ "$1" == "--pretty" ]; then
-  $qvf pretty-leaderboard "$scriptUTxOs"
-fi
-
-if [ "$scriptUTxOs" == "$(cat $scriptUTxOsFile)" ]; then
-  echo "NoChange"
-else 
-  $qvf emulate-outcome "$scriptUTxOs"
-fi 
-
-
-echo $scriptUTxOs > $scriptUTxOsFile
-
+echo "$govLovelaces"
