@@ -187,7 +187,7 @@ export BUILD_TX_CONST_ARGS="$BUILD_TX_CONST_ARGS_NO_OUT_FILE --out-file $txBody"
 
 # CONTRACT'S CONSTANTS ================
 export halfOfTheRegistrationFee=1500000
-export governanceLovelaces=1500000
+export governanceLovelaces=5000000
 # =====================================
 
 

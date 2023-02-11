@@ -588,7 +588,7 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
 -- CONSTANTS
 -- {{{
 governanceLovelaces :: Integer
-governanceLovelaces = 1_500_000
+governanceLovelaces = 5_000_000
 
 registrationFee :: Integer
 registrationFee = 3_000_000
