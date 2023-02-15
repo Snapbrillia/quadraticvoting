@@ -1380,9 +1380,9 @@ if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] 
       deplete_reference_wallet
       tidy_up_wallet $keyHolder
     fi
-  elif [ $totalLovelace -gt 0 ]; then
-    deplete_reference_wallet
-    tidy_up_wallet $keyHolder
+  # elif [ $totalLovelace -gt 0 ]; then
+  #   deplete_reference_wallet
+  #   tidy_up_wallet $keyHolder
   fi
 elif [ -f $preDir/$referenceWallet.vkey ] || [ -f $preDir/$referenceWallet.skey ] || [ -f $preDir/$referenceWallet.addr ] || [ -f $preDir/$referenceWallet.pkh ]; then
   echo "Some reference wallet files are missing."
