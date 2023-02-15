@@ -151,6 +151,7 @@ while [ $phase -lt 4 ]; do
         --policy-id $regSym
       "
       collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+      govAsset=$(cat $govSymFile)
       generate_protocol_params
       buildTx="$cli $BUILD_TX_CONST_ARGS
         --tx-in $govUTxO           $txInConstant
