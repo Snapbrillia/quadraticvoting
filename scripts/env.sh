@@ -144,8 +144,8 @@ export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 export referenceWallet="referenceWallet"
 export keyHolder="keyHolder"
 export collateralKeyHolder="collateralKeyHolder"
-minStartingLovelaces=300000000
-minStartingAda=300
+minStartingLovelaces=350000000
+minStartingAda=350
 minCollateralLovelaces=5000000
 minCollateralAda=5
 
