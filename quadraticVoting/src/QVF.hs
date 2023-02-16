@@ -1070,10 +1070,7 @@ eliminateOneProject
       ( [ currUTxO
             { txOutDatum =
                 qvfDatumToInlineDatum $
-                  DistributionProgress
-                    (lovelaceFromValue currVal - governanceLovelaces)
-                    pCount
-                    den
+                  DistributionProgress matchPool pCount den
             }
         ]
       , Nothing
