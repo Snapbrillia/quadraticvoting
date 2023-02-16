@@ -956,6 +956,25 @@ jq_to_bash_3() {
 }
 
 
+# Looks through the given response from calling the `qvf-cli` application, and
+# if it'll `return 1` if it finds a "FAILED:" or "FAILED." or "FAILED".
+#
+# Takes 1 argument:
+#   1. Response from calling `qvf-cli`.
+check_qvf_cli_result() {
+  # {{{
+  for log in $1; do
+    if [ "$log" == "FAILED:" ] || [ "$log" == "FAILED." ] || [ "$log" == "FAILED" ]; then
+      if [ "$ENV" == "dev" ]; then
+        echo $qvfRes
+      fi
+      return 1
+    fi
+  done
+  # }}}
+}
+
+
 ### FUNCTIONS THAT ARE USABLE AFTER AT LEAST ONE PROJECT REGISTRATION ###
 
 # Takes no arguments.
