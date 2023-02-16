@@ -98,7 +98,7 @@ if [ ! "$(cat $fileNamesJSONFile)" ]; then
   echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
   echo "}" >> $fileNamesJSONFile
 else
-  cat $fileNamesJSONFile | jq --arg preDir "$preDir" '.ocfnPreDir = $preDir' > $fileNamesJSONFile
+  cat $fileNamesJSONFile | jq -c --arg preDir "$preDir" '.ocfnPreDir = $preDir' > $fileNamesJSONFile
 fi
 # }}}
 getFileName() {
