@@ -337,8 +337,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.3.1"
-    "--version" : _                    -> putStrLn "0.2.3.1" 
+    "-v"        : _                    -> putStrLn "0.2.3.2"
+    "--version" : _                    -> putStrLn "0.2.3.2" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -1000,13 +1000,13 @@ main =
                 (Just pAsset, Just govAsset, ProjectEliminationProgress mp wMap) ->
                   -- {{{
                   let
-                    predicate _ qvfD              =
+                    predicate _ qvfD               =
                       -- {{{
                       case qvfD of
                         PrizeWeight _ True -> True
                         _                  -> False
                       -- }}}
-                    (finalProjs, finalInfos)      =
+                    (finalProjs, finalInfos)       =
                       sortInputsRefsBy predicate projInputs infoInputs
                     (validOutputs, mEliminated, r) =
                       OC.eliminateOneProject
@@ -1022,6 +1022,33 @@ main =
                     Just (pkh, raised) ->
                       -- {{{
                       let
+                        mQVFOutputs :: Maybe [Output]
+                        mQVFOutputs                     =
+                          -- {{{
+                          traverse (txOutToOutput scriptAddr) validOutputs
+                          -- }}}
+                        mEliminatedAsset :: Maybe Asset
+                        mEliminatedAsset                =
+                          -- {{{
+                          let
+                            foldFn :: Output -> Maybe Asset -> Maybe Asset
+                            foldFn o mFound =
+                              -- {{{
+                              case (mFound, oForScript o) of
+                                (Just _ , _             ) ->
+                                  mFound
+                                (Nothing, Just (a, _, _)) ->
+                                  if assetSymbol a == assetSymbol pAsset then
+                                    Just a
+                                  else
+                                    Nothing
+                                _                         ->
+                                  Nothing
+                              -- }}}
+                          in do
+                          qvfOuts <- mQVFOutputs
+                          foldr foldFn Nothing qvfOuts
+                          -- }}}
                         projGo :: Input -> [Input] -> Maybe Input
                         projGo ref (p : ps)             =
                           -- {{{
@@ -1035,38 +1062,54 @@ main =
                           -- {{{
                           Nothing
                           -- }}}
-                        infoGo :: [Input]
-                               -> Maybe ([Input], [Input], [Output])
-                        infoGo (ref : refs) =
+                        refIsProper :: Output -> Bool
+                        refIsProper refO                =
                           -- {{{
-                          case getInlineDatum $ Tx.outputToTxOut $ iResolved ref of
-                            ProjectInfo ProjectDetails{..} | pdPubKeyHash == pkh -> do
+                          case getInlineDatum $ Tx.outputToTxOut refO of
+                            ProjectInfo ProjectDetails{..} ->
                               -- {{{
-                              qvfOuts   <- traverse (txOutToOutput scriptAddr) validOutputs
-                              proj      <- projGo ref projInputs
-                              addrStr   <- decodeString registeredProjsStr >>= RP.lookupAddressWithPKH pkh
-                              ownerAddr <- tryReadAddress $ T.pack addrStr
-                              let outputs =
-                                    if raised > 0 then
-                                      let
-                                        toOwner =
-                                          Output
-                                            ownerAddr
-                                            addrStr
-                                            raised
-                                            Nothing
-                                      in
-                                      toOwner : qvfOuts
-                                    else
-                                      qvfOuts
-                              return ([govInput, proj], [ref], outputs)
+                              case (mEliminatedAsset, oForScript refO) of
+                                (Just eliminatedA, Just (infoA, _, _)) ->
+                                  infoA == eliminatedA && pdPubKeyHash == pkh
+                                _                                      ->
+                                  False
                               -- }}}
-                            _                                                    ->
+                            _                              ->
                               -- {{{
-                              infoGo refs
+                              False
                               -- }}}
                           -- }}}
-                        infoGo _            =
+                        infoGo :: [Input]
+                               -> Maybe ([Input], [Input], [Output])
+                        infoGo (ref : refs)             =
+                          -- {{{
+                          if refIsProper $ iResolved ref then do
+                            -- {{{
+                            qvfOuts   <- traverse (txOutToOutput scriptAddr) validOutputs
+                            proj      <- projGo ref projInputs
+                            addrStr   <- decodeString registeredProjsStr >>= RP.lookupAddressWithPKH pkh
+                            ownerAddr <- tryReadAddress $ T.pack addrStr
+                            let outputs =
+                                  if raised > 0 then
+                                    let
+                                      toOwner =
+                                        Output
+                                          ownerAddr
+                                          addrStr
+                                          raised
+                                          Nothing
+                                    in
+                                    toOwner : qvfOuts
+                                  else
+                                    qvfOuts
+                            return ([govInput, proj], [ref], outputs)
+                            -- }}}
+                          else
+                            -- {{{
+                            infoGo refs
+                            -- }}}
+                          -- }}}
+                        infoGo _                        =
                           -- {{{
                           Nothing
                           -- }}}
