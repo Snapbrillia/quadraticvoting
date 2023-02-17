@@ -10,6 +10,8 @@ fi
 . $REPO/scripts/env.sh
 
 govUTxOObj="$(get_governance_utxo)"
-govLovelaces=$(remove_quotes $(echo $govUTxOObj | jq -c .lovelace))
+govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
 
-echo "$govLovelaces"
+matchPoolLovelace=$(expr $govLovelaces - $governanceLovelaces)
+
+echo "$matchPoolLovelace"
