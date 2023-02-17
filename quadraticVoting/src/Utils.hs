@@ -587,6 +587,9 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
 
 -- CONSTANTS
 -- {{{
+deadlineLovelaces :: Integer
+deadlineLovelaces = 1_500_000
+
 governanceLovelaces :: Integer
 governanceLovelaces = 5_000_000
 
