@@ -102,7 +102,7 @@ else
 fi
 # }}}
 getFileName() {
-  echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
+  echo $preDir/$(cat $fileNamesJSONFile | jq -r .$1)
 }
 
 # Exporting variables for required file names:
