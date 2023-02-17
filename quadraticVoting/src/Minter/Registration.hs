@@ -11,6 +11,8 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NumericUnderscores    #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 
 
 module Minter.Registration where
@@ -172,6 +174,74 @@ mkRegistrationPolicy pkh sym tn action ctx =
             ProjectInfo ProjectDetails{..} ->
               -- {{{
               case getInlineDatum p1 of
+                ReceivedDonationsCount ds                ->
+                  -- {{{
+                  if ds == 0 then
+                    -- {{{
+                    let
+                      inputGovUTxO :: TxOut
+                      inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
+
+                      updatedDatum :: QVFDatum
+                      updatedDatum =
+                        -- {{{
+                        case getInlineDatum inputGovUTxO of
+                          RegisteredProjectsCount ps         ->
+                            RegisteredProjectsCount (ps - 1)
+                          PrizeWeightAccumulation ps elimMap ->
+                            PrizeWeightAccumulation (ps - 1) elimMap
+                          _                                  ->
+                            traceError "E097"
+                        -- }}}
+
+                      -- | Checks the output governance UTxO to have unchanged
+                      --   address and value, and that it also has the proper
+                      --   datum attached.
+                      --
+                      --   Raises exception on @False@.
+                      outputSIsValid :: TxOut -> Bool
+                      outputSIsValid s =
+                        -- {{{
+                        traceIfFalse
+                          "E098"
+                          ( validateGovUTxO
+                              (txOutValue inputGovUTxO)
+                              (txOutAddress inputGovUTxO)
+                              updatedDatum
+                              s
+                          )
+                        -- }}}
+                    in
+                    case outputs of
+                      [TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue}, s] ->
+                        -- {{{
+                        let
+                          txFee = lovelaceFromValue (txInfoFee info)
+                          outL  = lovelaceFromValue txOutValue
+                        in
+                           outputSIsValid s
+                        && traceIfFalse "E130" (pdPubKeyHash == pkh')
+                        && traceIfFalse "E131" (outL == registrationFee - txFee)
+                        && traceIfFalse "E132" (txFee < 1_700_000)
+                        -- This last validation is put in place to prevent a
+                        -- possible attack where the attacker sets the
+                        -- transaction fee as high as possible to serve the
+                        -- network at the expense of the project owner.
+                        --
+                        -- However, this magic number (1700000) is based on the
+                        -- protocol paramaters at the time of writing, and
+                        -- *can* change. TODO.
+                        -- }}}
+                      _                                                                        ->
+                        -- {{{
+                        traceError "E099"
+                        -- }}}
+                    -- }}}
+                  else
+                    -- {{{
+                    traceError "E093"
+                    -- }}}
+                  -- }}}
                 Escrow _                                 ->
                   -- {{{
                   let

@@ -113,7 +113,7 @@ mkQVFPolicy pkh oref deadline r ctx =
                ( utxoHasOnlyXWithLovelaces
                    ownSym
                    qvfTokenName
-                   governanceLovelaces
+                   deadlineLovelaces
                    o0
                )
           && traceIfFalse

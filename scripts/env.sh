@@ -97,10 +97,13 @@ if [ ! "$(cat $fileNamesJSONFile)" ]; then
   echo ", \"ocfnScriptUTxOs\"         : \"script.utxos\""                >> $fileNamesJSONFile
   echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
   echo "}" >> $fileNamesJSONFile
+else
+  newContent=$(cat $fileNamesJSONFile | jq -c --arg preDir "$preDir" '.ocfnPreDir = $preDir')
+  echo "$newContent" > $fileNamesJSONFile
 fi
 # }}}
 getFileName() {
-  echo $preDir/$(remove_quotes $(cat $fileNamesJSONFile | jq -c .$1))
+  echo $preDir/$(cat $fileNamesJSONFile | jq -r .$1)
 }
 
 # Exporting variables for required file names:
@@ -144,8 +147,8 @@ export donRefUTxOFile=$(getFileName ocfnDonationRefUTxO)
 export referenceWallet="referenceWallet"
 export keyHolder="keyHolder"
 export collateralKeyHolder="collateralKeyHolder"
-minStartingLovelaces=300000000
-minStartingAda=300
+minStartingLovelaces=350000000
+minStartingAda=350
 minCollateralLovelaces=5000000
 minCollateralAda=5
 
@@ -187,7 +190,8 @@ export BUILD_TX_CONST_ARGS="$BUILD_TX_CONST_ARGS_NO_OUT_FILE --out-file $txBody"
 
 # CONTRACT'S CONSTANTS ================
 export halfOfTheRegistrationFee=1500000
-export governanceLovelaces=1500000
+export governanceLovelaces=5000000
+export deadlineLovelaces=1500000
 # =====================================
 
 
@@ -956,6 +960,25 @@ jq_to_bash_3() {
 }
 
 
+# Looks through the given response from calling the `qvf-cli` application, and
+# if it'll `return 1` if it finds a "FAILED:" or "FAILED." or "FAILED".
+#
+# Takes 1 argument:
+#   1. Response from calling `qvf-cli`.
+check_qvf_cli_result() {
+  # {{{
+  for log in $1; do
+    if [ "$log" == "FAILED:" ] || [ "$log" == "FAILED." ] || [ "$log" == "FAILED" ]; then
+      if [ "$ENV" == "dev" ]; then
+        echo $qvfRes
+      fi
+      return 1
+    fi
+  done
+  # }}}
+}
+
+
 ### FUNCTIONS THAT ARE USABLE AFTER AT LEAST ONE PROJECT REGISTRATION ###
 
 # Takes no arguments.
@@ -967,10 +990,13 @@ get_all_projects_utxos_datums_values() {
   # }}}
 }
 
+# Takes no arguments.
 get_all_projects_info_utxos_datums_values() {
   constr=$($qvf get-constr-index ProjectInfo)
   get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) == ($constr | tonumber)))'
 }
+
+# Takes no arguments.
 get_all_projects_state_utxos_datums_values() {
   constr=$($qvf get-constr-index ProjectInfo)
   get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) != ($constr | tonumber)))'
@@ -1070,6 +1096,15 @@ get_projects_donation_utxos() {
 get_nth_projects_donation_utxos() {
   # {{{
   get_projects_donation_utxos $(project_index_to_token_name $1)
+  # }}}
+}
+
+
+# Takes 1 argument:
+#   1. The token name of the project.
+get_projects_owner_address() {
+  # {{{
+  cat $registeredProjectsFile | jq -r --arg tn "$1" 'map(select(.tn == $tn)) | .[0] | .address'
   # }}}
 }
 #########################################################################
@@ -1371,9 +1406,9 @@ if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] 
       deplete_reference_wallet
       tidy_up_wallet $keyHolder
     fi
-  elif [ $totalLovelace -gt 0 ]; then
-    deplete_reference_wallet
-    tidy_up_wallet $keyHolder
+  # elif [ $totalLovelace -gt 0 ]; then
+  #   deplete_reference_wallet
+  #   tidy_up_wallet $keyHolder
   fi
 elif [ -f $preDir/$referenceWallet.vkey ] || [ -f $preDir/$referenceWallet.skey ] || [ -f $preDir/$referenceWallet.addr ] || [ -f $preDir/$referenceWallet.pkh ]; then
   echo "Some reference wallet files are missing."

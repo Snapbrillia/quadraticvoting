@@ -512,6 +512,20 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (valuePaidTo info winner == lovelaceValueOf won)
       -- }}}
 
+    (RegisteredProjectsCount _                    , ConcludeProject        ) ->
+      -- Removal of a Donation-less Project
+      -- {{{
+      projectMintIsPresent False && canFoldOrDistribute
+      -- }}}
+
+    (PrizeWeightAccumulation _ _                  , ConcludeProject        ) ->
+      -- Removal of a Donation-less Project
+      -- (During/after prize weight accumulation, therefore no need to check
+      -- the deadline)
+      -- {{{
+      projectMintIsPresent False
+      -- }}}
+
     (DistributionProgress _ remaining _           , ConcludeFundingRound   ) ->
       -- Conclusion of a Funding Round
       -- {{{
@@ -538,6 +552,18 @@ mkQVFValidator QVFParams{..} datum action ctx =
            )
       && canRegisterOrDonate
       -- }}}
+
+    (ReceivedDonationsCount _                     , ConcludeProject        ) ->
+      -- Removal of a Donation-less Project
+      -- (Delegation of logic to the governance UTxO.)
+      -- {{{ 
+        traceIfFalse "E133"
+      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
+      $ \case
+          RegisteredProjectsCount _   -> True
+          PrizeWeightAccumulation _ _ -> True
+          _                           -> False
+      -- }}} 
 
     (ReceivedDonationsCount tot                   , FoldDonations          ) ->
       -- Folding Donations
@@ -1044,10 +1070,7 @@ eliminateOneProject
       ( [ currUTxO
             { txOutDatum =
                 qvfDatumToInlineDatum $
-                  DistributionProgress
-                    (lovelaceFromValue currVal - governanceLovelaces)
-                    pCount
-                    den
+                  DistributionProgress matchPool pCount den
             }
         ]
       , Nothing

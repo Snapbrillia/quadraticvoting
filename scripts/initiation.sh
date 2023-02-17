@@ -111,6 +111,7 @@ initiate_fund() {
   donSym=$($cli transaction policyid --script-file $donScriptFile)
   echo $donSym > $donSymFile
 
+  dlUTxO="$scriptAddr + $deadlineLovelaces lovelace + 1 $govAsset"
   outUTxO="$scriptAddr + $governanceLovelaces lovelace + 1 $govAsset"
 
   generate_protocol_params
@@ -121,7 +122,7 @@ initiate_fund() {
   $cli $BUILD_TX_CONST_ARGS                   \
     --tx-in $genesisUTxO                      \
     --tx-in-collateral $genesisUTxO           \
-    --tx-out "$outUTxO"                       \
+    --tx-out "$dlUTxO"                        \
     --tx-out-inline-datum-file $deadlineDatum \
     --tx-out "$outUTxO"                       \
     --tx-out-inline-datum-file $govDatumFile  \
@@ -142,7 +143,7 @@ initiate_fund() {
   # STORING SCRIPTS ON-CHAIN #
   # {{{
   spendingUTxO=$(get_first_utxo_of $keyHolder)
-  scriptLovelaces=60000000 # 60.0 ADA
+  scriptLovelaces=62000000 # 62.0 ADA
   scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
 
   generate_protocol_params
@@ -167,7 +168,7 @@ initiate_fund() {
   # So should be the case with key holder's wallet:
   spendingUTxO=$(get_first_utxo_of $keyHolder)
 
-  scriptLovelaces=32000000 # 32.0 ADA
+  scriptLovelaces=42000000 # 42.0 ADA
   scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
 
   generate_protocol_params
