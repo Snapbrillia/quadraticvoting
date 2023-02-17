@@ -142,7 +142,7 @@ initiate_fund() {
   # STORING SCRIPTS ON-CHAIN #
   # {{{
   spendingUTxO=$(get_first_utxo_of $keyHolder)
-  scriptLovelaces=60000000 # 60.0 ADA
+  scriptLovelaces=62000000 # 62.0 ADA
   scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
 
   generate_protocol_params
