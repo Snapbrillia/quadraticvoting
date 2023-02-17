@@ -111,6 +111,7 @@ initiate_fund() {
   donSym=$($cli transaction policyid --script-file $donScriptFile)
   echo $donSym > $donSymFile
 
+  dlUTxO="$scriptAddr + $deadlineLovelaces lovelace + 1 $govAsset"
   outUTxO="$scriptAddr + $governanceLovelaces lovelace + 1 $govAsset"
 
   generate_protocol_params
@@ -121,7 +122,7 @@ initiate_fund() {
   $cli $BUILD_TX_CONST_ARGS                   \
     --tx-in $genesisUTxO                      \
     --tx-in-collateral $genesisUTxO           \
-    --tx-out "$outUTxO"                       \
+    --tx-out "$dlUTxO"                        \
     --tx-out-inline-datum-file $deadlineDatum \
     --tx-out "$outUTxO"                       \
     --tx-out-inline-datum-file $govDatumFile  \
