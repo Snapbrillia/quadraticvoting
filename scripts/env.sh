@@ -988,10 +988,13 @@ get_all_projects_utxos_datums_values() {
   # }}}
 }
 
+# Takes no arguments.
 get_all_projects_info_utxos_datums_values() {
   constr=$($qvf get-constr-index ProjectInfo)
   get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) == ($constr | tonumber)))'
 }
+
+# Takes no arguments.
 get_all_projects_state_utxos_datums_values() {
   constr=$($qvf get-constr-index ProjectInfo)
   get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) != ($constr | tonumber)))'
