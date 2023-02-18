@@ -29,7 +29,7 @@ else
   if [ "$3" = '--sign-registration-tx' ]; then 
     store_current_slot_2 $projectTokenName $scriptLabel
   elif [ "$3" = '--sign-contribution-tx' ]; then 
-    store_current $scriptLabel
+    store_current_slot $scriptLabel
   else
     store_current_slot $projectTokenName 
   fi
