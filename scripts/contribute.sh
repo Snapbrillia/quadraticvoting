@@ -57,7 +57,9 @@ $cli $BUILD_TX_CONST_ARGS                                       \
   --spending-plutus-script-v2                                   \
   --spending-reference-tx-in-inline-datum-present               \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-  $txInUTxO $txInCollateralUTxO $txOutUTxO                      \
+  $txInUTxO                                                     \
+  --tx-in-collateral "$collateralUTxO"                          \
+  $txOutUTxO                                                    \
   --tx-out "$govOutput"                                         \
   --tx-out-inline-datum-file $currentDatumFile                  \
   --invalid-hereafter $cappedSlot                               \
