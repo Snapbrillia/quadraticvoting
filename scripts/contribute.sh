@@ -25,7 +25,8 @@ else
   contributionAmount=$2
   txInUTxO=$3
   txOutUTxO=$4
-  txInCollateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  txInCollateralUTxO="--tx-in-collateral $collateralUTxO"
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -57,9 +58,7 @@ $cli $BUILD_TX_CONST_ARGS                                       \
   --spending-plutus-script-v2                                   \
   --spending-reference-tx-in-inline-datum-present               \
   --spending-reference-tx-in-redeemer-file $qvfRedeemerFile     \
-  $txInUTxO                                                     \
-  --tx-in-collateral "$collateralUTxO"                          \
-  $txOutUTxO                                                    \
+  $txInUTxO $txInCollateralUTxO $txOutUTxO                      \
   --tx-out "$govOutput"                                         \
   --tx-out-inline-datum-file $currentDatumFile                  \
   --invalid-hereafter $cappedSlot                               \
