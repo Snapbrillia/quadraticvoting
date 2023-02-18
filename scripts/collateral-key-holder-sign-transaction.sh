@@ -10,7 +10,7 @@ fi
 transactionCBOR=$1
 projectTokenName=$2
 
-if [ "$3" = '--sign-registration-tx' ]; then
+if [ "$3" = '--sign-registration-tx' ] || [ "$3" = '--sign-contribution-tx' ]; then
   differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 else 
   differenceBetweenSlots=$(get_slot_difference $projectTokenName)
@@ -28,6 +28,8 @@ else
   echo "$JSON_STRING"
   if [ "$3" = '--sign-registration-tx' ]; then 
     store_current_slot_2 $projectTokenName $scriptLabel
+  elif [ "$3" = '--sign-contribution-tx' ]; then 
+    store_current $scriptLabel
   else
     store_current_slot $projectTokenName 
   fi

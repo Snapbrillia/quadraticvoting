@@ -24,8 +24,8 @@ else
   sponsorAddress=$1
   contributionAmount=$2
   txInUTxO=$3
-  txInCollateralUTxO=$4
-  txOutUTxO=$5
+  txOutUTxO=$4
+  txInCollateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
 fi
 
 qvfAddress=$(cat $scriptAddressFile)
@@ -70,7 +70,6 @@ if [ "$ENV" == "dev" ]; then
   store_current_slot $scriptLabel
   wait_for_new_slot $scriptLabel
 else
-  store_current_slot $scriptLabel
   JSON_STRING=$( jq -n                         \
     --arg bn "$(cat $txBody | jq -r .cborHex)" \
     '{transaction: $bn}' )
