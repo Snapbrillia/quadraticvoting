@@ -20,6 +20,7 @@ if [ "$ENV" == "dev" ]; then
   txInUTxO="--tx-in $sponsorInputUTxO"
   txInCollateralUTxO="--tx-in-collateral $sponsorInputUTxO"
   txOutUTxO=""
+  changeAddress=$($preDir/$sponsorWalletLabel.addr)
 else
   contributionAmount=$1
   if [ "$3" == "--queue" ]; then
