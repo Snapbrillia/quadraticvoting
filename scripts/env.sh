@@ -48,9 +48,11 @@ remove_back_slashes() {
 #
 # Takes no arguments.
 posix_one_week_from_now() {
+  # {{{
   now=$(date +%s)
   init=$(expr $now + 604800)
   echo "$init"000
+  # }}}
 }
 
 
@@ -58,9 +60,24 @@ posix_one_week_from_now() {
 #
 # Takes no arguments.
 posix_one_month_from_now() {
+  # {{{
   now=$(date +%s)
   init=$(expr $now + 2628000)
   echo "$init"000
+  # }}}
+}
+
+
+# A helper function for consistent logging format.
+#
+# Takes 2 arguments:
+#   1. Target log file,
+#   2. Message to log.
+log_into() {
+  # {{{
+  touch $1
+  echo -e "\n$(date)\n$2" >> $1
+  # }}}
 }
 
 export scriptLabel="qvf"
@@ -112,6 +129,10 @@ export queryJSONFile=$(getFileName ocfnQueryJSON)
 export projsPreDir=$(getFileName ocfnProjectsPreDir)
 export tempBashFile="$preDir/temp.sh"
 touch $tempBashFile
+export tidyUpLogFile="$preDir/tidyup.log"
+touch $tidyUpLogFile
+export refDepletionLogFile="$preDir/ref-depletion.log"
+touch $refDepletionLogFile
 
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
@@ -425,10 +446,12 @@ show_utxo_tables () {
 # Consumes all UTxOs at a wallet, and produces a single one in return, which
 # carries all the Lovelaces. Does NOT support native tokens.
 #
-# Takes 1 argument:
-#   1. Wallet number/name.
+# Takes 2 argument:
+#   1. Wallet number/name,
+#   2. Message to log into the corresponding log file.
 tidy_up_wallet() {
   # {{{
+  log_into $tidyUpLogFile "$2"
   addr=$(cat $preDir/$1.addr)
   inputs=$(get_all_input_utxos_at $1)
   $cli $BUILD_TX_CONST_ARGS $inputs --change-address $addr
@@ -1290,8 +1313,7 @@ if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $pre
   totalLovelace=$(get_total_lovelaces_from_json "$utxos")
   if [ $totalLovelace -ge $minStartingLovelaces ] || [ -f $scriptAddressFile ]; then
     if [ $utxoCount -gt 1 ]; then
-      echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
-      tidy_up_wallet $keyHolder
+      tidy_up_wallet $keyHolder "Multiple UTxOs found in the key holder's wallet. Tidying up..."
       echo "Done. The key holder wallet is ready."
     fi
     export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
@@ -1328,8 +1350,7 @@ if [ -f $preDir/$collateralKeyHolder.vkey ] && [ -f $preDir/$collateralKeyHolder
   totalLovelace=$(get_total_lovelaces_from_json "$utxos")
   if [ $totalLovelace -ge $minCollateralLovelaces ]; then
     if [ $utxoCount -gt 1 ]; then
-      echo "Multiple UTxOs found in the key holder's wallet. Tidying up..."
-      tidy_up_wallet $collateralKeyHolder
+      tidy_up_wallet $collateralKeyHolder "Multiple UTxOs found in the collateral key holder's wallet. Tidying up..."
       echo "Done. The key holder wallet is ready."
     fi
     export collateralKeyHoldersAddress=$(cat "$preDir/$collateralKeyHolder.addr")
@@ -1362,9 +1383,11 @@ fi
 # NOTE: This function fails if any assets other than Lovelaces are present
 #       inside the $referenceWallet.
 #
-# Takes no arguments.
+# Takes 1 argument:
+#   1. Message to log into the corresponding log file.
 deplete_reference_wallet() {
   # {{{
+  log_into $refDepletionLogFile "$1"
   generate_protocol_params
   $cli $BUILD_TX_CONST_ARGS                    \
     $(get_all_input_utxos_at $referenceWallet) \
@@ -1395,20 +1418,16 @@ if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] 
       scriptUTxOs=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
       totalLovelace=$(get_total_lovelaces_from_json "$scriptUTxOs")
       if [ $totalLovelace -eq 0 ]; then
-        echo "The reference wallet is not empty, while the contract is."
-        echo "Depleting the reference wallet into key holder's..."
-        deplete_reference_wallet
-        tidy_up_wallet $keyHolder
+        deplete_reference_wallet "The reference wallet is not empty, while the contract is. Depleting the reference wallet into key holder's..."
+        tidy_up_wallet $keyHolder "Tidying up the key holder's wallet after depletion of the reference wallet due to an un-initiated script address..."
       fi
     else
-      echo "The reference wallet is not empty, while there is no contract"
-      echo "address file stored. Depleting the reference wallet..."
-      deplete_reference_wallet
-      tidy_up_wallet $keyHolder
+      deplete_reference_wallet "The reference wallet is not empty, while there is no contract address file stored. Depleting the reference wallet..."
+      tidy_up_wallet $keyHolder "Tidying up the key holder's wallet after depletion of the reference wallet due to missing script address file..."
     fi
-  # elif [ $totalLovelace -gt 0 ]; then
-  #   deplete_reference_wallet
-  #   tidy_up_wallet $keyHolder
+  elif [ $totalLovelace -gt 0 ]; then
+    deplete_reference_wallet "The reference wallet has some Lovelaces, but the number of its UTxOs are not exactly 3 (the number of scripts). Depleting the reference wallet..."
+    tidy_up_wallet $keyHolder "Tidying up the key holder's wallet after depletion of the reference wallet due to not having exactly 3 UTxOs, but having some Lovelaces..."
   fi
 elif [ -f $preDir/$referenceWallet.vkey ] || [ -f $preDir/$referenceWallet.skey ] || [ -f $preDir/$referenceWallet.addr ] || [ -f $preDir/$referenceWallet.pkh ]; then
   echo "Some reference wallet files are missing."
