@@ -205,7 +205,7 @@ else
         --arg on "$(cat $projectTokenNameFile)"       \
         '{projectTokenName: $on }' )
       echo "$JSON_STRING"
-      store_current_slot_2 $projectTokenName $scriptLabel
+      store_current_slot_3 $projectTokenName $scriptLabel $keyHolder
       # }}}
     else
       # {{{

@@ -300,7 +300,7 @@ else
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     transactionHash=$($cli transaction txid --tx-file $txSigned)
     echo "$transactionHash"
-    store_current_slot $projectTokenName 
+    store_current_slot_2 $projectTokenName $keyHolder 
     # }}}
   else
     # {{{
