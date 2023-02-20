@@ -11,5 +11,6 @@ fi
 
 . $REPO/scripts/initiation.sh
 
+currentFundingRound=$(jq '.currentFundingRound' $fundingRoundFile)
 
 echo "$currentFundingRound"
