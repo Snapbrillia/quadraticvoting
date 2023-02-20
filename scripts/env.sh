@@ -127,7 +127,6 @@ getFileName() {
 # Exporting variables for required file names:
 # {{{
 export queryJSONFile=$(getFileName ocfnQueryJSON)
-export scriptQueryJSONFile=$(getFileName ocfnScriptQueryJSON)
 export projsPreDir=$(getFileName ocfnProjectsPreDir)
 export tempBashFile="$preDir/temp.sh"
 touch $tempBashFile
@@ -790,8 +789,8 @@ get_wallet_lovelace_utxos() {
 #   1. Script address.
 get_all_script_utxos_datums_values() {
   # {{{
-  $cli query utxo $MAGIC --address $1 --out-file $scriptQueryJSONFile
-  utxos=$(cat $scriptQueryJSONFile | jq -c 'to_entries
+  $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
+  temp_utxos=$(cat $queryJSONFile | jq -c 'to_entries
     | map(select((.value | .value | to_entries | length) == 2))
     | map
         ( ( .value
@@ -822,7 +821,7 @@ get_all_script_utxos_datums_values() {
   count=0
   for d in $datums; do
     datumCBOR=$($qvf data-to-cbor "$d")
-    utxos="$(echo "$utxos"            \
+    temp_utxos="$(echo "$utxos"       \
       | jq -c --arg cbor "$datumCBOR" \
               --argjson i "$count"    \
       '.[$i] |= (. += {"datumCBOR": ($cbor | tostring)})'
@@ -840,7 +839,7 @@ get_all_script_utxos_datums_values() {
 #   3. The array of printed UTxOs returned by `qvf-cli`.
 qvf_output_to_tx_ins() {
   # {{{
-  utxos="$(echo "$3" | jq -c 'map(.utxo) | .[]')"
+  temp_utxos="$(echo "$3" | jq -c 'map(.utxo) | .[]')"
   fnl=""
   for u in $utxos; do
     fnl="$fnl $1 $(remove_quotes $u) "$2""
