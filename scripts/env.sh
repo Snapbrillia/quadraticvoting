@@ -768,6 +768,7 @@ get_first_lovelace_count_of() {
 get_wallet_lovelace_utxos() {
   # {{{
   $cli query utxo $MAGIC --address $(cat $preDir/$1.addr) --out-file $queryJSONFile
+  sleep 1
   json=$(cat $queryJSONFile)
   rm -f $queryJSONFile
   echo "$json" | jq -c \
