@@ -211,6 +211,11 @@ initiate_fund() {
   # }}}
 
   # }}}
+
+    # Update Funding Round
+  if [ $ENV = "prod" ]; then 
+    jq '.currentFundingRound |= .+1' $fundingRoundFile > temp.json && mv temp.json $fundingRoundFile
+  fi
 }
 
 
