@@ -1348,8 +1348,8 @@ fi
 if [ -f $preDir/$collateralKeyHolder.vkey ] && [ -f $preDir/$collateralKeyHolder.skey ] && [ -f $preDir/$collateralKeyHolder.addr ] && [ -f $preDir/$collateralKeyHolder.pkh ]; then
   collateral_utxos=$(get_wallet_lovelace_utxos $collateralKeyHolder)
   collateral_utxoCount=$(echo "$collateral_utxos" | jq length)
-  totalLovelace=$(get_total_lovelaces_from_json "$collateral_utxos")
-  if [ $totalLovelace -ge $minCollateralLovelaces ]; then
+  collateral_totalLovelace=$(get_total_lovelaces_from_json "$collateral_utxos")
+  if [ $collateral_totalLovelace -ge $minCollateralLovelaces ]; then
     if [ $collateral_utxoCount -gt 1 ]; then
       tidy_up_wallet $collateralKeyHolder "Multiple UTxOs found in the collateral key holder's wallet. Tidying up...\n$collateral_utxos"
       echo "Done. The key holder wallet is ready."
