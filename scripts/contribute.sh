@@ -23,6 +23,8 @@ if [ "$ENV" == "dev" ]; then
   changeAddress=$($preDir/$sponsorWalletLabel.addr)
 else
   contributionAmount=$1
+  collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  txInCollateralUTxO="--tx-in-collateral $collateralUTxO"
   if [ "$3" == "--queue" ]; then
     queue="True"
     walletLabel=$2
@@ -34,8 +36,6 @@ else
     changeAddress=$2
     txInUTxO=$3
     txOutUTxO=$4
-    collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
-    txInCollateralUTxO="--tx-in-collateral $collateralUTxO"
   fi
 fi
 
