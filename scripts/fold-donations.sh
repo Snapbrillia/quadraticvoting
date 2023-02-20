@@ -160,13 +160,14 @@ while [ $phase -lt 4 ]; do
           --mint \"-2 $projectAsset\"
           --mint-tx-in-reference $(cat $regRefUTxOFile)
           --mint-plutus-script-v2
-          --mint-reference-tx-in-redeemer-file $minterRedeemerFile
+          --mint-reference-tx-in-redeemer-file $devRedeemer
           --policy-id $regSym
         "
         collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
         govAsset=$(cat $govSymFile)
         generate_protocol_params
         buildTx="$cli $BUILD_TX_CONST_ARGS
+          --required-signer-hash $keyHoldersPubKeyHash
           --tx-in $govUTxO           $txInConstant
           --tx-in $projectsInfoUTxO  $txInConstant
           --tx-in $projectsStateUTxO $txInConstant
@@ -178,7 +179,7 @@ while [ $phase -lt 4 ]; do
         "
         echo $buildTx > $tempBashFile
         . $tempBashFile
-        sign_and_submit_tx $preDir/$collateralKeyHolder.skey
+        sign_and_submit_tx $preDir/$keyHolder.skey $preDir/$collateralKeyHolder.skey
         store_current_slot_2 $scriptLabel $collateralKeyHolder
         wait_for_new_slot $scriptLabel
         store_current_slot_2 $scriptLabel $collateralKeyHolder

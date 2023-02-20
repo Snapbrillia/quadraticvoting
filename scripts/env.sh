@@ -768,8 +768,9 @@ get_first_lovelace_count_of() {
 #   1. Wallet label.
 get_wallet_lovelace_utxos() {
   # {{{
-  $cli query utxo $MAGIC --address $(cat $preDir/$1.addr) --out-file $queryJSONFile
-  jq -c \
+  touch $preDir/temp.query
+  $cli query utxo $MAGIC --address $(cat $preDir/$1.addr) --out-file $preDir/temp.query
+  cat $preDir/temp.query | jq -c \
     'to_entries
     | map
         ( ( .value
@@ -780,7 +781,7 @@ get_wallet_lovelace_utxos() {
         | { utxo: .key
           , lovelace: (.value | .value | .lovelace)
           }
-        )' $queryJSONFile
+        )'
   # }}}
 }
 
