@@ -817,18 +817,18 @@ get_all_script_utxos_datums_values() {
               )
           }
         )')
-  datums="$(echo "$utxos" | jq -c 'map(.datum) | .[]')"
+  datums="$(echo "$temp_utxos" | jq -c 'map(.datum) | .[]')"
   count=0
   for d in $datums; do
     datumCBOR=$($qvf data-to-cbor "$d")
-    temp_utxos="$(echo "$utxos"       \
+    temp_utxos="$(echo "$temp_utxos"  \
       | jq -c --arg cbor "$datumCBOR" \
               --argjson i "$count"    \
       '.[$i] |= (. += {"datumCBOR": ($cbor | tostring)})'
     )"
     count=$(expr $count + 1)
   done
-  echo $utxos
+  echo $temp_utxos
   # }}}
 }
 
@@ -841,7 +841,7 @@ qvf_output_to_tx_ins() {
   # {{{
   temp_utxos="$(echo "$3" | jq -c 'map(.utxo) | .[]')"
   fnl=""
-  for u in $utxos; do
+  for u in $temp_utxos; do
     fnl="$fnl $1 $(remove_quotes $u) "$2""
   done
   echo "$fnl"
