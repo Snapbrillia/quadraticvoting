@@ -89,6 +89,7 @@ if [ ! "$(cat $fileNamesJSONFile)" ]; then
   echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
   echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
   echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
+  echo ", \"ocfnScriptQueryJSON\"     : \"script-query.json\""           >> $fileNamesJSONFile
   echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
   echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
   echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
@@ -126,6 +127,7 @@ getFileName() {
 # Exporting variables for required file names:
 # {{{
 export queryJSONFile=$(getFileName ocfnQueryJSON)
+export scriptQueryJSONFile=$(getFileName ocfnScriptQueryJSON)
 export projsPreDir=$(getFileName ocfnProjectsPreDir)
 export tempBashFile="$preDir/temp.sh"
 touch $tempBashFile
@@ -768,10 +770,7 @@ get_first_lovelace_count_of() {
 get_wallet_lovelace_utxos() {
   # {{{
   $cli query utxo $MAGIC --address $(cat $preDir/$1.addr) --out-file $queryJSONFile
-  sleep 1
-  json=$(cat $queryJSONFile)
-  rm -f $queryJSONFile
-  echo "$json" | jq -c \
+  jq -c \
     'to_entries
     | map
         ( ( .value
@@ -782,7 +781,7 @@ get_wallet_lovelace_utxos() {
         | { utxo: .key
           , lovelace: (.value | .value | .lovelace)
           }
-        )'
+        )' $queryJSONFile
   # }}}
 }
 
@@ -791,8 +790,8 @@ get_wallet_lovelace_utxos() {
 #   1. Script address.
 get_all_script_utxos_datums_values() {
   # {{{
-  $cli query utxo $MAGIC --address $1 --out-file $queryJSONFile
-  utxos=$(cat $queryJSONFile | jq -c 'to_entries
+  $cli query utxo $MAGIC --address $1 --out-file $scriptQueryJSONFile
+  utxos=$(cat $scriptQueryJSONFile | jq -c 'to_entries
     | map(select((.value | .value | to_entries | length) == 2))
     | map
         ( ( .value
