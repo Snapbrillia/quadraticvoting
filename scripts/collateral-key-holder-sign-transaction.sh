@@ -1,11 +1,15 @@
+#!/bin/bash
+
 if [ -z $REPO ]; then
-  echo "error"
+  echo "The \$REPO environment variable is not defined. Please review the script at"
+  echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
+  echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 transactionCBOR=$1
 projectTokenName=$2

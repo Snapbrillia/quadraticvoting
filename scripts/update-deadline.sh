@@ -1,9 +1,11 @@
 #!/bin/bash
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 export deadline=$1
 
+keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
+keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 inUTxO=$(get_first_utxo_of $keyHolder)

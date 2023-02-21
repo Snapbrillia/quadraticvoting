@@ -1,3 +1,5 @@
+#!/bin/bash
+
 export WHITE="\033[97m"
 export NO_COLOR="\033[0m"
 
@@ -82,44 +84,7 @@ log_into() {
 
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
-# Creating the $fileNamesJSONFile:
-# {{{
-touch $fileNamesJSONFile
-if [ ! "$(cat $fileNamesJSONFile)" ]; then
-  echo "{ \"ocfnPreDir\"              : \"$preDir\""                      > $fileNamesJSONFile
-  echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
-  echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
-  echo ", \"ocfnScriptQueryJSON\"     : \"script-query.json\""           >> $fileNamesJSONFile
-  echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
-  echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
-  echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
-  echo ", \"ocfnQVFGovernanceUTxO\"   : \"gov.utxo\""                    >> $fileNamesJSONFile
-  echo ", \"ocfnRegistrationMinter\"  : \"registration-policy.plutus\""  >> $fileNamesJSONFile
-  echo ", \"ocfnRegistrationSymbol\"  : \"registration-policy.symbol\""  >> $fileNamesJSONFile
-  echo ", \"ocfnRegistrationRefUTxO\" : \"registration-policy.refUTxO\"" >> $fileNamesJSONFile
-  echo ", \"ocfnDonationMinter\"      : \"donation-policy.plutus\""      >> $fileNamesJSONFile
-  echo ", \"ocfnDonationSymbol\"      : \"donation-policy.symbol\""      >> $fileNamesJSONFile
-  echo ", \"ocfnDonationRefUTxO\"     : \"donation-policy.refUTxO\""     >> $fileNamesJSONFile
-  echo ", \"ocfnQVFMainValidator\"    : \"$scriptLabel.plutus\""         >> $fileNamesJSONFile
-  echo ", \"ocfnQVFRefUTxO\"          : \"$scriptLabel.refUTxO\""        >> $fileNamesJSONFile
-  echo ", \"ocfnContractAddress\"     : \"$scriptLabel.addr\""           >> $fileNamesJSONFile
-  echo ", \"ocfnDeadlineSlot\"        : \"deadline.slot\""               >> $fileNamesJSONFile
-  echo ", \"ocfnDeadlineDatum\"       : \"deadline.govDatum\""           >> $fileNamesJSONFile
-  echo ", \"ocfnInitialGovDatum\"     : \"initial.govDatum\""            >> $fileNamesJSONFile
-  echo ", \"ocfnCurrentDatum\"        : \"current.datum\""               >> $fileNamesJSONFile
-  echo ", \"ocfnUpdatedDatum\"        : \"updated.datum\""               >> $fileNamesJSONFile
-  echo ", \"ocfnNewDatum\"            : \"new.datum\""                   >> $fileNamesJSONFile
-  echo ", \"ocfnQVFRedeemer\"         : \"qvf.redeemer\""                >> $fileNamesJSONFile
-  echo ", \"ocfnMinterRedeemer\"      : \"minter.redeemer\""             >> $fileNamesJSONFile
-  echo ", \"ocfnProjectTokenName\"    : \"project-token-name.hex\""      >> $fileNamesJSONFile
-  echo ", \"ocfnScriptUTxOs\"         : \"script.utxos\""                >> $fileNamesJSONFile
-  echo ", \"ocfnRegisteredProjects\"  : \"registered-projects.json\""    >> $fileNamesJSONFile
-  echo "}" >> $fileNamesJSONFile
-else
-  newContent=$(cat $fileNamesJSONFile | jq -c --arg preDir "$preDir" '.ocfnPreDir = $preDir')
-  echo "$newContent" > $fileNamesJSONFile
-fi
-# }}}
+
 getFileName() {
   echo $preDir/$(cat $fileNamesJSONFile | jq -r .$1)
 }
@@ -129,11 +94,8 @@ getFileName() {
 export queryJSONFile=$(getFileName ocfnQueryJSON)
 export projsPreDir=$(getFileName ocfnProjectsPreDir)
 export tempBashFile="$preDir/temp.sh"
-touch $tempBashFile
 export tidyUpLogFile="$preDir/tidyup.log"
-touch $tidyUpLogFile
 export refDepletionLogFile="$preDir/ref-depletion.log"
-touch $refDepletionLogFile
 
 # Main script:
 export mainScriptFile=$(getFileName ocfnQVFMainValidator)
@@ -155,12 +117,7 @@ export qvfRedeemerFile=$(getFileName ocfnQVFRedeemer)
 export minterRedeemerFile=$(getFileName ocfnMinterRedeemer)
  
 export projectTokenNameFile=$(getFileName ocfnProjectTokenName)
-touch $projectTokenNameFile
 export registeredProjectsFile=$(getFileName ocfnRegisteredProjects)
-touch $registeredProjectsFile
-if [ ! "$(cat $registeredProjectsFile)" ]; then
-  echo "[]" > $registeredProjectsFile
-fi
 export govUTxOFile=$(getFileName ocfnQVFGovernanceUTxO)
 export qvfRefUTxOFile=$(getFileName ocfnQVFRefUTxO)
 export regRefUTxOFile=$(getFileName ocfnRegistrationRefUTxO)
@@ -176,17 +133,8 @@ minCollateralAda=5
 
 export deadlineSlotFile=$(getFileName ocfnDeadlineSlot)
 export latestInteractionSlotFile="$preDir/latestInteraction.slot"
-touch $latestInteractionSlotFile
-if [ ! "$(cat $latestInteractionSlotFile)" ]; then
-  echo "{\"$keyHolder\":0"        > $latestInteractionSlotFile
-  echo ",\"$referenceWallet\":0" >> $latestInteractionSlotFile
-  echo ",\"$scriptLabel\":0"     >> $latestInteractionSlotFile
-  echo ",\"deadline\":0"         >> $latestInteractionSlotFile
-  echo "}"                       >> $latestInteractionSlotFile
-fi
 
 export scriptUTxOsFile=$(getFileName ocfnScriptUTxOs)
-touch $scriptUTxOsFile
 
 # bounty escrow wallet address
 export bountyEscrowWalletAddress="addr_test1qp72z5fzxc5yl8ht3wqme46reu04stq4mufm0660l7hkawl4w0e4s0x47jsnwf2g2dn7k4lq84skgrlyvz6rtvgh9l5qjmy54m"
@@ -198,7 +146,6 @@ generate_protocol_params() {
   # }}}
 }
 export protocolsFile="$preDir/protocol.json"
-generate_protocol_params
 export dummyTx="$preDir/tx.dummy"
 export txBody="$preDir/tx.unsigned"
 export txSigned="$preDir/tx.signed"
@@ -218,12 +165,7 @@ export deadlineLovelaces=1500000
 
 
 # REQUIRED FOR DEVELOPMENT:
-###### tempRedeemer="$preDir/temp.redeemer"
-###### touch $tempRedeemer
-###### echo "{\"constructor\":11,\"fields\":[]}" > $tempRedeemer
-devRedeemer="$preDir/dev.redeemer"
-touch $devRedeemer
-echo "{\"constructor\":20,\"fields\":[]}" > $devRedeemer
+export devRedeemer="$preDir/dev.redeemer"
 # =========================
 
 
@@ -940,9 +882,11 @@ get_total_lovelaces_from_json() {
 # Takes 1 argument:
 #   1. Script data JSON.
 hash_datum() {
+  # {{{
   proxyFile=$preDir/tmp.json
   echo "$1" > $proxyFile
   $cli transaction hash-script-data --script-data-file $proxyFile
+  # }}}
 }
 
 
@@ -988,11 +932,10 @@ jq_to_bash_3() {
 # Looks through the given response from calling the `qvf-cli` application, and
 # if it'll `return 1` if it finds a "FAILED:" or "FAILED." or "FAILED".
 #
-# Takes 1 argument:
-#   1. Response from calling `qvf-cli`.
+# Takes the output from `qvf-cli` as its argument(s).
 check_qvf_cli_result() {
   # {{{
-  for log in $1; do
+  for log in $@; do
     if [ "$log" == "FAILED:" ] || [ "$log" == "FAILED." ] || [ "$log" == "FAILED" ]; then
       if [ "$ENV" == "dev" ]; then
         echo $qvfRes
@@ -1017,14 +960,18 @@ get_all_projects_utxos_datums_values() {
 
 # Takes no arguments.
 get_all_projects_info_utxos_datums_values() {
+  # {{{
   constr=$($qvf get-constr-index ProjectInfo)
   get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) == ($constr | tonumber)))'
+  # }}}
 }
 
 # Takes no arguments.
 get_all_projects_state_utxos_datums_values() {
+  # {{{
   constr=$($qvf get-constr-index ProjectInfo)
   get_all_projects_utxos_datums_values | jq -c --arg constr "$constr" 'map(select((.datum .constructor) != ($constr | tonumber)))'
+  # }}}
 }
 
 # Takes no arguments.
@@ -1135,250 +1082,6 @@ get_projects_owner_address() {
 #########################################################################
 
 
-# Given a wallet, a script, and other arguments, this function constructs,
-# signs and submits a transaction for interacting with a smart contract.
-#
-# Takes 7 arguments:
-#   1. User's wallet address file,
-#   2. User's wallet signing key file,
-#   3. The script file,
-#   4. Script's current datum JSON file,
-#   5. Redeemer's JSON file for the intended endpoint,
-#   6. Amount that should be added to script's holding,
-#   7. Updated datum of the script after the transaction.
-interact_with_smart_contract() {
-  # {{{
-
-    # Build script address from a script, if script address does not exist. 
-    # The address name is the same as the script, except its extension is changed to .addr
-    # script_addr=$($3 | sed "s/\..*/.addr/") # Name is $3 with its ext changed to .addr
-    # Safety check to not overwrite any existing file, and to avoid rebuilding if already built.
-    if [ -f $script_addr ]
-    then
-    echo "Using the script address $script_addr, which already exists. If this is incorrect, then move, rename, or change $script_addr and run again."
-    else
-    plutus_script_to_address # $3 $script_addr # Builds script file address
-    fi
-    script_addr=$scriptAddressFile
-
-    users_utxo=$(get_first_utxo_of $1)
-    script_holding=$(get_first_lovelace_count_of $script_addr)
-    extra_output=$(expr $6 + $script_holding)
-
-    $cli transaction build                        \
-        --tx-in $users_utxo                       \
-        --tx-in $(get_first_utxo_of $script_addr) \
-        --tx-in-script-file $3                    \
-        --tx-in-datum-file $4                     \
-        --tx-in-redeemer-file $5                  \
-        --tx-in-collateral $users_utxo            \
-        --tx-out $(cat $1)+$extra_output          \
-        --tx-out-datum-embed-file  $7             \
-        --change-address $(cat $1)                \
-        --protocol-params-file protocol.json      \
-        --out-file tx.raw                         \
-        $MAGIC
-
-    $cli transaction sign                         \
-        --tx-body-file tx.raw                     \
-        --signing-key-file $2                     \
-        $MAGIC                                    \
-        --out-file tx.signed
-
-    $cli transaction submit                       \
-        $MAGIC                                    \
-        --tx-file tx.signed
-  # }}}
-}
-
-# Runs qvf-cli cmds with nix-shell from outside nix-shell
-# Uses a HERE doc to do this
-# PARAMS: $1=donor_pkh_file $2=receiver_pkh_file $3=lovelace_amt $4=current_datum
-update_datum_donate_qvf_cli() {
-  # {{{
-    # Edit these: ---------
-    path_to_plutus_apps=$HOME/plutus-apps
-    path_to_quadratic_voting=$HOME/quadraticvoting
-    current_path=$(pwd)
-    # ---------------------
-
-    donor_pkh_file=$1
-    receiver_pkh_file=$2
-    lovelace_amt=$3
-
-    # Make the script to execute within the nix-shell with a HERE DOC
-    cat > "$path_to_plutus_apps"/update-datum.sh <<EOF
-#! /usr/bin/env nix-shell
-#! nix-shell -i sh
-
-cd $path_to_quadratic_voting
-. scripts/test_remote.sh
-donorsPKH=$(cat $current_path/$1)
-obj=\$(find_utxo_with_project \$scriptAddr "\$policyId\$tokenName" \$(cat $2))
-len=\$(echo \$obj | jq length)
-if [ \$len -eq 0 ]; then
-    echo "FAILED to find the project."
-else
-    currDatum="$current_path/curr.datum"
-    updatedDatum="$current_path/updated.datum"
-    action="$current_path/donate.redeemer"
-    obj=\$(echo \$obj | jq .[0])
-    utxo=\$(echo \$obj | jq .utxo)
-    datumHash=\$(echo \$obj | jq .datumHash)
-    datumValue=\$(echo \$obj | jq .datumValue)
-    lovelace=\$(echo \$obj | jq .lovelace | jq tonumber)
-    newLovelace=\$(expr \$lovelace + $3)
-    echo \$lovelace
-    echo \$newLovelace > newLovelace
-    echo \$datumValue > \$currDatum
-    $qvf donate $(cat $donor_pkh_file) $(cat $receiver_pkh_file) \$lovelace_amt \$current_datum out_datum.json out_redeem.json
-    $qvf pretty-datum \$(cat \$updatedDatum)
-    cp out_datum.json "$current_path" # Optional, see how workflow works out
-    cp out_redeem.json "$current_path" # Optional, see how workflow works out
-    cp newLovelace "$current_path" # Optional, see how workflow works out
-    echo "DONE."
-fi
-exit # Exit nix-shell
-EOF
-    # Run the HERE file commands in nix-shell
-    cd "$path_to_plutus_apps"
-    chmod +x update-datum.sh
-    ./update-datum.sh
-    cd "$current_path"
-  # }}}
-}
-
-# WIP
-# cardano-cli transaction cmd to donate
-# PARAMS: $1=donorAddrFile $2=donorSKeyFile $3=utxoFromDonor $4=utxoAtScript $5=currentDatum $6lovelace_amt_script $7=lovelace_amt_donation
-donate_to_smart_contract() {
-  # {{{
-    # Edit these: ---------
-    authAsset=62a65c6ce2c30f7040f0bc8cc5eb5f3f07521757125a03d743124a54.517561647261546f6b656e
-    scriptAddr=addr_test1wpl9c67dav6n9gjxlyafg6dmsql8tafy3pwd3fy06tu26nqzphnsx
-    scriptFile="qvf.plutus"      # The Plutus script file (qvf.plutus)
-    donorAddrFile="$1"   # The file that contains donor's wallet address.
-    donorSKeyFile="$2"   # The file that contains donor's signing key.
-    #utxoFromDonor="efd9d27b0ba008b8495aee6d4d01c5ebe0c281b55a623a31fe0b631c6365cb22"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-    utxoFromDonor="$3"   # A UTxO from donor's wallet that has enough ADA for donation, tx fee and collateral.
-    utxoAtScript="$4"    # The UTxO at the script with the current datum attached.
-    currentDatum="$5"    # JSON file containing current state of the contract, about to be updated.
-    newDatum="out_datum.json"        # JSON file containing updated state of the contract.
-    redeemer="out_redeem.json"        # JSON file containing the `Donate` redeemer.
-    lovelace_amt_script="$6"
-    lovelace_amt_donation="$7"
-    newLovelaceCount=$(expr lovelace_amt_script + lovelace_amt_donation) # Current Lovelace count of $utxoAtScript, plus the donated amount.
-    # ---------------------
-
-    # Construct the transaction:
-    $cli transaction build --babbage-era $MAGIC                            \
-        --tx-in $utxoFromDonor                                             \
-        --tx-in-collateral $utxoFromDonor                                  \
-        --tx-in $utxoAtScript                                              \
-        --tx-in-datum-file $currentDatum                                   \
-        --tx-in-script-file $scriptFile                                    \
-        --tx-in-redeemer-file $redeemer                                    \
-        --tx-out "$scriptAddr + $newLovelaceCount lovelace + 1 $authAsset" \
-        --tx-out-datum-embed-file $newDatum                                \
-        --change-address $(cat $donorAddrFile)                             \
-        --protocol-params-file protocol.json                               \
-        --out-file tx.unsigned
-
-    # Sign the transaction:
-    $cli transaction sign $MAGIC          \
-        --tx-body-file tx.unsigned        \
-        --signing-key-file $donorSKeyFile \
-        --out-file tx.signed
-
-    # Submit the transaction:
-    $cli transaction submit $MAGIC --tx-file tx.signed
-  # }}}
-}
-
-
-# Checks if the $keyHolder wallet exists (properly), and that it has a single
-# UTxO with enough Ada inside.
-#
-# If the wallet files exist partially, this function terminates the script
-# without any changes. If there are no wallet files, the $keyHolder wallet is
-# generated, but the script is terminated, prompting the user to send some Ada
-# to the wallet.
-#
-# If the wallet is present, it's made sure the total Lovelace count is more
-# than the minimum, and if they are spread out between multiple UTxOs, it'll
-# invoke the `tidy_up_wallet` function so that all the money is collected
-# inside a single UTxO.
-# {{{
-if [ -f $preDir/$keyHolder.vkey ] && [ -f $preDir/$keyHolder.skey ] && [ -f $preDir/$keyHolder.addr ] && [ -f $preDir/$keyHolder.pkh ]; then
-  keyHolder_utxos=$(get_wallet_lovelace_utxos $keyHolder)
-  keyHolder_utxoCount=$(echo "$keyHolder_utxos" | jq length)
-  keyHolder_totalLovelace=$(get_total_lovelaces_from_json "$keyHolder_utxos")
-  if [ $keyHolder_totalLovelace -ge $minStartingLovelaces ] || [ -f $scriptAddressFile ]; then
-    if [ $keyHolder_utxoCount -gt 1 ]; then
-      tidy_up_wallet $keyHolder "Multiple UTxOs found in the key holder's wallet. Tidying up...\n$keyHolder_utxos"
-      echo "Done. The key holder wallet is ready."
-    fi
-    export keyHoldersAddress=$(cat "$preDir/$keyHolder.addr")
-    export keyHoldersPubKeyHash=$(cat "$preDir/$keyHolder.pkh")
-    export keyHoldersSigningKeyFile="$preDir/$keyHolder.skey"
-  else
-    echo "The key holder wallet doesn't have enough Ada. Please make sure a"
-    echo -e "minimum of $WHITE$minStartingAda Ada$NO_COLOR is available:"
-    echo ""
-    echo -e "$WHITE$(cat $preDir/$keyHolder.addr)$NO_COLOR"
-    return 1
-  fi
-elif [ -f $preDir/$keyHolder.vkey ] || [ -f $preDir/$keyHolder.skey ] || [ -f $preDir/$keyHolder.addr ] || [ -f $preDir/$keyHolder.pkh ]; then
-  echo "Some key holder wallet files are missing."
-  return 1
-else
-  generate_wallet $keyHolder
-  echo "No key holder wallet was found. The wallet is generated for you."
-  echo -e "Please deposit a minimum of $WHITE$minStartingAda Ada$NO_COLOR before proceeding:"
-  echo ""
-  echo -e "$WHITE$(cat $preDir/$keyHolder.addr)$NO_COLOR"
-  return 1
-fi
-# }}}
-
-
-# A similar check for $collateralKeyHolder. This wallet is meant for providing
-# the collateral for user-facing endpoints to provide a more "approachable"
-# experience for non-technical users.
-# {{{
-if [ -f $preDir/$collateralKeyHolder.vkey ] && [ -f $preDir/$collateralKeyHolder.skey ] && [ -f $preDir/$collateralKeyHolder.addr ] && [ -f $preDir/$collateralKeyHolder.pkh ]; then
-  collateral_utxos=$(get_wallet_lovelace_utxos $collateralKeyHolder)
-  collateral_utxoCount=$(echo "$collateral_utxos" | jq length)
-  collateral_totalLovelace=$(get_total_lovelaces_from_json "$collateral_utxos")
-  if [ $collateral_totalLovelace -ge $minCollateralLovelaces ]; then
-    if [ $collateral_utxoCount -gt 1 ]; then
-      tidy_up_wallet $collateralKeyHolder "Multiple UTxOs found in the collateral key holder's wallet. Tidying up...\n$collateral_utxos"
-      echo "Done. The key holder wallet is ready."
-    fi
-    export collateralKeyHoldersAddress=$(cat "$preDir/$collateralKeyHolder.addr")
-    export collateralKeyHoldersPubKeyHash=$(cat "$preDir/$collateralKeyHolder.pkh")
-    export collateralKeyHoldersSigningKeyFile="$preDir/$collateralKeyHolder.skey"
-  else
-    echo "The collateral key holder wallet doesn't have enough Ada. Please make sure a"
-    echo -e "minimum of $WHITE$minCollateralAda Ada$NO_COLOR is available:"
-    echo ""
-    echo -e "$WHITE$(cat $preDir/$collateralKeyHolder.addr)$NO_COLOR"
-    return 1
-  fi
-elif [ -f $preDir/$collateralKeyHolder.vkey ] || [ -f $preDir/$collateralKeyHolder.skey ] || [ -f $preDir/$collateralKeyHolder.addr ] || [ -f $preDir/$collateralKeyHolder.pkh ]; then
-  echo "Some key holder wallet files are missing."
-  return 1
-else
-  generate_wallet $collateralKeyHolder
-  echo "No collateral key holder wallet was found. The wallet is generated for you."
-  echo -e "Please deposit a minimum of $WHITE$minCollateralAda Ada$NO_COLOR before proceeding:"
-  echo ""
-  echo -e "$WHITE$(cat $preDir/$collateralKeyHolder.addr)$NO_COLOR"
-  return 1
-fi
-# }}}
-
-
 # Consumes all the UTxOs sitting at the $referenceWallet, and sends them to the
 # $keyHolder wallet.
 #
@@ -1393,50 +1096,10 @@ deplete_reference_wallet() {
   generate_protocol_params
   $cli $BUILD_TX_CONST_ARGS                    \
     $(get_all_input_utxos_at $referenceWallet) \
-    --change-address $keyHoldersAddress
+    --change-address $(cat "$preDir/$keyHolder.addr")
   sign_and_submit_tx $preDir/$referenceWallet.skey
   store_current_slot $referenceWallet
   wait_for_new_slot $referenceWallet
   show_utxo_tables $referenceWallet
   # }}}
 }
-
-
-# A similar check for the $referencWallet. There are 3 circumstances that lead
-# to an automated depletion of the $referenceWallet into $keyHolder:
-#   - There are some Lovelaces in the wallet, but the UTxO count is not exactly
-#     the same as the $scriptCount,
-#   - There are exactly $scriptCount UTxOs in the wallet, but there is no
-#     $scriptAddressFile,
-#   - There are exactly $scriptCount UTxOs in the wallet, but there are no
-#     Lovelaces stored at the found script address.
-# {{{
-if [ -f $preDir/$referenceWallet.vkey ] && [ -f $preDir/$referenceWallet.skey ] && [ -f $preDir/$referenceWallet.addr ] && [ -f $preDir/$referenceWallet.pkh ]; then
-  ref_wallet_utxos=$(get_wallet_lovelace_utxos $referenceWallet)
-  ref_wallet_utxoCount=$(echo "$ref_wallet_utxos" | jq length)
-  ref_wallet_totalLovelace=$(get_total_lovelaces_from_json "$ref_wallet_utxos")
-  if [ $ref_wallet_utxoCount -eq 3 ]; then
-    if [ -f $scriptAddressFile ]; then
-      qvf_utxos=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
-      qvf_totalLovelace=$(get_total_lovelaces_from_json "$qvf_utxos")
-      if [ $qvf_totalLovelace -eq 0 ]; then
-        deplete_reference_wallet "The reference wallet is not empty, while the contract is. Depleting the reference wallet into key holder's...\n$ref_wallet_utxos"
-        tidy_up_wallet $keyHolder "Tidying up the key holder's wallet after depletion of the reference wallet due to an un-initiated script address..."
-      fi
-    else
-      deplete_reference_wallet "The reference wallet is not empty, while there is no contract address file stored. Depleting the reference wallet...\n$ref_wallet_utxos"
-      tidy_up_wallet $keyHolder "Tidying up the key holder's wallet after depletion of the reference wallet due to missing script address file..."
-    fi
-  elif [ $ref_wallet_totalLovelace -gt 0 ]; then
-    deplete_reference_wallet "The reference wallet has some Lovelaces, but the number of its UTxOs are not exactly 3 (the number of scripts). Depleting the reference wallet...\n$ref_wallet_utxos"
-    tidy_up_wallet $keyHolder "Tidying up the key holder's wallet after depletion of the reference wallet due to not having exactly 3 UTxOs, but having some Lovelaces..."
-  fi
-elif [ -f $preDir/$referenceWallet.vkey ] || [ -f $preDir/$referenceWallet.skey ] || [ -f $preDir/$referenceWallet.addr ] || [ -f $preDir/$referenceWallet.pkh ]; then
-  echo "Some reference wallet files are missing."
-  return 1
-else
-  generate_wallet $referenceWallet
-fi
-# }}}
-
-export referenceWalletAddress=$(cat "$preDir/$referenceWallet.addr")

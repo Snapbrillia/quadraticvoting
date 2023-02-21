@@ -9,8 +9,10 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
+keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
+keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)

@@ -5,13 +5,13 @@ if [ -z $REPO ]; then
   echo "absolute path to this repository to \$REPO before proceeding."
   return 1
 else
-. $REPO/scripts/local-env.sh
+  . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 walletLabel=$1
-# check if wallet exists, or if not create it.
+# Check if wallet exists, or if not create it.
 if [ -f $custodialWalletsDir/$walletLabel.addr ]; then
   cat $custodialWalletsDir/$walletLabel.addr
 else 

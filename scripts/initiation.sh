@@ -9,7 +9,7 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/env.sh
+. $REPO/scripts/setup.sh
 
 
 startingWallet=1
@@ -133,6 +133,7 @@ initiate_fund() {
   done
   rm -f $registeredProjectsFile
   touch $registeredProjectsFile
+  echo "[]" > $registeredProjectsFile
   rm -rf $projsPreDir
   mkdir -p $projsPreDir
   echo "Getting the current slot..."
@@ -148,7 +149,6 @@ initiate_fund() {
   echo -e "The UTxO is:$WHITE"
   echo "$genesisUTxO"
   echo -e "$NO_COLOR"
-
   # Generating the validation script, minting script, and some other files:
   echo "Finding the scripts and writing them to disk..."
   $qvf generate scripts                   \
@@ -168,9 +168,9 @@ initiate_fund() {
 
   deadlineDatum=$(getFileName ocfnDeadlineDatum)
   govDatumFile=$(getFileName ocfnInitialGovDatum)
-  # NOTE: The order of these 2 assignments matters.
+
   govAsset=$(get_gov_asset)
-  # -----------------------------------------------
+
   regSym=$($cli transaction policyid --script-file $regScriptFile)
   echo $regSym > $regSymFile
   donSym=$($cli transaction policyid --script-file $donScriptFile)
@@ -210,12 +210,12 @@ initiate_fund() {
   deploy_scripts
   # }}}
 
-  # }}}
-
-    # Update Funding Round
+  # Update Funding Round
   if [ $ENV = "prod" ]; then 
     jq '.currentFundingRound |= .+1' $fundingRoundFile > temp.json && mv temp.json $fundingRoundFile
   fi
+
+  # }}}
 }
 
 

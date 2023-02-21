@@ -9,7 +9,7 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 projectWalletAddress=$1
 

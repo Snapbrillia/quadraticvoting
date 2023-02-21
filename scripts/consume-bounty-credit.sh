@@ -16,7 +16,8 @@ projectWalletAddress=$2
 txInUTxO=$3
 txOutUTxO=$4
 
-projectTokenName=$(remove_quotes $(cat $registeredProjectsFile | jq ". [] | select(.address == \"$projectWalletAddress\") | .tn"))
+keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
+projectTokenName=$(cat $registeredProjectsFile | jq -r ". [] | select(.address == \"$projectWalletAddress\") | .tn")
 deadlineSlot=$(cat $deadlineSlotFile)
 cappedSlot=$(cap_deadline_slot $deadlineSlot)
 

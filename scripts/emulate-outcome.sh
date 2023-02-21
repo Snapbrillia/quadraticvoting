@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if [ -z $REPO ]; then
   echo
   echo "The \$REPO environment variable is not defined. Please review the script at"
