@@ -15,6 +15,6 @@ walletLabel=$1
 if [ -f $custodialWalletsDir/$walletLabel.addr ]; then
   cat $custodialWalletsDir/$walletLabel.addr
 else 
-  generate_wallet $custodialsWalletLabel/$walletLabel
+  generate_wallet $custodialWalletsLabel/$walletLabel
   cat $custodialWalletsDir/$walletLabel.addr
 fi
