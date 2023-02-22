@@ -340,8 +340,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.5.0"
-    "--version" : _                    -> putStrLn "0.2.5.0" 
+    "-v"        : _                    -> putStrLn "0.2.5.1"
+    "--version" : _                    -> putStrLn "0.2.5.1" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
