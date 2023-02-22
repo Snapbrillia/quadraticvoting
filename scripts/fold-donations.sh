@@ -162,7 +162,7 @@ while [ $phase -lt 4 ]; do
           --mint \"-2 $projectAsset\"
           --mint-tx-in-reference $(cat $regRefUTxOFile)
           --mint-plutus-script-v2
-          --mint-reference-tx-in-redeemer-file $devRedeemer
+          --mint-reference-tx-in-redeemer-file $minterRedeemerFile
           --policy-id $regSym
         "
         collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)

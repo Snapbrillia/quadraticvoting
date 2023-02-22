@@ -35,7 +35,7 @@ if [ "$ENV" == "dev" ]; then
   ownerInputUTxO=$(get_first_utxo_of $projectOwnerWalletLabel)
   txInUTxO="--tx-in $ownerInputUTxO"
   txOutUTxO=""
-  changeAddress=$projectOwnerAddress1
+  changeAddress=$projectOwnerAddress
   silence="False"
   # }}}
 elif [ "$3" == "--estimate-fee" ]; then
@@ -148,7 +148,7 @@ else
   differenceBetweenSlots=$(get_slot_difference $scriptLabel)
 fi
 
-if [ $differenceBetweenSlots -lt 100 ]; then
+if [ $differenceBetweenSlots -lt 100 ] && [ "$ENV" != "dev" ]; then
   # {{{
   echo "NetworkBusy"
   # }}}
