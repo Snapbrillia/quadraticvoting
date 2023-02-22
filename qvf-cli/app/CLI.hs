@@ -215,7 +215,10 @@ main =
                   foldFn d (tot, dMap) =
                     -- {{{
                     ( tot + Tx.diLovelace d
-                    , Map.insert (Tx.diDonor d) (Tx.diLovelace d) dMap
+                    , Map.unionWith
+                        (+)
+                        (Map.singleton (Tx.diDonor d) (Tx.diLovelace d))
+                        dMap
                     )
                     -- }}}
                   (totDs, donMap)      = foldr foldFn (0, Map.empty) dons
