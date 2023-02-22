@@ -12,6 +12,7 @@ fi
 . $REPO/scripts/env.sh
 
 keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
+queue="False"
 
 if [ "$ENV" == "dev" ]; then
   sponsorWalletLabel=$1
@@ -21,7 +22,7 @@ if [ "$ENV" == "dev" ]; then
   txInUTxO="--tx-in $sponsorInputUTxO"
   txInCollateralUTxO="--tx-in-collateral $sponsorInputUTxO"
   txOutUTxO=""
-  changeAddress=$($preDir/$sponsorWalletLabel.addr)
+  changeAddress=$(cat $preDir/$sponsorWalletLabel.addr)
 else
   contributionAmount=$1
   collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
