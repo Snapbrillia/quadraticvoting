@@ -170,6 +170,7 @@ while [ $phase -lt 4 ]; do
         generate_protocol_params
         buildTx="$cli $BUILD_TX_CONST_ARGS
           --required-signer-hash $keyHoldersPubKeyHash
+          --read-only-tx-in-reference $deadlineUTxO
           --tx-in $govUTxO           $txInConstant
           --tx-in $projectsInfoUTxO  $txInConstant
           --tx-in $projectsStateUTxO $txInConstant

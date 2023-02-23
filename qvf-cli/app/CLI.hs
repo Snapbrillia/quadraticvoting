@@ -449,6 +449,7 @@ main =
       case (Ledger.POSIXTime <$> readMaybe deadlineStr, decodeString fileNamesJSON) of
         (Just newDL, Just ocfn) ->
           -- {{{
+          -- TODO: Update the dealine slot file.
           let
             qvfDatumFile    = OCFN.deadlineDatum ocfn
             qvfDatum        = DeadlineDatum newDL
