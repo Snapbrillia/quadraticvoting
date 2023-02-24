@@ -456,7 +456,7 @@ main =
             qvfRedeemer     = UpdateDeadline newDL
             dlSlotFile      = OCFN.deadlineSlot ocfn
           in do
-          dlSlot <- getDeadlineSlot currSlot dl
+          dlSlot <- getDeadlineSlot currSlot newDL
           withSuccessMessage dlSlotFile
             (LBS.writeFile dlSlotFile $ encode dlSlot)
           withSuccessMessage qvfDatumFile $
