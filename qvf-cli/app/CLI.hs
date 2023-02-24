@@ -340,8 +340,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.5.1"
-    "--version" : _                    -> putStrLn "0.2.5.1" 
+    "-v"        : _                    -> putStrLn "0.2.5.2"
+    "--version" : _                    -> putStrLn "0.2.5.2" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -444,26 +444,30 @@ main =
               -- }}}
           -- }}}
       -- }}}
-    "update-deadline"             : deadlineStr : fileNamesJSON : _                                                      ->
+    "update-deadline"             : currSlotStr : deadlineStr : fileNamesJSON : _                                        ->
       -- {{{
-      case (Ledger.POSIXTime <$> readMaybe deadlineStr, decodeString fileNamesJSON) of
-        (Just newDL, Just ocfn) ->
+      case (readMaybe currSlotStr, Ledger.POSIXTime <$> readMaybe deadlineStr, decodeString fileNamesJSON) of
+        (Just currSlot, Just newDL, Just ocfn) ->
           -- {{{
-          -- TODO: Update the dealine slot file.
           let
             qvfDatumFile    = OCFN.deadlineDatum ocfn
             qvfDatum        = DeadlineDatum newDL
             qvfRedeemerFile = OCFN.qvfRedeemer ocfn
             qvfRedeemer     = UpdateDeadline newDL
+            dlSlotFile      = OCFN.deadlineSlot ocfn
           in do
+          dlSlot <- getDeadlineSlot currSlot dl
+          withSuccessMessage dlSlotFile
+            (LBS.writeFile dlSlotFile $ encode dlSlot)
           withSuccessMessage qvfDatumFile $
             writeJSON qvfDatumFile qvfDatum
           withSuccessMessage qvfRedeemerFile $
             writeJSON qvfRedeemerFile qvfRedeemer
           -- }}}
-        _                       ->
+        _                                      ->
           -- {{{
           putStrLn $ "FAILED with bad arguments:"
+            ++ "\n\t" ++ currSlotStr
             ++ "\n\t" ++ deadlineStr
             ++ "\n\t" ++ fileNamesJSON
           -- }}}

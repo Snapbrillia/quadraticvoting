@@ -19,10 +19,18 @@ dlLovelaces=$(echo "$dlUTxOObj" | jq -r .lovelace)
 dlOutput="$qvfAddress + $dlLovelaces lovelace + 1 $govAsset"
 dlDatum=$(getFileName ocfnDeadlineDatum)
 
-# Using `qvf-cli` to write the proper datum and redeemer to disk:
-$qvf update-deadline          \
-  $deadline                   \
+echo_for_dev "Getting the current slot..."
+currentSlot=$(get_newest_slot)
+
+# Using `qvf-cli` to write the proper datum and redeemer to disk, along with
+# the new slot number.
+qvfResult=$($qvf update-deadline \
+  $currentSlot                   \
+  $deadline                      \
   "$(cat $fileNamesJSONFile)"
+)
+
+echo_for_dev "$qvfResult"
 
 generate_protocol_params
 

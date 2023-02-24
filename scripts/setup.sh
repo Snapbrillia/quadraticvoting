@@ -19,7 +19,6 @@ if [ ! "$(cat $fileNamesJSONFile)" ]; then
   echo ", \"ocfnProjectsPreDir\"      : \"projects\""                    >> $fileNamesJSONFile
   echo ", \"ocfnQueryJSON\"           : \"query.json\""                  >> $fileNamesJSONFile
   echo ", \"ocfnScriptQueryJSON\"     : \"script-query.json\""           >> $fileNamesJSONFile
-  echo ", \"ocfnDeadlineTokenNameHex\": \"deadline-token-name.hex\""     >> $fileNamesJSONFile
   echo ", \"ocfnGovernanceMinter\"    : \"governance-policy.plutus\""    >> $fileNamesJSONFile
   echo ", \"ocfnGovernanceSymbol\"    : \"governance-policy.symbol\""    >> $fileNamesJSONFile
   echo ", \"ocfnQVFGovernanceUTxO\"   : \"gov.utxo\""                    >> $fileNamesJSONFile

@@ -62,6 +62,7 @@ forEndpoint :: String -> String
 forEndpoint action =
   -- {{{
   case action of
+    "update-deadline"             -> updateDeadline
     "register-project"            -> projectRegistration
     "donate-to-project"           -> donation
     "fold-donations"              -> folding
@@ -155,6 +156,23 @@ scriptGeneration =
     [ "<txID>#<output-index>"
     , "<current-slot-number>"
     , "<deadline-posix-milliseconds>"
+    , "{file-names-json}"
+    ]
+  -- }}}
+
+
+updateDeadline :: String
+updateDeadline =
+  -- {{{
+  endpointDescriptionArgs
+    "update-deadline"
+    (    "Given the current slot number and the new deadline in POSIX milliseconds,"
+      ++ "\n\tthis endpoint writes the updated deadline datum to its corresponding"
+      ++ "\n\tfile, along with the redeemer and the equivalent slot number for the"
+      ++ "\n\tnew deadline."
+    )
+    "<current-slot-number>"
+    [ "<deadline-posix-milliseconds>"
     , "{file-names-json}"
     ]
   -- }}}

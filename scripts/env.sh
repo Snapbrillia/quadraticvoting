@@ -82,6 +82,17 @@ log_into() {
   # }}}
 }
 
+
+# If `$ENV` is set to "dev", the given message is echoed.
+#
+# Takes 1 argument:
+#   1. Message to be echoed.
+echo_for_dev() {
+  if [ "$ENV" == "dev" ]; then
+    echo $1
+  fi
+}
+
 export scriptLabel="qvf"
 export fileNamesJSONFile="$preDir/fileNames.json"
 
