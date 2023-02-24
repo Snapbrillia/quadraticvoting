@@ -9,7 +9,7 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 projectWalletAddress=$1
 
@@ -20,6 +20,7 @@ if [ -z "$projectTokenName" ]; then
 else 
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
   projectLovelaceAmount=$(echo $projectUTxOObj | jq -r .lovelace)
-  echo $projectLovelaceAmount
+  bountyCredit=$(expr $projectLovelaceAmount - $halfOfTheRegistrationFee)
+  echo $bountyCredit
 fi
 

@@ -9,50 +9,56 @@ else
 . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 consumeAmount=$1
 projectWalletAddress=$2
-txInUTxO=$3
-txOutUTxO=$4
-
 projectTokenName=$(remove_quotes $(cat $registeredProjectsFile | jq ". [] | select(.address == \"$projectWalletAddress\") | .tn"))
-deadlineSlot=$(cat $deadlineSlotFile)
-cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
-projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
-projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
-projectAsset=$(remove_quotes $(echo $projectUTxOObj | jq -c .asset))
-echo "$projectCurrDatum" > $currentDatumFile
+differenceBetweenSlots=$(get_slot_difference_2 $keyHolder $projectTokenName)
 
-projectLovelaceAmount=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
-returnLovelaceAmount=$(($projectLovelaceAmount - $consumeAmount))
-returnedUTxO="$qvfAddress + $returnLovelaceAmount lovelace + 1 $projectAsset"
-collateralUTxO=$(get_first_utxo_of $keyHolder)
-qvfRefUTxO=$(cat $qvfRefUTxOFile)
+if [ $differenceBetweenSlots -lt 100 ]; then
+  # {{{
+  echo "NetworkBusy"
+  # }}}
+else
+  deadlineSlot=$(cat $deadlineSlotFile)
+  cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
-escrowWalletUTxO="$bountyEscrowWalletAddress + $consumeAmount lovelace + 1 $projectAsset" 
+  projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
+  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
+  projectAsset=$(remove_quotes $(echo $projectUTxOObj | jq -c .asset))
+  echo "$projectCurrDatum" > $currentDatumFile
 
-generate_protocol_params
+  projectLovelaceAmount=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+  returnLovelaceAmount=$(expr $projectLovelaceAmount - $consumeAmount)
+  returnedUTxO="$qvfAddress + $returnLovelaceAmount lovelace + 1 $projectAsset"
+  txInUTxO=$(get_first_utxo_of $keyHolder)
+  collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
+  qvfRefUTxO=$(cat $qvfRefUTxOFile)
 
-$cli $BUILD_TX_CONST_ARGS                                            \
-  --required-signer-hash $keyHoldersPubKeyHash                       \
-  --tx-in $projectUTxO                                               \
-  --spending-tx-in-reference $qvfRefUTxO                             \
-  --spending-plutus-script-v2                                        \
-  --spending-reference-tx-in-inline-datum-present                    \
-  --spending-reference-tx-in-redeemer-file $devRedeemer              \
-  $txInUTxO                                                          \
-  --tx-in-collateral "$collateralUTxO"                               \
-  $txOutUTxO                                                         \
-  --tx-out "$returnedUTxO"                                           \
-  --tx-out-inline-datum-file $currentDatumFile                       \
-  --tx-out "$escrowWalletUTxO"                                       \
-  --invalid-hereafter $cappedSlot                                    \
-  --change-address $bountyEscrowWalletAddress                             
+  escrowWalletUTxO="$bountyEscrowWalletAddress+$consumeAmount" 
 
-sign_and_submit_tx $preDir/$keyHolder.skey
-store_current_slot $keyHolder
+  generate_protocol_params
 
-echo "Success"
+  $cli $BUILD_TX_CONST_ARGS                                            \
+    --required-signer-hash $keyHoldersPubKeyHash                       \
+    --tx-in $projectUTxO                                               \
+    --spending-tx-in-reference $qvfRefUTxO                             \
+    --spending-plutus-script-v2                                        \
+    --spending-reference-tx-in-inline-datum-present                    \
+    --spending-reference-tx-in-redeemer-file $devRedeemer              \
+    --tx-in "$txInUTxO"                                                \
+    --tx-in-collateral "$collateralUTxO"                               \
+    --tx-out "$returnedUTxO"                                           \
+    --tx-out-inline-datum-file $currentDatumFile                       \
+    --tx-out "$escrowWalletUTxO"                                       \
+    --invalid-hereafter $cappedSlot                                    \
+    --change-address $keyHoldersAddress                                 
+
+  sign_and_submit_tx $preDir/$keyHolder.skey
+  transactionHash=$($cli transaction txid --tx-file $txSigned)
+  echo "$transactionHash"
+  store_current_slot_2 $keyHolder $projectTokenName
+fi
