@@ -885,7 +885,9 @@ get_deadline_utxo() {
 #
 # Takes no arguments.
 get_symbols_array() {
+  # {{{
   echo "[\"$(cat $govSymFile)\",\"$(cat $regSymFile)\",\"$(cat $donSymFile)\"]"
+  # }}}
 }
 
 
