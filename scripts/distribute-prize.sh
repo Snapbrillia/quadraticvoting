@@ -11,11 +11,7 @@ fi
 
 . $REPO/scripts/env.sh
 
-if [ "$ENV" == "dev" ]; then
-  projectTokenName=$(project_index_to_token_name "$1")
-else
-  projectTokenName=$1
-fi
+projectTokenName=$1
 
 keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
 keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
