@@ -21,7 +21,8 @@ import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
 import qualified Ledger.Address             as Addr
-import           Plutus.V1.Ledger.Value     ( TokenName(..) )
+import           Plutus.V1.Ledger.Value     ( CurrencySymbol(..)
+                                            , TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
 import           PlutusTx                   ( Data (..) )
 import qualified PlutusTx
@@ -72,6 +73,7 @@ main =
          )
       ++ "}"
       -- }}}
+
     inputsRefsOutputsJSON :: String
                           -> ([Input], [Input], [Ledger.TxOut])
                           -> String
@@ -87,6 +89,7 @@ main =
           trace (show outs) "FAILED: Couldn't convert `TxOut` values to `Output` values."
           -- }}}
       -- }}}
+
     sortInputsRefsBy :: (Int -> QVFDatum -> Bool)
                      -> [Input]
                      -> [Input]
@@ -116,117 +119,152 @@ main =
       in
       go (sortFn projs) (sortFn refs) ([], [])
       -- }}}
-    emulateFromInputs :: [Input] -> Either String [Tx.DistributionInfo]
-    emulateFromInputs allInputs                        =
+
+    separateIntoSpecificInputs :: [CurrencySymbol]
+                               -> [Input]
+                               -> Maybe
+                                    ( [Tx.ProjectStateOutput]
+                                    , [Tx.ProjectInfoOutput]
+                                    , Tx.DeadlineOutput
+                                    , Tx.MatchPoolOutput
+                                    )
+    separateIntoSpecificInputs symbols allInputs       = do
       -- {{{
-      let
-        mSeparated :: Maybe
-                        ( [Tx.ProjectStateInput]
-                        , [Tx.ProjectInfoInput]
-                        , [Tx.DonationInput]
-                        , Tx.MatchPoolInput
-                        )
-        mSeparated = do
-          -- {{{
-          allSIs <- traverse Tx.inputToScriptInput allInputs
-          let foldFn si acc@(states, infos, dons, mMPO) =
+      allSIs <- traverse (Tx.inputToAuthenticScriptInput symbols) allInputs
+      let foldFn si acc@(states, infos, dons, mDLO, mMPO) =
+            -- {{{
+            let
+              so  = siResolved si
+              ls  = soLovelace so
+              sym = assetSymbol    $ soAsset so
+              tn  = assetTokenName $ soAsset so
+            in
+            case soDatum so of
+              DeadlineDatum dl          ->
                 -- {{{
-                let
-                  ref = siTxOutRef si
-                  so  = siResolved si
-                  ls  = soLovelace so
-                  sym = assetSymbol    $ soAsset so
-                  tn  = assetTokenName $ soAsset so
-                in
-                case soDatum so of
-                  RegisteredProjectsCount _ ->
-                    ( states
-                    , infos
-                    , dons
-                    , Just $ Tx.MatchPoolInput
-                        { mpiTxOutRef = ref
-                        , mpiAddress  = soAddress so
-                        , mpiLovelace = soLovelace so - governanceLovelaces
-                        , mpiSymbol   = sym
-                        }
-                    )
-                  ReceivedDonationsCount _  ->
-                    ( Tx.ProjectStateInput ref ls sym tn : states
-                    , infos
-                    , dons
-                    , mMPO
-                    )
-                  ProjectInfo ds            ->
-                    ( states
-                    , Tx.ProjectInfoInput ref ls sym tn ds : infos
-                    , dons
-                    , mMPO
-                    )
-                  Donation donor            ->
-                    ( states
-                    , infos
-                    , Tx.DonationInput ref ls sym tn donor : dons
-                    , mMPO
-                    )
-                  _                         ->
-                    acc
+                ( states
+                , infos
+                , dons
+                , Just $ Tx.DeadlineOutput
+                    { doDeadline = dl
+                    , doSymbol   = sym
+                    }
+                , mMPO
+                )
                 -- }}}
-              (initStates, initInfos, initDons, mGov)   =
-                foldr foldFn ([], [], [], Nothing) allSIs
-          matchPoolInput <- mGov
-          return
-            ( sortBy
-                ( \s0 s1 ->
-                    compare (Tx.psiTokenName s0) (Tx.psiTokenName s1)
+              RegisteredProjectsCount _ ->
+                -- {{{
+                ( states
+                , infos
+                , dons
+                , mDLO
+                , Just $ Tx.MatchPoolOutput
+                    { mpoMatchPool = soLovelace so - governanceLovelaces
+                    -- Note that the `Tx.MatchPoolOutput` value is getting 
+                    -- constructed by excluding the initial governance
+                    -- Lovelaces from the UTxO's value.
+                    , mpoSymbol    = sym
+                    }
                 )
-                initStates
-            , sortBy
-                ( \i0 i1 ->
-                    compare (Tx.piiTokenName i0) (Tx.piiTokenName i1)
+                -- }}}
+              ReceivedDonationsCount _  ->
+                -- {{{
+                ( Tx.ProjectStateOutput ls sym tn Map.empty 0 : states
+                , infos
+                , dons
+                , mDLO
+                , mMPO
                 )
-                initInfos
-            , sortBy
-                ( \d0 d1 ->
-                    compare (Tx.diTokenName d0) (Tx.diTokenName d1)
+                -- }}}
+              ProjectInfo ds            ->
+                -- {{{
+                ( states
+                , Tx.ProjectInfoOutput ls sym tn ds : infos
+                , dons
+                , mDLO
+                , mMPO
                 )
-                initDons
-            , matchPoolInput
+                -- }}}
+              Donation donor            ->
+                -- {{{
+                ( states
+                , infos
+                , Tx.DonationOutput donor ls tn : dons
+                , mDLO
+                , mMPO
+                )
+                -- }}}
+              _                         ->
+                -- {{{
+                acc
+                -- }}}
+            -- }}}
+          (initStates, initInfos, initDons, mDL, mGov)    =
+            -- {{{
+            foldr foldFn ([], [], [], Nothing, Nothing) allSIs
+            -- }}}
+          addDonationTo dO pso                            =
+            -- {{{
+            if Tx.psoTokenName pso == Tx.doTokenName dO then
+              pso
+                { Tx.psoDonations   =
+                    Map.unionWith
+                      (+)
+                      (Map.singleton (Tx.doDonor dO) (Tx.doDonation dO))
+                      (Tx.psoDonations pso)
+                , Tx.psoTotalRaised =
+                    (Tx.doDonation dO) + Tx.psoTotalRaised pso
+                }
+            else
+              pso
+            -- }}}
+          populatedStates =
+            -- {{{
+            foldr (\dO acc -> addDonationTo dO <$> acc) initStates initDons
+            -- }}}
+      deadlineOutput  <- mDL
+      matchPoolOutput <- mGov
+      return
+        ( sortBy
+            ( \s0 s1 ->
+                compare (Tx.psoTokenName s0) (Tx.psoTokenName s1)
             )
-          -- }}}
-      in
-      case mSeparated of
-        Just (pStates, pInfos, allDons, mpi) ->
+            populatedStates
+        , sortBy
+            ( \i0 i1 ->
+                compare (Tx.pioTokenName i0) (Tx.pioTokenName i1)
+            )
+            initInfos
+        , deadlineOutput
+        , matchPoolOutput
+        )
+      -- }}}
+
+    emulateFromInputs :: [CurrencySymbol]
+                      -> [Input]
+                      -> Either String [Tx.DistributionInfo]
+    emulateFromInputs symbols allInputs                = do
+      -- {{{
+      case separateIntoSpecificInputs symbols allInputs of
+        Just (pStates, pInfos,  _, mpo) ->
           -- {{{
           let
-            -- Note that the `Tx.MatchPoolInput` value was constructed such
-            -- that its Lovelace count directly represented the match pool
-            -- amount (i.e. excluding the initial governance Lovelaces).
-            matchPool                 = Tx.mpiLovelace mpi
-            go :: [Tx.ProjectStateInput]
-               -> [Tx.ProjectInfoInput]
+            matchPool                 = Tx.mpoMatchPool mpo
+            go :: [Tx.ProjectStateOutput]
+               -> [Tx.ProjectInfoOutput]
                -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
                -> Maybe (Map Ledger.BuiltinByteString EliminationInfo)
             go (p : ps) (i : is) mAcc = do
               -- {{{
               elimMap <- mAcc
-              let tn@(TokenName tnBS)  = Tx.psiTokenName p
-                  dons                 =
-                    filter (\di -> Tx.diTokenName di == tn) allDons
-                  foldFn d (tot, dMap) =
-                    -- {{{
-                    ( tot + Tx.diLovelace d
-                    , Map.unionWith
-                        (+)
-                        (Map.singleton (Tx.diDonor d) (Tx.diLovelace d))
-                        dMap
-                    )
-                    -- }}}
-                  (totDs, donMap)      = foldr foldFn (0, Map.empty) dons
-                  prizeWeight          = Don.foldDonationsMap donMap
-                  eliminationInfo      =
+              let TokenName tnBS  = Tx.psoTokenName p
+                  donMap          = Tx.psoDonations p
+                  totDs           = Tx.psoTotalRaised p
+                  prizeWeight     = Don.foldDonationsMap donMap
+                  eliminationInfo =
                     -- {{{
                     EliminationInfo
-                      { eiRequested = pdRequested $ Tx.piiDetails i
+                      { eiRequested = pdRequested $ Tx.pioDetails i
                       , eiRaised    = totDs
                       , eiWeight    = prizeWeight
                       }
@@ -277,11 +315,38 @@ main =
               Left "Couldn't find the elimination map."
               -- }}}
           -- }}}
-        Nothing                              ->
+        Nothing                         ->
           -- {{{
           Left "Provided inputs don't present a valid state for a running funding round."
           -- }}}
       -- }}}
+
+    fromSymbolsAndInputs :: String
+                         -> String
+                         -> ([CurrencySymbol] -> [Input] -> IO ())
+                         -> IO ()
+    fromSymbolsAndInputs symsStr inputsStr action      =
+      -- {{{
+      let
+        mSyms      = do
+          hexStrings  <- decodeString @[String] symsStr
+          byteStrings <- traverse hexStringToBuiltinByteString hexStrings
+          return $ CurrencySymbol <$> byteStrings
+        mAllInputs = decodeString @[Input] inputsStr
+      in
+      case (mSyms, mAllInputs) of
+        (Just authSyms, Just allInputs) ->
+          -- {{{
+          action authSyms allInputs
+          -- }}}
+        _                               ->
+          -- {{{
+          putStrLn $ "FAILED: Bad arguments:"
+            ++ "\n\t" ++ symsStr
+            ++ "\n\t" ++ inputsStr
+          -- }}}
+      -- }}}
+
     handleOneProject :: [String]
                      -> (    (Input, Asset)
                           -> Input
@@ -340,8 +405,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.5.2"
-    "--version" : _                    -> putStrLn "0.2.5.2" 
+    "-v"        : _                    -> putStrLn "0.2.5.3"
+    "--version" : _                    -> putStrLn "0.2.5.3" 
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr
@@ -1356,56 +1421,66 @@ main =
           putStrLn "FAILED: Couldn't parse current slot number."
           -- }}}
       -- }}}
-    "emulate-outcome"    : scriptInputsStr : _                          -> do
+    "current-state"      : authSymsStr : scriptInputsStr : _            -> do
       -- {{{
-      case decodeString @[Input] scriptInputsStr of
-        Just allInputs ->
-          -- {{{
-          case emulateFromInputs allInputs of
-            Right distInfos ->
-              -- {{{
-              let
-                emulationResult =
-                  Tx.EmulationResult distInfos (iTxOutRef <$> allInputs)
-              in
-              print emulationResult
-              -- }}}
-            Left err        ->
-              -- {{{
-              putStrLn $ "FAILED: " ++ err
-              -- }}}
-          -- }}}
-        Nothing        ->
-          -- {{{
-          putStrLn $ "FAILED: Bad arguments:"
-            ++ "\n\t" ++ scriptInputsStr
-          -- }}}
+      fromSymbolsAndInputs authSymsStr scriptInputsStr $ \authSyms allInputs ->
+        -- {{{
+        case separateIntoSpecificInputs authSyms allInputs of
+          Just (pStates, _,  dl, mp) ->
+            -- {{{
+            let
+              json =
+                   "{\"deadline\":" ++ show (Tx.doDeadline dl)
+                ++ ",\"matchPool\":" ++ show (Tx.mpoMatchPool mp)
+                ++ ",\"donations\":" ++ List.intercalate "," (show <$> pStates)
+                ++ "}"
+            in
+            putStrLn json
+            -- }}}
+          Nothing                    ->
+            -- {{{
+            putStrLn "Provided inputs don't present a valid state for a running funding round."
+            -- }}}
+        -- }}}
       -- }}}
-    "pretty-leaderboard" : scriptInputsStr : _                          -> do
+    "emulate-outcome"    : authSymsStr : scriptInputsStr : _            -> do
       -- {{{
-      case decodeString @[Input] scriptInputsStr of
-        Just allInputs ->
-          -- {{{
-          case emulateFromInputs allInputs of
-            Right distInfos ->
-              -- {{{
-                putStrLn
-              $ List.intercalate "\n"
-              $ fmap Tx.prettyDistributionInfo
-              $ sortBy
-                  (\di0 di1 -> compare (Tx.diRatioNum di1) (Tx.diRatioNum di0))
-                  distInfos
-              -- }}}
-            Left err        ->
-              -- {{{
-              putStrLn $ "FAILED: " ++ err
-              -- }}}
-          -- }}}
-        Nothing        ->
-          -- {{{
-          putStrLn $ "FAILED: Bad arguments:"
-            ++ "\n\t" ++ scriptInputsStr
-          -- }}}
+      fromSymbolsAndInputs authSymsStr scriptInputsStr $ \authSyms allInputs ->
+        -- {{{
+        case emulateFromInputs authSyms allInputs of
+          Right distInfos ->
+            -- {{{
+            let
+              emulationResult =
+                Tx.EmulationResult distInfos (iTxOutRef <$> allInputs)
+            in
+            print emulationResult
+            -- }}}
+          Left err        ->
+            -- {{{
+            putStrLn $ "FAILED: " ++ err
+            -- }}}
+        -- }}}
+      -- }}}
+    "pretty-leaderboard" : authSymsStr : scriptInputsStr : _            -> do
+      -- {{{
+      fromSymbolsAndInputs authSymsStr scriptInputsStr $ \authSyms allInputs ->
+        -- {{{
+        case emulateFromInputs authSyms allInputs of
+          Right distInfos ->
+            -- {{{
+              putStrLn
+            $ List.intercalate "\n"
+            $ fmap Tx.prettyDistributionInfo
+            $ sortBy
+                (\di0 di1 -> compare (Tx.diRatioNum di1) (Tx.diRatioNum di0))
+                distInfos
+            -- }}}
+          Left err        ->
+            -- {{{
+            putStrLn $ "FAILED: " ++ err
+            -- }}}
+        -- }}}
       -- }}}
     -- }}}
     "test" : utxosStr : _                                               ->

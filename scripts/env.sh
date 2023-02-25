@@ -880,6 +880,15 @@ get_deadline_utxo() {
 }
 
 
+# Assumes a funding round has already been initiated, and returns a JSON array
+# containing all three minting policies.
+#
+# Takes no arguments.
+get_symbols_array() {
+  echo "[\"$(cat $govSymFile)\",\"$(cat $regSymFile)\",\"$(cat $donSymFile)\"]"
+}
+
+
 # Takes 1 argument:
 #   1. A JSON array such that all its elements are objects that have a
 #      "lovelace" field.

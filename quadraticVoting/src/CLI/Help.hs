@@ -40,6 +40,7 @@ generic =
   ++ "\n\tqvf-cli cbor-to-data       --help"
   ++ "\n\tqvf-cli string-to-hex      --help"
   ++ "\n\tqvf-cli get-deadline-slot  --help"
+  ++ "\n\tqvf-cli current-state      --help"
   ++ "\n\tqvf-cli emulate-outcome    --help"
   ++ "\n\tqvf-cli pretty-leaderboard --help"
   ++ "\n"
@@ -79,6 +80,7 @@ forEndpoint action =
     "cbor-to-data"                -> cborToData
     "string-to-hex"               -> stringToHex
     "get-deadline-slot"           -> deadlineToSlot
+    "current-state"               -> currentState
     "emulate-outcome"             -> emulateOutcome
     "pretty-leaderboard"          -> prettyLeaderboard
     _                             -> generic
@@ -439,13 +441,37 @@ deadlineToSlot =
     ["<current.datum>"]
   -- }}}
 
+currentState :: String
+currentState =
+  -- {{{
+  endpointDescriptionArgs
+    "current-state"
+    (    "Given a list of all currency symbols that are considered authentic"
+      ++ "\n\tby the validator, along with all the UTxOs sitting at the script"
+      ++ "\n\taddress, this endpoint returns an object with 3 fields:"
+      ++ "\n"
+      ++ "\n\t1. \"deadline\": POSIX time in milliseconds for the deadline of"
+      ++ "\n\t   the funding round."
+      ++ "\n"
+      ++ "\n\t2. \"matchPool\": Lovelace count available in the match pool."
+      ++ "\n"
+      ++ "\n\t3. \"donations\": An array of objects that map token names to"
+      ++ "\n\t   an array of objects that map public key hashes of donors to"
+      ++ "\n\t   their amount of donations in Lovelaces."
+    )
+    "[<currency-symbol>]"
+    [ "[{script-utxo}]"
+    ]
+  -- }}}
+
 emulateOutcome :: String
 emulateOutcome =
   -- {{{
   endpointDescriptionArgs
     "emulate-outcome"
-    (    "Given all of the authentic UTxOs sitting at the script address, this"
-      ++ "\n\tendpoint returns an object with 2 fields:"
+    (    "Given a list of all currency symbols that are considered authentic"
+      ++ "\n\tby the validator, along with all the UTxOs sitting at the script"
+      ++ "\n\taddress, this endpoint returns an object with 2 fields:"
       ++ "\n"
       ++ "\n\t1. \"infos\": An array of objecs that each carry distribution"
       ++ "\n\t   information of a project:"
@@ -475,8 +501,9 @@ emulateOutcome =
       ++ "\n\t   shorter representation of the input UTxO objects that resulted"
       ++ "\n\t   in the accompanied list of distribution information objects."
     )
-    "[{script-utxo}]"
-    []
+    "[<currency-symbol>]"
+    [ "[{script-utxo}]"
+    ]
   -- }}}
 
 prettyLeaderboard :: String
@@ -484,11 +511,13 @@ prettyLeaderboard =
   -- {{{
   endpointDescriptionArgs
     "pretty-leaderboard"
-    (    "Given all of the authentic UTxOs sitting at the script address, this"
-      ++ "\n\tendpoint prints a \"prettified\" representation of the current"
-      ++ "\n\toutcome of the funding round:"
+    (    "Given a list of all currency symbols that are considered authentic"
+      ++ "\n\tby the validator, along with all the UTxOs sitting at the script"
+      ++ "\n\taddress, this endpoint prints a \"prettified\" representation of"
+      ++ "\n\tthe current outcome of the funding round:"
     )
-    "[{script-utxo}]"
-    []
+    "[<currency-symbol>]"
+    [ "[{script-utxo}]"
+    ]
   -- }}}
 -- }}}
