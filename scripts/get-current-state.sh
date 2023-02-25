@@ -14,5 +14,5 @@ fi
 policySymbols=$(get_symbols_array)
 scriptUTxOs=$(get_all_script_utxos_datums_values $(cat $scriptAddressFile))
 
-$qvf "$policySymbols" "$scriptUTxOs"
+$qvf current-state "$policySymbols" "$scriptUTxOs"
 

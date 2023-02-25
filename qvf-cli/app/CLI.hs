@@ -1430,9 +1430,11 @@ main =
             -- {{{
             let
               json =
-                   "{\"deadline\":" ++ show (Tx.doDeadline dl)
+                   "{\"deadline\":" ++ show (Ledger.getPOSIXTime $ Tx.doDeadline dl)
                 ++ ",\"matchPool\":" ++ show (Tx.mpoMatchPool mp)
-                ++ ",\"donations\":" ++ List.intercalate "," (show <$> pStates)
+                ++ ",\"donations\":"
+                ++   "[" ++ List.intercalate "," (show <$> pStates)
+                ++   "]"
                 ++ "}"
             in
             putStrLn json
