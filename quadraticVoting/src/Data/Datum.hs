@@ -106,6 +106,18 @@ data QVFDatum
       Integer
       -- }}}
 
+  | EmptyMultiDonationRecord
+    -- ^ Empty datum to be used for taking donations from a single donor to
+    --   multiple projects.
+
+  | UsedMultiDonationRecord
+    -- ^ Datum used to keep track of donations to multiple projects from one
+    --   donor.
+      -- {{{
+      PubKeyHash          -- Public key hash of the donor.
+      [BuiltinByteString] -- List of recipient project token names.
+      -- }}}
+
   | PrizeWeightAccumulation
     -- ^ Progress of forming the complete map of prize weights.
       -- {{{
@@ -139,24 +151,22 @@ data QVFDatum
       ProjectDetails
       -- }}}
 
-  | ReceivedDonationsCount
-    -- ^ Datum for a project UTxO. Tracks number of donations, not amount.
+  | ProjectDonations
+    -- ^ Datum for a project UTxO. Points to the (possible) first donor's
+    --   donation UTxO (more precisely, points to the public key hash contained
+    --   within the datum of donor'r donation UTxO).
       -- {{{
-      Integer
+      Maybe PubKeyHash
       -- }}}
   
   | DonationFoldingProgress
-    -- ^ Project UTxO during the first phase of folding the donations.
+    -- ^ Project UTxO during the first phase of folding the donations. Carries
+    --   the donations.
       -- {{{
-      Integer -- ^ Total donation count.
-      Integer -- ^ Folded so far.
-      -- }}}
-
-  | ConsolidationProgress
-    -- ^ Progress of summing the donation square roots.
-      -- {{{
-      Integer -- ^ Remaining donations to be consolidated.
-      Integer -- ^ Sum of square roots so far.
+      Integer    -- ^ Sum of the square roots of donations folded so far.
+      PubKeyHash -- ^ Next donor's public key hash (this is not `Maybe` as it
+                 --   wouldn't make sense to be in progress if there are no
+                 --   more donations to fold).
       -- }}}
 
   | PrizeWeight
@@ -174,16 +184,17 @@ data QVFDatum
   -- }}}
 
   -- {{{ DONATION UTXOs (GREEN) 
-  | Donation
-    -- ^ For a single donation UTxO.
+  | FreeDonation
+    -- ^ For a single donation UTxO, minted from a multi-donation transaction.
       -- {{{
       PubKeyHash -- ^ Donor's public key hash.
       -- }}}
 
-  | Donations
-    -- ^ For output donation UTxO of the first phase of folding donations.
+  | Donation
+    -- ^ A donation UTxO (an element of the on-chain map).
       -- {{{
-      (Map PubKeyHash Integer)
+      PubKeyHash         -- Donor's public key hash.
+      (Maybe PubKeyHash) -- Possible next donor's public key hash.
       -- }}}
   -- }}}
   -- }}}
@@ -194,19 +205,20 @@ instance Eq QVFDatum where
   -- {{{
   DeadlineDatum pt0 == DeadlineDatum pt1 = pt0 == pt1
   RegisteredProjectsCount c0 == RegisteredProjectsCount c1 = c0  == c1
+  EmptyMultiDonationRecord == EmptyMultiDonationRecord = True
+  UsedMultiDonationRecord p0 ts0 == UsedMultiDonationRecord p1 ts1 == p0 == p1 && ts0 == ts1
   PrizeWeightAccumulation t0 w0 == PrizeWeightAccumulation t1 w1 = t0 == t1 && w0 == w1
   ProjectEliminationProgress m0 w0 == ProjectEliminationProgress m1 w1 = m0 == m1 && w0 == w1
   DistributionProgress m0 p0 w0 == DistributionProgress m1 p1 w1 = m0 == m1 && p0 == p1 && w0 == w1
   --
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
-  ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
-  DonationFoldingProgress t0 s0 == DonationFoldingProgress t1 s1 = t0 == t1 && s0 == s1
-  ConsolidationProgress r0 w0 == ConsolidationProgress r1 w1 = r0 == r1 && w0 == w1
+  ProjectDonations mP0 == ProjectDonations mP1 = mP0 == mP1
+  DonationFoldingProgress w0 p0 == DonationFoldingProgress w1 p1 = w0 == w1 && p0 == p1
   PrizeWeight w0 b0 == PrizeWeight w1 b1 = w0 == w1 && b0 == b1
   Escrow m0 == Escrow m1 = m0 == m1
   --
-  Donation p0 == Donation p1 = p0 == p1
-  Donations m0 == Donations m1 = m0 == m1
+  FreeDonation p0 == FreeDonation p1 = p0 == p1
+  Donation p0 mP0 == Donation p1 mP1 = p0 == p1 && mP0 == mP1
   --
   _ == _ = False
   -- }}}
@@ -214,18 +226,19 @@ instance Eq QVFDatum where
 PlutusTx.makeIsDataIndexed ''QVFDatum
   [ ('DeadlineDatum             , 0 )
   , ('RegisteredProjectsCount   , 1 )
-  , ('PrizeWeightAccumulation   , 2 )
-  , ('ProjectEliminationProgress, 3 )
-  , ('DistributionProgress      , 4 )
+  , ('EmptyMultiDonationRecord  , 2 )
+  , ('UsedMultiDonationRecord   , 3 )
+  , ('PrizeWeightAccumulation   , 4 )
+  , ('ProjectEliminationProgress, 5 )
+  , ('DistributionProgress      , 6 )
   --
-  , ('ProjectInfo               , 5 )
-  , ('ReceivedDonationsCount    , 6 )
-  , ('DonationFoldingProgress   , 7 )
-  , ('ConsolidationProgress     , 8 )
-  , ('PrizeWeight               , 9 )
-  , ('Escrow                    , 10)
+  , ('ProjectInfo               , 7 )
+  , ('ProjectDonations          , 8 )
+  , ('DonationFoldingProgress   , 9 )
+  , ('PrizeWeight               , 10)
+  , ('Escrow                    , 11)
   --
-  , ('Donation                  , 11)
-  , ('Donations                 , 12)
+  , ('FreeDonation              , 12)
+  , ('Donation                  , 13)
   ]
 -- }}}
