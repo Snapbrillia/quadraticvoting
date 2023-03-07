@@ -13,7 +13,7 @@ export cli="cardano-cli"
 export qvf="qvf-cli"
 
 # Absolute path to the directory for storing wallets/artifacts:
-export preDir="$REPO/testnet2"
+export preDir="$REPO/testnet3"
 mkdir -p $preDir
 
 # Change this to "dev" for testing/development:

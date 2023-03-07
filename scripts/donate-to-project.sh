@@ -9,9 +9,11 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 
+keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
+keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
@@ -89,7 +91,7 @@ dev() {
     txInArg="--tx-in $inUTxO --tx-in-collateral $inUTxO"
     if [ $i -eq $lastTxIndex ]; then
       projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-      projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+      projectUTxO=$(echo $projectUTxOObj | jq -r .utxo)
       projectUpdatedDatum=$(mkProjectDatum $donorCount)
       echo "$projectUpdatedDatum" > $updatedDatumFile
       projectOutput="$qvfAddress + 1500000 lovelace + 1 $projectAsset"
@@ -300,7 +302,7 @@ else
     sign_and_submit_tx $custodialWalletsDir/$walletLabel.skey $preDir/$collateralKeyHolder.skey $preDir/$keyHolder.skey
     transactionHash=$($cli transaction txid --tx-file $txSigned)
     echo "$transactionHash"
-    store_current_slot $projectTokenName 
+    store_current_slot_2 $projectTokenName $keyHolder 
     # }}}
   else
     # {{{

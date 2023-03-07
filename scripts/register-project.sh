@@ -9,9 +9,11 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 
+keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
+keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)
@@ -205,7 +207,7 @@ else
         --arg on "$(cat $projectTokenNameFile)"       \
         '{projectTokenName: $on }' )
       echo "$JSON_STRING"
-      store_current_slot_2 $projectTokenName $scriptLabel
+      store_current_slot_3 $projectTokenName $scriptLabel $keyHolder
       # }}}
     else
       # {{{
