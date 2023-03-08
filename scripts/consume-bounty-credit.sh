@@ -23,6 +23,7 @@ if [ $differenceBetweenSlots -lt 100 ]; then
   # }}}
 else
   keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
+  keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
 
   deadlineSlot=$(cat $deadlineSlotFile)
   cappedSlot=$(cap_deadline_slot $deadlineSlot)
@@ -44,7 +45,7 @@ else
 
   generate_protocol_params
   
-  cliRes=$($cli $BUILD_TX_CONST_ARGS                                            \
+  cliRes=$($cli $BUILD_TX_CONST_ARGS                                     \
       --required-signer-hash $keyHoldersPubKeyHash                       \
       --tx-in $projectUTxO                                               \
       --spending-tx-in-reference $qvfRefUTxO                             \
@@ -58,9 +59,9 @@ else
       --tx-out "$escrowWalletUTxO"                                       \
       --invalid-hereafter $cappedSlot                                    \
       --change-address $keyHoldersAddress       
-    )
+  )
                             
-  sign_and_submit_tx $preDir/$keyHolder.skey
+  sign_and_submit_tx $preDir/$keyHolder.skey $preDir/$collateralKeyHolder.skey
   transactionHash=$($cli transaction txid --tx-file $txSigned)
   echo "$transactionHash"
   store_current_slot_2 $keyHolder $projectTokenName
