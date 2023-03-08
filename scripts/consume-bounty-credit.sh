@@ -26,7 +26,6 @@ else
   keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
 
   deadlineSlot=$(cat $deadlineSlotFile)
-  cappedSlot=$(cap_deadline_slot $deadlineSlot)
 
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
   projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
@@ -57,7 +56,6 @@ else
       --tx-out "$returnedUTxO"                                           \
       --tx-out-inline-datum-file $currentDatumFile                       \
       --tx-out "$escrowWalletUTxO"                                       \
-      --invalid-hereafter $cappedSlot                                    \
       --change-address $keyHoldersAddress       
   )
                             
