@@ -2,6 +2,8 @@
 
 . $REPO/scripts/initiation.sh
 
+keyHoldersAddress=$(cat $preDir/$keyHolder.addr)
+keyHoldersPubKeyHash=$(cat $preDir/$keyHolder.pkh)
 qvfAddress=$(cat $scriptAddressFile)
 govAsset=$(cat $govSymFile)
 regSym=$(cat $regSymFile)

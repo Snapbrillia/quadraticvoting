@@ -1,3 +1,5 @@
+#!/bin/bash
+
 if [ -z $REPO ]; then
   echo
   echo "The \$REPO environment variable is not defined. Please review the script at"
@@ -20,8 +22,8 @@ if [ "$scriptUTxOs" == "$(cat $scriptUTxOsFile)" ]; then
   echo "NoChange"
 else 
   $qvf emulate-outcome "$scriptUTxOs"
+  echo $scriptUTxOs > $scriptUTxOsFile
 fi 
 
 
-echo $scriptUTxOs > $scriptUTxOsFile
 

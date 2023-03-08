@@ -14,7 +14,7 @@ if [ "$ENV" == "dev" ]; then
   return 1
 fi
 
-. $REPO/scripts/initiation.sh
+. $REPO/scripts/env.sh
 
 # Takes no arguments.
 get_all_token_names() {

@@ -9,7 +9,7 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/env.sh
+. $REPO/scripts/setup.sh
 
 
 startingWallet=1
@@ -57,6 +57,71 @@ get_script_data_hash() {
 }
 
 
+# Takes no arguments.
+deploy_scripts() {
+  # {{{
+  spendingUTxO=$(get_first_utxo_of $keyHolder)
+  scriptLovelaces=62000000 # 62.0 ADA
+  scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
+
+  generate_protocol_params
+
+  # Transaction to submit the main script to chain:
+  $cli $BUILD_TX_CONST_ARGS                        \
+    --tx-in $spendingUTxO                          \
+    --tx-out "$scriptUTxO"                         \
+    --tx-out-reference-script-file $mainScriptFile \
+    --change-address $keyHoldersAddress
+
+  sign_and_submit_tx $keyHoldersSigningKeyFile
+  store_current_slot_2 $keyHolder $referenceWallet
+  wait_for_new_slot $keyHolder
+  store_current_slot_2 $keyHolder $referenceWallet
+  wait_for_new_slot $keyHolder
+
+  # At this point there is only one UTxO sitting at the reference wallet:
+  qvfRefUTxO=$(get_first_utxo_of $referenceWallet)
+
+  # So should be the case with key holder's wallet:
+  spendingUTxO=$(get_first_utxo_of $keyHolder)
+
+  scriptLovelaces=42000000 # 42.0 ADA
+  scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
+
+  generate_protocol_params
+
+  # Transaction to submit the minting scripts to chain:
+  $cli $BUILD_TX_CONST_ARGS                       \
+    --tx-in $spendingUTxO                         \
+    --tx-out "$scriptUTxO"                        \
+    --tx-out-reference-script-file $regScriptFile \
+    --tx-out-inline-datum-value 0                 \
+    --tx-out "$scriptUTxO"                        \
+    --tx-out-reference-script-file $donScriptFile \
+    --tx-out-inline-datum-value 1                 \
+    --change-address $keyHoldersAddress
+
+  sign_and_submit_tx $keyHoldersSigningKeyFile
+  store_current_slot_3 $keyHolder $referenceWallet
+  wait_for_new_slot $keyHolder
+  store_current_slot_3 $keyHolder $referenceWallet
+  wait_for_new_slot $keyHolder
+
+  regRefUTxO=$(get_first_utxo_of $referenceWallet)
+  if [ $regRefUTxO == $qvfRefUTxO ]; then
+    regRefUTxO=$(get_nth_utxo_of $referenceWallet 2)
+    donRefUTxO=$(get_nth_utxo_of $referenceWallet 3)
+  else
+    donRefUTxO=$(get_nth_utxo_of $referenceWallet 2)
+  fi
+
+  echo $qvfRefUTxO > $qvfRefUTxOFile
+  echo $regRefUTxO > $regRefUTxOFile
+  echo $donRefUTxO > $donRefUTxOFile
+  # }}}
+}
+
+
 initiate_fund() {
   # {{{
   deadline=$1
@@ -68,6 +133,7 @@ initiate_fund() {
   done
   rm -f $registeredProjectsFile
   touch $registeredProjectsFile
+  echo "[]" > $registeredProjectsFile
   rm -rf $projsPreDir
   mkdir -p $projsPreDir
   echo "Getting the current slot..."
@@ -83,7 +149,6 @@ initiate_fund() {
   echo -e "The UTxO is:$WHITE"
   echo "$genesisUTxO"
   echo -e "$NO_COLOR"
-
   # Generating the validation script, minting script, and some other files:
   echo "Finding the scripts and writing them to disk..."
   $qvf generate scripts                   \
@@ -103,9 +168,9 @@ initiate_fund() {
 
   deadlineDatum=$(getFileName ocfnDeadlineDatum)
   govDatumFile=$(getFileName ocfnInitialGovDatum)
-  # NOTE: The order of these 2 assignments matters.
+
   govAsset=$(get_gov_asset)
-  # -----------------------------------------------
+
   regSym=$($cli transaction policyid --script-file $regScriptFile)
   echo $regSym > $regSymFile
   donSym=$($cli transaction policyid --script-file $donScriptFile)
@@ -142,69 +207,13 @@ initiate_fund() {
 
   # STORING SCRIPTS ON-CHAIN #
   # {{{
-  spendingUTxO=$(get_first_utxo_of $keyHolder)
-  scriptLovelaces=62000000 # 62.0 ADA
-  scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
-
-  generate_protocol_params
-
-  # Transaction to submit the main script to chain:
-  $cli $BUILD_TX_CONST_ARGS                        \
-    --tx-in $spendingUTxO                          \
-    --tx-in-collateral $spendingUTxO               \
-    --tx-out "$scriptUTxO"                         \
-    --tx-out-reference-script-file $mainScriptFile \
-    --change-address $keyHoldersAddress
-
-  sign_and_submit_tx $keyHoldersSigningKeyFile
-  store_current_slot_2 $keyHolder $referenceWallet
-  wait_for_new_slot $keyHolder
-  store_current_slot_2 $keyHolder $referenceWallet
-  wait_for_new_slot $keyHolder
-
-  # At this point there is only one UTxO sitting at the reference wallet:
-  qvfRefUTxO=$(get_first_utxo_of $referenceWallet)
-
-  # So should be the case with key holder's wallet:
-  spendingUTxO=$(get_first_utxo_of $keyHolder)
-
-  scriptLovelaces=42000000 # 42.0 ADA
-  scriptUTxO="$referenceWalletAddress+$scriptLovelaces"
-
-  generate_protocol_params
-
-  # Transaction to submit the minting scripts to chain:
-  $cli $BUILD_TX_CONST_ARGS                       \
-    --tx-in $spendingUTxO                         \
-    --tx-in-collateral $spendingUTxO              \
-    --tx-out "$scriptUTxO"                        \
-    --tx-out-reference-script-file $regScriptFile \
-    --tx-out-inline-datum-value 0                 \
-    --tx-out "$scriptUTxO"                        \
-    --tx-out-reference-script-file $donScriptFile \
-    --tx-out-inline-datum-value 1                 \
-    --change-address $keyHoldersAddress
-
-  sign_and_submit_tx $keyHoldersSigningKeyFile
-  store_current_slot_2 $keyHolder $referenceWallet
-  wait_for_new_slot $keyHolder
-  store_current_slot_2 $keyHolder $referenceWallet
-  wait_for_new_slot $keyHolder
-
-  regRefUTxO=$(get_first_utxo_of $referenceWallet)
-  if [ $regRefUTxO == $qvfRefUTxO ]; then
-    regRefUTxO=$(get_nth_utxo_of $referenceWallet 2)
-    donRefUTxO=$(get_nth_utxo_of $referenceWallet 3)
-  else
-    donRefUTxO=$(get_nth_utxo_of $referenceWallet 2)
-  fi
-
-  echo $qvfRefUTxO > $qvfRefUTxOFile
-  echo $regRefUTxO > $regRefUTxOFile
-  echo $donRefUTxO > $donRefUTxOFile
+  deploy_scripts
   # }}}
 
-  store_current_slot_2 $scriptLabel $keyHolder
+  # Update Funding Round
+  if [ $ENV = "prod" ]; then 
+    jq '.currentFundingRound |= .+1' $fundingRoundFile > temp.json && mv temp.json $fundingRoundFile
+  fi
 
   # }}}
 }
@@ -270,22 +279,10 @@ dev_depletion() {
   # }}}
 }
 
-deplete_reference_wallet() {
-  # {{{
-  $cli $BUILD_TX_CONST_ARGS                    \
-    $(get_all_input_utxos_at $referenceWallet) \
-    --change-address $keyHoldersAddress
-  sign_and_submit_tx $preDir/$referenceWallet.skey
-  store_current_slot $referenceWallet
-  wait_for_new_slot $referenceWallet
-  show_utxo_tables $referenceWallet
-  # }}}
-}
-
 dev_reset() {
   dev_depletion
-  deplete_reference_wallet
-  tidy_up_wallet $keyHolder
+  deplete_reference_wallet "DEV RESET."
+  tidy_up_wallet $keyHolder "DEV RESET."
 }
 
 dev_restart() {
