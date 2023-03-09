@@ -25,20 +25,32 @@ import           PlutusTx.Prelude
 
 import           Data.Datum
 import           Data.DonationInfo
+import           Data.ListPlacement
 import           Utils
 
 
 -- REDEEMER
 -- {{{
 data DonationRedeemer
-  = DonateToProject DonationInfo
-  | FoldDonations   BuiltinByteString -- ^ Project's identifier
+  = DonateToProject ListPlacement DonationInfo
+    -- ^ Using `ListPlacement` to help the minter decide on the proper
+    --   validation logic.
+  | BurnFreeDonation
+    -- ^ For merging a free donation into an already existing donation.
+  | DonateToProjects       DonationInfo DonationInfo [DonationInfo]
+    -- ^ Three arguments to enforce a minimum of 2 donations.
+  | FoldDonations          BuiltinByteString
+    -- ^ Project's identifier (token names).
   | Dev
+    -- ^ For development. TODO: Remove.
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
-  [ ('DonateToProject ,0)
-  , ('FoldDonations   ,1)
-  , ('Dev             ,20)
+  [ ('DonateToProjectPrepend, 0 )
+  , ('DonateToProjectInsert , 1 )
+  , ('DonateToProjectAppend , 2 )
+  , ('DonateToProjects      , 3 )
+  , ('FoldDonations         , 4 )
+  , ('Dev                   , 20)
   ]
 -- }}}
 
@@ -138,6 +150,8 @@ mkDonationPolicy pkh sym action ctx =
                -- }}}
          )
       -- }}}
+    DonateToProjects dI0 dI1 dIs     ->
+      traceError "TODO."
     FoldDonations projectID          ->
       -- {{{
       let

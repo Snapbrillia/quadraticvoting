@@ -13,7 +13,7 @@
 
 -- MODULE
 -- {{{
-module Data.DonationInfo where
+module Data.ListPlacement where
 -- }}}
 
 
@@ -22,19 +22,19 @@ module Data.DonationInfo where
 import           Data.Aeson             ( FromJSON
                                         , ToJSON )
 import           GHC.Generics           ( Generic )
-import           Ledger
-import           Plutus.V2.Ledger.Api
 import           Prelude                ( Show )
 import qualified PlutusTx
-import           PlutusTx.Prelude
 -- }}}
 
+data ListPlacement
+  = Prepend
+  | Insert
+  | Append
+  deriving (Show, Generic, FromJSON, ToJSON)
 
-data DonationInfo = DonationInfo
-  { diProjectID :: BuiltinByteString
-  , diDonor     :: PubKeyHash
-  , diAmount    :: Integer
-  } deriving (Show, Generic, FromJSON, ToJSON)
-
-PlutusTx.unstableMakeIsData ''DonationInfo
+PlutusTx.makeIsDataIndexed ''DonationRedeemer
+  [ ('Prepend, 0 )
+  , ('Insert , 1 )
+  , ('Append , 2 )
+  ]
 

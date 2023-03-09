@@ -48,22 +48,26 @@ import           PlutusTx.Prelude       ( Bool(False)
                                         , Eq(..)
                                         , (&&) )
 import           Data.DonationInfo
+import           Data.ListPlacement
 -- }}}
 
 
 -- QVF ACTION
 -- {{{
 data QVFRedeemer
-  = UpdateDeadline  POSIXTime
+  = UpdateDeadline         POSIXTime
   | RegisterProject
-  | Contribute      Integer
+  | Contribute             Integer
   | DonateToProject
+  | IncreaseDonation       Integer
+  | ResolveFreeDonation    ListPlacement
+  | DonateToProjects
   | FoldDonations
   | AccumulatePrizeWeights
   | EliminateOneProject
-  | DistributePrize BuiltinByteString
-  | UnlockEscrowFor PubKeyHash Integer
-  | WithdrawBounty  PubKeyHash
+  | DistributePrize        BuiltinByteString
+  | UnlockEscrowFor        PubKeyHash Integer
+  | WithdrawBounty         PubKeyHash
   | ConcludeProject
   | ConcludeFundingRound
   | Dev
@@ -73,14 +77,17 @@ PlutusTx.makeIsDataIndexed ''QVFRedeemer
   , ('RegisterProject       , 1 )
   , ('Contribute            , 2 )
   , ('DonateToProject       , 3 )
-  , ('FoldDonations         , 4 )
-  , ('AccumulatePrizeWeights, 5 )
-  , ('EliminateOneProject   , 6 )
-  , ('DistributePrize       , 7 )
-  , ('UnlockEscrowFor       , 8 )
-  , ('WithdrawBounty        , 9 )
-  , ('ConcludeProject       , 10)
-  , ('ConcludeFundingRound  , 11)
+  , ('IncreaseDonation      , 4 )
+  , ('ResolveFreeDonation   , 5 )
+  , ('DonateToProjects      , 6 )
+  , ('FoldDonations         , 7 )
+  , ('AccumulatePrizeWeights, 8 )
+  , ('EliminateOneProject   , 9 )
+  , ('DistributePrize       , 10)
+  , ('UnlockEscrowFor       , 11)
+  , ('WithdrawBounty        , 12)
+  , ('ConcludeProject       , 13)
+  , ('ConcludeFundingRound  , 14)
   , ('Dev                   , 20)
   ]
 -- }}}
