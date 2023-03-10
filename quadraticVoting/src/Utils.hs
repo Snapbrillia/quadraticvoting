@@ -747,7 +747,7 @@ decimalMultiplier = 1_000_000_000
 -- E131: Project owner must receive exactly the registration fee minus the transaction fee.
 -- E132: Transaction fee is set too high.
 -- E133: The main UTxO must also be getting consumed.
--- E134: 
+-- E134: Can't exceed the maximum multi-donation count.
 -- E135: The number of outputs multi-donation UTxOs must match the specified count.
 -- E136: 
 -- E137: 
