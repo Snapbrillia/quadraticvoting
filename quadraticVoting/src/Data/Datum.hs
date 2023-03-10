@@ -190,7 +190,7 @@ data QVFDatum
       PubKeyHash -- ^ Donor's public key hash.
       -- }}}
 
-  | Donation
+  | LinkedDonation
     -- ^ A donation UTxO (an element of the on-chain map).
       -- {{{
       PubKeyHash         -- Donor's public key hash.
@@ -203,24 +203,24 @@ data QVFDatum
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   -- {{{
-  DeadlineDatum pt0 == DeadlineDatum pt1 = pt0 == pt1
-  RegisteredProjectsCount c0 == RegisteredProjectsCount c1 = c0  == c1
-  EmptyMultiDonationRecord == EmptyMultiDonationRecord = True
-  UsedMultiDonationRecord p0 ts0 == UsedMultiDonationRecord p1 ts1 == p0 == p1 && ts0 == ts1
-  PrizeWeightAccumulation t0 w0 == PrizeWeightAccumulation t1 w1 = t0 == t1 && w0 == w1
+  DeadlineDatum pt0                == DeadlineDatum pt1                = pt0 == pt1
+  RegisteredProjectsCount c0       == RegisteredProjectsCount c1       = c0  == c1
+  EmptyMultiDonationRecord         == EmptyMultiDonationRecord         = True
+  UsedMultiDonationRecord p0 ts0   == UsedMultiDonationRecord p1 ts1   = p0 == p1 && ts0 == ts1
+  PrizeWeightAccumulation t0 w0    == PrizeWeightAccumulation t1 w1    = t0 == t1 && w0 == w1
   ProjectEliminationProgress m0 w0 == ProjectEliminationProgress m1 w1 = m0 == m1 && w0 == w1
-  DistributionProgress m0 p0 w0 == DistributionProgress m1 p1 w1 = m0 == m1 && p0 == p1 && w0 == w1
+  DistributionProgress m0 p0 w0    == DistributionProgress m1 p1 w1    = m0 == m1 && p0 == p1 && w0 == w1
   --
-  ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
-  ProjectDonations mP0 == ProjectDonations mP1 = mP0 == mP1
-  DonationFoldingProgress w0 p0 == DonationFoldingProgress w1 p1 = w0 == w1 && p0 == p1
-  PrizeWeight w0 b0 == PrizeWeight w1 b1 = w0 == w1 && b0 == b1
-  Escrow m0 == Escrow m1 = m0 == m1
+  ProjectInfo dets0                == ProjectInfo dets1                = dets0 == dets1
+  ProjectDonations mP0             == ProjectDonations mP1             = mP0 == mP1
+  DonationFoldingProgress w0 p0    == DonationFoldingProgress w1 p1    = w0 == w1 && p0 == p1
+  PrizeWeight w0 b0                == PrizeWeight w1 b1                = w0 == w1 && b0 == b1
+  Escrow m0                        == Escrow m1                        = m0 == m1
   --
-  FreeDonation p0 == FreeDonation p1 = p0 == p1
-  Donation p0 mP0 == Donation p1 mP1 = p0 == p1 && mP0 == mP1
+  FreeDonation p0                  == FreeDonation p1                  = p0 == p1
+  LinkedDonation p0 mP0            == LinkedDonation p1 mP1            = p0 == p1 && mP0 == mP1
   --
-  _ == _ = False
+  _                                == _                                = False
   -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
@@ -239,6 +239,6 @@ PlutusTx.makeIsDataIndexed ''QVFDatum
   , ('Escrow                    , 11)
   --
   , ('FreeDonation              , 12)
-  , ('Donation                  , 13)
+  , ('LinkedDonation            , 13)
   ]
 -- }}}
