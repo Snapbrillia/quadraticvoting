@@ -31,7 +31,9 @@ import qualified Data.ByteString.Short       as SBS
 import           Data.String                 ( fromString )
 import qualified Ledger.Ada                  as Ada
 import qualified Plutus.V1.Ledger.Value      as Value
-import           Plutus.V1.Ledger.Value      ( flattenValue )
+import           Plutus.V1.Ledger.Value      ( flattenValue
+                                             , valueOf
+                                             )
 import           Plutus.V2.Ledger.Api
 import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.Prelude
@@ -345,14 +347,7 @@ utxoHasOnlyXWithLovelaces :: CurrencySymbol
                           -> Bool
 utxoHasOnlyXWithLovelaces sym tn lovelaces =
   -- {{{
-    ( \case
-        [(sym', tn', amt'), (_, _, amt)] ->
-          amt == lovelaces && sym' == sym && tn' == tn && amt' == 1
-        _                                ->
-          False
-    )
-  . flattenValue
-  . txOutValue
+  utxoHasValue (makeAuthenticValue lovelaces sym tn 1)
   -- }}}
 
 
@@ -362,16 +357,9 @@ utxoHasOnlyX :: CurrencySymbol
              -> TokenName
              -> TxOut
              -> Bool
-utxoHasOnlyX sym tn =
+utxoHasOnlyX sym tn o =
   -- {{{
-    ( \case
-        [(sym', tn', amt'), _] ->
-          sym' == sym && tn' == tn && amt' == 1
-        _                      ->
-          False
-    )
-  . flattenValue
-  . txOutValue
+  valueOf (txOutValue o) sym tn == 1
   -- }}}
 
 
@@ -587,8 +575,8 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
 
 -- CONSTANTS
 -- {{{
-deadlineLovelaces :: Integer
-deadlineLovelaces = 1_500_000
+deadlineAndMultiDonLovelaces :: Integer
+deadlineAndMultiDonLovelaces = 1_500_000
 
 governanceLovelaces :: Integer
 governanceLovelaces = 5_000_000
@@ -599,11 +587,8 @@ registrationFee = 3_000_000
 halfOfTheRegistrationFee :: Integer
 halfOfTheRegistrationFee = 1_500_000
 
-maxDonationInputsForPhaseOne :: Integer
-maxDonationInputsForPhaseOne = 120
-
-maxDonationInputsForPhaseTwo :: Integer
-maxDonationInputsForPhaseTwo = 250
+maxMultiDonationUTxOCount :: Integer
+maxMultiDonationUTxOCount = 100
 
 maxTotalDonationCount :: Integer
 maxTotalDonationCount =
@@ -628,17 +613,17 @@ decimalMultiplier = 1_000_000_000
 -- E0  : Negative value passed to square root.
 -- E1  : No projects found.
 -- E2  : Can not request 0 or less Lovelaces.
--- E000: Exactly 2 governance tokens must be minted.
--- E001: Bad token name.
+-- E000: Number of minted governance assets must be exactly 2 plust the specified count of multi-donation UTxOs.
+-- E001: Invalid value for at least one of the multi-donation UTxOs.
 -- E002: Exactly 2 governance tokens must be getting burnt.
 -- E003: All prizes must be sent out before concluding a funding round.
--- E004: Exactly 1 type of asset must be minted.
+-- E004: Number of output multi-donation UTxOs must match the specified count.
 -- E005: Invalid value for the deadline UTxO.
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
 -- E008: Funding round must start with 0 registered projects.
--- E009: Either invalid datums produced, or produced in wrong order.
--- E010: The 2 minted tokens must be split among 2 UTxOs.
+-- E009: Datum attached to at least one of the multi-donation UTxOs is invalid
+-- E010: Invalid order of minted governance UTxOs (deadline, main, multi-donations).
 -- E011: UTxO not consumed.
 -- E012: Deadline has passed.
 -- E013: Invalid datum for project registration.
@@ -763,7 +748,7 @@ decimalMultiplier = 1_000_000_000
 -- E132: Transaction fee is set too high.
 -- E133: The main UTxO must also be getting consumed.
 -- E134: 
--- E135: 
+-- E135: The number of outputs multi-donation UTxOs must match the specified count.
 -- E136: 
 -- E137: 
 -- E138: 

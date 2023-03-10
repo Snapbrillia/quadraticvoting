@@ -24,7 +24,9 @@ module Minter.Governance where
 
 -- IMPORTS
 -- {{{
-import           Ledger.Value as Value                ( flattenValue )
+import           Ledger.Value as Value                ( flattenValue
+                                                      , valueOf
+                                                      )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import qualified Plutus.V1.Ledger.Interval            as Interval
@@ -59,10 +61,11 @@ PlutusTx.makeIsDataIndexed ''GovernanceRedeemer
 mkQVFPolicy :: PubKeyHash
             -> TxOutRef
             -> POSIXTime
+            -> Integer
             -> GovernanceRedeemer
             -> ScriptContext
             -> Bool
-mkQVFPolicy pkh oref deadline r ctx =
+mkQVFPolicy pkh oref multiDonCount deadline r ctx =
   -- {{{
   let
     info :: TxInfo
@@ -90,30 +93,37 @@ mkQVFPolicy pkh oref deadline r ctx =
         checkMintedAmount :: Bool
         checkMintedAmount =
           -- {{{
-          case flattenValue (txInfoMint info) of
-            [(_, tn', amt')] ->
-              -- {{{
-                 traceIfFalse
-                   "E000"
-                   (amt' == 2)
-              && traceIfFalse
-                   "E001"
-                   (tn' == qvfTokenName)
-              -- }}}
-            _                ->
-              -- {{{
-              traceError "E004"
-              -- }}}
+          traceIfFalse
+            "E000"
+            ( (==)
+                (valueOf (txInfoMint info) ownSym qvfTokenName
+                (2 + multiDonCount)
+            )
           -- }}}
 
-        validateTwoOutputs o0 o1 =
+        validateMultiDonOutput o =
+          -- {{{
+             traceIfFalse
+               "E001"
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   qvfTokenName
+                   deadlineAndMultiDonLovelaces
+                   o
+               )
+          && traceIfFalse
+               "E009"
+               (utxosDatumMatchesWith EmptyMultiDonationRecord o)
+          -- }}}
+
+        validateOutputs o0 o1 os =
           -- {{{
              traceIfFalse
                "E005"
                ( utxoHasOnlyXWithLovelaces
                    ownSym
                    qvfTokenName
-                   deadlineLovelaces
+                   deadlineAndMultiDonLovelaces
                    o0
                )
           && traceIfFalse
@@ -124,36 +134,33 @@ mkQVFPolicy pkh oref deadline r ctx =
                    governanceLovelaces
                    o1
                )
-          && ( case (getInlineDatum o0, getInlineDatum o1) of
-                 (DeadlineDatum dl, RegisteredProjectsCount count) ->
-                   -- {{{
-                      traceIfFalse "E007" (dl == deadline)
-                   && traceIfFalse "E008" (count == 0)
-                   -- }}}
-                 _                                                 ->
-                   -- {{{
-                   traceError "E009"
-                   -- }}}
-             )
+          && traceIfFalse
+               "E007"
+               (utxosDatumMatchesWith (DeadlineDatum deadline) o0)
+          && traceIfFalse
+               "E008"
+               (utxosDatumMatchesWith (RegisteredProjectsCount 0) o1)
+          && all validateMultiDonOutput os
+          && traceIfFalse "E004" (length os == multiDonCount)
           -- }}}
 
         validOutputsPresent :: Bool
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            [o0, o1]       ->
+            o0 : o1 : os         ->
               -- {{{
-              validateTwoOutputs o0 o1
+              validateTwoOutputs o0 o1 os
               -- }}}
-            [_, o0, o1]    ->
+            _ : o0 : o1 : os     ->
               -- {{{
-              validateTwoOutputs o0 o1
+              validateTwoOutputs o0 o1 os
               -- }}}
-            [_, _, o0, o1] ->
+            _ : _ : o0 : o1 : os ->
               -- {{{
-              validateTwoOutputs o0 o1
+              validateTwoOutputs o0 o1 os
               -- }}}
-            _              ->
+            _                    ->
               -- {{{
               traceError "E010"
               -- }}}
