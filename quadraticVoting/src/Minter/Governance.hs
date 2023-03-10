@@ -142,6 +142,7 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
                (utxosDatumMatchesWith (RegisteredProjectsCount 0) o1)
           && all validateMultiDonOutput os
           && traceIfFalse "E004" (length os == multiDonCount)
+          && traceIfFalse "E134" (multiDonCount <= maxMultiDonationUTxOCount)
           -- }}}
 
         validOutputsPresent :: Bool

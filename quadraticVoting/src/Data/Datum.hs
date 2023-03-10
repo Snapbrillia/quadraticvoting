@@ -47,7 +47,9 @@ import           PlutusTx.Prelude       ( Bool(..)
                                         , Integer
                                         , BuiltinByteString
                                         , Eq(..)
-                                        , (&&) )
+                                        , (&&)
+                                        , Maybe
+                                        )
 -- }}}
 
 
