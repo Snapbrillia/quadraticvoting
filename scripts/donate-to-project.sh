@@ -252,7 +252,7 @@ else
   differenceBetweenSlots=$(get_slot_difference $projectTokenName)
 fi
 
-if [ $differenceBetweenSlots -lt 100 ]; then
+if [ $differenceBetweenSlots -lt 100 ] && [ "$ENV" != "dev" ]; then
   # {{{
   echo "NetworkBusy"
   # }}}
