@@ -20,7 +20,9 @@ import           Data.List                  ( sortBy )
 import           Data.Maybe                 ( fromJust )
 import           Data.String                ( fromString )
 import qualified Data.Text                  as T
+import           Data.Version               ( showVersion )
 import qualified Ledger.Address             as Addr
+import qualified Paths_qvf_cli
 import           Plutus.V1.Ledger.Value     ( CurrencySymbol(..)
                                             , TokenName(..) )
 import qualified Plutus.V2.Ledger.Api       as Ledger
@@ -405,8 +407,8 @@ main =
     "-h"       : _                     -> putStrLn Help.generic
     "--help"   : _                     -> putStrLn Help.generic
     "man"      : _                     -> putStrLn Help.generic
-    "-v"        : _                    -> putStrLn "0.2.5.3"
-    "--version" : _                    -> putStrLn "0.2.5.3" 
+    "-v"        : _                    -> putStrLn $ showVersion Paths_qvf_cli.version
+    "--version" : _                    -> putStrLn $ showVersion Paths_qvf_cli.version
     "generate" : genStr : "-h"     : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "--help" : _ -> putStrLn $ Help.forGenerating genStr
     "generate" : genStr : "man"    : _ -> putStrLn $ Help.forGenerating genStr

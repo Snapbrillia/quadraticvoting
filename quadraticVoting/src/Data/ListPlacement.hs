@@ -32,7 +32,7 @@ data ListPlacement
   | Append
   deriving (Show, Generic, FromJSON, ToJSON)
 
-PlutusTx.makeIsDataIndexed ''DonationRedeemer
+PlutusTx.makeIsDataIndexed ''ListPlacement
   [ ('Prepend, 0 )
   , ('Insert , 1 )
   , ('Append , 2 )
