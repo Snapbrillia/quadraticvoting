@@ -749,15 +749,15 @@ decimalMultiplier = 1_000_000_000
 -- E133: The main UTxO must also be getting consumed.
 -- E134: Can't exceed the maximum multi-donation count.
 -- E135: The number of outputs multi-donation UTxOs must match the specified count.
--- E136: 
--- E137: 
--- E138: 
--- E139: 
--- E140: 
--- E141: 
--- E142: 
--- E143: 
--- E144: 
+-- E136: The deadline has not passed yet.
+-- E137: Invalid UTxO provided.
+-- E138: Deadline input was not provided.
+-- E139: Output deadline UTxO doesn't have a proper value.
+-- E140: Deadline datum is not updated properly.
+-- E141: Invalid outputs pattern.
+-- E142: No multi-donation UTxOs must be remaining.
+-- E143: All provided multi-donation UTxOs must be burnt.
+-- E144: Both governance assets must be getting burnt. 
 -- E145: 
 -- E146: 
 -- E147: 

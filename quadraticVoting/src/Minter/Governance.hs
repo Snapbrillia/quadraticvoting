@@ -48,12 +48,14 @@ qvfTokenName = emptyTokenName
 data GovernanceRedeemer
   = Initiate
   | Conclude
+  | BurnMultiDons
   | Dev
 
 PlutusTx.makeIsDataIndexed ''GovernanceRedeemer
-  [ ('Initiate, 0 )
-  , ('Conclude, 1 )
-  , ('Dev     , 20)
+  [ ('Initiate     , 0 )
+  , ('Conclude     , 1 )
+  , ('BurnMultiDons, 2 )
+  , ('Dev          , 20)
   ]
 
 
@@ -69,19 +71,22 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
   -- {{{
   let
     info :: TxInfo
-    info = scriptContextTxInfo ctx
+    info   = scriptContextTxInfo ctx
+
+    inputs :: [TxInInfo]
+    inputs = txInfoInputs info
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
   in
   case r of
-    Initiate ->
+    Initiate      ->
       -- {{{
       let
         hasUTxO :: Bool
         hasUTxO =
           -- {{{
-          utxoIsGettingSpent (txInfoInputs info) oref
+          utxoIsGettingSpent inputs oref
           -- }}}
 
         deadlineIsValid :: Bool
@@ -101,31 +106,21 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
             )
           -- }}}
 
+        -- | Helper function for going over all the produced multi-don UTxOs.
+        validateMultiDonOutput :: TxOut -> Bool
         validateMultiDonOutput o =
           -- {{{
-             traceIfFalse
-               "E001"
-               ( utxoHasOnlyXWithLovelaces
-                   ownSym
-                   qvfTokenName
-                   deadlineAndMultiDonLovelaces
-                   o
-               )
+             traceIfFalse "E001" (deadlineOrMultiDonValueIsValid o)
           && traceIfFalse
                "E009"
                (utxosDatumMatchesWith EmptyMultiDonationRecord o)
           -- }}}
 
+        -- | Helper function for validating outputs after pattern matching.
+        validateOutputs :: TxOut -> TxOut -> [TxOut] -> Bool
         validateOutputs o0 o1 os =
           -- {{{
-             traceIfFalse
-               "E005"
-               ( utxoHasOnlyXWithLovelaces
-                   ownSym
-                   qvfTokenName
-                   deadlineAndMultiDonLovelaces
-                   o0
-               )
+             traceIfFalse "E005" (deadlineOrMultiDonValueIsValid o0)
           && traceIfFalse
                "E006"
                ( utxoHasOnlyXWithLovelaces
@@ -136,7 +131,7 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
                )
           && traceIfFalse
                "E007"
-               (utxosDatumMatchesWith (DeadlineDatum deadline) o0)
+               (utxosDatumMatchesWith (DeadlineDatum deadline multiDonCount) o0)
           && traceIfFalse
                "E008"
                (utxosDatumMatchesWith (RegisteredProjectsCount 0) o1)
@@ -145,26 +140,17 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
           && traceIfFalse "E134" (multiDonCount <= maxMultiDonationUTxOCount)
           -- }}}
 
+        -- | Allows change output(s) to be produced at the first index(es) of
+        --   the transaction. The rest should be carrying the minted assets
+        --   along with proper datums.
         validOutputsPresent :: Bool
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            o0 : o1 : os         ->
-              -- {{{
-              validateTwoOutputs o0 o1 os
-              -- }}}
-            _ : o0 : o1 : os     ->
-              -- {{{
-              validateTwoOutputs o0 o1 os
-              -- }}}
-            _ : _ : o0 : o1 : os ->
-              -- {{{
-              validateTwoOutputs o0 o1 os
-              -- }}}
-            _                    ->
-              -- {{{
-              traceError "E010"
-              -- }}}
+            o0 : o1 : os         -> validateTwoOutputs o0 o1 os
+            _ : o0 : o1 : os     -> validateTwoOutputs o0 o1 os
+            _ : _ : o0 : o1 : os -> validateTwoOutputs o0 o1 os
+            _                    -> traceError "E010"
           -- }}}
       in
          traceIfFalse "E011" hasUTxO
@@ -172,17 +158,49 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
       && checkMintedAmount
       && validOutputsPresent
       -- }}}
-    Conclude ->
+    BurnMultiDons ->
       -- {{{
-      case filter (utxoHasOnlyX ownSym qvfTokenName . txInInfoResolved) (txInfoInputs info) of
+      let
+        updatedD :: (QVFDatum, Integer)
+        (updatedD, toBurn) = burnMultiDonUTxOs inputs
+
+        validateDLOutput :: TxOut -> Bool
+        validateDLOutput o =
+             traceIfFalse "E139" (deadlineOrMultiDonValueIsValid o)
+          && traceIfFalse "E140" (utxosDatumMatchesWith updatedD o)
+          && traceIfFalse
+               "E143"
+               (txInfoMint info == Value.singleton ownSym qvfTokenName toBurn)
+      in
+      case txInfoOutputs info of
+        [o]       -> validateDLOutput o
+        [_, o]    -> validateDLOutput o
+        [_, _, o] -> validateDLOutput o
+        _         -> traceError "E141"
+      -- }}}
+    Conclude      ->
+      -- {{{
+      let
+        validateGovAndDL remDist remBurn =
+             traceIfFalse "E003" (remDist == 0)
+          && traceIfFalse "E142" (remBurn == 0)
+          && traceIfFalse
+               "E144"
+               (txInfoMint info == Value.singleton ownSym qvfTokenName (-2))
+      in
+      case filter (utxoHasOnlyX ownSym qvfTokenName . txInInfoResolved) inputs of
         [TxInInfo{txInInfoResolved = i0}, TxInInfo{txInInfoResolved = i1}] ->
           -- {{{
           case (getInlineDatum i0, getInlineDatum i1) of
-            (DeadlineDatum _, DistributionProgress _ remaining _) ->
+            (DeadlineDatum _ remMultis, DistributionProgress _ remPrizes _) ->
               -- {{{
-              traceIfFalse "E003" (remaining == 0)
+              validateGovAndDL remPrizes remMultis
               -- }}}
-            _                                                     ->
+            (DistributionProgress _ remPrizes _, DeadlineDatum _ remMultis) ->
+              -- {{{
+              validateGovAndDL remPrizes remMultis
+              -- }}}
+            _                                                               ->
               -- {{{
               traceError "E096"
               -- }}}
@@ -223,3 +241,70 @@ qvfPolicy pkh oref deadline =
 -- qvfSymbol oref deadline = scriptCurrencySymbol $ qvfPolicy oref deadline
 
 
+-- UTILS
+-- {{{
+{-# INLINABLE deadlineOrMultiDonValueIsValid #-}
+-- | Since the deadline UTxO and all the multi-donation UTxOs must carry the
+--   same value, this function helps making this check a bit more convenient.
+deadlineOrMultiDonValueIsValid :: TxOut -> Bool
+deadlineOrMultiDonValueIsValid o =
+  -- {{{
+  utxoHasOnlyXWithLovelaces ownSym qvfTokenName deadlineAndMultiDonLovelaces
+  -- }}}
+
+
+{-# INLINABLE burnMultiDonUTxOs #-}
+-- | Goes over the inputs, makes sure the deadline has passed, and returns the
+--   valid updated datum to be attached to the output deadlien UTxO, and the
+--   number of assets that must be burnt.
+burnMultiDonUTxOs :: [TxInInfo] -> (QVFDatum, Integer)
+burnMultiDonUTxOs inputs =
+  -- {{{
+  let
+    -- | Function to traverse the inputs. Returns the deadline, number of
+    --   remaining multi-don UTxOs to be burnt before this transaction, and
+    --   the number of provided multi-don UTxOs to be burnt.
+    --
+    --   Raises exception upon encountering bad inputs or absence of the
+    --   deadline input.
+    go :: (Maybe (POSIXTime, Integer), Integer)
+       -> [TxInInfo]
+       -> (POSIXTime, Integer, Integer)
+    go acc@(mRem, burnCount) (TxInInfo{txInInfoResolved = o} : is) =
+      -- {{{
+      if deadlineOrMultiDonValueIsValid o then
+        -- {{{
+        case getInlineDatum o of
+          DeadlineDatum dl rem     ->
+            -- {{{
+            if Interval.from dl `Interval.contains` txInfoValidRange info then
+              findDeadlineAndMultis (Just (dl, rem), burnCount) is
+            else
+              traceError "E136"
+            -- }}}
+          EmptyMultiDonationRecord ->
+            -- {{{
+            findDeadlineAndMultis (mRem, burnCount + 1) is
+            -- }}}
+          _                        ->
+            -- {{{
+            traceError "E137"
+            -- }}}
+        -- }}}
+      else
+        -- {{{
+        findDeadlineAndMultis acc is
+        -- }}}
+      -- }}}
+    go (Just (dl, rem), bC) []                                     =
+      -- {{{
+      (DeadlineDatum dl (rem - bC), negate bC)
+      -- }}}
+    go _                    []                                     =
+      -- {{{
+      traceError "E138"
+      -- }}}
+  in
+  go (Nothing, 0) inputs
+  -- }}}
+-- }}}

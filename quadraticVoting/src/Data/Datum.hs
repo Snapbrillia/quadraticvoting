@@ -99,7 +99,8 @@ data QVFDatum
   = DeadlineDatum
     -- ^ The datum attached to a reference UTxO for reading the deadline of the fund.
       -- {{{
-      POSIXTime
+      POSIXTime -- The deadline.
+      Integer   -- Number of multi-donation UTxOs left to burn (used at the conclusion stage).
       -- }}}
 
   | RegisteredProjectsCount 
@@ -158,7 +159,7 @@ data QVFDatum
     --   donation UTxO (more precisely, points to the public key hash contained
     --   within the datum of donor'r donation UTxO).
       -- {{{
-      Maybe PubKeyHash
+      (Maybe PubKeyHash)
       -- }}}
   
   | DonationFoldingProgress
