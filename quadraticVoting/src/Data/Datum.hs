@@ -206,7 +206,7 @@ data QVFDatum
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   -- {{{
-  DeadlineDatum pt0                == DeadlineDatum pt1                = pt0 == pt1
+  DeadlineDatum pt0 m0             == DeadlineDatum pt1 m1             = pt0 == pt1 && m0 == m1
   RegisteredProjectsCount c0       == RegisteredProjectsCount c1       = c0  == c1
   EmptyMultiDonationRecord         == EmptyMultiDonationRecord         = True
   UsedMultiDonationRecord p0 ts0   == UsedMultiDonationRecord p1 ts1   = p0 == p1 && ts0 == ts1
