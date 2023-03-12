@@ -650,10 +650,11 @@ instance Show OutputPlutus where
 
 data ScriptGenerationArgumentsParseResults =
   ScriptGenerationArgumentsParseResults
-    { sgUTxO      :: Maybe TxOutRef
-    , sgSlot      :: Maybe Integer
-    , sgDeadline  :: Maybe Ledger.POSIXTime
-    , sgFileNames :: Maybe OffChainFileNames
+    { sgUTxO          :: Maybe TxOutRef
+    , sgSlot          :: Maybe Integer
+    , sgDeadline      :: Maybe Ledger.POSIXTime
+    , sgMultiDonCount :: Maybe Integer
+    , sgFileNames     :: Maybe OffChainFileNames
     }
 
 
@@ -661,16 +662,17 @@ unwrapScriptGenerationArgs :: ScriptGenerationArgumentsParseResults
                            -> Either String ( TxOutRef
                                             , Integer
                                             , Ledger.POSIXTime
+                                            , Integer
                                             , OffChainFileNames
                                             )
 unwrapScriptGenerationArgs ScriptGenerationArgumentsParseResults{..} =
   -- {{{
-  case (sgUTxO, sgSlot, sgDeadline, sgFileNames) of
-    (Just utxo, Just slot, Just dl, Just fns) ->
+  case (sgUTxO, sgSlot, sgDeadline, sgMultiDonCount, sgFileNames) of
+    (Just utxo, Just slot, Just dl, Just mdC, Just fns) ->
       -- {{{
       Right (utxo, slot, dl, fns)
       -- }}}
-    _                                         ->
+    _                                                   ->
       -- {{{
       let
         listPrefix     = "\n\t- "
@@ -692,6 +694,12 @@ unwrapScriptGenerationArgs ScriptGenerationArgumentsParseResults{..} =
             Just _  -> ""
             Nothing -> listPrefix ++ "Invalid deadline POSIX"
           -- }}}
+        multiDonError  =
+          -- {{{
+          case sgMultiDonCount of
+            Just _  -> ""
+            Nothing -> listPrefix ++ "Invalid integer for multi-donation count"
+          -- }}}
         fileNamesError =
           -- {{{
           case sgFileNames of
@@ -704,20 +712,26 @@ unwrapScriptGenerationArgs ScriptGenerationArgumentsParseResults{..} =
         ++ utxoError
         ++ slotError
         ++ deadlineError
+        ++ multiDonError
         ++ fileNamesError
       -- }}}
   -- }}}
 
 
 handleScriptGenerationArguments :: ScriptGenerationArgumentsParseResults
-                                -> (TxOutRef -> Integer -> Ledger.POSIXTime -> OffChainFileNames -> IO ())
+                                -> (    TxOutRef
+                                     -> Integer
+                                     -> Ledger.POSIXTime
+                                     -> Integer
+                                     -> OffChainFileNames -> IO ()
+                                   )
                                 -> IO ()
 handleScriptGenerationArguments results handler =
   -- {{{
   case unwrapScriptGenerationArgs results of
-    Right (txRef, currSlot, dl, ocfn) ->
-      handler txRef currSlot dl ocfn
-    Left errMsg                       ->
+    Right (txRef, currSlot, dl, mdC, ocfn) ->
+      handler txRef currSlot dl mdC ocfn
+    Left errMsg                            ->
       putStrLn errMsg
   -- }}}
 

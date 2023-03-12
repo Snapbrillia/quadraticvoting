@@ -417,18 +417,19 @@ main =
     actionStr  : "man"    : _          -> putStrLn $ Help.forEndpoint actionStr
     -- }}}
     -- {{{ SMART CONTRACT INTERACTION ENDPOINTS 
-    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : fileNamesJSON : _                           ->
+    "generate" : "scripts" : pkhStr : txRefStr : currSlotStr : deadlineStr : multiDonCountStr : fileNamesJSON : _        ->
       -- {{{
       let
         results = ScriptGenerationArgumentsParseResults
-          { sgUTxO      = readTxOutRef txRefStr
-          , sgSlot      = readMaybe currSlotStr
-          , sgDeadline  = Ledger.POSIXTime <$> readMaybe deadlineStr
-          , sgFileNames = A.decode $ fromString fileNamesJSON
+          { sgUTxO          = readTxOutRef txRefStr
+          , sgSlot          = readMaybe currSlotStr
+          , sgDeadline      = Ledger.POSIXTime <$> readMaybe deadlineStr
+          , sgMultiDonCount = readMaybe multiDonCountStr
+          , sgFileNames     = A.decode $ fromString fileNamesJSON
           }
       in
       handleScriptGenerationArguments results $
-        \txRef currSlot dl ocfn -> do
+        \txRef currSlot dl mdC ocfn -> do
           -- {{{
           let pkh       = fromString pkhStr
               govOF     = OCFN.governanceMinter   ocfn
@@ -440,7 +441,7 @@ main =
               dlSlotOF  = OCFN.deadlineSlot       ocfn
               redOF     = OCFN.minterRedeemer     ocfn
               --
-              govPolicy = Gov.qvfPolicy pkh txRef dl
+              govPolicy = Gov.qvfPolicy pkh txRef
               govSymbol = mintingPolicyToSymbol govPolicy
               --
               regPolicy = Reg.registrationPolicy pkh govSymbol
@@ -498,7 +499,7 @@ main =
                     (LBS.writeFile dlSlotOF $ encode dlSlot)
                   withSuccessMessage dlDatOF $ writeJSON dlDatOF $ deadlineDatum dl
                   withSuccessMessage initDatOF $ writeJSON initDatOF initialGovDatum
-                  withSuccessMessage redOF $ writeJSON redOF Gov.Initiate
+                  withSuccessMessage redOF $ writeJSON redOF (Gov.Initiate dl mdC)
                   -- }}}
                 Left _  ->
                   -- {{{

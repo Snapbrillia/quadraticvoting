@@ -46,7 +46,7 @@ qvfTokenName = emptyTokenName
 
 
 data GovernanceRedeemer
-  = Initiate
+  = Initiate POSIXTime Integer
   | Conclude
   | BurnMultiDons
   | Dev
@@ -62,12 +62,10 @@ PlutusTx.makeIsDataIndexed ''GovernanceRedeemer
 {-# INLINABLE mkQVFPolicy #-}
 mkQVFPolicy :: PubKeyHash
             -> TxOutRef
-            -> POSIXTime
-            -> Integer
             -> GovernanceRedeemer
             -> ScriptContext
             -> Bool
-mkQVFPolicy pkh oref multiDonCount deadline r ctx =
+mkQVFPolicy pkh oref r ctx =
   -- {{{
   let
     info :: TxInfo
@@ -80,21 +78,9 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
     ownSym = ownCurrencySymbol ctx
   in
   case r of
-    Initiate      ->
+    Initiate deadline multiDonCount ->
       -- {{{
       let
-        hasUTxO :: Bool
-        hasUTxO =
-          -- {{{
-          utxoIsGettingSpent inputs oref
-          -- }}}
-
-        deadlineIsValid :: Bool
-        deadlineIsValid =
-          -- {{{
-          Interval.to deadline `Interval.contains` txInfoValidRange info
-          -- }}}
-
         checkMintedAmount :: Bool
         checkMintedAmount =
           -- {{{
@@ -153,12 +139,14 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
             _                    -> traceError "E010"
           -- }}}
       in
-         traceIfFalse "E011" hasUTxO
-      && traceIfFalse "E012" deadlineIsValid
-      && checkMintedAmount
+         checkMintedAmount
       && validOutputsPresent
+      && traceIfFalse "E011" (utxoIsGettingSpent inputs oref)
+      && traceIfFalse
+           "E012"
+           (Interval.to deadline `Interval.contains` txInfoValidRange info)
       -- }}}
-    BurnMultiDons ->
+    BurnMultiDons                   ->
       -- {{{
       let
         updatedD :: (QVFDatum, Integer)
@@ -178,7 +166,7 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
         [_, _, o] -> validateDLOutput o
         _         -> traceError "E141"
       -- }}}
-    Conclude      ->
+    Conclude                        ->
       -- {{{
       let
         validateGovAndDL remDist remBurn =
@@ -216,8 +204,8 @@ mkQVFPolicy pkh oref multiDonCount deadline r ctx =
   -- }}}
 
 
-qvfPolicy :: PubKeyHash -> TxOutRef -> POSIXTime -> MintingPolicy
-qvfPolicy pkh oref deadline =
+qvfPolicy :: PubKeyHash -> TxOutRef -> MintingPolicy
+qvfPolicy pkh oref =
   -- {{{
   let
     wrap :: (GovernanceRedeemer -> ScriptContext -> Bool)
@@ -225,13 +213,11 @@ qvfPolicy pkh oref deadline =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \pkh' oref' deadline' -> wrap $ mkQVFPolicy pkh' oref' deadline' ||])
+    $$(PlutusTx.compile [|| \pkh' oref' -> wrap $ mkQVFPolicy pkh' oref' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode oref
-    `PlutusTx.applyCode`
-    PlutusTx.liftCode deadline
   -- }}}
 
 
