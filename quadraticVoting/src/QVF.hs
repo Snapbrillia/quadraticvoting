@@ -372,7 +372,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
   in
   case (datum, action) of
     -- {{{ GOVERNANCE INTERACTIONS 
-    (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
+    (DeadlineDatum _ mdC                          , UpdateDeadline newDl   ) ->
       -- {{{
          signedByKeyHolder
       && traceIfFalse
@@ -383,11 +383,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (currUTxOHasX qvfSymbol qvfTokenName)
       && validateSingleOutput
            Nothing
-           (Just $ DeadlineDatum newDl)
+           (Just $ DeadlineDatum newDl mdC)
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (DeadlineDatum _                              , ConcludeFundingRound   ) ->
+    (DeadlineDatum _ _                            , ConcludeFundingRound   ) ->
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder

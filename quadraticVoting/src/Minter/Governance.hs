@@ -117,7 +117,7 @@ mkQVFPolicy pkh oref r ctx =
                )
           && traceIfFalse
                "E007"
-               (utxosDatumMatchesWith (DeadlineDatum deadline multiDonCount) o0)
+               (utxosDatumMatchesWith (ConfigDatum deadline multiDonCount) o0)
           && traceIfFalse
                "E008"
                (utxosDatumMatchesWith (RegisteredProjectsCount 0) o1)
@@ -180,15 +180,15 @@ mkQVFPolicy pkh oref r ctx =
         [TxInInfo{txInInfoResolved = i0}, TxInInfo{txInInfoResolved = i1}] ->
           -- {{{
           case (getInlineDatum i0, getInlineDatum i1) of
-            (DeadlineDatum _ remMultis, DistributionProgress _ remPrizes _) ->
+            (ConfigDatum _ remMultis, DistributionProgress _ remPrizes _) ->
               -- {{{
               validateGovAndDL remPrizes remMultis
               -- }}}
-            (DistributionProgress _ remPrizes _, DeadlineDatum _ remMultis) ->
+            (DistributionProgress _ remPrizes _, ConfigDatum _ remMultis) ->
               -- {{{
               validateGovAndDL remPrizes remMultis
               -- }}}
-            _                                                               ->
+            _                                                             ->
               -- {{{
               traceError "E096"
               -- }}}
@@ -261,7 +261,7 @@ burnMultiDonUTxOs inputs =
       if deadlineOrMultiDonValueIsValid o then
         -- {{{
         case getInlineDatum o of
-          DeadlineDatum dl rem     ->
+          ConfigDatum dl rem       ->
             -- {{{
             if Interval.from dl `Interval.contains` txInfoValidRange info then
               findDeadlineAndMultis (Just (dl, rem), burnCount) is
@@ -284,7 +284,7 @@ burnMultiDonUTxOs inputs =
       -- }}}
     go (Just (dl, rem), bC) []                                     =
       -- {{{
-      (DeadlineDatum dl (rem - bC), negate bC)
+      (ConfigDatum dl (rem - bC), negate bC)
       -- }}}
     go _                    []                                     =
       -- {{{

@@ -96,8 +96,10 @@ PlutusTx.unstableMakeIsData ''EliminationInfo
 data QVFDatum
   -- {{{
   -- {{{ GOVERNANCE UTXOs (YELLOW) 
-  = DeadlineDatum
-    -- ^ The datum attached to a reference UTxO for reading the deadline of the fund.
+  = ConfigDatum
+    -- ^ The datum attached to a reference UTxO for reading the deadline of the
+    --   fund, and keeping track of remaining multi-donation UTxOs to be burnt
+    --   at the conclusion phase of a funding round.
       -- {{{
       POSIXTime -- The deadline.
       Integer   -- Number of multi-donation UTxOs left to burn (used at the conclusion stage).
@@ -206,7 +208,7 @@ data QVFDatum
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   -- {{{
-  DeadlineDatum pt0 m0             == DeadlineDatum pt1 m1             = pt0 == pt1 && m0 == m1
+  ConfigDatum pt0 m0               == ConfigDatum pt1 m1               = pt0 == pt1 && m0 == m1
   RegisteredProjectsCount c0       == RegisteredProjectsCount c1       = c0  == c1
   EmptyMultiDonationRecord         == EmptyMultiDonationRecord         = True
   UsedMultiDonationRecord p0 ts0   == UsedMultiDonationRecord p1 ts1   = p0 == p1 && ts0 == ts1
@@ -227,7 +229,7 @@ instance Eq QVFDatum where
   -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('DeadlineDatum             , 0 )
+  [ ('ConfigDatum               , 0 )
   , ('RegisteredProjectsCount   , 1 )
   , ('EmptyMultiDonationRecord  , 2 )
   , ('UsedMultiDonationRecord   , 3 )
