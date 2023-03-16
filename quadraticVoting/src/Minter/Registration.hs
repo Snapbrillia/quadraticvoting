@@ -33,7 +33,7 @@ import           Utils
 -- REDEEMER
 -- {{{
 data RegistrationRedeemer
-  = RegisterProject ProjectDetails
+  = RegisterProject   ProjectDetails
   | ConcludeAndRefund BuiltinByteString
   | Dev
 
@@ -50,11 +50,10 @@ PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
 {-# INLINABLE mkRegistrationPolicy #-}
 mkRegistrationPolicy :: PubKeyHash
                      -> CurrencySymbol
-                     -> TokenName
                      -> RegistrationRedeemer
                      -> ScriptContext
                      -> Bool
-mkRegistrationPolicy pkh sym tn action ctx =
+mkRegistrationPolicy pkh sym action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -71,7 +70,10 @@ mkRegistrationPolicy pkh sym tn action ctx =
       -- {{{
       let
         inputGovUTxO :: TxOut
-        inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
+        inputGovUTxO = getInputGovernanceUTxOFrom sym Gov.qvfTokenName inputs
+
+        govAddr :: Address
+        govAddr      = txOutAddress inputGovUTxO
 
         -- | Looks for the singular authenticated governance input UTxO to find
         --   the origin address of the governance asset, its assets, and the
@@ -98,8 +100,8 @@ mkRegistrationPolicy pkh sym tn action ctx =
 
         -- | Checks if the given UTxOs carry project's assets, and makes sure
         --   the first one has a `ProjectInfo` datum, while the second one has
-        --   a `ReceivedDonationsCount` attached. Also expects each of them to
-        --   carry exactly half of the registration fee Lovelaces.
+        --   a `ProjectDonations` attached. Also expects each of them to carry
+        --   exactly half of the registration fee Lovelaces.
         --
         --   It also validates that the produced governance UTxO is sent back
         --   to its origin, and that it has a properly updated datum attached.
@@ -108,14 +110,17 @@ mkRegistrationPolicy pkh sym tn action ctx =
         outputSAndPsAreValid :: TxOut -> TxOut -> TxOut -> Bool
         outputSAndPsAreValid s p0 p1 =
           -- {{{
+          let
+            addr0 = txOutAddress p0
+          in
              traceIfFalse
                "E2"
-               (pdRequested pd > minRequestable)
+               (pdRequested pd >= minRequestable)
           && traceIfFalse
                "E014"
                ( validateGovUTxO
                    (txOutValue inputGovUTxO)
-                   (txOutAddress inputGovUTxO)
+                   govAddr
                    (RegisteredProjectsCount $ currPCount + 1)
                    s
                )
@@ -140,12 +145,26 @@ mkRegistrationPolicy pkh sym tn action ctx =
                (utxosDatumMatchesWith (ProjectInfo pd) p0)
           && traceIfFalse
                "E018"
-               (utxosDatumMatchesWith (ReceivedDonationsCount 0) p1)
+               (utxosDatumMatchesWith (ProjectDonations Nothing) p1)
+          && traceIfFalse "E145" (addr0 == govAddr)
+          && traceIfFalse "E146" (addr0 == txOutAddress p1)
+          -- }}}
+        
+        -- | Attempts to extract owner's public key hash from the given
+        --   address.
+        --
+        --   Raises exception if the address is that of a script.
+        projOwnerPKH :: PubKeyHash
+        projOwnerPKH =
+          -- {{{
+          case addressToPubKeyHash (pdPubKeyHash pd) of
+            Just pkh -> pkh
+            Nothing  -> traceError "E147"
           -- }}}
       in
          traceIfFalse
            "E020"
-           (txSignedBy info $ pdPubKeyHash pd)
+           (txSignedBy info projOwnerPKH)
       && ( case outputs of
              [s, p0, p1]       ->
                -- {{{
@@ -167,127 +186,105 @@ mkRegistrationPolicy pkh sym tn action ctx =
       -- }}}
     ConcludeAndRefund projectID ->
       -- {{{
-      case inputs of
-        TxInInfo{txInInfoResolved = p0} : TxInInfo{txInInfoResolved = p1} : rest ->
+      let
+        currTN                                  = TokenName projectID
+        filterFn TxInInfo{txInInfoResolved = o} =
           -- {{{
-          case getInlineDatum p0 of
-            ProjectInfo ProjectDetails{..} ->
+          utxoHasOnlyXWithLovelaces ownSym currTN halfOfTheRegistrationFee o
+          -- }}}
+        validateRemoval    ProjectDetails{..}   =
+          -- {{{
+          let
+            inputGovUTxO :: TxOut
+            inputGovUTxO =
+              getInputGovernanceUTxOFrom sym Gov.qvfTokenName inputs
+
+            updatedDatum :: QVFDatum
+            updatedDatum =
               -- {{{
-              case getInlineDatum p1 of
-                ReceivedDonationsCount ds                ->
-                  -- {{{
-                  if ds == 0 then
-                    -- {{{
-                    let
-                      inputGovUTxO :: TxOut
-                      inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
-
-                      updatedDatum :: QVFDatum
-                      updatedDatum =
-                        -- {{{
-                        case getInlineDatum inputGovUTxO of
-                          RegisteredProjectsCount ps         ->
-                            RegisteredProjectsCount (ps - 1)
-                          PrizeWeightAccumulation ps elimMap ->
-                            PrizeWeightAccumulation (ps - 1) elimMap
-                          _                                  ->
-                            traceError "E097"
-                        -- }}}
-
-                      -- | Checks the output governance UTxO to have unchanged
-                      --   address and value, and that it also has the proper
-                      --   datum attached.
-                      --
-                      --   Raises exception on @False@.
-                      outputSIsValid :: TxOut -> Bool
-                      outputSIsValid s =
-                        -- {{{
-                        traceIfFalse
-                          "E098"
-                          ( validateGovUTxO
-                              (txOutValue inputGovUTxO)
-                              (txOutAddress inputGovUTxO)
-                              updatedDatum
-                              s
-                          )
-                        -- }}}
-                    in
-                    case outputs of
-                      [TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue}, s] ->
-                        -- {{{
-                        let
-                          txFee = lovelaceFromValue (txInfoFee info)
-                          outL  = lovelaceFromValue txOutValue
-                        in
-                           outputSIsValid s
-                        && traceIfFalse "E130" (pdPubKeyHash == pkh')
-                        && traceIfFalse "E131" (outL == registrationFee - txFee)
-                        && traceIfFalse "E132" (txFee < 1_700_000)
-                        -- This last validation is put in place to prevent a
-                        -- possible attack where the attacker sets the
-                        -- transaction fee as high as possible to serve the
-                        -- network at the expense of the project owner.
-                        --
-                        -- However, this magic number (1700000) is based on the
-                        -- protocol paramaters at the time of writing, and
-                        -- *can* change. TODO.
-                        -- }}}
-                      _                                                                        ->
-                        -- {{{
-                        traceError "E099"
-                        -- }}}
-                    -- }}}
-                  else
-                    -- {{{
-                    traceError "E093"
-                    -- }}}
-                  -- }}}
-                Escrow _                                 ->
-                  -- {{{
-                  let
-                    currTN = TokenName projectID
-                    addr0  = txOutAddress p0
-                    addr1  = txOutAddress p1
-                  in
-                     traceIfFalse
-                       "E022"
-                       ( utxoHasOnlyXWithLovelaces
-                           ownSym
-                           currTN
-                           halfOfTheRegistrationFee
-                           p0
-                       )
-                  && traceIfFalse
-                       "E023"
-                       ( utxoHasOnlyXWithLovelaces
-                           ownSym
-                           currTN
-                           halfOfTheRegistrationFee
-                           p1
-                       )
-                  && traceIfFalse
-                       "E024"
-                       (txSignedBy info pdPubKeyHash)
-                  && traceIfFalse
-                       "E118"
-                       (addr0 == addr1)
-                  && ( if any ((== addr0) . txOutAddress . txInInfoResolved) rest then
-                         traceError "E119"
-                       else
-                         True
-                     )
-                  -- }}}
-                _                                        ->
-                  -- {{{
-                  traceError "E025"
-                  -- }}}
+              case getInlineDatum inputGovUTxO of
+                RegisteredProjectsCount ps         ->
+                  RegisteredProjectsCount (ps - 1)
+                PrizeWeightAccumulation ps elimMap ->
+                  PrizeWeightAccumulation (ps - 1) elimMap
+                _                                  ->
+                  traceError "E097"
               -- }}}
-            _                              ->
+
+            -- | Checks the output governance UTxO to have unchanged
+            --   address and value, and that it also has the proper
+            --   datum attached.
+            --
+            --   Raises exception on @False@.
+            outputSIsValid :: TxOut -> Bool
+            outputSIsValid s =
+              -- {{{
+              traceIfFalse
+                "E098"
+                ( validateGovUTxO
+                    (txOutValue inputGovUTxO)
+                    (txOutAddress inputGovUTxO)
+                    updatedDatum
+                    s
+                )
+              -- }}}
+          in
+          case outputs of
+            [TxOut{txOutAddress = ownerAddr, txOutValue}, s] ->
+              -- {{{
+              let
+                txFee = lovelaceFromValue (txInfoFee info)
+                outL  = lovelaceFromValue txOutValue
+              in
+                 outputSIsValid s
+              && traceIfFalse "E130" (pdAddress == ownerAddr)
+              && traceIfFalse "E131" (outL == registrationFee - txFee)
+              && traceIfFalse "E132" (txFee < 1_700_000)
+              -- This last validation is put in place to prevent a
+              -- possible attack where the attacker sets the
+              -- transaction fee as high as possible to serve the
+              -- network at the expense of the project owner.
+              --
+              -- However, this magic number (1700000) is based on the
+              -- protocol paramaters at the time of writing, and
+              -- *can* change. TODO.
+              -- }}}
+            _                                                ->
+              -- {{{
+              traceError "E099"
+              -- }}}
+          -- }}}
+        validateConclusion ProjectDetails{..}   =
+          -- {{{
+          traceIfFalse "E024" (txSignedBy info $ addressToPubKeyHash pdAddress)
+          -- }}}
+      in
+      case filter filterFn inputs of
+        [TxInInfo{txInInfoResolved = p0}, TxInInfo{txInInfoResolved = p1}] ->
+          -- {{{
+          case (getInlineDatum p0, getInlineDatum p1) of
+            (ProjectInfo pd          , ProjectDonations Nothing) ->
+              -- {{{
+              validateRemoval pd
+              -- }}}
+            (ProjectInfo pd          , Escrow _                ) ->
+              -- {{{
+              validateConclusion pd
+              -- }}}
+            (ProjectDonations Nothing, ProjectInfo pd          ) ->
+              -- {{{
+              validateRemoval pd
+              -- }}}
+            (Escrow _                , ProjectInfo pd          ) ->
+              -- {{{
+              validateConclusion pd
+              -- }}}
+            _                                                    ->
               -- {{{
               traceError "E026"
               -- }}}
           -- }}}
-        _                                                                        ->
+        _                                                                  ->
           -- {{{
           traceError "E027"
           -- }}}
@@ -309,13 +306,11 @@ registrationPolicy pkh sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \pkh' sym' tn' -> wrap $ mkRegistrationPolicy pkh' sym' tn' ||])
+    $$(PlutusTx.compile [|| \pkh' sym' -> wrap $ mkRegistrationPolicy pkh' sym' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
-    `PlutusTx.applyCode`
-    PlutusTx.liftCode Gov.qvfTokenName
   -- }}}
 
 

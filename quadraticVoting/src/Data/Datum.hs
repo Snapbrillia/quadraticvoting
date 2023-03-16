@@ -56,16 +56,16 @@ import           PlutusTx.Prelude       ( Bool(..)
 -- PROJECT DETAILS
 -- {{{
 data ProjectDetails = ProjectDetails
-  { pdPubKeyHash :: PubKeyHash
-  , pdName       :: BuiltinByteString
-  , pdRequested  :: Integer
+  { pdAddress   :: Address
+  , pdName      :: BuiltinByteString
+  , pdRequested :: Integer
   } deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
 
 instance Eq ProjectDetails where
   {-# INLINABLE (==) #-}
-  ProjectDetails p0 n0 r0 == ProjectDetails p1 n1 r1 =
+  ProjectDetails a0 n0 r0 == ProjectDetails a1 n1 r1 =
     -- {{{
-    p0 == p1 && n0 == n1 && r0 == r1
+    a0 == a1 && n0 == n1 && r0 == r1
     -- }}}
 
 PlutusTx.unstableMakeIsData ''ProjectDetails

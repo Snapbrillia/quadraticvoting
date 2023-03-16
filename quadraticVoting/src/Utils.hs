@@ -82,9 +82,21 @@ emptyTokenName :: TokenName
 emptyTokenName = TokenName emptyByteString
 
 
+{-# INLINABLE addressToPubKeyHash #-}
+addressToPubKeyHash :: Address -> Maybe PubKeyHash
+addressToPubKeyHash Address{..} =
+  -- {{{
+  case addressCredential of
+    PubKeyCredential pkh ->
+      Just pkh
+    ScriptCredential _   ->
+      Nothing
+  -- }}}
+
+
 {-# INLINABLE addressToBuiltinByteString #-}
 addressToBuiltinByteString :: Address -> BuiltinByteString
-addressToBuiltinByteString Address {..} =
+addressToBuiltinByteString Address{..} =
   -- {{{
   case addressCredential of
     PubKeyCredential (PubKeyHash bbs) ->
@@ -635,11 +647,11 @@ decimalMultiplier = 1_000_000_000
 -- E019: Specified UTxO must be consumed.
 -- E020: Project owner's signature is required.
 -- E021: There should be exactly 1 governance, and 2 project UTxOs produced.
--- E022: Invalid project info UTxO provided.
--- E023: Escrow must be depleted before refunding the registration fee.
+-- E022: 
+-- E023: 
 -- E024: Transaction must be signed by the project owner.
--- E025: Invalid datum for the second project input.
--- E026: First project input must be the info UTxO.
+-- E025: 
+-- E026: Invalid datums are attached to the project UTxOs.
 -- E027: Exactly 2 project inputs are expected.
 -- E028: Unauthorized.
 -- E029: Invalid datum for donation count.
@@ -706,7 +718,7 @@ decimalMultiplier = 1_000_000_000
 -- E090: Projects UTxOs must share the same address.
 -- E091: Project UTxOs must be from the script address.
 -- E092: The redeemer is not pointing to this UTxO.
--- E093: The project must not have any donations in order to conclude/refund it.
+-- E093: 
 -- E094: Project owner must be paid accurately.
 -- E095: Both governance UTxOs must be getting spent.
 -- E096: Invalid governance UTxOs are getting spent.
@@ -731,8 +743,8 @@ decimalMultiplier = 1_000_000_000
 -- E115: Governance token must be sent back to the same address from which it's getting consumed.
 -- E116: Unexpected UTxO encountered.
 -- E117: Couldn't find UTxO.
--- E118: Mismatch of input project UTxO addresses.
--- E119: No Other UTxOs from the contract can be spent.
+-- E118: 
+-- E119: 
 -- E120: Input project and reference project UTxOs don't belong to the same project, or are not coming from the same address as the governance UTxO.
 -- E121: Invalid order of the inputs compared to the reference inputs.
 -- E122: Invalid outputs.
@@ -758,9 +770,9 @@ decimalMultiplier = 1_000_000_000
 -- E142: No multi-donation UTxOs must be remaining.
 -- E143: All provided multi-donation UTxOs must be burnt.
 -- E144: Both governance assets must be getting burnt. 
--- E145: 
--- E146: 
--- E147: 
+-- E145: Produced project UTxOs must be sent to the same address as the governance UTxO.
+-- E146: Produced project UTxOs must share the same address.
+-- E147: Project owner's address has to be a payment address (script address was given).
 -- E148: 
 -- E149: 
 -- E150: 
