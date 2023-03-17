@@ -14,6 +14,7 @@ import           Data.Aeson                  ( FromJSON(..)
                                              , (.:)
                                              , (.:?) )
 import           Data.Aeson.Types            ( Parser )
+import qualified Data.List                   as List
 import           Data.Text                   ( Text )
 import qualified Data.Text                   as Text
 import qualified Ledger.Ada                  as Ada
@@ -25,6 +26,8 @@ import           Plutus.V2.Ledger.Api        ( TxOutRef(..)
                                              , TxOut(..) )
 import qualified Plutus.V2.Ledger.Api        as Ledger
 import qualified PlutusTx
+import qualified PlutusTx.AssocMap           as Map
+import           PlutusTx.AssocMap           ( Map )
 import           Prelude
 
 import           CLI.Utils
@@ -410,6 +413,19 @@ inputToScriptInput Input{..} = do
   -- }}}
 
 
+inputToAuthenticScriptInput :: [CurrencySymbol]
+                            -> Input
+                            -> Maybe ScriptInput
+inputToAuthenticScriptInput authenticSymbols Input{..} = do
+  -- {{{
+  resolved <- outputToAuthenticScriputOutput authenticSymbols iResolved
+  return $ ScriptInput
+    { siTxOutRef = iTxOutRef
+    , siResolved = resolved
+    }
+  -- }}}
+
+
 outputToScriptOutput :: Output -> Maybe ScriptOutput
 outputToScriptOutput Output{..} = do
   -- {{{
@@ -422,6 +438,19 @@ outputToScriptOutput Output{..} = do
     , soAssetCount = c
     , soDatum      = d
     }
+  -- }}}
+
+
+outputToAuthenticScriputOutput :: [CurrencySymbol]
+                               -> Output
+                               -> Maybe ScriptOutput
+outputToAuthenticScriputOutput authenticSymbols o = do
+  -- {{{
+  so@ScriptOutput{..} <- outputToScriptOutput o
+  if elem (assetSymbol soAsset) authenticSymbols then
+    return so
+  else
+    Nothing
   -- }}}
 
 
@@ -455,36 +484,56 @@ compareScriptOutputs ScriptOutput{soAsset = a0} ScriptOutput{soAsset = a1} =
 -- }}}
 
 
--- SPECIFIC INPUTS
+-- SPECIFIC OUTPUTS
 -- {{{
-data MatchPoolInput = MatchPoolInput
-  { mpiTxOutRef :: TxOutRef
-  , mpiAddress  :: Ledger.Address
-  , mpiLovelace :: Integer
-  , mpiSymbol   :: CurrencySymbol
+data DeadlineOutput = DeadlineOutput
+  { doDeadline :: Ledger.POSIXTime
+  , doSymbol   :: CurrencySymbol
   } deriving (Eq)
 
-data ProjectStateInput = ProjectStateInput
-  { psiTxOutRef  :: TxOutRef
-  , psiLovelace  :: Integer
-  , psiSymbol    :: CurrencySymbol
-  , psiTokenName :: TokenName
+data MatchPoolOutput = MatchPoolOutput
+  { mpoMatchPool :: Integer
+  , mpoSymbol    :: CurrencySymbol
   } deriving (Eq)
 
-data ProjectInfoInput = ProjectInfoInput
-  { piiTxOutRef  :: TxOutRef
-  , piiLovelace  :: Integer
-  , piiSymbol    :: CurrencySymbol
-  , piiTokenName :: TokenName
-  , piiDetails   :: ProjectDetails
+-- ^ Note that as this set of datatypes are only meant to act as intermediary
+--   constructs, the double-source-of-truth approach (total raised donations)
+--   has been carefully implemented in favor of performance.
+data ProjectStateOutput = ProjectStateOutput
+  { psoLovelace    :: Integer
+  , psoSymbol      :: CurrencySymbol
+  , psoTokenName   :: TokenName
+  , psoDonations   :: Map Ledger.PubKeyHash Integer
+  , psoTotalRaised :: Integer
   } deriving (Eq)
 
-data DonationInput = DonationInput
-  { diTxOutRef  :: TxOutRef
-  , diLovelace  :: Integer
-  , diSymbol    :: CurrencySymbol
-  , diTokenName :: TokenName
-  , diDonor     :: Ledger.PubKeyHash
+data ProjectInfoOutput = ProjectInfoOutput
+  { pioLovelace  :: Integer
+  , pioSymbol    :: CurrencySymbol
+  , pioTokenName :: TokenName
+  , pioDetails   :: ProjectDetails
+  } deriving (Eq)
+
+instance Show ProjectStateOutput where
+  show ProjectStateOutput{..} =
+    -- {{{
+    let
+      showPair (k, v) =
+           "{\"" ++ builtinByteStringToString (Ledger.getPubKeyHash k) ++ "\":" 
+        ++ show v
+        ++ "}"
+    in
+       "{\"" ++ unsafeTokenNameToHex psoTokenName ++ "\":["
+    ++ List.intercalate "," (showPair <$> Map.toList psoDonations)
+    ++ "]"
+    ++ ",\"total\":" ++ show psoTotalRaised
+    ++ "}"
+    -- }}}
+
+data DonationOutput = DonationOutput
+  { doDonor     :: Ledger.PubKeyHash
+  , doDonation  :: Integer
+  , doTokenName :: TokenName
   } deriving (Eq)
 -- }}}
 

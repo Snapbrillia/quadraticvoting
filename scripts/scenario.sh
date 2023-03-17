@@ -64,23 +64,23 @@ proj=$(project_index_to_token_name 0)
 . $REPO/scripts/donate-to-project.sh $donor $proj "$(expr $donor - 5)0000000"
 donor=$(expr $donor + 1)
 
-for tn in $(get_all_token_names | jq -r '.[]'); do
-  . $REPO/scripts/fold-donations.sh $tn 1
-done
-
-. $REPO/scripts/accumulate-prize-weights.sh
- 
-for i in $(seq 0 4); do
-  . $REPO/scripts/eliminate-one-project.sh
-done
-
-
-if [ "$ENV" == "dev" ]; then
-  for i in $(seq 0 1); do
-    . $REPO/scripts/distribute-prize.sh $i
-  done
-else
-  echo "TERMINATED: The distribution phase of this scenario only works in the \"dev\""
-  echo "environment (i.e. \"\$ENV\" == \"dev\")."
-  return 1
-fi
+# for tn in $(get_all_token_names | jq -r '.[]'); do
+#   . $REPO/scripts/fold-donations.sh $tn 1
+# done
+# 
+# . $REPO/scripts/accumulate-prize-weights.sh
+#  
+# for i in $(seq 0 4); do
+#   . $REPO/scripts/eliminate-one-project.sh
+# done
+# 
+# 
+# if [ "$ENV" == "dev" ]; then
+#   for i in $(seq 0 1); do
+#     . $REPO/scripts/distribute-prize.sh $i
+#   done
+# else
+#   echo "TERMINATED: The distribution phase of this scenario only works in the \"dev\""
+#   echo "environment (i.e. \"\$ENV\" == \"dev\")."
+#   return 1
+# fi
