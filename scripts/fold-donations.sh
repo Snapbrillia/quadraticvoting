@@ -162,7 +162,7 @@ while [ $phase -lt 4 ]; do
           --mint \"-2 $projectAsset\"
           --mint-tx-in-reference $(cat $regRefUTxOFile)
           --mint-plutus-script-v2
-          --mint-reference-tx-in-redeemer-file $minterRedeemerFile
+          --mint-reference-tx-in-redeemer-file $devRedeemer
           --policy-id $regSym
         "
         collateralUTxO=$(get_first_utxo_of $collateralKeyHolder)
@@ -170,6 +170,7 @@ while [ $phase -lt 4 ]; do
         generate_protocol_params
         buildTx="$cli $BUILD_TX_CONST_ARGS
           --required-signer-hash $keyHoldersPubKeyHash
+          --read-only-tx-in-reference $deadlineUTxO
           --tx-in $govUTxO           $txInConstant
           --tx-in $projectsInfoUTxO  $txInConstant
           --tx-in $projectsStateUTxO $txInConstant

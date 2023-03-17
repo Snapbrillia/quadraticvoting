@@ -1,7 +1,7 @@
 Cabal-Version:      3.6
 
 Name:                qvf-cli
-Version:             0.2.5.1
+Version:             0.2.5.2
 Author:              Andy Sizer
                    , Curtis Myers
                    , Keyan M.
@@ -15,7 +15,7 @@ Maintainer:          andysizer@snapbrillia.com
                    , szhang12341@gmail.com
                    , tasosvaltinos@snapbrillia.com
 Build-Type:          Simple
-Copyright:           © 2022 Snapbrillia
+Copyright:           © 2022-2023 Snapbrillia
 License:             Apache-2.0
 License-files:       LICENSE
 
