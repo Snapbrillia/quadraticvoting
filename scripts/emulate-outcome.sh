@@ -23,8 +23,8 @@ if [ "$scriptUTxOs" == "$(cat $scriptUTxOsFile)" ]; then
   echo "NoChange"
 else 
   $qvf emulate-outcome "$policySymbols" "$scriptUTxOs"
+  echo $scriptUTxOs > $scriptUTxOsFile
 fi 
 
 
-echo $scriptUTxOs > $scriptUTxOsFile
 

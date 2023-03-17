@@ -12,4 +12,6 @@ fi
 govUTxOObj="$(get_governance_utxo)"
 govLovelaces=$(echo $govUTxOObj | jq -r .lovelace)
 
-echo "$govLovelaces"
+matchPoolLovelace=$(expr $govLovelaces - $governanceLovelaces)
+
+echo "$matchPoolLovelace"
