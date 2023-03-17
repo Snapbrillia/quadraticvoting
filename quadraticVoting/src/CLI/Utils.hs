@@ -723,7 +723,8 @@ handleScriptGenerationArguments :: ScriptGenerationArgumentsParseResults
                                      -> Integer
                                      -> Ledger.POSIXTime
                                      -> Integer
-                                     -> OffChainFileNames -> IO ()
+                                     -> OffChainFileNames
+                                     -> IO ()
                                    )
                                 -> IO ()
 handleScriptGenerationArguments results handler =

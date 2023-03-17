@@ -165,8 +165,7 @@ data QVFDatum
       -- }}}
   
   | DonationFoldingProgress
-    -- ^ Project UTxO during the first phase of folding the donations. Carries
-    --   the donations.
+    -- ^ Project UTxO during folding phase. Accumulates the donations.
       -- {{{
       Integer    -- ^ Sum of the square roots of donations folded so far.
       PubKeyHash -- ^ Next donor's public key hash (this is not `Maybe` as it

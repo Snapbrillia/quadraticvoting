@@ -582,6 +582,17 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
       traceError "E125"
       -- }}}
   -- }}}
+
+
+data SortedInputs = SortedInputs
+  { siPrev :: TxInInfo
+  , siNext :: TxInInfo
+  }
+
+
+fromListPlacement :: ListPlacement -> [TxInInfo] -> SortedInputs
+fromListPlacement lp inputs = undefined -- TODO
+
 -- }}}
 
 

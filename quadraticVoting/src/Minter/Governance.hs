@@ -133,9 +133,9 @@ mkQVFPolicy pkh oref r ctx =
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            o0 : o1 : os         -> validateTwoOutputs o0 o1 os
-            _ : o0 : o1 : os     -> validateTwoOutputs o0 o1 os
-            _ : _ : o0 : o1 : os -> validateTwoOutputs o0 o1 os
+            o0 : o1 : os         -> validateOutputs o0 o1 os
+            _ : o0 : o1 : os     -> validateOutputs o0 o1 os
+            _ : _ : o0 : o1 : os -> validateOutputs o0 o1 os
             _                    -> traceError "E010"
           -- }}}
       in
@@ -233,7 +233,7 @@ qvfPolicy pkh oref =
 -- | Since the deadline UTxO and all the multi-donation UTxOs must carry the
 --   same value, this function helps making this check a bit more convenient.
 deadlineOrMultiDonValueIsValid :: TxOut -> Bool
-deadlineOrMultiDonValueIsValid o =
+deadlineOrMultiDonValueIsValid =
   -- {{{
   utxoHasOnlyXWithLovelaces ownSym qvfTokenName deadlineAndMultiDonLovelaces
   -- }}}
@@ -241,7 +241,7 @@ deadlineOrMultiDonValueIsValid o =
 
 {-# INLINABLE burnMultiDonUTxOs #-}
 -- | Goes over the inputs, makes sure the deadline has passed, and returns the
---   valid updated datum to be attached to the output deadlien UTxO, and the
+--   valid updated datum to be attached to the output deadline UTxO, and the
 --   number of assets that must be burnt.
 burnMultiDonUTxOs :: [TxInInfo] -> (QVFDatum, Integer)
 burnMultiDonUTxOs inputs =
