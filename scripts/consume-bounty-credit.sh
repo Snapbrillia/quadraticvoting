@@ -14,7 +14,7 @@ fi
 consumeAmount=$1
 projectWalletAddress=$2
 
-projectTokenName=$(remove_quotes $(cat $registeredProjectsFile | jq ". [] | select(.address == \"$projectWalletAddress\") | .tn"))
+projectTokenName=$(cat $registeredProjectsFile | jq ". [] | select(.address == \"$projectWalletAddress\") | .tn")
 differenceBetweenSlots=$(get_slot_difference_2 $keyHolder $projectTokenName)
 
 if [ $differenceBetweenSlots -lt 100 ]; then
@@ -28,12 +28,12 @@ else
   deadlineSlot=$(cat $deadlineSlotFile)
 
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
-  projectUTxO=$(remove_quotes $(echo $projectUTxOObj | jq -c .utxo))
+  projectUTxO=$(echo $projectUTxOObj | jq -r .utxo)
   projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
-  projectAsset=$(remove_quotes $(echo $projectUTxOObj | jq -c .asset))
+  projectAsset=$(echo $projectUTxOObj | jq -r .asset)
   echo "$projectCurrDatum" > $currentDatumFile
 
-  projectLovelaceAmount=$(remove_quotes $(echo $projectUTxOObj | jq -c .lovelace))
+  projectLovelaceAmount=$(echo $projectUTxOObj | jq -c .lovelace)
   returnLovelaceAmount=$(expr $projectLovelaceAmount - $consumeAmount)
   returnedUTxO="$qvfAddress + $returnLovelaceAmount lovelace + 1 $projectAsset"
   txInUTxO=$(get_first_utxo_of $keyHolder)
