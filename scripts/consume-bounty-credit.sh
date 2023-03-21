@@ -63,5 +63,4 @@ else
   transactionHash=$($cli transaction txid --tx-file $txSigned)
   echo "$transactionHash"
   store_current_slot_2 $keyHolder $projectTokenName
-  
 fi
