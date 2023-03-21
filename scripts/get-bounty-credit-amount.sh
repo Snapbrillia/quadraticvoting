@@ -20,6 +20,7 @@ if [ -z "$projectTokenName" ]; then
 else 
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
   projectLovelaceAmount=$(echo $projectUTxOObj | jq -r .lovelace)
-  echo $projectLovelaceAmount
+  bountyCredit=$(expr $projectLovelaceAmount - $halfOfTheRegistrationFee)
+  echo $bountyCredit
 fi
 
