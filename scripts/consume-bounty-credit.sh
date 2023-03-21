@@ -29,7 +29,7 @@ else
 
   projectUTxOObj="$(get_projects_state_utxo $projectTokenName)"
   projectUTxO=$(echo $projectUTxOObj | jq -r .utxo)
-  projectCurrDatum="$(echo $projectUTxOObj | jq -r .datum)"
+  projectCurrDatum="$(echo $projectUTxOObj | jq -c .datum)"
   projectAsset=$(echo $projectUTxOObj | jq -r .asset)
   echo "$projectCurrDatum" > $currentDatumFile
 
