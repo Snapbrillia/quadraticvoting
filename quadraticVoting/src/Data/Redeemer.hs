@@ -59,8 +59,8 @@ data QVFRedeemer
   | RegisterProject
   | Contribute             Integer
   | DonateToProject
-  | IncreaseDonation       Integer
-  | ResolveFreeDonation    ListPlacement
+  | IncreaseDonation       BuiltinByteString Integer
+  | ResolveFreeDonation    BuiltinByteString ListPlacement
   | DonateToProjects
   | FoldDonations
   | AccumulatePrizeWeights

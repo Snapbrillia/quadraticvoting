@@ -42,6 +42,7 @@ import           PlutusTx.Sqrt               ( Sqrt (..)
 import qualified Prelude                     as P
 
 import           Data.Datum
+import           Data.ListPlacement
 -- }}}
 
 
@@ -584,15 +585,180 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
   -- }}}
 
 
-data SortedInputs = SortedInputs
-  { siPrev :: TxInInfo
-  , siNext :: TxInInfo
-  }
-
-
-fromListPlacement :: ListPlacement -> [TxInInfo] -> SortedInputs
-fromListPlacement lp inputs = undefined -- TODO
-
+-- | Depending on the given `ListPlacement`, this function traverses the inputs
+--   expecting different sets of input UTxOs. If the governance symbol is
+--   provided, resolution of a free donation is implied.
+{-# INLINABLE sortedInputsFromListPlacement #-}
+sortedInputsFromListPlacement :: Maybe CurrencySymbol
+                              -> CurrencySymbol
+                              -> CurrencySymbol
+                              -> TokenName
+                              -> ListPlacement
+                              -> [TxInInfo]
+                              -> SortedInputs
+sortedInputsFromListPlacement mGovSym projSym donSym projTN lp inputs =
+  -- {{{
+  let
+    isGov :: CurrencySymbol -> TxInInfo -> Maybe TxOut
+    isGov govSym TxInInfo{txInInfoResolved = o}    =
+      -- {{{
+      if utxoHasOnlyX govSym qvfTokenName o then
+        Just o
+      else
+        Nothing
+      -- }}}
+    isProj :: TxInInfo -> Maybe TxOut
+    isProj TxInInfo{txInInfoResolved = o}          =
+      -- {{{
+      if utxoHasOnlyX projSym projTN o then
+        Just o
+      else
+        Nothing
+      -- }}}
+    isDon :: TxInInfo -> Maybe TxOut
+    isDon TxInInfo{txInInfoResolved = o}           =
+      -- {{{
+      if utxoHasOnlyX donSym projTN o then
+        Just o
+      else
+        Nothing
+      -- }}}
+    lookForTwo :: Maybe CurrencySymbol
+               -> (TxInInfo -> Maybe TxOut)
+               -> (TxInInfo -> Maybe TxOut)
+               -> (QVFDatum -> QVFDatum -> Ordering) -- ^ A comparison function to help with sorting of the found UTxOs. `EQ` is equivalent to failure.
+               -> (Maybe TxOut, Maybe TxOut, Maybe TxOut, Maybe TxOut)
+    lookForTwo mGovSym lCheck rCheck compareDatums =
+      -- {{{
+      let
+        go (i : is) (mL, mR, mGovElem, mFreeDonElem) =
+          let
+            (govElem, fdElem) =
+              -- {{{
+              case (mGovSym, mGovElem, mFreeDonElem) of
+                (Nothing, _      , _      ) -> (Nothing   , Nothing     )
+                (Just gs, Nothing, Nothing) -> (isGov gs i, isDon i     )
+                (Just gs, Just _ , Nothing) -> (mGovElem  , isDon i     )
+                (Just gs, Nothing, Just _ ) -> (isGov gs i, mFreeDonElem)
+                (Just gs, Just _ , Just _ ) -> (mGovElem  , mFreeDonElem)
+              -- }}}
+          in
+          case (mL, mR) of
+            (Nothing, Nothing) -> go is (lCheck i, rCheck i, govElem, fdElem)
+            (l      , Nothing) -> go is (l       , rCheck i, govElem, fdElem)
+            (Nothing, r      ) -> go is (lCheck i, r       , govElem, fdElem)
+            (l      , r      ) ->
+              -- {{{
+              let
+                lD = getInlineDatum $ txInInfoResolved l
+                rD = getInlineDatum $ txInInfoResolved r
+              in
+              case compareDatums lD rD of
+                LT -> (l      , r      , govElem, fdElem)
+                GT -> (r      , l      , govElem, fdElem)
+                EQ -> (Nothing, Nothing, govElem, fdElem) -- ^ Reverting back to @Nothing@ to signal failure.
+              -- }}}
+      in
+      go inputs (Nothing, Nothing, Nothing, Nothing)
+      -- }}}
+    compProjAndDon :: QVFDatum -> QVFDatum -> Ordering
+    -- {{{
+    compProjAndDon (ProjectDonations (Just pkh)) (LinkedDonation pkh' _) =
+      if pkh == pkh' then LT else EQ
+    compProjAndDon _                             _                       = EQ
+    -- }}}
+    compTwoDons :: QVFDatum -> QVFDatum -> Ordering
+    -- {{{
+    compTwoDons
+      (LinkedDonation pkh0  (Just pkh1 ))
+      (LinkedDonation pkh0' (Just pkh1')) =
+      if pkh1 == pkh0' then LT else if pkh1' == pkh0 then GT else EQ
+    compTwoDons
+      (LinkedDonation pkh0  Nothing     )
+      (LinkedDonation pkh0' (Just pkh1')) =
+      if pkh1' == pkh0 then GT else EQ
+    compTwoDons
+      (LinkedDonation pkh0  (Just pkh1 ))
+      (LinkedDonation pkh0' Nothing     ) =
+      if pkh1 == pkh0' then LT else EQ
+    compTwoDons _ _                       =
+      EQ
+    -- }}}
+  in
+  case (lp, mGovSym) of
+    (First  , Nothing) ->
+      -- {{{
+      case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
+        [projIn] ->
+          SortedForFirst Nothing $ txInInfoResolved projIn
+        _        ->
+          SortedFailed
+      -- }}}
+    (Prepend, Nothing) ->
+      -- {{{
+      case lookForTwo Nothing isProj isDon compProjAndDon of
+        (Just p, Just d, _, _) ->
+          SortedForPrepend Nothing p d
+        _                      ->
+          SortedFailed
+      -- }}}
+    (Insert , Nothing) ->
+      -- {{{
+      case lookForTwo Nothing isDon isDon compTwoDons of
+        (Just d, Just d', _, _) ->
+          SortedForInsert Nothing d d'
+        _                       ->
+          SortedFailed
+      -- }}}
+    (Append , Nothing) ->
+      -- {{{
+      case filter (utxoHasOnlyX donSym projTN . txInInfoResolved) inputs of
+        [donIn] ->
+          SortedForAppend Nothing $ txInInfoResolved donIn
+        _       ->
+          SortedFailed
+      -- }}}
+    (First  , _      ) ->
+      -- {{{
+      let
+        dCompFn (ProjectDonations Nothing) _ = LT          
+        dCompFn _                          _ = EQ
+      in
+      case lookForTwo mGovSym isProj (const Nothing) dCompFn of
+        (Just p, Nothing, Just g, Just f) ->
+          SortedForFirst (Just (g, f)) p
+        _                                 ->
+          SortedFailed
+      -- }}}
+    (Prepend, _      ) ->
+      -- {{{
+      case lookForTwo mGovSym isProj isDon compProjAndDon of
+        (Just p, Just d, Just g, Just f) ->
+          SortedForPrepend (Just (g, f)) p d
+        _                                ->
+          SortedFailed
+      -- }}}
+    (Insert , _      ) ->
+      -- {{{
+      case lookForTwo mGovSym isDon isDon compTwoDons of
+        (Just d, Just d', Just g, Just f) ->
+          SortedForInsert (Just (g, f)) d d'
+        _                                 ->
+          SortedFailed
+      -- }}}
+    (Append , _      ) ->
+      -- {{{
+      let
+        dCompFn _ (LinkedDonation _ Nothing) = LT          
+        dCompFn _                          _ = EQ
+      in
+      case lookForTwo mGovSym (const Nothing) isDon dCompFn of
+        (Nothing, Just d, Just g, Just f) ->
+          SortedForAppend (Just (g, f)) d
+        _                                 ->
+          SortedFailed
+      -- }}}
+  -- }}}
 -- }}}
 
 
