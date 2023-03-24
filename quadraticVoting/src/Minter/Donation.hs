@@ -60,7 +60,7 @@ mkDonationPolicy :: PubKeyHash
                  -> DonationRedeemer
                  -> ScriptContext
                  -> Bool
-mkDonationPolicy pkh sym action ctx =
+mkDonationPolicy pkh projSym action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -73,6 +73,21 @@ mkDonationPolicy pkh sym action ctx =
     ownSym = ownCurrencySymbol ctx
   in
   case action of
+    DonateToProject lp DonationInfo{..} ->
+      let
+        projTN       = TokenName diProjectID
+        sortedInputs =
+          sortedInputsFromListPlacement Nothing projSym ownSym projTN inputs
+      in
+      case sortedInputs of
+        SortedForFirst   Nothing projO             ->
+        SortedForPrepend Nothing projO donO        ->
+        SortedForInsert  Nothing prevDonO nextDonO ->
+        SortedForAppend  Nothing lastDonO          ->
+        _                                          ->
+          -- {{{
+          traceError "E148"
+          -- }}}
     DonateToProject DonationInfo{..} ->
       -- {{{
       let

@@ -58,7 +58,6 @@ data SortedInputs
   | SortedForInsert  (Maybe (TxOut, TxOut)) TxOut TxOut
   | SortedForAppend  (Maybe (TxOut, TxOut)) TxOut
   | SortedFailed
-  deriving (Show, Generic, FromJSON, ToJSON)
 
 PlutusTx.makeIsDataIndexed ''SortedInputs
   [ ('SortedForFirst  , 0 )
