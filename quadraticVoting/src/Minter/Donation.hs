@@ -76,6 +76,8 @@ mkDonationPolicy pkh projSym action ctx =
     DonateToProject lp DonationInfo{..} ->
       let
         projTN       = TokenName diProjectID
+
+        -- | Note the inner helper function validates the inputs' datums.
         sortedInputs =
           sortedInputsFromListPlacement Nothing projSym ownSym projTN inputs
       in
@@ -298,4 +300,105 @@ foldDonationsMap dsMap =
   in
   initW * initW
   -- }}}
+
+
+{-# INLINABLE outputsFromListPlacement #-}
+outputsFromListPlacement :: CurrencySymbol
+                         -> TokenName
+                         -> DonationInfo
+                         -> ListPlacement
+                         -> [TxOut]
+outputsFromListPlacement donSym projTN DonationInfo{..} lp =
+  let
+    mintedDonVal       =
+      makeAuthenticValue diAmount donSym projTN 1
+    projForMintedDon p =
+      p {txOutDatum = qvfDatumToInlineDatum $ ProjectDonations $ Just diDonor}
+  in
+  case lp of
+    SortedForFirst   Nothing projO             ->
+      -- {{{
+      [ projForMintedDon projO
+      , projO
+          { txOutValue = mintedDonVal
+          , txOutDatum =
+              qvfDatumToInlineDatum $ LinkedDonation diDonor Nothing
+          }
+      ]
+      -- }}}
+    SortedForPrepend Nothing projO donO        ->
+      -- {{{
+      case getInlineDatum donO of
+        LinkedDonation pkh _ ->
+          -- {{{
+          if diDonor < pkh then
+            [ projForMintedDon projO
+            , projO
+                { txOutValue = mintedDonVal
+                , txOutDatum =
+                    qvfDatumToInlineDatum $ LinkedDonation diDonor (Just pkh)
+                }
+            , donO
+            ]
+          else
+            traceError "E150"
+          -- }}}
+        _                    ->
+          -- {{{
+          -- This should never happen. Tweaking the intermediate `SortedInputs`
+          -- to prevent this impossible branch (i.e. including the datum of the
+          -- sorted UTxO within the datatype) would lead to double sources of
+          -- truth. TODO: Is there a better design?
+          traceError "E149"
+          -- }}}
+      -- }}}
+    SortedForInsert  Nothing prevDonO nextDonO ->
+      -- {{{
+      case (getInlineDatum prevDonO, getInlineDatum nextDonO) of
+        (LinkedDonation pkh0 _, LinkedDonation pkh1 _) ->
+          -- {{{
+          if diDonor > pkh0 && diDonor < pkh1 then
+            [ prevDonO
+                { txOutDatum =
+                    qvfDatumToInlineDatum $ LinkedDonation pkh0 (Just diDonor)
+                }
+            , prevDonO
+                { txOutValue = mintedDonVal
+                , txOutDatum =
+                    qvfDatumToInlineDatum $ LinkedDonation diDonor (Just pkh1)
+                }
+            , nextDonO
+            ]
+          else
+          -- }}}
+        _                                              ->
+          -- {{{
+          traceError "E151"
+          -- }}}
+      -- }}}
+    SortedForAppend  Nothing lastDonO          ->
+      -- {{{
+      case getInlineDatum lastDonO of
+        LinkedDonation pkh Nothing ->
+          -- {{{
+          if diDonor > pkh then
+            [ lastDonO
+                { txOutDatum =
+                    qvfDatumToInlineDatum $ LinkedDonation pkh (Just diDonor)
+                }
+            , lastDonO
+                { txOutValue = mintedDonVal
+                , txOutDatum =
+                    qvfDatumToInlineDatum $ LinkedDonation diDonor Nothing
+                }
+            ]
+          else
+            traceError "E152"
+          -- }}}
+        _                                              ->
+          -- {{{
+          traceError "E153"
+          -- }}}
+      -- }}}
+    _                                          ->
 -- }}}

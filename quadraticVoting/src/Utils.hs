@@ -1000,11 +1000,11 @@ decimalMultiplier = 1_000_000_000
 -- E146: Produced project UTxOs must share the same address.
 -- E147: Project owner's address has to be a payment address (script address was given).
 -- E148: Invalid inputs for adding a donation UTxO into the linked list.
--- E149: 
--- E150: 
--- E151: 
--- E152: 
--- E153: 
+-- E149: Bad `SortedInputs` encountered.
+-- E150: New donor's public key hash must be smaller than current head's.
+-- E151: Bad `SortedInputs` encountered.
+-- E152: New donor's public key hash must be bigger than the last donor.
+-- E153: Bad `SortedInputs` encountered.
 -- E154: 
 -- E155: 
 -- E156: 
