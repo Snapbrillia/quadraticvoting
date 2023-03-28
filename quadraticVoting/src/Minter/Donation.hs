@@ -73,14 +73,14 @@ mkDonationPolicy pkh projSym action ctx =
 
         -- | Note the inner helper function validates the inputs' datums.
         sortedInputs =
-          sortedInputsFromListPlacement Nothing projSym ownSym projTN inputs
+          sortedInputsFromListPlacement projSym ownSym projTN lp diDonor inputs
       in
       case sortedInputs of
-        SortedForFirst   Nothing projO             ->
-        SortedForPrepend Nothing projO donO        ->
-        SortedForInsert  Nothing prevDonO nextDonO ->
-        SortedForAppend  Nothing lastDonO          ->
-        _                                          ->
+        SortedForFirst   projO             ->
+        SortedForPrepend projO donO        ->
+        SortedForInsert  prevDonO nextDonO ->
+        SortedForAppend  lastDonO          ->
+        SortedFailed                       ->
           -- {{{
           traceError "E148"
           -- }}}
@@ -160,8 +160,6 @@ mkDonationPolicy pkh projSym action ctx =
                -- }}}
          )
       -- }}}
-    DonateToProjects dI0 dI1 dIs     ->
-      traceError "TODO."
     FoldDonations projectID          ->
       -- {{{
       let
