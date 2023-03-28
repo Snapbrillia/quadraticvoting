@@ -35,10 +35,6 @@ data DonationRedeemer
   = DonateToProject  ListPlacement DonationInfo
     -- ^ Using `ListPlacement` to help the minter decide on the proper
     --   validation logic.
-  | BurnFreeDonation
-    -- ^ For merging a free donation into an already existing donation.
-  | DonateToProjects DonationInfo DonationInfo [DonationInfo]
-    -- ^ Three arguments to enforce a minimum of 2 donations.
   | FoldDonations    BuiltinByteString
     -- ^ Project's identifier (token names).
   | Dev
@@ -46,9 +42,7 @@ data DonationRedeemer
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject , 0 )
-  , ('BurnFreeDonation, 1 )
-  , ('DonateToProjects, 2 )
-  , ('FoldDonations   , 3 )
+  , ('FoldDonations   , 1 )
   , ('Dev             , 20)
   ]
 -- }}}

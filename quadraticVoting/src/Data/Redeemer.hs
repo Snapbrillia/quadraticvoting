@@ -60,8 +60,6 @@ data QVFRedeemer
   | Contribute             Integer
   | DonateToProject
   | IncreaseDonation       BuiltinByteString Integer
-  | ResolveFreeDonation    BuiltinByteString ListPlacement
-  | DonateToProjects
   | FoldDonations
   | AccumulatePrizeWeights
   | EliminateOneProject
@@ -78,16 +76,14 @@ PlutusTx.makeIsDataIndexed ''QVFRedeemer
   , ('Contribute            , 2 )
   , ('DonateToProject       , 3 )
   , ('IncreaseDonation      , 4 )
-  , ('ResolveFreeDonation   , 5 )
-  , ('DonateToProjects      , 6 )
-  , ('FoldDonations         , 7 )
-  , ('AccumulatePrizeWeights, 8 )
-  , ('EliminateOneProject   , 9 )
-  , ('DistributePrize       , 10)
-  , ('UnlockEscrowFor       , 11)
-  , ('WithdrawBounty        , 12)
-  , ('ConcludeProject       , 13)
-  , ('ConcludeFundingRound  , 14)
+  , ('FoldDonations         , 5 )
+  , ('AccumulatePrizeWeights, 6 )
+  , ('EliminateOneProject   , 7 )
+  , ('DistributePrize       , 8 )
+  , ('UnlockEscrowFor       , 9 )
+  , ('WithdrawBounty        , 10)
+  , ('ConcludeProject       , 11)
+  , ('ConcludeFundingRound  , 12)
   , ('Dev                   , 20)
   ]
 -- }}}

@@ -813,8 +813,8 @@ sortedInputsFromListPlacement
 
 -- CONSTANTS
 -- {{{
-deadlineAndMultiDonLovelaces :: Integer
-deadlineAndMultiDonLovelaces = 1_500_000
+deadlineLovelaces :: Integer
+deadlineLovelaces = 1_500_000
 
 governanceLovelaces :: Integer
 governanceLovelaces = 5_000_000
@@ -824,13 +824,6 @@ registrationFee = 3_000_000
 
 halfOfTheRegistrationFee :: Integer
 halfOfTheRegistrationFee = 1_500_000
-
-maxMultiDonationUTxOCount :: Integer
-maxMultiDonationUTxOCount = 100
-
-maxTotalDonationCount :: Integer
-maxTotalDonationCount =
-  maxDonationInputsForPhaseOne * maxDonationInputsForPhaseTwo
 
 keyHolderFeePercentage :: Integer
 keyHolderFeePercentage = 5
@@ -852,15 +845,15 @@ decimalMultiplier = 1_000_000_000
 -- E1  : No projects found.
 -- E2  : Can not request 0 or less Lovelaces.
 -- E000: Number of minted governance assets must be exactly 2 plust the specified count of multi-donation UTxOs.
--- E001: Invalid value for at least one of the multi-donation UTxOs.
+-- E001: 
 -- E002: Exactly 2 governance tokens must be getting burnt.
 -- E003: All prizes must be sent out before concluding a funding round.
--- E004: Number of output multi-donation UTxOs must match the specified count.
+-- E004: 
 -- E005: Invalid value for the deadline UTxO.
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
 -- E008: Funding round must start with 0 registered projects.
--- E009: Datum attached to at least one of the multi-donation UTxOs is invalid
+-- E009: 
 -- E010: Invalid order of minted governance UTxOs (deadline, main, multi-donations).
 -- E011: UTxO not consumed.
 -- E012: Deadline has passed.
@@ -985,16 +978,16 @@ decimalMultiplier = 1_000_000_000
 -- E131: Project owner must receive exactly the registration fee minus the transaction fee.
 -- E132: Transaction fee is set too high.
 -- E133: The main UTxO must also be getting consumed.
--- E134: Can't exceed the maximum multi-donation count.
+-- E134: 
 -- E135: The number of outputs multi-donation UTxOs must match the specified count.
--- E136: The deadline has not passed yet.
--- E137: Invalid UTxO provided.
--- E138: Deadline input was not provided.
--- E139: Output deadline UTxO doesn't have a proper value.
--- E140: Deadline datum is not updated properly.
--- E141: Invalid outputs pattern.
+-- E136: 
+-- E137: 
+-- E138: 
+-- E139: 
+-- E140: 
+-- E141: 
 -- E142: No multi-donation UTxOs must be remaining.
--- E143: All provided multi-donation UTxOs must be burnt.
+-- E143: 
 -- E144: Both governance assets must be getting burnt. 
 -- E145: Produced project UTxOs must be sent to the same address as the governance UTxO.
 -- E146: Produced project UTxOs must share the same address.

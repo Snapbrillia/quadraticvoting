@@ -96,31 +96,17 @@ PlutusTx.unstableMakeIsData ''EliminationInfo
 data QVFDatum
   -- {{{
   -- {{{ GOVERNANCE UTXOs (YELLOW) 
-  = ConfigDatum
+  = DeadlineDatum
     -- ^ The datum attached to a reference UTxO for reading the deadline of the
-    --   fund, and keeping track of remaining multi-donation UTxOs to be burnt
-    --   at the conclusion phase of a funding round.
+    --   fund.
       -- {{{
-      POSIXTime -- The deadline.
-      Integer   -- Number of multi-donation UTxOs left to burn (used at the conclusion stage).
+      POSIXTime -- The deadline in milliseconds.
       -- }}}
 
   | RegisteredProjectsCount 
     -- ^ The "main" datum, keeping a record of the number of registered projects.
       -- {{{
       Integer
-      -- }}}
-
-  | EmptyMultiDonationRecord
-    -- ^ Empty datum to be used for taking donations from a single donor to
-    --   multiple projects.
-
-  | UsedMultiDonationRecord
-    -- ^ Datum used to keep track of donations to multiple projects from one
-    --   donor.
-      -- {{{
-      PubKeyHash          -- Public key hash of the donor.
-      [BuiltinByteString] -- List of recipient project token names.
       -- }}}
 
   | PrizeWeightAccumulation
@@ -188,13 +174,7 @@ data QVFDatum
   -- }}}
 
   -- {{{ DONATION UTXOs (GREEN) 
-  | FreeDonation
-    -- ^ For a single donation UTxO, minted from a multi-donation transaction.
-      -- {{{
-      PubKeyHash -- ^ Donor's public key hash.
-      -- }}}
-
-  | LinkedDonation
+  | Donation
     -- ^ A donation UTxO (an element of the on-chain map).
       -- {{{
       PubKeyHash         -- Donor's public key hash.
@@ -207,10 +187,8 @@ data QVFDatum
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   -- {{{
-  ConfigDatum pt0 m0               == ConfigDatum pt1 m1               = pt0 == pt1 && m0 == m1
-  RegisteredProjectsCount c0       == RegisteredProjectsCount c1       = c0  == c1
-  EmptyMultiDonationRecord         == EmptyMultiDonationRecord         = True
-  UsedMultiDonationRecord p0 ts0   == UsedMultiDonationRecord p1 ts1   = p0 == p1 && ts0 == ts1
+  DeadlineDatum d0                 == DeadlineDatum d1                 = d0 == d1
+  RegisteredProjectsCount c0       == RegisteredProjectsCount c1       = c0 == c1
   PrizeWeightAccumulation t0 w0    == PrizeWeightAccumulation t1 w1    = t0 == t1 && w0 == w1
   ProjectEliminationProgress m0 w0 == ProjectEliminationProgress m1 w1 = m0 == m1 && w0 == w1
   DistributionProgress m0 p0 w0    == DistributionProgress m1 p1 w1    = m0 == m1 && p0 == p1 && w0 == w1
@@ -221,28 +199,24 @@ instance Eq QVFDatum where
   PrizeWeight w0 b0                == PrizeWeight w1 b1                = w0 == w1 && b0 == b1
   Escrow m0                        == Escrow m1                        = m0 == m1
   --
-  FreeDonation p0                  == FreeDonation p1                  = p0 == p1
-  LinkedDonation p0 mP0            == LinkedDonation p1 mP1            = p0 == p1 && mP0 == mP1
+  Donation p0 mP0                  == Donation p1 mP1                  = p0 == p1 && mP0 == mP1
   --
   _                                == _                                = False
   -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('ConfigDatum               , 0 )
+  [ ('DeadlineDatum             , 0 )
   , ('RegisteredProjectsCount   , 1 )
-  , ('EmptyMultiDonationRecord  , 2 )
-  , ('UsedMultiDonationRecord   , 3 )
-  , ('PrizeWeightAccumulation   , 4 )
-  , ('ProjectEliminationProgress, 5 )
-  , ('DistributionProgress      , 6 )
+  , ('PrizeWeightAccumulation   , 2 )
+  , ('ProjectEliminationProgress, 3 )
+  , ('DistributionProgress      , 4 )
   --
-  , ('ProjectInfo               , 7 )
-  , ('ProjectDonations          , 8 )
-  , ('DonationFoldingProgress   , 9 )
-  , ('PrizeWeight               , 10)
-  , ('Escrow                    , 11)
+  , ('ProjectInfo               , 5 )
+  , ('ProjectDonations          , 6 )
+  , ('DonationFoldingProgress   , 7 )
+  , ('PrizeWeight               , 8 )
+  , ('Escrow                    , 9 )
   --
-  , ('FreeDonation              , 12)
-  , ('LinkedDonation            , 13)
+  , ('Donation                  , 10)
   ]
 -- }}}
