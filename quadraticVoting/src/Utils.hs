@@ -583,152 +583,6 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
       traceError "E125"
       -- }}}
   -- }}}
-
-
--- | Depending on the given `ListPlacement`, this function traverses the inputs
---   expecting different sets of input UTxOs. If the governance symbol is
---   provided, resolution of a free donation is implied.
---
---   Fully validates the inputs.
-{-# INLINABLE sortedInputsFromListPlacement #-}
-sortedInputsFromListPlacement :: CurrencySymbol
-                              -> CurrencySymbol
-                              -> TokenName
-                              -> ListPlacement
-                              -> PubKeyHash
-                              -> [TxInInfo]
-                              -> SortedInputs
-sortedInputsFromListPlacement projSym donSym projTN lp newDonor inputs =
-  -- {{{
-  let
-    isDon :: TxInInfo -> Maybe TxOut
-    isDon TxInInfo{txInInfoResolved = o}   =
-      -- {{{
-      if utxoHasOnlyX donSym projTN o then
-        Just o
-      else
-        Nothing
-      -- }}}
-
-    lookForTwo :: (TxInInfo -> Maybe TxOut)
-               -> (TxInInfo -> Maybe TxOut)
-               -> (QVFDatum -> QVFDatum -> Ordering) -- ^ A comparison function to help with sorting of the found UTxOs. `EQ` is equivalent to failure.
-               -> (Maybe TxOut, Maybe TxOut)
-    lookForTwo lCheck rCheck compareDatums =
-      -- {{{
-      let
-        go (i : is) acc =
-          case acc of
-            (Nothing, Nothing) -> go is (lCheck i, rCheck i)
-            (l      , Nothing) -> go is (l       , rCheck i)
-            (Nothing, r      ) -> go is (lCheck i, r       )
-            (l      , r      ) ->
-              -- {{{
-              let
-                lD = getInlineDatum $ txInInfoResolved l
-                rD = getInlineDatum $ txInInfoResolved r
-              in
-              case compareDatums lD rD of
-                LT -> (l      , r      )
-                GT -> (r      , l      )
-                EQ -> (Nothing, Nothing) -- ^ Reverting back to @Nothing@ to signal failure.
-              -- }}}
-      in
-      go inputs (Nothing, Nothing)
-      -- }}}
-  in
-  case lp of
-    First   ->
-      -- {{{
-      case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = projO}] ->
-          -- {{{
-          case getInlineDatum projO of
-            ProjectDonations Nothing -> SortedForFirst projO
-            _                        -> SortedFailed
-          -- }}}
-        _                                    ->
-          -- {{{
-          SortedFailed
-          -- }}}
-      -- }}}
-    Prepend ->
-      -- {{{
-      let
-        isProj :: TxInInfo -> Maybe TxOut
-        isProj TxInInfo{txInInfoResolved = o} =
-          -- {{{
-          if utxoHasOnlyX projSym projTN o then
-            Just o
-          else
-            Nothing
-          -- }}}
-
-        compProjAndDon :: QVFDatum -> QVFDatum -> Ordering
-        -- {{{
-        compProjAndDon (ProjectDonations (Just pkh)) (Donation pkh' _) =
-          if pkh == pkh' && newDonor < pkh then LT else EQ
-        compProjAndDon _                             _                 = EQ
-        -- }}}
-      in
-      case lookForTwo isProj isDon compProjAndDon of
-        (Just p, Just d) ->
-          SortedForPrepend p d
-        _                ->
-          SortedFailed
-      -- }}}
-    Insert  ->
-      -- {{{
-      let
-        compTwoDons :: QVFDatum -> QVFDatum -> Ordering
-        -- {{{
-        compTwoDons
-          (Donation pkh0  (Just pkh1 ))
-          (Donation pkh0' (Just pkh1')) =
-          | pkh1  == pkh0' && newDonor > pkh0  && newDonor < pkh0' = LT
-          | pkh1' == pkh0  && newDonor > pkh0' && newDonor < pkh0  = GT
-          | otherwise                                              = EQ
-        compTwoDons
-          (Donation pkh0  (Just pkh1 ))
-          (Donation pkh0' Nothing     ) =
-          if pkh1  == pkh0' && newDonor > pkh0  && newDonor < pkh0' then
-            LT
-          else
-            EQ
-        compTwoDons
-          (Donation pkh0  Nothing     )
-          (Donation pkh0' (Just pkh1')) =
-          if pkh1' == pkh0  && newDonor > pkh0' && newDonor < pkh0  then
-            GT
-          else
-            EQ
-        compTwoDons _ _                 =
-          EQ
-        -- }}}
-      in
-      case lookForTwo isDon isDon compTwoDons of
-        (Just d, Just d') ->
-          SortedForInsert d d'
-        _                 ->
-          SortedFailed
-      -- }}}
-    Append  ->
-      -- {{{
-      case filter (utxoHasOnlyX donSym projTN . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = donO}] ->
-          -- {{{
-          case getInlineDatum donO of
-            Donation pkh Nothing ->
-              if newDonor > pkh then SortedForAppend donO else SortedFailed
-            _                    ->
-              SortedFailed
-          -- }}}
-        _                                   ->
-          -- {{{
-          SortedFailed
-          -- }}}
-      -- }}}
-  -- }}}
 -- }}}
 
 
@@ -799,9 +653,9 @@ decimalMultiplier = 1_000_000_000
 -- E031: Invalid value for the donation UTxO.
 -- E032: Produced donation UTxO must carry donor's public key hash as an inlinde datum.
 -- E033: Donation amount is too small.
--- E034: This project has reached the maximum number of donations.
+-- E034: 
 -- E035: Donor's signature is required.
--- E036: There should be exactly 1 project, and 1 donation UTxOs produced.
+-- E036: 
 -- E037: Invalid updated value for the project UTxO.
 -- E038: Invalid updated value for the project UTxO.
 -- E039: Folded UTxO must be produced at its originating address.
@@ -899,26 +753,26 @@ decimalMultiplier = 1_000_000_000
 -- E131: Project owner must receive exactly the registration fee minus the transaction fee.
 -- E132: Transaction fee is set too high.
 -- E133: The main UTxO must also be getting consumed.
--- E134: 
--- E135: The number of outputs multi-donation UTxOs must match the specified count.
--- E136: 
--- E137: 
--- E138: 
--- E139: 
--- E140: 
--- E141: 
--- E142: 
--- E143: 
+-- E134: Invalid datum attached to the provided project UTxO.
+-- E135: Exactly one UTxO of the specified project is expected in the inputs.
+-- E136: Couldn't find proper inputs for prepending the new donation.
+-- E137: Couldn't find proper inputs for inserting the new donation.
+-- E138: New donor's public key hash must be bigger than the last donor.
+-- E139: The datum attached to the last donation's UTxO is not valid.
+-- E140: Exactly one donation UTxO for the specified target project is expected.
+-- E141: Expected the change output at index 0, while the rest of the outputs should've matched according to the specified ListPlacement value.
+-- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to the specified ListPlacement value.
+-- E143: Expected no change outputs so that all the outputs would match according to the specified ListPlacement value.
 -- E144: Both governance assets must be getting burnt. 
 -- E145: Produced project UTxOs must be sent to the same address as the governance UTxO.
 -- E146: Produced project UTxOs must share the same address.
 -- E147: Project owner's address has to be a payment address (script address was given).
--- E148: Invalid inputs for adding a donation UTxO into the linked list.
--- E149: Bad `SortedInputs` encountered.
+-- E148: 
+-- E149: 
 -- E150: New donor's public key hash must be smaller than current head's.
--- E151: Bad `SortedInputs` encountered.
--- E152: New donor's public key hash must be bigger than the last donor.
--- E153: Bad `SortedInputs` encountered.
+-- E151: 
+-- E152: 
+-- E153: 
 -- E154: 
 -- E155: 
 -- E156: 
