@@ -226,12 +226,12 @@ foldDonationsMap dsMap =
   -- }}}
 
 
--- | Depending on the given `ListPlacement`, this function traverses the inputs
---   expecting different sets of input UTxOs. If the governance symbol is
---   provided, resolution of a free donation is implied.
+-- | Depending on the prepend flag, this function filters the inputs to find
+--   either a single project UTxO or donation UTxO such than the new donation
+--   can sit in front of it.
 --
---   Fully validates the inputs.
-{-# INLINABLE listPlacementToOutputs #-}
+--   Fully validates the input.
+{-# INLINABLE donationOutputs #-}
 donationOutputs :: CurrencySymbol
                 -> CurrencySymbol
                 -> Bool

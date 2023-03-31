@@ -369,9 +369,9 @@ utxoHasOnlyX :: CurrencySymbol
              -> TokenName
              -> TxOut
              -> Bool
-utxoHasOnlyX sym tn o =
+utxoHasOnlyX sym tn TxOut{txOutValue = v} =
   -- {{{
-  valueOf (txOutValue o) sym tn == 1
+  valueOf v sym tn == 1 && length (flattenValue v) == 2
   -- }}}
 
 
