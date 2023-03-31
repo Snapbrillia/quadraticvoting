@@ -48,7 +48,6 @@ import           PlutusTx.Prelude       ( Bool(False)
                                         , Eq(..)
                                         , (&&) )
 import           Data.DonationInfo
-import           Data.ListPlacement
 -- }}}
 
 

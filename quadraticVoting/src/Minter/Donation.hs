@@ -25,16 +25,15 @@ import           PlutusTx.Prelude
 
 import           Data.Datum
 import           Data.DonationInfo
-import           Data.ListPlacement
 import           Utils
 
 
 -- REDEEMER
 -- {{{
 data DonationRedeemer
-  = DonateToProject  ListPlacement DonationInfo
-    -- ^ Using `ListPlacement` to help the minter decide on the proper
-    --   validation logic.
+  = DonateToProject  Bool DonationInfo
+    -- ^ The `Bool` value indicates whether the new donation should go at the
+    --   head of the list or not.
   | FoldDonations    BuiltinByteString
     -- ^ Project's identifier (token names).
   | Dev
@@ -67,10 +66,10 @@ mkDonationPolicy pkh projSym action ctx =
     ownSym = ownCurrencySymbol ctx
   in
   case action of
-    DonateToProject lp di ->
+    DonateToProject prepend di ->
       -- {{{
       let
-        expectedOutputs = listPlacementToOutputs projSym ownSym lp di inputs
+        expectedOutputs = donationOutputs projSym ownSym prepend di inputs
       in
          traceIfFalse
            "E033"
@@ -93,7 +92,7 @@ mkDonationPolicy pkh projSym action ctx =
                -- }}}
          )
       -- }}}
-    FoldDonations projectID          ->
+    FoldDonations projectID    ->
       -- {{{
       let
         tn :: TokenName
@@ -171,7 +170,7 @@ mkDonationPolicy pkh projSym action ctx =
           -- }}}
       -- }}}
     -- TODO: REMOVE.
-    Dev                              ->
+    Dev                        ->
       traceIfFalse "E045" $ txSignedBy info pkh
   -- }}}
 
@@ -233,210 +232,93 @@ foldDonationsMap dsMap =
 --
 --   Fully validates the inputs.
 {-# INLINABLE listPlacementToOutputs #-}
-listPlacementToOutputs :: CurrencySymbol
-                       -> CurrencySymbol
-                       -> ListPlacement
-                       -> DonationInfo
-                       -> [TxInInfo]
-                       -> [TxOut]
-listPlacementToOutputs projSym donSym lp DonationInfo{..} inputs =
+donationOutputs :: CurrencySymbol
+                -> CurrencySymbol
+                -> Bool
+                -> DonationInfo
+                -> [TxInInfo]
+                -> [TxOut]
+donationOutputs projSym donSym prepend DonationInfo{..} inputs =
   -- {{{
   let
-    projTN :: TokenName
-    projTN                                 = TokenName diProjectID
+    tn :: TokenName
+    tn                     = TokenName diProjectID
 
-    isDon :: TxInInfo -> Maybe TxOut
-    isDon TxInInfo{txInInfoResolved = o}   =
+    makeDonUTxO :: Address -> Maybe PubKeyHash -> TxOut
+    makeDonUTxO addr mNext =
       -- {{{
-      if utxoHasOnlyX donSym projTN o then
-        Just o
-      else
-        Nothing
+      TxOut
+        { txOutAddress         = addr
+        , txOutValue           = makeAuthenticValue diAmount donSym tn 1
+        , txOutDatum           = Donation diDonor mNext
+        , txOutReferenceScript = Nothing
+        }
       -- }}}
-
-    lookForTwo :: (TxInInfo -> Maybe TxOut)
-               -> (TxInInfo -> Maybe TxOut)
-               -> (QVFDatum -> QVFDatum -> Ordering) -- ^ A comparison function to help with sorting of the found UTxOs. `EQ` is equivalent to failure.
-               -> Maybe (TxOut, QVFDatum, TxOut, QVFDatum)
-    lookForTwo lCheck rCheck compareDatums =
-      -- {{{
-      let
-        go (i : is) acc =
-          case acc of
-            (Nothing, Nothing) -> go is (lCheck i, rCheck i)
-            (l      , Nothing) -> go is (l       , rCheck i)
-            (Nothing, r      ) -> go is (lCheck i, r       )
-            (Just l , Just r ) ->
-              -- {{{
-              let
-                lO = txInInfoResolved l
-                rO = txInInfoResolved r
-                lD = getInlineDatum lO
-                rD = getInlineDatum rO
-              in
-              case compareDatums lD rD of
-                LT -> Just (lO, lD, rO, rD)
-                GT -> Just (rO, rD, lO, lD)
-                EQ -> Nothing -- ^ Reverting back to @Nothing@ to signal failure.
-              -- }}}
-      in
-      go inputs (Nothing, Nothing)
-      -- }}}
-
-    mintedDonVal :: Value
-    mintedDonVal                           =
-      makeAuthenticValue diAmount donSym projTN 1
-
-    projForMintedDon :: TxOut -> TxOut
-    projForMintedDon p                     =
-      p {txOutDatum = qvfDatumToInlineDatum $ ProjectDonations $ Just diDonor}
   in
-  case lp of
-    First   ->
-      -- {{{
-      case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = projO}] ->
-          -- {{{
-          case getInlineDatum projO of
-            ProjectDonations Nothing ->
-              -- {{{
-              [ projForMintedDon projO
-              , projO
-                  { txOutValue = mintedDonVal
-                  , txOutDatum =
-                      qvfDatumToInlineDatum $ Donation diDonor Nothing
-                  }
-              ]
-              -- }}}
-            _                        ->
-              -- {{{
-              traceError "E134"
-              -- }}}
-          -- }}}
-        _                                    ->
-          -- {{{
-          traceError "E135"
-          -- }}}
-      -- }}}
-    Prepend ->
-      -- {{{
-      let
-        isProj :: TxInInfo -> Maybe TxOut
-        isProj TxInInfo{txInInfoResolved = o} =
-          -- {{{
-          if utxoHasOnlyX projSym projTN o then
-            Just o
-          else
-            Nothing
-          -- }}}
-
-        compProjAndDon :: QVFDatum -> QVFDatum -> Ordering
+  if prepend then
+    -- {{{
+    case filter (utxoHasOnlyX projSym tn . txInInfoResolved) inputs of
+      [TxInInfo{txInInfoResolved = projUTxO}] ->
         -- {{{
-        compProjAndDon (ProjectDonations (Just pkh)) (Donation pkh' _) =
-          if pkh == pkh' && diDonor < pkh then LT else EQ
-        compProjAndDon _                             _                 = EQ
-        -- }}}
-      in
-      case lookForTwo isProj isDon compProjAndDon of
-        Just (projO, _, donO, Donation pkh) ->
-          -- {{{
-          if diDonor < pkh then
-            [ projForMintedDon projO
-            , donO
-                { txOutValue = mintedDonVal
-                , txOutDatum =
-                    qvfDatumToInlineDatum $ Donation diDonor (Just pkh)
-                }
-            , donO
+        let
+          updateProj :: TxOut -> TxOut
+          updateProj p =
+            p { txOutDatum =
+                  qvfDatumToInlineDatum $ ProjectDonations $ Just diDonor
+              }
+        in
+        case getInlineDatum projUTxO of
+          ProjectDonations Nothing            ->
+            [ updateProj projUTxO
+            , makeDonUTxO (txOutAddress projUTxO) Nothing
             ]
-          else
-            traceError "E150"
-          -- }}}
-        _                                   ->
-          -- {{{
-          traceError "E136"
-          -- }}}
-      -- }}}
-    Insert  ->
-      -- {{{
-      let
-        compTwoDons :: QVFDatum -> QVFDatum -> Ordering
-        -- {{{
-        compTwoDons
-          (Donation pkh0  (Just pkh1 ))
-          (Donation pkh0' (Just pkh1')) =
-          | pkh1  == pkh0' && diDonor > pkh0  && diDonor < pkh0' = LT
-          | pkh1' == pkh0  && diDonor > pkh0' && diDonor < pkh0  = GT
-          | otherwise                                            = EQ
-        compTwoDons
-          (Donation pkh0  (Just pkh1 ))
-          (Donation pkh0' Nothing     ) =
-          if pkh1  == pkh0' && diDonor > pkh0  && diDonor < pkh0' then
-            LT
-          else
-            EQ
-        compTwoDons
-          (Donation pkh0  Nothing     )
-          (Donation pkh0' (Just pkh1')) =
-          if pkh1' == pkh0  && diDonor > pkh0' && diDonor < pkh0  then
-            GT
-          else
-            EQ
-        compTwoDons _ _                 =
-          EQ
+          ProjectDonations m@(Just nextDonor) ->
+            if diDonor < nextDonor then
+              [ updateProj projUTxO
+              , makeDonUTxO (txOutAddress projUTxO) m
+              ]
+            else
+              traceError "E150"
+          _                                   ->
+            traceError "E134"
         -- }}}
-      in
-      case lookForTwo isDon isDon compTwoDons of
-        Just (prevDonO, Donation pkh0 _, nextDonO, Donation pkh1 _) ->
-          -- {{{
-          [ prevDonO
-              { txOutDatum =
-                  qvfDatumToInlineDatum $ Donation pkh0 (Just diDonor)
-              }
-          , prevDonO
-              { txOutValue = mintedDonVal
-              , txOutDatum =
-                  qvfDatumToInlineDatum $ Donation diDonor (Just pkh1)
-              }
-          , nextDonO
-          ]
-          -- }}}
-        _                                                           ->
-          -- {{{
-          traceError "E137"
-          -- }}}
-      -- }}}
-    Append  ->
-      -- {{{
-      case filter (utxoHasOnlyX donSym projTN . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = lastDonO}] ->
-          -- {{{
-          case getInlineDatum lastDonO of
-            Donation pkh Nothing ->
-              -- {{{
-              if diDonor > pkh then
-                [ lastDonO
-                    { txOutDatum =
-                        qvfDatumToInlineDatum $ Donation pkh (Just diDonor)
-                    }
-                , lastDonO
-                    { txOutValue = mintedDonVal
-                    , txOutDatum =
-                        qvfDatumToInlineDatum $ Donation diDonor Nothing
-                    }
-                ]
-              else
-                traceError "E138"
-              -- }}}
-            _                    ->
-              -- {{{
-              traceError "E139"
-              -- }}}
-          -- }}}
-        _                                       ->
-          -- {{{
-          traceError "E140"
-          -- }}}
-      -- }}}
+      _                                       ->
+        -- {{{
+        traceError "E135"
+        -- }}}
+    -- }}}
+  else
+    -- {{{
+    case filter (utxoHasOnlyX donSym tn . txInInfoResolved) inputs of
+      [TxInInfo{txInInfoResolved = donUTxO}] ->
+        -- {{{
+        let
+          updateDonWith :: QVFDatum -> TxOut -> TxOut
+          updateDonWith newDatum d =
+            d {txOutDatum = qvfDatumToInlineDatum newDatum}
+        in
+        case getInlineDatum donUTxO of
+          Donation pkh Nothing            ->
+            if diDonor > pkh then
+              [ updateDonWith (Donation pkh $ Just diDonor) donUTxO
+              , makeDonUTxO (txOutAddress donUTxO) Nothing
+              ]
+            else
+              traceError "E137"
+          Donation pkh m@(Just nextDonor) ->
+            if diDonor > pkh && diDonor < nextDonor then
+              [ updateDonWith (Donation pkh $ Just diDonor) donUTxO
+              , makeDonUTxO (txOutAddress donUTxO) m
+              ]
+            else
+              traceError "E138"
+          _                               ->
+            traceError "E139"
+        -- }}}
+      _                                      ->
+        -- {{{
+        traceError "E140"
+        -- }}}
+    -- }}}
   -- }}}
 -- }}}

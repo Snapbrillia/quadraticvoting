@@ -42,7 +42,6 @@ import           PlutusTx.Sqrt               ( Sqrt (..)
 import qualified Prelude                     as P
 
 import           Data.Datum
-import           Data.ListPlacement
 -- }}}
 
 
@@ -755,14 +754,14 @@ decimalMultiplier = 1_000_000_000
 -- E133: The main UTxO must also be getting consumed.
 -- E134: Invalid datum attached to the provided project UTxO.
 -- E135: Exactly one UTxO of the specified project is expected in the inputs.
--- E136: Couldn't find proper inputs for prepending the new donation.
--- E137: Couldn't find proper inputs for inserting the new donation.
--- E138: New donor's public key hash must be bigger than the last donor.
--- E139: The datum attached to the last donation's UTxO is not valid.
+-- E136: 
+-- E137: New donor's public key hash must be bigger than the last donor.
+-- E138: New donor's public key hash must be bigger than the specified donor.
+-- E139: The datum attached to the provided donation's UTxO is not valid.
 -- E140: Exactly one donation UTxO for the specified target project is expected.
--- E141: Expected the change output at index 0, while the rest of the outputs should've matched according to the specified ListPlacement value.
--- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to the specified ListPlacement value.
--- E143: Expected no change outputs so that all the outputs would match according to the specified ListPlacement value.
+-- E141: Expected the change output at index 0, while the rest of the outputs should've matched according to where the new donor should've been injected.
+-- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to where the new donor should've been injected.
+-- E143: Expected no change outputs so that all the outputs would match according to where the new donor should've been injected.
 -- E144: Both governance assets must be getting burnt. 
 -- E145: Produced project UTxOs must be sent to the same address as the governance UTxO.
 -- E146: Produced project UTxOs must share the same address.
