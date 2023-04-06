@@ -663,8 +663,8 @@ decimalMultiplier = 1_000_000_000
 -- E019: Specified UTxO must be consumed.
 -- E020: Project owner's signature is required.
 -- E021: There should be exactly 1 governance, and 2 project UTxOs produced.
--- E022: 
--- E023: 
+-- E022: All provided donation assets must be getting burnt.
+-- E023: Invalid produced project output.
 -- E024: Transaction must be signed by the project owner.
 -- E025: Invalid donation datum encountered.
 -- E026: Invalid datums are attached to the project UTxOs.
@@ -675,7 +675,7 @@ decimalMultiplier = 1_000_000_000
 -- E031: Invalid value for the donation UTxO.
 -- E032: Produced donation UTxO must carry donor's public key hash as an inlinde datum.
 -- E033: Donation amount is too small.
--- E034: 
+-- E034: Invalid outputs pattern.
 -- E035: Donor's signature is required.
 -- E036: 
 -- E037: Invalid updated value for the project UTxO.

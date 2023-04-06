@@ -17,7 +17,7 @@ module Minter.Donation where
 
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
-import           Plutus.V1.Ledger.Value               ( valueOf )
+import qualified Plutus.V1.Ledger.Value               as Value
 import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts
 import qualified PlutusTx.AssocMap                    as Map
@@ -96,79 +96,20 @@ mkDonationPolicy pkh projSym action ctx =
     FoldDonations projectID    ->
       -- {{{
       let
-        tn :: TokenName
-        tn = TokenName projectID
-
-        -- Raises exception upon failure.
-        inputProjUTxO :: TxOut
-        inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
-
-        foldDonationsPhaseTwo :: Integer -> Bool
-        foldDonationsPhaseTwo requiredDonationCount =
-          -- {{{
-          let
-            (ds, total, finalMap) = foldDonationInputs ownSym tn inputs
-            updatedDatum          =
-              PrizeWeight (foldDonationsMap finalMap) False
-            foldedOutputIsValid o =
-              -- {{{
-                 traceIfFalse
-                   "E037"
-                   ( utxoHasOnlyXWithLovelaces
-                       sym
-                       tn
-                       (total + halfOfTheRegistrationFee)
-                       o
-                   )
-              && traceIfFalse
-                   "E038"
-                   (utxosDatumMatchesWith updatedDatum o)
-              && traceIfFalse
-                   "E039"
-                   (txOutAddress o == txOutAddress inputProjUTxO)
-              && traceIfFalse
-                   "E040"
-                   (ds == requiredDonationCount)
-              -- }}}
-          in
-          case outputs of
-            [o]       ->
-              -- {{{
-              foldedOutputIsValid o
-              -- }}}
-            [_, o]    ->
-              -- {{{
-              foldedOutputIsValid o
-              -- }}}
-            [_, _, o] ->
-              -- {{{
-              foldedOutputIsValid o
-              -- }}}
-            _         ->
-              -- {{{
-              traceError "E041"
-              -- }}}
-          -- }}}
+        tn                      = TokenName projectID
+        (projOutput, burnCount) = foldDonationsOutput projSym ownSym tn inputs
       in
-      case getInlineDatum inputProjUTxO of
-        ReceivedDonationsCount tot        ->
-          -- {{{
-          if tot <= maxDonationInputsForPhaseTwo then
-            foldDonationsPhaseTwo tot
-          else
-            traceError "E042"
-          -- }}}
-        DonationFoldingProgress tot soFar ->
-          -- {{{
-          if tot == soFar then
-            foldDonationsPhaseTwo tot
-          else
-            traceError "E043"
-          -- }}}
-        _                                 ->
-          -- {{{
-          traceError "E044"
-          -- }}}
+         traceIfFalse
+           "E022"
+           (txInfoMint info == Value.singleton ownSym tn (negate burnCount))
+      && traceIfFalse
+           "E023"
+           ( case outputs of
+               [o]       -> o == projOutput
+               [_, o]    -> o == projOutput
+               [_, _, o] -> o == projOutput
+               _         -> traceError "E034"
+           )
       -- }}}
     -- TODO: REMOVE.
     Dev                        ->
@@ -371,7 +312,7 @@ foldDonationsOutput projSym donSym tn inputs =
           , txOutValue           =
               makeAuthenticValue (lovelaceFromValue v) projSym tn 1
           }
-      , valueOf v donSym tn
+      , Value.valueOf v donSym tn
       )
       -- }}}
 
