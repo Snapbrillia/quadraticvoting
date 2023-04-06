@@ -119,8 +119,26 @@ pluck p xs =
       | otherwise = go ys (Nothing, y : soFar)
   in
   case go xs (Nothing, []) of
-    (Nothing, _)      -> Nothing
-    (Just y, otherYs) -> Just (y, otherYs)
+    (Nothing, _      ) -> Nothing
+    (Just y , otherYs) -> Just (y, otherYs)
+  -- }}}
+
+
+{-# INLINABLE pluckMap #-}
+pluckMap :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
+pluckMap _ [] = Nothing
+pluckMap p xs =
+  -- {{{
+  let
+    go []       a          = a
+    go (y : ys) (_, soFar) =
+      case p y of
+        Nothing -> go ys (Nothing, y : soFar)
+        justY'  -> (justY', ys ++ soFar)
+  in
+  case go xs (Nothing, []) of
+    (Nothing, _      ) -> Nothing
+    (Just y , otherYs) -> Just (y, otherYs)
   -- }}}
 
 
@@ -142,6 +160,11 @@ takeSqrt val =
 {-# INLINABLE lovelaceFromValue #-}
 lovelaceFromValue :: Value -> Integer
 lovelaceFromValue = Ada.getLovelace . Ada.fromValue
+
+
+{-# INLINABLE keepOnlyLovelacesOf #-}
+keepOnlyLovelacesOf :: Value -> Value
+keepOnlyLovelacesOf = Ada.toValue . Ada.fromValue
 
 
 -- TODO: Remove.
@@ -643,7 +666,7 @@ decimalMultiplier = 1_000_000_000
 -- E022: 
 -- E023: 
 -- E024: Transaction must be signed by the project owner.
--- E025: 
+-- E025: Invalid donation datum encountered.
 -- E026: Invalid datums are attached to the project UTxOs.
 -- E027: Exactly 2 project inputs are expected.
 -- E028: Unauthorized.
