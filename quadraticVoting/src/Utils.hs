@@ -650,7 +650,7 @@ decimalMultiplier = 1_000_000_000
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
 -- E008: Funding round must start with 0 registered projects.
--- E009: 
+-- E009: No proper project UTxOs were found in the inputs.
 -- E010: Invalid order of minted governance UTxOs (deadline, main, multi-donations).
 -- E011: UTxO not consumed.
 -- E012: Deadline has passed.

@@ -22,7 +22,6 @@ import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts
 import qualified PlutusTx.AssocMap                    as Map
 import qualified PlutusTx
-import           PlutusTx.List                        ( sortBy )
 import           PlutusTx.Prelude
 
 import           Data.Datum
@@ -325,19 +324,6 @@ donationOutputs projSym donSym prepend DonationInfo{..} inputs =
   -- }}}
 
 
--- | Helper function for sorting donation UTxOs.
-{-# INLINABLE compareDonationDatums #-}
-compareDonationDatums :: QVFDatum -> QVFDatum -> Ordering
-compareDonationDatums (Donation pkh0 _) (Donation pkh1 _) = compare pkh0 pkh1
-compareDonationDatums _                 _                 = traceError "E025"
-
-
-{-# INLINABLE compareDonationUTxOs #-}
-compareDonationUTxOs :: TxOut -> TxOut -> Ordering
-compareDonationUTxOs o0 o1 =
-  compareDonationDatums (getInlineDatum o0) (getInlineDatum o1)
-
-
 -- | Abstracted function for getting the proper output for the folding endpoint
 --   of the donation minter. The second value is the number of donation assets
 --   that must be burnt.
@@ -376,7 +362,7 @@ foldDonationsOutput projSym donSym tn inputs =
     --   asset burn count. The `Value` argument is presumed to have all the
     --   provided input donations accumulated.
     makeOutputAndBurnCount :: Address -> Value -> QVFDatum -> (TxOut, Integer)
-    makeProjutAndBurnCount a v d =
+    makeOutputAndBurnCount a v d =
       -- {{{
       ( TxOut
           { txOutAddress         = a
@@ -400,7 +386,7 @@ foldDonationsOutput projSym donSym tn inputs =
                         -> (TxOut, Integer)
     donsToProjectOutput a v w Nothing           _        =
       -- {{{
-      makeProjutAndBurnCount a v $ PrizeWeight (w * w) False
+      makeOutputAndBurnCount a v $ PrizeWeight (w * w) False
       -- }}}
     donsToProjectOutput a v w mP@(Just headPKH) donIns   =
       -- {{{
@@ -415,7 +401,7 @@ foldDonationsOutput projSym donSym tn inputs =
               Nothing
           -- }}}
       in
-      case pluck pluckFn dons of
+      case pluckMap pluckFn dons of
         Just ((donVal, mNext), restOfIns) ->
           -- {{{
           donsToProjectOutput
@@ -432,7 +418,7 @@ foldDonationsOutput projSym donSym tn inputs =
           -- }}}
       -- }}}
   in
-  case pluck projPluckFn inputs of
+  case pluckMap projPluckFn inputs of
     Just ((pA, pV, w, hPKH), restOfInputs) ->
       donsToProjectOutput pA pV w (Just hPKH) restOfInputs
     Nothing                                ->
