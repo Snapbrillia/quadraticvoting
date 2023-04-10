@@ -410,12 +410,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{ 
       let
         validOutputs =
-          accumulatePrizeWeights
-            ownAddr
-            qvfSymbol
-            qvfProjectSymbol
-            inputs 
-            projRefs
+          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs projRefs
       in
       traceIfFalse "E086" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
@@ -426,12 +421,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{ 
       let
         validOutputs =
-          accumulatePrizeWeights
-            ownAddr
-            qvfSymbol
-            qvfProjectSymbol
-            inputs 
-            projRefs
+          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs projRefs
       in
       traceIfFalse "E087" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
@@ -871,7 +861,7 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
         Nothing
       -- }}}
 
-    govs   = mapMaybe govMapFn  initInputs
+    govs = mapMaybe govMapFn  initInputs
 
     go [] [] (c, wMap, outs) =
       -- {{{
@@ -902,20 +892,15 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
       -- {{{
       if projID == infoID then
         -- {{{
+        let
+          raised = lovelaceFromValue (txOutValue pIn) - halfOfTheRegistrationFee
+        in
         go
           ins
           rs
           ( c + 1
-          , Map.insert
-              projID
-              ( EliminationInfo
-                  pdRequested
-                  (lovelaceFromValue inVal - halfOfTheRegistrationFee)
-                  w
-              )
-              wMap
-          , pIn
-              {txOutDatum = qvfDatumToInlineDatum $ PrizeWeight w True} : outs
+          , Map.insert projID (EliminationInfo requested raised w) wMap
+          , pIn {txOutDatum = qvfDatumToInlineDatum $ PrizeWeight w True} : outs
           )
         -- }}}
       else
@@ -923,14 +908,14 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
         traceError "E121"
         -- }}}
       -- }}}
-    go _ _ _          = traceError "E062"
+    go _ _ _ = traceError "E062"
 
     inputs =
       sortBy
         (\(t, _, _) (t', _, _) -> compare t t')
         (mapMaybe projMapFn initInputs)
 
-    refs   = sort $ mapMaybe infoMapFn initRefs
+    refs = sort $ mapMaybe infoMapFn initRefs
   in
   go inputs refs (0, Map.empty, [])
   -- }}}
