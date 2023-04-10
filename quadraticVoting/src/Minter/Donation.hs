@@ -355,7 +355,7 @@ foldDonationsOutput projSym donSym tn inputs =
         Nothing                           ->
           -- {{{
           -- No more proper donation UTxOs provided.
-          makeProjutAndBurnCount a v $ DonationFoldingProgress w mP
+          makeOutputAndBurnCount a v $ DonationFoldingProgress w mP
           -- }}}
       -- }}}
   in

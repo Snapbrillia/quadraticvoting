@@ -16,6 +16,7 @@
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- }}}
@@ -36,6 +37,7 @@ import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V1.Ledger.Address             ( scriptHashAddress )
 import qualified Plutus.V1.Ledger.Interval            as Interval
+import qualified Plutus.V1.Ledger.Value               as Value
 import           Plutus.V1.Ledger.Value               ( flattenValue
                                                       , AssetClass(..) )
 import Plutus.V2.Ledger.Api
@@ -44,7 +46,8 @@ import qualified PlutusTx
 import qualified PlutusTx.AssocMap                    as Map
 import           PlutusTx.AssocMap                    ( Map )
 import qualified PlutusTx.Builtins                    as Builtins
-import PlutusTx.Prelude                               ( Bool(..)
+import           PlutusTx.Maybe                       ( mapMaybe )
+import           PlutusTx.Prelude                     ( Bool(..)
                                                       , Either(..)
                                                       , Integer
                                                       , Maybe(..)
@@ -304,14 +307,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     -- | Validates the minting value.
     mintIsPresent :: CurrencySymbol -> TokenName -> Integer -> Bool
-    mintIsPresent sym tn amt =
-      -- {{{
-      case flattenValue (txInfoMint info) of
-        [(sym', tn', amt')] ->
-          sym' == sym && tn' == tn && amt' == amt
-        _                   ->
-          False
-      -- }}}
+    mintIsPresent sym tn amt = txInfoMint info == Value.singleton sym tn amt
 
     projectMintIsPresent :: Bool -> Bool
     projectMintIsPresent mint =
@@ -372,7 +368,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
   in
   case (datum, action) of
     -- {{{ GOVERNANCE INTERACTIONS 
-    (DeadlineDatum _ mdC                          , UpdateDeadline newDl   ) ->
+    (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
       -- {{{
          signedByKeyHolder
       && traceIfFalse
@@ -382,12 +378,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
            "E076"
            (currUTxOHasX qvfSymbol qvfTokenName)
       && validateSingleOutput
-           Nothing
-           (Just $ DeadlineDatum newDl mdC)
+           (Just deadlineLovelaces)
+           (Just $ DeadlineDatum newDl)
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (DeadlineDatum _ _                            , ConcludeFundingRound   ) ->
+    (DeadlineDatum _                              , ConcludeFundingRound   ) ->
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder
@@ -397,25 +393,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount _                    , Contribute contribution) ->
       -- Match Pool Contribution
       -- {{{
-      case getContinuingOutputs ctx of
-        [o] ->
-          -- {{{
-             traceIfFalse
-               "E083"
-               ( utxoHasOnlyXWithLovelaces
-                   qvfSymbol
-                   qvfTokenName
-                   (lovelaceFromValue currVal + contribution)
-                   o
-               )
-          && traceIfFalse
-               "E084"
-               (utxosDatumMatchesWith datum o)
-          -- }}}
-        _   ->
-          -- {{{
-          traceError "E085"
-          -- }}}
+      validateSingleOutput
+        (Just $ lovelaceFromValue currVal + contribution)
+        (Just datum)
+        (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
     (RegisteredProjectsCount _                    , RegisterProject        ) ->
@@ -428,9 +409,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Formation of the Prize Weight Map
       -- {{{ 
       let
-        projRefs     =
-          -- TODO: Can this filtration be averted?
-          filter (utxoHasX qvfProjectSymbol Nothing . txInInfoResolved) refs
         validOutputs =
           accumulatePrizeWeights
             ownAddr
@@ -447,8 +425,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- (Same logic as `RegisteredProjectsCount` with this redeemer, TODO?)
       -- {{{ 
       let
-        projRefs     =
-          filter (utxoHasX qvfProjectSymbol Nothing . txInInfoResolved) refs
         validOutputs =
           accumulatePrizeWeights
             ownAddr
@@ -854,117 +830,107 @@ findEscrowLovelaces portion requested =
 
 
 {-# INLINABLE accumulatePrizeWeights #-}
-accumulatePrizeWeights :: Address
-                       -> CurrencySymbol
+accumulatePrizeWeights :: CurrencySymbol
                        -> CurrencySymbol
                        -> [TxInInfo]
                        -> [TxInInfo]
                        -> [TxOut]
-accumulatePrizeWeights scriptAddr qvfSym pSym inputs refs =
+accumulatePrizeWeights qvfSym pSym initInputs initRefs =
   -- {{{
   let
-    go
-      (TxInInfo{txInInfoResolved = i@TxOut{txOutValue = inVal}} : _)
-      []
-      (c, wMap, outs) =
-      -- scriptAddr is not validated here. TODO?
+    projMapFn :: TxInInfo -> Maybe (BuiltinByteString, Integer, TxOut)
+    projMapFn TxInInfo{txInInfoResolved = i} =
       -- {{{
-      case flattenValue inVal of
-        [(sym', tn', amt'), (_, _, mpWithGov)] ->
+      case (getTokenNameOfUTxO pSym i, getInlineDatum i) of
+        (Just (TokenName projID), PrizeWeight w False) ->
+          Just (projID, w, i)
+        _                                              ->
+          Nothing
+      -- }}}
+
+    infoMapFn :: TxInInfo -> Maybe (BuiltinByteString, Integer)
+    infoMapFn TxInInfo{txInInfoResolved = i} =
+      -- {{{
+      case (getTokenNameOfUTxO pSym i, getInlineDatum i) of
+        (Just (TokenName projID), ProjectInfo ProjectDetails{..}) ->
+          Just (projID, pdRequested)
+        _                                                         ->
+          Nothing
+      -- }}}
+
+    govMapFn :: TxInInfo
+             -> Maybe (Integer, Map BuiltinByteString EliminationInfo, TxOut)
+    govMapFn TxInInfo{txInInfoResolved = i@TxOut{txOutValue}} =
+      -- {{{
+      if utxoHasOnlyX qvfSym qvfTokenName i then
+        case getInlineDatum i of
+          RegisteredProjectsCount tot    -> Just (tot, Map.empty, i)
+          PrizeWeightAccumulation tot ws -> Just (tot, ws       , i)
+          _                              -> traceError "E060"
+      else
+        Nothing
+      -- }}}
+
+    govs   = mapMaybe govMapFn  initInputs
+
+    go [] [] (c, wMap, outs) =
+      -- {{{
+      case govs of
+        [(tot, ws, govUTxO@TxOut{txOutValue = govVal})] ->
           -- {{{
-          if sym' == qvfSym && tn' == qvfTokenName && amt' == 1 then
-            -- {{{
-            let
-              fromTotAndWs tot ws =
-                -- {{{
-                let
-                  remaining = tot - length (Map.toList ws)
-                  finalWs   = Map.unionWith const ws wMap
-                  updatedD  =
-                    -- {{{
-                    if c < remaining then
-                      -- {{{
-                      PrizeWeightAccumulation tot finalWs
-                      -- }}}
-                    else if c == remaining then
-                      -- {{{
-                      ProjectEliminationProgress
-                        (mpWithGov - governanceLovelaces)
-                        finalWs
-                      -- }}}
-                    else
-                      -- {{{
-                      traceError "E061"
-                      -- }}}
-                    -- }}}
-                in
-                i {txOutDatum = qvfDatumToInlineDatum updatedD}
-                : outs
-                -- }}}
-            in
-            case getInlineDatum i of
-              RegisteredProjectsCount tot         ->
-                fromTotAndWs tot Map.empty
-              PrizeWeightAccumulation tot wsSoFar ->
-                fromTotAndWs tot wsSoFar
-              _                                   ->
-                traceError "E060"
-            -- }}}
-          else
-            -- {{{
-            traceError "E057"
-            -- }}}
+          let
+            remaining = tot - length (Map.toList ws)
+            finalWs   = Map.unionWith const ws wMap
+            updatedD  =
+              -- {{{
+              | c < remaining  = PrizeWeightAccumulation tot finalWs
+              | c == remaining =
+                ProjectEliminationProgress
+                  (lovelaceFromValue govVal - governanceLovelaces)
+                  finalWs
+              | otherwise      = traceError "E061"
+              -- }}}
+          in
+          govUTxO {txOutDatum = qvfDatumToInlineDatum updatedD} : outs
           -- }}}
-        _                                      ->
+        _                                               ->
           -- {{{
           traceError "E059"
           -- }}}
       -- }}}
-    go
-      (TxInInfo{txInInfoResolved = i@TxOut{txOutValue = inVal, txOutAddress = iAddr}} : ins)
-      (TxInInfo{txInInfoResolved = r@TxOut{txOutAddress = rAddr}} : rs)
-      (c, wMap, outs) =
+    go ((projID, w, pIn) : ins) ((infoID, requested) : rs) (c, wMap, outs) =
       -- {{{
-      case (getTokenNameOfUTxO pSym i, getTokenNameOfUTxO pSym r) of
-        (Just iTN@(TokenName projID), Just rTN) ->
-          -- {{{
-          if iTN == rTN && scriptAddr == iAddr && iAddr == rAddr then
-            -- {{{
-            case (getInlineDatum i, getInlineDatum r) of
-              (PrizeWeight w False, ProjectInfo (ProjectDetails{..})) ->
-                -- {{{
-                go
-                  ins
-                  rs
-                  ( c + 1
-                  , Map.insert
-                      projID
-                      ( EliminationInfo
-                          pdRequested
-                          (lovelaceFromValue inVal - halfOfTheRegistrationFee)
-                          w
-                      )
-                      wMap
-                  , i {txOutDatum = qvfDatumToInlineDatum $ PrizeWeight w True}
-                    : outs
-                  )
-                -- }}}
-              _                                                       ->
-                -- {{{
-                traceError "E056"
-                -- }}}
-            -- }}}
-          else
-            -- {{{
-            traceError "E120"
-            -- }}}
-          -- }}}
-        _                                       ->
-          -- {{{
-          traceError "E121"
-          -- }}}
+      if projID == infoID then
+        -- {{{
+        go
+          ins
+          rs
+          ( c + 1
+          , Map.insert
+              projID
+              ( EliminationInfo
+                  pdRequested
+                  (lovelaceFromValue inVal - halfOfTheRegistrationFee)
+                  w
+              )
+              wMap
+          , pIn
+              {txOutDatum = qvfDatumToInlineDatum $ PrizeWeight w True} : outs
+          )
+        -- }}}
+      else
+        -- {{{
+        traceError "E121"
+        -- }}}
       -- }}}
     go _ _ _          = traceError "E062"
+
+    inputs =
+      sortBy
+        (\(t, _, _) (t', _, _) -> compare t t')
+        (mapMaybe projMapFn initInputs)
+
+    refs   = sort $ mapMaybe infoMapFn initRefs
   in
   go inputs refs (0, Map.empty, [])
   -- }}}

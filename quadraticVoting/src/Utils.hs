@@ -9,7 +9,6 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE NamedFieldPuns        #-}
 -- }}}
 
@@ -352,15 +351,9 @@ getTokenNameOfUTxO sym utxo =
 {-# INLINABLE utxoXCount #-}
 -- | Finds how much X asset is present in the given UTxO.
 utxoXCount :: CurrencySymbol -> TokenName -> TxOut -> Integer
-utxoXCount sym tn =
+utxoXCount sym tn TxOut{txOutValue = v} =
   -- {{{
-    ( \case
-        Just (_, _, amt') -> amt'
-        Nothing           -> 0
-    )
-  . find (\(sym', tn', _) -> sym' == sym && tn' == tn)
-  . flattenValue
-  . txOutValue
+  valueOf v sym tn
   -- }}}
 
 
@@ -422,9 +415,9 @@ utxoHasX sym mTN =
 -- | Helper function to see if the given UTxO carries the given amount of
 --   Lovelaces.
 utxoHasLovelaces :: Integer -> TxOut -> Bool
-utxoHasLovelaces lovelaces txOut =
+utxoHasLovelaces lovelaces TxOut{txOutValue = v} =
   -- {{{
-  Ada.fromValue (txOutValue txOut) == Ada.lovelaceOf lovelaces
+  Ada.fromValue v == Ada.lovelaceOf lovelaces
   -- }}}
 
 
@@ -697,10 +690,10 @@ decimalMultiplier = 1_000_000_000
 -- E053: Project output must preserve its Lovelaces.
 -- E054: Missing proper outputs for the first phase of folding donations.
 -- E055: Project asset not found.
--- E056: Unexpected UTxO encountered (expected a `PrizeWeight` and `ProjectInfo`).
--- E057: Unauthentic governance UTxO provided.
+-- E056: 
+-- E057: 
 -- E058: Invalid prize weight UTxO is being produced.
--- E059: Provided governance UTxO has invalid value.
+-- E059: Valid governance input UTxO was not found.
 -- E060: Input governance UTxO has an improper datum.
 -- E061: Excessive number of prize weight inputs are provided.
 -- E062: Invalid pattern between inputs and references.
@@ -724,9 +717,9 @@ decimalMultiplier = 1_000_000_000
 -- E080: All donation assets must be burnt.
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
--- E083: Invalid value in the prodced governance UTxO.
--- E084: Invalid datum attached to the produced governance UTxO.
--- E085: Only one UTxO must be produced at the script address.
+-- E083: 
+-- E084: 
+-- E085: 
 -- E086: Invalid script outputs.
 -- E087: Invalid script outputs.
 -- E088: Invalid input datums.
@@ -761,8 +754,8 @@ decimalMultiplier = 1_000_000_000
 -- E117: Couldn't find UTxO.
 -- E118: 
 -- E119: 
--- E120: Input project and reference project UTxOs don't belong to the same project, or are not coming from the same address as the governance UTxO.
--- E121: Invalid order of the inputs compared to the reference inputs.
+-- E120: 
+-- E121: Project inputs and info references don't match up.
 -- E122: Invalid outputs.
 -- E123: Project owner must be properly paid.
 -- E124: Exactly 1 UTxO must be produced at the script.
