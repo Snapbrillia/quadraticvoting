@@ -639,7 +639,7 @@ decimalMultiplier = 1_000_000_000
 -- E001: 
 -- E002: Exactly 2 governance tokens must be getting burnt.
 -- E003: All prizes must be sent out before concluding a funding round.
--- E004: 
+-- E004: Outputs of project registration are either invalid or badly ordered.
 -- E005: Invalid value for the deadline UTxO.
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
@@ -649,11 +649,11 @@ decimalMultiplier = 1_000_000_000
 -- E011: UTxO not consumed.
 -- E012: Deadline has passed.
 -- E013: Invalid datum for project registration.
--- E014: The produced governance UTxO must have untouched value.
--- E015: Invalid value for project's reference UTxO.
--- E016: Invalid value for project's main UTxO.
--- E017: First project output must carry its static info.
--- E018: Second project output must carry its record of donations.
+-- E014: 
+-- E015: 
+-- E016: 
+-- E017: 
+-- E018: 
 -- E019: Specified UTxO must be consumed.
 -- E020: Project owner's signature is required.
 -- E021: There should be exactly 1 governance, and 2 project UTxOs produced.
@@ -780,8 +780,8 @@ decimalMultiplier = 1_000_000_000
 -- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to where the new donor should've been injected.
 -- E143: Expected no change outputs so that all the outputs would match according to where the new donor should've been injected.
 -- E144: Both governance assets must be getting burnt. 
--- E145: Produced project UTxOs must be sent to the same address as the governance UTxO.
--- E146: Produced project UTxOs must share the same address.
+-- E145: 
+-- E146: 
 -- E147: Project owner's address has to be a payment address (script address was given).
 -- E148: 
 -- E149: 

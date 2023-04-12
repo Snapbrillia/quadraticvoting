@@ -69,86 +69,8 @@ mkRegistrationPolicy pkh sym action ctx =
     RegisterProject pd          ->
       -- {{{
       let
-        inputGovUTxO :: TxOut
-        inputGovUTxO = getInputGovernanceUTxOFrom sym Gov.qvfTokenName inputs
-
-        govAddr :: Address
-        govAddr      = txOutAddress inputGovUTxO
-
-        -- | Looks for the singular authenticated governance input UTxO to find
-        --   the origin address of the governance asset, its assets, and the
-        --   number of projects registrered so far.
-        --
-        --   Raises exception upon failure.
-        currPCount :: Integer
-        currPCount =
-          -- {{{
-          case getInlineDatum inputGovUTxO of 
-            RegisteredProjectsCount soFar ->
-              -- {{{
-              soFar
-              -- }}}
-            _                             ->
-              -- {{{
-              traceError "E013"
-              -- }}}
-          -- }}}
-
-        -- | The resulting token name based on the specified UTxO being spent.
-        currTN :: TokenName
-        currTN = indexToTokenName currPCount
-
-        -- | Checks if the given UTxOs carry project's assets, and makes sure
-        --   the first one has a `ProjectInfo` datum, while the second one has
-        --   a `ProjectDonations` attached. Also expects each of them to carry
-        --   exactly half of the registration fee Lovelaces.
-        --
-        --   It also validates that the produced governance UTxO is sent back
-        --   to its origin, and that it has a properly updated datum attached.
-        --
-        --   Raises exception on @False@.
-        outputSAndPsAreValid :: TxOut -> TxOut -> TxOut -> Bool
-        outputSAndPsAreValid s p0 p1 =
-          -- {{{
-          let
-            addr0 = txOutAddress p0
-          in
-             traceIfFalse
-               "E2"
-               (pdRequested pd >= minRequestable)
-          && traceIfFalse
-               "E014"
-               ( validateGovUTxO
-                   (txOutValue inputGovUTxO)
-                   govAddr
-                   (RegisteredProjectsCount $ currPCount + 1)
-                   s
-               )
-          && traceIfFalse
-               "E015"
-               ( utxoHasOnlyXWithLovelaces
-                   ownSym
-                   currTN
-                   halfOfTheRegistrationFee
-                   p0
-               )
-          && traceIfFalse
-               "E016"
-               ( utxoHasOnlyXWithLovelaces
-                   ownSym
-                   currTN
-                   halfOfTheRegistrationFee
-                   p1
-               )
-          && traceIfFalse
-               "E017"
-               (utxosDatumMatchesWith (ProjectInfo pd) p0)
-          && traceIfFalse
-               "E018"
-               (utxosDatumMatchesWith (ProjectDonations Nothing) p1)
-          && traceIfFalse "E145" (addr0 == govAddr)
-          && traceIfFalse "E146" (addr0 == txOutAddress p1)
-          -- }}}
+        inputGovUTxO@TxOut{txOutAddress = govAddr, txOutValue = govVal} =
+          getInputGovernanceUTxOFrom sym Gov.qvfTokenName inputs
         
         -- | Attempts to extract owner's public key hash from the given
         --   address.
@@ -161,27 +83,33 @@ mkRegistrationPolicy pkh sym action ctx =
             Just pkh -> pkh
             Nothing  -> traceError "E147"
           -- }}}
+
+        currProjectCount :: Integer
+        currProjectCount =
+          case getInlineDatum inputGovUTxO of
+            RegisteredProjectsCount p -> p
+            _                         -> traceError "E013"
+
+        validOutputs :: [TxOut]
+        validOutputs =
+          registrationOutputs ownSym pd govAddr govVal currProjectCount
+
+        -- | Filter function to only keep outputs which share the same address
+        --   as the input governance UTxO.
+        filterFn :: TxOut -> Bool
+        filterFn TxOut{txOutAddress = utxoAddr} = utxoAddr == govAddr
       in
          traceIfFalse
            "E020"
            (txSignedBy info projOwnerPKH)
-      && ( case outputs of
-             [s, p0, p1]       ->
-               -- {{{
-               outputSAndPsAreValid s p0 p1
-               -- }}}
-             [_, s, p0, p1]    ->
-               -- {{{
-               outputSAndPsAreValid s p0 p1
-               -- }}}
-             [_, _, s, p0, p1] ->
-               -- {{{
-               outputSAndPsAreValid s p0 p1
-               -- }}}
-             _                 ->
-               -- {{{
+      && traceIfFalse
+           "E2"
+           (pdRequested pd >= minRequestable)
+      && ( case filter filterFn outputs of
+             outs@[_, _, _] ->
+               traceIfFalse "E004" (outs == validOutputs)
+             _              ->
                traceError "E021"
-               -- }}}
          )
       -- }}}
     ConcludeAndRefund projectID ->
@@ -317,4 +245,47 @@ registrationPolicy pkh sym =
 -- registrationSymbol :: CurrencySymbol -> CurrencySymbol
 -- registrationSymbol = scriptCurrencySymbol . registrationPolicy
 -- }}}
+-- }}}
+
+
+-- UTILS
+-- {{{
+{-# INLINABLE registrationOutputs #-}
+registrationOutputs :: CurrencySymbol
+                    -> ProjectDetails
+                    -> Address
+                    -> Value
+                    -> Integer
+                    -> [TxOut]
+registrationOutputs projSym pd qvfAddr govInVal currProjCount =
+  -- {{{
+  let
+    outputGov =
+      TxOut
+        { txOutAddress = qvfAddr
+        , txOutValue   = govInVal
+        , txOutDatum   =
+              qvfDatumToInlineDatum
+            $ RegisteredProjectsCount
+            $ currProjCount + 1
+        , txOutReferenceScript = Nothing
+        }
+    projVal =
+      makeAuthenticValue
+        halfOfTheRegistrationFee
+        projSym
+        (indexToTokenName currProjCount)
+        1
+  in
+  [ outputGov
+  , outputGov
+      { txOutDatum = qvfDatumToInlineDatum $ ProjectInfo pd
+      , txOutValue = projVal
+      }
+  , outputGov
+      { txOutDatum = qvfDatumToInlineDatum $ ProjectDonations Nothing
+      , txOutValue = projVal
+      }
+  ]
+  -- }}}
 -- }}}
