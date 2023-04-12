@@ -563,9 +563,10 @@ findQVFDenominator =
 
 
 -- | Checks that there are both UTxOs of a specific project present in inputs
---   and reference inputs. If they are found, the provided function is applied
---   to find the proper transaction outputs, along with the information for
---   paying the project owner.
+--   and reference inputs. If they are found, and they share the same address,
+--   the provided function is applied. Project UTxO found in the @inputs@ is
+--   passed as the first argument, while the one found from @refs@ will be the
+--   second argument.
 --
 --   Raises exception upon pattern match failure.
 {-# INLINABLE findOutputsFromProjectUTxOs #-}
@@ -632,7 +633,7 @@ decimalMultiplier = 1_000_000_000
 -- ERROR CODES
 -- {{{
 -- E0  : Negative value passed to square root.
--- E1  : No projects found.
+-- E1  : No projects found (TODO).
 -- E2  : Can not request 0 or less Lovelaces.
 -- E000: Number of minted governance assets must be exactly 2 plust the specified count of multi-donation UTxOs.
 -- E001: 
@@ -717,7 +718,7 @@ decimalMultiplier = 1_000_000_000
 -- E080: All donation assets must be burnt.
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
--- E083: 
+-- E083: Missing authentication asset.
 -- E084: 
 -- E085: 
 -- E086: Invalid script outputs.

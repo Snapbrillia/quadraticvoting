@@ -393,10 +393,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (RegisteredProjectsCount _                    , Contribute contribution) ->
       -- Match Pool Contribution
       -- {{{
-      validateSingleOutput
-        (Just $ lovelaceFromValue currVal + contribution)
-        (Just datum)
-        (Just (qvfSymbol, qvfTokenName))
+         traceIfFalse
+           "E083"
+           (currUTxOHasX qvfSymbol qvfTokenName)
+      && validateSingleOutput
+           (Just $ lovelaceFromValue currVal + contribution)
+           (Just datum)
+           (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
     (RegisteredProjectsCount _                    , RegisterProject        ) ->
@@ -417,7 +420,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     (PrizeWeightAccumulation _ _                  , AccumulatePrizeWeights ) ->
       -- Accumulation of Computed Prize Weights
-      -- (Same logic as `RegisteredProjectsCount` with this redeemer, TODO?)
+      -- (Same logic as `RegisteredProjectsCount` with this redeemer)
       -- {{{ 
       let
         validOutputs =
@@ -475,7 +478,20 @@ mkQVFValidator QVFParams{..} datum action ctx =
          traceIfFalse "E122" (validOutputs == getContinuingOutputs ctx)
       && traceIfFalse
            "E094"
-           (valuePaidTo info winner == lovelaceValueOf won)
+           ( if txSignedBy info qvfKeyHolder then
+               -- If the key holder is handling the fees for this transaction,
+               -- we're making sure the off-chain code is correct and the money
+               -- sent to the winner is exact. TODO: This can be omitted.
+               valuePaidTo info winner == lovelaceValueOf won
+             else
+               -- If the winners themselves are covering the fees of this
+               -- transaction, it is likely that they are providing one or more
+               -- UTxOs to cover the fees and therefore should also be
+               -- receiving the changes from those. Since the outputs back to
+               -- the script are already validated, this check should allow
+               -- more than the won prize to be sent to the project owner.
+               valuePaidTo info winner >= lovelaceValueOf won
+           )
       -- }}}
 
     (RegisteredProjectsCount _                    , ConcludeProject        ) ->
