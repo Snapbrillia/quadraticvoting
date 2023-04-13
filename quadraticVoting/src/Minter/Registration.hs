@@ -50,10 +50,11 @@ PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
 {-# INLINABLE mkRegistrationPolicy #-}
 mkRegistrationPolicy :: PubKeyHash
                      -> CurrencySymbol
+                     -> Integer
                      -> RegistrationRedeemer
                      -> ScriptContext
                      -> Bool
-mkRegistrationPolicy pkh sym action ctx =
+mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -139,9 +140,8 @@ mkRegistrationPolicy pkh sym action ctx =
                   traceError "E097"
               -- }}}
 
-            -- | Checks the output governance UTxO to have unchanged
-            --   address and value, and that it also has the proper
-            --   datum attached.
+            -- | Checks the output governance UTxO to have unchanged address
+            --   and value, and that it also has the proper datum attached.
             --
             --   Raises exception on @False@.
             outputSIsValid :: TxOut -> Bool
@@ -158,6 +158,8 @@ mkRegistrationPolicy pkh sym action ctx =
               -- }}}
           in
           case outputs of
+            -- By allowing only two outputs, this validator forces the
+            -- transaction fee to be covered by the registration fee itself.
             [TxOut{txOutAddress = ownerAddr, txOutValue}, s] ->
               -- {{{
               let
@@ -167,15 +169,13 @@ mkRegistrationPolicy pkh sym action ctx =
                  outputSIsValid s
               && traceIfFalse "E130" (pdAddress == ownerAddr)
               && traceIfFalse "E131" (outL == registrationFee - txFee)
-              && traceIfFalse "E132" (txFee < 1_700_000)
-              -- This last validation is put in place to prevent a
-              -- possible attack where the attacker sets the
-              -- transaction fee as high as possible to serve the
-              -- network at the expense of the project owner.
-              --
-              -- However, this magic number (1700000) is based on the
-              -- protocol paramaters at the time of writing, and
-              -- *can* change. TODO.
+              && traceIfFalse "E132" (txFee < maxRemovalTxFee)
+              -- This last validation is put in place to prevent a possible
+              -- attack where the attacker sets the transaction fee as high as
+              -- possible to serve the network at the expense of the project
+              -- owner. @maxRemovalTxFee@ should be provided based on the
+              -- protocol parameters at the time of generating the currency
+              -- symbold of this minter.
               -- }}}
             _                                                ->
               -- {{{
@@ -225,8 +225,8 @@ mkRegistrationPolicy pkh sym action ctx =
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-registrationPolicy :: PubKeyHash -> CurrencySymbol -> MintingPolicy
-registrationPolicy pkh sym =
+registrationPolicy :: PubKeyHash -> CurrencySymbol -> Integer -> MintingPolicy
+registrationPolicy pkh sym maxFee =
   -- {{{
   let
     wrap :: (RegistrationRedeemer -> ScriptContext -> Bool)
@@ -234,11 +234,13 @@ registrationPolicy pkh sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \pkh' sym' -> wrap $ mkRegistrationPolicy pkh' sym' ||])
+    $$(PlutusTx.compile [|| \pkh' sym' maxFee' -> wrap $ mkRegistrationPolicy pkh' sym' maxFee' ||])
     `PlutusTx.applyCode`
     PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode maxFee
   -- }}}
 
 

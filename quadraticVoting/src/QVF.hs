@@ -148,10 +148,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     -- | Checks if a given UTxO is in fact from this contract.
     utxoSitsAtScript :: TxOut -> Bool
-    utxoSitsAtScript =
-      -- {{{
-      (== ownAddr) . txOutAddress
-      -- }}}
+    utxoSitsAtScript TxOut{txOutAddress = addr} = addr == ownAddr
 
     -- | Checks for key holder's signature. Induced laziness.
     signedByKeyHolder :: Bool
@@ -213,11 +210,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           && datumPred (getInlineDatum txOut)
           -- }}}
       in
-      case inputs of
-        txIn : _ ->
-          predicate txIn
-        _        ->
-          False
+      isJust $ find predicate inputs
       -- }}}
 
     -- | Collection of validations for consuming a set number of donation

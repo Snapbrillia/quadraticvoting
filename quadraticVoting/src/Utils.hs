@@ -278,19 +278,17 @@ validateGovUTxO :: Value
                 -> QVFDatum
                 -> TxOut
                 -> Bool
-validateGovUTxO govVal origAddr updatedDatum utxo =
+validateGovUTxO govVal origAddr updatedDatum utxo@TxOut{..} =
   -- {{{
-  if utxoHasValue govVal utxo then
+  if txOutValue == govVal then
     -- {{{
-    if txOutAddress utxo == origAddr then
+    if txOutAddress == origAddr then
       if utxosDatumMatchesWith updatedDatum utxo then
         True
       else
-        traceError
-          "E114"
+        traceError "E114"
     else
-      traceError
-        "E115"
+      traceError "E115"
     -- }}}
   else
     -- {{{
