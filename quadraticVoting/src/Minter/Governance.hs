@@ -36,6 +36,7 @@ import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol
 import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Data.Datum
+import           Data.Redeemers                       ( GovernanceRedeemer(..) )
 import           Utils
 -- }}}
 
@@ -43,18 +44,6 @@ import           Utils
 {-# INLINABLE qvfTokenName #-}
 qvfTokenName :: TokenName
 qvfTokenName = emptyTokenName
-
-
-data GovernanceRedeemer
-  = Initiate POSIXTime
-  | Conclude
-  | Dev
-
-PlutusTx.makeIsDataIndexed ''GovernanceRedeemer
-  [ ('Initiate     , 0 )
-  , ('Conclude     , 1 )
-  , ('Dev          , 20)
-  ]
 
 
 {-# INLINABLE mkQVFPolicy #-}

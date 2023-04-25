@@ -26,25 +26,12 @@ import           PlutusTx.Prelude
 
 import           Data.Datum
 import           Data.DonationInfo
+import           Data.Redeemers                       ( DonationRedeemer(..) )
 import           Utils
 
 
 -- REDEEMER
 -- {{{
-data DonationRedeemer
-  = DonateToProject  Bool DonationInfo
-    -- ^ The `Bool` value indicates whether the new donation should go at the
-    --   head of the list or not.
-  | FoldDonations    BuiltinByteString
-    -- ^ Project's identifier (token names).
-  | Dev
-    -- ^ For development. TODO: Remove.
-
-PlutusTx.makeIsDataIndexed ''DonationRedeemer
-  [ ('DonateToProject , 0 )
-  , ('FoldDonations   , 1 )
-  , ('Dev             , 20)
-  ]
 -- }}}
 
 

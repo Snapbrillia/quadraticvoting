@@ -23,7 +23,7 @@
 
 -- MODULE
 -- {{{
-module Data.Redeemer where
+module Data.Redeemers where
 -- }}}
 
 
@@ -51,6 +51,55 @@ import           Data.DonationInfo
 -- }}}
 
 
+-- GOVERNANCE ACTION
+-- {{{
+data GovernanceRedeemer
+  = Initiate POSIXTime
+  | Conclude
+  | GovDev
+
+PlutusTx.makeIsDataIndexed ''GovernanceRedeemer
+  [ ('Initiate     , 0 )
+  , ('Conclude     , 1 )
+  , ('GovDev       , 20)
+  ]
+-- }}}
+
+
+-- PROJECT ACTION
+-- {{{
+data RegistrationRedeemer
+  = RegisterProject   ProjectDetails
+  | ConcludeAndRefund BuiltinByteString
+  | RegDev
+
+PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
+  [ ('RegisterProject  , 0)
+  , ('ConcludeAndRefund, 1)
+  , ('RegDev           , 20)
+  ]
+-- }}}
+
+
+-- DONATION ACTION
+-- {{{
+data DonationRedeemer
+  = DonateToProject  Bool DonationInfo
+    -- ^ The `Bool` value indicates whether the new donation should go at the
+    --   head of the list or not.
+  | FoldDonations    BuiltinByteString
+    -- ^ Project's identifier (token names).
+  | DonDev
+    -- ^ For development. TODO: Remove.
+
+PlutusTx.makeIsDataIndexed ''DonationRedeemer
+  [ ('DonateToProject , 0 )
+  , ('FoldDonations   , 1 )
+  , ('DonDev          , 20)
+  ]
+-- }}}
+
+
 -- QVF ACTION
 -- {{{
 data QVFRedeemer
@@ -67,7 +116,7 @@ data QVFRedeemer
   | WithdrawBounty         PubKeyHash
   | ConcludeProject
   | ConcludeFundingRound
-  | Dev
+  | QVFDev
 
 PlutusTx.makeIsDataIndexed ''QVFRedeemer
   [ ('UpdateDeadline        , 0 )
@@ -83,9 +132,8 @@ PlutusTx.makeIsDataIndexed ''QVFRedeemer
   , ('WithdrawBounty        , 10)
   , ('ConcludeProject       , 11)
   , ('ConcludeFundingRound  , 12)
-  , ('Dev                   , 20)
+  , ('QVFDev                , 20)
   ]
 -- }}}
-
 
 

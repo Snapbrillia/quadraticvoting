@@ -34,7 +34,7 @@ library
                      , QVF
                      , Data.Datum
                      , Data.DonationInfo
-                     , Data.Redeemer
+                     , Data.Redeemers
                      , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration

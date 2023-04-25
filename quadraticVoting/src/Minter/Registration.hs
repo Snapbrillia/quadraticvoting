@@ -26,23 +26,9 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 
 import           Data.Datum
+import           Data.Redeemers                       ( RegistrationRedeemer(..) )
 import qualified Minter.Governance                    as Gov
 import           Utils
-
-
--- REDEEMER
--- {{{
-data RegistrationRedeemer
-  = RegisterProject   ProjectDetails
-  | ConcludeAndRefund BuiltinByteString
-  | Dev
-
-PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
-  [ ('RegisterProject  , 0)
-  , ('ConcludeAndRefund, 1)
-  , ('Dev              , 20)
-  ]
--- }}}
 
 
 -- POLICY SCRIPT
