@@ -81,7 +81,7 @@ import qualified Prelude                              as P
 
 import           Data.Datum
 import           Data.DonationInfo
-import           Data.Redeemer
+import           Data.Redeemers
 import qualified Minter.Governance                    as Gov
 import           Minter.Governance                    ( qvfTokenName )
 import qualified Minter.Registration
@@ -762,7 +762,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}} 
     -- }}}
 
-    (_                                            , Dev                    ) ->
+    (_                                            , QVFDev                 ) ->
       -- For development. TODO: REMOVE.
       signedByKeyHolder
     (_                                            , _                      ) ->

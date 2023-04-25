@@ -30,11 +30,6 @@ import           Data.Redeemers                       ( DonationRedeemer(..) )
 import           Utils
 
 
--- REDEEMER
--- {{{
--- }}}
-
-
 {-# INLINABLE mkDonationPolicy #-}
 mkDonationPolicy :: PubKeyHash
                  -> CurrencySymbol
@@ -99,7 +94,7 @@ mkDonationPolicy pkh projSym action ctx =
            )
       -- }}}
     -- TODO: REMOVE.
-    Dev                        ->
+    DonDev                     ->
       traceIfFalse "E045" $ txSignedBy info pkh
   -- }}}
 

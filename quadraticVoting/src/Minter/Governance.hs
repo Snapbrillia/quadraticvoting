@@ -156,7 +156,7 @@ mkQVFPolicy pkh oref r ctx =
           -- }}}
       -- }}}
     -- For development. TODO: REMOVE.
-    Dev               ->
+    GovDev            ->
       traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 

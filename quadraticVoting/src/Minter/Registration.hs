@@ -204,7 +204,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           -- }}}
       -- }}}
     -- TODO: REMOVE.
-    Dev                         ->
+    RegDev                      ->
       traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 
