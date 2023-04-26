@@ -26,7 +26,8 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 
 import           Data.Datum
-import           Data.Redeemers                       ( RegistrationRedeemer(..) )
+import qualified Data.Redeemer.QVF                    as QVFRedeemer
+import           Data.Redeemer.Registration           ( RegistrationRedeemer(..) )
 import qualified Minter.Governance                    as Gov
 import           Utils
 
@@ -56,9 +57,27 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
     RegisterProject pd          ->
       -- {{{
       let
-        inputGovUTxO@TxOut{txOutAddress = govAddr, txOutValue = govVal} =
-          getInputGovernanceUTxOFrom sym Gov.qvfTokenName inputs
-        
+        TxInInfo
+          { txInInfoResolved =
+              inputGovUTxO@TxOut
+                {txOutAddress = govAddr, txOutValue = govVal}
+          , txInInfoOutRef   = govOutRef
+          } =
+            getInputGovernanceFrom sym Gov.qvfTokenName inputs
+
+        -- | Using @govOutRef@, this logic looks up the corresponding redeemer
+        --   to make sure the right endpoint of the main spending script is
+        --   being invoked.
+        --
+        --   Raises exception on @False@.
+        qvfRedeemerIsValid :: Bool
+        qvfRedeemerIsValid = 
+          -- {{{
+          case getRedeemerOf (txInfoRedeemers info) (Spending govOutRef) of
+            Just QVFRedeemer.RegisterProject -> True
+            _                                -> traceError "E036"
+          -- }}}
+
         -- | Attempts to extract owner's public key hash from the given
         --   address.
         --
@@ -98,6 +117,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
              _              ->
                traceError "E021"
          )
+      && qvfRedeemerIsValid
       -- }}}
     ConcludeAndRefund projectID ->
       -- {{{

@@ -403,6 +403,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     (RegisteredProjectsCount _                    , AccumulatePrizeWeights ) ->
       -- Formation of the Prize Weight Map
+      -- (Same logic as `PrizeWeightAccumulation` with this redeemer)
       -- {{{ 
       let
         validOutputs =
@@ -1132,6 +1133,13 @@ distributePrize
   -- }}}
 -- }}}
 
+
+
+-- data ScriptPurpose
+--   = Minting    CurrencySymbol
+--   | Spending   TxOutRef
+--   | Rewarding  StakingCredential
+--   | Certifying DCert
 
 -- TxInfo	= TxInfo
 --   { txInfoInputs          :: [TxInInfo]

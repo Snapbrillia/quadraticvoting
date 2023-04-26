@@ -5,6 +5,7 @@
 {-# LANGUAGE NoImplicitPrelude     #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE NumericUnderscores    #-}
@@ -29,6 +30,7 @@ import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
 import           Data.String                 ( fromString )
 import qualified Ledger.Ada                  as Ada
+import           Plutus.V1.Ledger.Scripts    ( Redeemer(..) )
 import qualified Plutus.V1.Ledger.Value      as Value
 import           Plutus.V1.Ledger.Value      ( flattenValue
                                              , valueOf
@@ -36,7 +38,7 @@ import           Plutus.V1.Ledger.Value      ( flattenValue
 import           Plutus.V2.Ledger.Api
 import qualified PlutusTx.AssocMap           as Map
 import           PlutusTx.Prelude
-import           PlutusTx.Sqrt               ( Sqrt (..)
+import           PlutusTx.Sqrt               ( Sqrt(..)
                                              , isqrt )
 import qualified Prelude                     as P
 
@@ -224,6 +226,18 @@ getInlineDatum utxo =
   -- }}}
 
 
+{-# INLINABLE getRedeemerOf #-}
+getRedeemerOf :: forall r. FromData r
+              => Map ScriptPurpose Redeemer
+              -> ScriptPurpose
+              -> Maybe r
+getRedeemerOf txInfoRedeemers purpose = do
+  -- {{{
+  rawRedeemer <- Map.lookup purpose txInfoRedeemers
+  fromBuiltinData @r rawRedeemer
+  -- }}}
+
+
 {-# INLINABLE valuePaidToFromOutputs #-}
 -- | Similar to `valuePaidTo` from Plutus, but takes in a list of outputs
 --   rather than the whole transaction info.
@@ -247,25 +261,19 @@ valuePaidToFromOutputs outputs pkh =
   -- }}}
 
 
-{-# INLINABLE getInputGovernanceUTxOFrom #-}
+{-# INLINABLE getInputGovernanceFrom #-}
 -- | Abstraction to find a given "governance" UTxO.
 --
 --   Raises exception upon failure.
-getInputGovernanceUTxOFrom :: CurrencySymbol
-                           -> TokenName
-                           -> [TxInInfo]
-                           -> TxOut
-getInputGovernanceUTxOFrom sym tn inputs =
+getInputGovernanceFrom :: CurrencySymbol
+                       -> TokenName
+                       -> [TxInInfo]
+                       -> TxInInfo
+getInputGovernanceFrom sym tn inputs =
   -- {{{
   case filter (utxoHasOnlyX sym tn . txInInfoResolved) inputs of
-    [txIn] ->
-      -- {{{
-      txInInfoResolved txIn
-      -- }}}
-    _      ->
-      -- {{{
-      traceError "E113"
-      -- }}}
+    [txIn] -> txIn
+    _      -> traceError "E113"
   -- }}}
 
 
@@ -669,7 +677,7 @@ decimalMultiplier = 1_000_000_000
 -- E033: Donation amount is too small.
 -- E034: Invalid outputs pattern.
 -- E035: Donor's signature is required.
--- E036: 
+-- E036: The provided redeemer for spending the governance UTxO is not valid.
 -- E037: Invalid updated value for the project UTxO.
 -- E038: Invalid updated value for the project UTxO.
 -- E039: Folded UTxO must be produced at its originating address.
