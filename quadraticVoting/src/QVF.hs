@@ -509,9 +509,6 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && traceIfFalse
            "E002"
            (mintIsPresent qvfSymbol qvfTokenName (negate 2))
-      && traceIfFalse
-           "E003"
-           (remaining == 0)
       -- }}}
     -- }}}
 

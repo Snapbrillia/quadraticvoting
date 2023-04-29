@@ -610,6 +610,9 @@ findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
 
 -- CONSTANTS
 -- {{{
+minDeadlineThreshold :: POSIXTime
+minDeadlineThreshold = POSIXTime 86_400_000
+
 deadlineLovelaces :: Integer
 deadlineLovelaces = 1_500_000
 
@@ -651,9 +654,9 @@ decimalMultiplier = 1_000_000_000
 -- E007: Deadline must match with the provided parameter.
 -- E008: Funding round must start with 0 registered projects.
 -- E009: No proper project UTxOs were found in the inputs.
--- E010: Invalid order of minted governance UTxOs (deadline, main, multi-donations).
+-- E010: Exactly two UTxOs must be produced, each containing one minted token, in correct order (deadline, main).
 -- E011: UTxO not consumed.
--- E012: Deadline has passed.
+-- E012: Deadline must be at least one day in the future.
 -- E013: Invalid datum for project registration.
 -- E014: 
 -- E015: 
@@ -785,7 +788,7 @@ decimalMultiplier = 1_000_000_000
 -- E141: Expected the change output at index 0, while the rest of the outputs should've matched according to where the new donor should've been injected.
 -- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to where the new donor should've been injected.
 -- E143: Expected no change outputs so that all the outputs would match according to where the new donor should've been injected.
--- E144: Both governance assets must be getting burnt. 
+-- E144: 
 -- E145: 
 -- E146: 
 -- E147: Project owner's address has to be a payment address (script address was given).

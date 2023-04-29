@@ -36,7 +36,7 @@ import           Plutus.V2.Ledger.Contexts            ( ownCurrencySymbol
 import qualified PlutusTx
 import           PlutusTx.Prelude
 import           Data.Datum
-import           Data.Redeemers                       ( GovernanceRedeemer(..) )
+import           Data.Redeemer.Governance
 import           Utils
 -- }}}
 
@@ -61,6 +61,9 @@ mkQVFPolicy pkh oref r ctx =
     inputs :: [TxInInfo]
     inputs = txInfoInputs info
 
+    outputs :: [TxOut]
+    outputs = txInfoOutputs info
+
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
   in
@@ -76,45 +79,39 @@ mkQVFPolicy pkh oref r ctx =
             (valueOf (txInfoMint info) ownSym qvfTokenName == 2)
           -- }}}
 
-        -- | Helper function for validating outputs after pattern matching.
-        validateOutputs :: TxOut -> TxOut -> Bool
-        validateOutputs o0 o1 =
-          -- {{{
-             traceIfFalse
-               "E005"
-               ( utxoHasOnlyXWithLovelaces
-                   ownSym
-                   qvfTokenName
-                   deadlineLovelaces
-                   o0
-               )
-          && traceIfFalse
-               "E006"
-               ( utxoHasOnlyXWithLovelaces
-                   ownSym
-                   qvfTokenName
-                   governanceLovelaces
-                   o1
-               )
-          && traceIfFalse
-               "E007"
-               (utxosDatumMatchesWith (DeadlineDatum deadline) o0)
-          && traceIfFalse
-               "E008"
-               (utxosDatumMatchesWith (RegisteredProjectsCount 0) o1)
-          -- }}}
-
         -- | Allows change output(s) to be produced at the first index(es) of
         --   the transaction. The rest should be carrying the minted assets
         --   along with proper datums.
         validOutputsPresent :: Bool
         validOutputsPresent =
           -- {{{
-          case txInfoOutputs info of
-            o0 : o1 : []         -> validateOutputs o0 o1
-            _ : o0 : o1 : []     -> validateOutputs o0 o1
-            _ : _ : o0 : o1 : [] -> validateOutputs o0 o1
-            _                    -> traceError "E010"
+          case filter (utxoHasOnlyX ownSym qvfTokenName) outputs of
+            [o0, o1] ->
+              -- {{{
+                 traceIfFalse
+                   "E005"
+                   ( utxoHasOnlyXWithLovelaces
+                       ownSym
+                       qvfTokenName
+                       deadlineLovelaces
+                       o0
+                   )
+              && traceIfFalse
+                   "E006"
+                   ( utxoHasOnlyXWithLovelaces
+                       ownSym
+                       qvfTokenName
+                       governanceLovelaces
+                       o1
+                   )
+              && traceIfFalse
+                   "E007"
+                   (utxosDatumMatchesWith (DeadlineDatum deadline) o0)
+              && traceIfFalse
+                   "E008"
+                   (utxosDatumMatchesWith (RegisteredProjectsCount 0) o1)
+              -- }}}
+            _        -> traceError "E010"
           -- }}}
       in
          checkMintedAmount
@@ -122,16 +119,15 @@ mkQVFPolicy pkh oref r ctx =
       && traceIfFalse "E011" (utxoIsGettingSpent inputs oref)
       && traceIfFalse
            "E012"
-           (Interval.to deadline `Interval.contains` txInfoValidRange info)
+           ( Interval.contains
+               (Interval.to (deadline - minDeadlineThreshold))
+               (txInfoValidRange info)
+           )
       -- }}}
     Conclude          ->
       -- {{{
       let
-        validateGovAndDL remDist =
-             traceIfFalse "E003" (remDist == 0)
-          && traceIfFalse
-               "E144"
-               (txInfoMint info == Value.singleton ownSym qvfTokenName (-2))
+        validateGovAndDL remDist = traceIfFalse "E003" (remDist == 0)
       in
       case filter (utxoHasOnlyX ownSym qvfTokenName . txInInfoResolved) inputs of
         [TxInInfo{txInInfoResolved = i0}, TxInInfo{txInInfoResolved = i1}] ->
@@ -156,7 +152,7 @@ mkQVFPolicy pkh oref r ctx =
           -- }}}
       -- }}}
     -- For development. TODO: REMOVE.
-    GovDev            ->
+    Dev               ->
       traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 
