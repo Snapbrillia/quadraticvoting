@@ -52,20 +52,19 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
+
+    commonMap :: TxOutRef -> TxInInfo -> Maybe TxOut
+    commonMap ref TxInInfo{..} =
+      if txInInfoOutRef == ref then Just txInInfoResolved else Nothing
   in 
   case action of
-    RegisterProject pd          ->
+    RegisterProject govRef pd                        ->
       -- {{{
       let
-        TxInInfo
-          { txInInfoResolved =
-              inputGovUTxO@TxOut
-                {txOutAddress = govAddr, txOutValue = govVal}
-          , txInInfoOutRef   = govOutRef
-          } =
-            getInputGovernanceFrom sym Gov.qvfTokenName inputs
+        inputGovUTxO@TxOut{txOutAddress = govAddr, txOutValue = govVal} =
+          getGovernanceUTxOFrom govRef sym Gov.qvfTokenName inputs
 
-        -- | Using @govOutRef@, this logic looks up the corresponding redeemer
+        -- | Using @govRef@, this logic looks up the corresponding redeemer
         --   to make sure the right endpoint of the main spending script is
         --   being invoked.
         --
@@ -73,7 +72,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         qvfRedeemerIsValid :: Bool
         qvfRedeemerIsValid = 
           -- {{{
-          case getRedeemerOf (txInfoRedeemers info) (Spending govOutRef) of
+          case getRedeemerOf (Spending govRef) (txInfoRedeemers info) of
             Just QVFRedeemer.RegisterProject -> True
             _                                -> traceError "E036"
           -- }}}
@@ -119,20 +118,33 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
          )
       && qvfRedeemerIsValid
       -- }}}
-    ConcludeAndRefund projectID ->
+    RemoveAndRefund govRef infoRef projRef projectID ->
       -- {{{
       let
-        currTN                                  = TokenName projectID
-        filterFn TxInInfo{txInInfoResolved = o} =
-          -- {{{
-          utxoHasOnlyXWithLovelaces ownSym currTN halfOfTheRegistrationFee o
-          -- }}}
-        validateRemoval    ProjectDetails{..}   =
+        currTN       = TokenName projectID
+        foundTriplet =
+          findMap3
+            (commonMap govRef)
+            (commonMap infoRef)
+            (commonMap projRef)
+            inputs
+      in
+      case foundTriplet of
+        (Just govUTxO, Just infoUTxO, Just projUTxO) ->
           -- {{{
           let
-            inputGovUTxO :: TxOut
-            inputGovUTxO =
-              getInputGovernanceUTxOFrom sym Gov.qvfTokenName inputs
+            cond =
+                 utxoHasOnlyX sym qvfTokenName govUTxO
+              && utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   infoUTxO
+              && utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   projUTxO
 
             updatedDatum :: QVFDatum
             updatedDatum =
@@ -163,68 +175,92 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                 )
               -- }}}
           in
-          case outputs of
-            -- By allowing only two outputs, this validator forces the
-            -- transaction fee to be covered by the registration fee itself.
-            [TxOut{txOutAddress = ownerAddr, txOutValue}, s] ->
-              -- {{{
-              let
-                txFee = lovelaceFromValue (txInfoFee info)
-                outL  = lovelaceFromValue txOutValue
-              in
-                 outputSIsValid s
-              && traceIfFalse "E130" (pdAddress == ownerAddr)
-              && traceIfFalse "E131" (outL == registrationFee - txFee)
-              && traceIfFalse "E132" (txFee < maxRemovalTxFee)
-              -- This last validation is put in place to prevent a possible
-              -- attack where the attacker sets the transaction fee as high as
-              -- possible to serve the network at the expense of the project
-              -- owner. @maxRemovalTxFee@ should be provided based on the
-              -- protocol parameters at the time of generating the currency
-              -- symbold of this minter.
-              -- }}}
-            _                                                ->
-              -- {{{
-              traceError "E099"
-              -- }}}
+          if cond then
+            -- {{{
+            case (getInlineDatum infoUTxO, getInlineDatum projUTxO) of
+              (ProjectInfo pd, ProjectDonations Nothing) ->
+                -- {{{
+                case outputs of
+                  -- By allowing only two outputs, this validator forces the
+                  -- transaction fee to be covered by the registration fee
+                  -- itself.
+                  [TxOut{txOutAddress = ownerAddr, txOutValue}, s] ->
+                    -- {{{
+                    let
+                      txFee = lovelaceFromValue (txInfoFee info)
+                      outL  = lovelaceFromValue txOutValue
+                    in
+                       outputSIsValid s
+                    && traceIfFalse "E130" (pdAddress == ownerAddr)
+                    && traceIfFalse "E131" (outL == registrationFee - txFee)
+                    && traceIfFalse "E132" (txFee < maxRemovalTxFee)
+                    -- This last validation is put in place to prevent a
+                    -- possible attack where the attacker sets the transaction
+                    -- fee as high as possible to serve the network at the
+                    -- expense of the project owner. @maxRemovalTxFee@ should
+                    -- be provided based on the protocol parameters at the time
+                    -- of generating the currency symbol of this minter.
+                    -- }}}
+                  _                                                ->
+                    -- {{{
+                    traceError "E099"
+                    -- }}}
+                -- }}}
+              _                                          ->
+                traceError "E014"
+            -- }}}
+          else
+            traceError "E015"
           -- }}}
-        validateConclusion ProjectDetails{..}   =
+        _                                            ->
           -- {{{
-          traceIfFalse "E024" (txSignedBy info $ addressToPubKeyHash pdAddress)
-          -- }}}
-      in
-      case filter filterFn inputs of
-        [TxInInfo{txInInfoResolved = p0}, TxInInfo{txInInfoResolved = p1}] ->
-          -- {{{
-          case (getInlineDatum p0, getInlineDatum p1) of
-            (ProjectInfo pd          , ProjectDonations Nothing) ->
-              -- {{{
-              validateRemoval pd
-              -- }}}
-            (ProjectInfo pd          , Escrow _                ) ->
-              -- {{{
-              validateConclusion pd
-              -- }}}
-            (ProjectDonations Nothing, ProjectInfo pd          ) ->
-              -- {{{
-              validateRemoval pd
-              -- }}}
-            (Escrow _                , ProjectInfo pd          ) ->
-              -- {{{
-              validateConclusion pd
-              -- }}}
-            _                                                    ->
-              -- {{{
-              traceError "E026"
-              -- }}}
-          -- }}}
-        _                                                                  ->
-          -- {{{
-          traceError "E027"
+          traceError "E016"
           -- }}}
       -- }}}
+    ConcludeAndRefund infoRef projRef projectID      ->
+      -- {{{
+      let
+        currTN     = TokenName projectID
+        foundTuple = findMap2 (commonMap infoRef) (commonMap projRef) inputs
+      in
+      case foundTuple of
+        (Just infoUTxO, Just projUTxO) ->
+          -- {{{
+          let
+            cond =
+                 utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   infoUTxO
+              && utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   projUTxO
+          in
+          if cond then
+            -- {{{
+            case (getInlineDatum infoUTxO, getInlineDatum projUTxO) of
+              (ProjectInfo ProjectDetails{..}, Escrow _) ->
+                -- {{{
+                traceIfFalse
+                  "E024"
+                  (txSignedBy info $ addressToPubKeyHash pdAddress)
+                -- }}}
+              _                                          ->
+                -- {{{
+                traceError "E026"
+                -- }}}
+            -- }}}
+          else
+            traceError "E017"
+          -- }}}
+        _                              ->
+          traceError "E018"
+      -- }}}
     -- TODO: REMOVE.
-    RegDev                      ->
+    Dev                                              ->
       traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 

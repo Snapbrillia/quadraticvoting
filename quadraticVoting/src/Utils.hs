@@ -170,11 +170,9 @@ keepOnlyLovelacesOf = Ada.toValue . Ada.fromValue
 
 -- TODO: Remove.
 {-# INLINABLE updateIfWith #-}
--- | If an element of the given list satisfies the
---   predicate, that single element is updated,
---   and the new list is returned (applies to the
---   leftmost item only). If no items satify the
---   predicate, @Nothing@ is returned.
+-- | If an element of the given list satisfies the predicate, that single
+--   element is updated, and the new list is returned (applies to the leftmost
+--   item only). If no items satify the predicate, @Nothing@ is returned.
 updateIfWith :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
 updateIfWith predicate fn xs =
   -- {{{
@@ -191,6 +189,97 @@ updateIfWith predicate fn xs =
       Nothing
     (leftXs, Just updatedX, rightXs) ->
       Just $ leftXs ++ (updatedX : rightXs)
+  -- }}}
+
+
+{-# INLINABLE findMap2 #-}
+-- | First 2 from left are favored. Preserves the order of predicates.
+findMap2 :: (a -> Maybe b)
+         -> (a -> Maybe b)
+         -> [a]
+         -> (Maybe b, Maybe b)
+findMap2 pred0 pred1 elems =
+  -- {{{
+  let
+    go [] acc = acc
+    go _ acc@(Just _, Just _) = acc
+    go (e : es) acc@(Nothing, Nothing) =
+      case pred0 e of
+        e@Just _ -> go es (e, Nothing)
+        Nothing  ->
+          case pred1 e of
+            e@Just _ -> go es (Nothing, e)
+            Nothing  -> go es acc
+    go (e : es) acc@(e0@Just _, Nothing) =
+      case pred1 e of
+        e@Just _ -> (e0, e)
+        Nothing  -> go es acc
+    go (e : es) acc@(Nothing, e1@Just _) =
+      case pred0 e of
+        e@Just _ -> (e, e1)
+        Nothing  -> go es acc
+  in
+  go elems (Nothing, Nothing)
+  -- }}}
+
+
+{-# INLINABLE findMap3 #-}
+-- | First 3 from left are favored. Preserves the order of predicates.
+findMap3 :: (a -> Maybe b)
+         -> (a -> Maybe b)
+         -> (a -> Maybe b)
+         -> [a]
+         -> (Maybe b, Maybe b, Maybe b)
+findMap3 pred0 pred1 pred2 elems =
+  -- {{{
+  let
+    go [] acc = acc
+    go _ acc@(Just _, Just _, Just _) = acc
+    go (e : es) acc@(Nothing, Nothing, Nothing) =
+      case pred0 e of
+        e@Just _ -> go es (e, Nothing, Nothing)
+        Nothing  ->
+          case pred1 e of
+            e@Just _ -> go es (Nothing, e, Nothing)
+            Nothing  ->
+              case pred2 e of
+                e@Just _ -> go es (Nothing, Nothing, e)
+                Nothign  -> go es acc
+    go (e : es) acc@(e0@Just _, Nothing, Nothing) =
+      case pred1 e of
+        e@Just _ -> go es (e0, e, Nothing)
+        Nothing  ->
+          case pred2 e of
+            e@Just _ -> go es (e0, Nothing, e)
+            Nothing  -> go es acc
+    go (e : es) acc@(Nothing, e1@Just _, Nothing) =
+      case pred0 e of
+        e@Just _ -> go es (e, e1, Nothing)
+        Nothing  ->
+          case pred2 e of
+            e@Just _ -> go es (Nothing, e1, e)
+            Nothing  -> go es acc
+    go (e : es) acc@(Nothing, Nothing, e2@Just _) =
+      case pred0 e of
+        e@Just _ -> go es (e, Nothing, e2)
+        Nothing  ->
+          case pred1 e of
+            e@Just _ -> go es (Nothing, e, e2)
+            Nothing  -> go es acc
+    go (e : es) acc@(Nothing, e1@Just _, e2@Just _) =
+      case pred0 e of
+        e@Just _ -> (e, e1, e2)
+        Nothing  -> go es acc
+    go (e : es) acc@(e0@Just _, Nothing, e2@Just _) =
+      case pred1 e of
+        e@Just _ -> (e0, e, e2)
+        Nothing  -> go es acc
+    go (e : es) acc@(e0@Just _, e1@Just _, Nothing) =
+      case pred2 e of
+        e@Just _ -> (e0, e1, e)
+        Nothing  -> go es acc
+  in
+  go elems (Nothing, Nothing, Nothing)
   -- }}}
 
 
@@ -228,10 +317,10 @@ getInlineDatum utxo =
 
 {-# INLINABLE getRedeemerOf #-}
 getRedeemerOf :: forall r. FromData r
-              => Map ScriptPurpose Redeemer
-              -> ScriptPurpose
+              => ScriptPurpose
+              -> Map ScriptPurpose Redeemer
               -> Maybe r
-getRedeemerOf txInfoRedeemers purpose = do
+getRedeemerOf purpose txInfoRedeemers = do
   -- {{{
   rawRedeemer <- Map.lookup purpose txInfoRedeemers
   fromBuiltinData @r rawRedeemer
@@ -261,19 +350,22 @@ valuePaidToFromOutputs outputs pkh =
   -- }}}
 
 
-{-# INLINABLE getInputGovernanceFrom #-}
+{-# INLINABLE getGovernanceUTxOFrom #-}
 -- | Abstraction to find a given "governance" UTxO.
 --
 --   Raises exception upon failure.
-getInputGovernanceFrom :: CurrencySymbol
-                       -> TokenName
-                       -> [TxInInfo]
-                       -> TxInInfo
-getInputGovernanceFrom sym tn inputs =
+getGovernanceUTxOFrom :: TxOutRef
+                      -> CurrencySymbol
+                      -> TokenName
+                      -> [TxInInfo]
+                      -> TxOut
+getGovernanceUTxOFrom oref sym tn inputs =
   -- {{{
-  case filter (utxoHasOnlyX sym tn . txInInfoResolved) inputs of
-    [txIn] -> txIn
-    _      -> traceError "E113"
+  case find ((== oref) . txInInfoOutRef) inputs of
+    Just TxInInfo{txInInfoResolved = utxo} ->
+      if utxoHasOnlyX sym tn utxo then utxo else traceError "E113"
+    Nothing                                ->
+      traceError "E118"
   -- }}}
 
 
@@ -379,9 +471,9 @@ utxoHasOnlyXWithLovelaces :: CurrencySymbol
                           -> Integer
                           -> TxOut
                           -> Bool
-utxoHasOnlyXWithLovelaces sym tn lovelaces =
+utxoHasOnlyXWithLovelaces sym tn lovelaces TxOut{txOutValue = v} =
   -- {{{
-  utxoHasValue (makeAuthenticValue lovelaces sym tn 1)
+  v == makeAuthenticValue lovelaces sym tn 1
   -- }}}
 
 
@@ -658,11 +750,11 @@ decimalMultiplier = 1_000_000_000
 -- E011: UTxO not consumed.
 -- E012: Deadline must be at least one day in the future.
 -- E013: Invalid datum for project registration.
--- E014: 
--- E015: 
--- E016: 
--- E017: 
--- E018: 
+-- E014: Invalid datums are attached to the project UTxOs.
+-- E015: Values of the provided governance and project UTxOs are not valid.
+-- E016: Governance and project UTxOs missing.
+-- E017: Values of the provided project UTxOs are not valid.
+-- E018: Project UTxOs missing.
 -- E019: Specified UTxO must be consumed.
 -- E020: Project owner's signature is required.
 -- E021: There should be exactly 1 governance, and 2 project UTxOs produced.
@@ -671,7 +763,7 @@ decimalMultiplier = 1_000_000_000
 -- E024: Transaction must be signed by the project owner.
 -- E025: Invalid donation datum encountered.
 -- E026: Invalid datums are attached to the project UTxOs.
--- E027: Exactly 2 project inputs are expected.
+-- E027: 
 -- E028: Unauthorized.
 -- E029: Invalid datum for donation count.
 -- E030: The first UTxO produced at the script address must be the updated project UTxO.
@@ -762,7 +854,7 @@ decimalMultiplier = 1_000_000_000
 -- E115: Governance token must be sent back to the same address from which it's getting consumed.
 -- E116: Unexpected UTxO encountered.
 -- E117: Couldn't find UTxO.
--- E118: 
+-- E118: Couldn't find input with given TxOutRef.
 -- E119: 
 -- E120: 
 -- E121: Project inputs and info references don't match up.
