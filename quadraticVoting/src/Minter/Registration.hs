@@ -58,7 +58,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
       if txInInfoOutRef == ref then Just txInInfoResolved else Nothing
   in 
   case action of
-    RegisterProject govRef pd                        ->
+    RegisterProject govRef pd                                         ->
       -- {{{
       let
         inputGovUTxO@TxOut{txOutAddress = govAddr, txOutValue = govVal} =
@@ -118,7 +118,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
          )
       && qvfRedeemerIsValid
       -- }}}
-    RemoveAndRefund govRef infoRef projRef projectID ->
+    RemoveAndRefund govRef infoRef projRef projectID govProducedFirst ->
       -- {{{
       let
         currTN       = TokenName projectID
@@ -184,9 +184,15 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                   -- By allowing only two outputs, this validator forces the
                   -- transaction fee to be covered by the registration fee
                   -- itself.
+                  [utxo0, utxo1] ->
                   [TxOut{txOutAddress = ownerAddr, txOutValue}, s] ->
                     -- {{{
                     let
+                      (TxOut{txOutAddress = ownerAddr, txOutValue}, s) =
+                        if govProducedFirst then
+                          (utxo1, utxo0)
+                        else
+                          (utxo0, utxo1)
                       txFee = lovelaceFromValue (txInfoFee info)
                       outL  = lovelaceFromValue txOutValue
                     in
@@ -217,7 +223,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           traceError "E016"
           -- }}}
       -- }}}
-    ConcludeAndRefund infoRef projRef projectID      ->
+    ConcludeAndRefund infoRef projRef projectID                       ->
       -- {{{
       let
         currTN     = TokenName projectID
@@ -260,7 +266,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           traceError "E018"
       -- }}}
     -- TODO: REMOVE.
-    Dev                                              ->
+    Dev                                                               ->
       traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
 

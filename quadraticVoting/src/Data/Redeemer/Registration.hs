@@ -16,9 +16,9 @@ data RegistrationRedeemer
   = RegisterProject   TxOutRef ProjectDetails
   --                  ^------^
   --  Helper from off-chain for finding the governance UTxO
-  | RemoveAndRefund   TxOutRef TxOutRef TxOutRef BuiltinByteString
-  --                  ^------^ ^------^ ^------^
-  --                    Gov.     Info     State
+  | RemoveAndRefund   TxOutRef TxOutRef TxOutRef BuiltinByteString Bool
+  --                  ^------^ ^------^ ^------^                   ^--^
+  --                    Gov.     Info     State    indicates order of ouputs (gov. first or not)
   | ConcludeAndRefund TxOutRef TxOutRef BuiltinByteString
   --                  ^------^ ^------^
   --                    Info     State
