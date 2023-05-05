@@ -291,9 +291,26 @@ utxoIsGettingSpent inputs oref =
   -- }}}
 
 
+{-# INLINABLE integerToBuiltinByteString #-}
+integerToBuiltinByteString :: Integer -> BuiltinByteString
+integerToBuiltinByteString i =
+  -- {{{
+  let
+    go x soFar
+      | x <= 0    = soFar
+      | otherwise = 
+        let
+          (d, r) = divMod x 256
+        in
+        go d $ consByteString r soFar
+  in
+  go i mempty
+  -- }}}
+
+
 {-# INLINABLE indexToTokenName #-}
 indexToTokenName :: Integer -> TokenName
-indexToTokenName i = TokenName $ consByteString i mempty
+indexToTokenName = TokenName . integerToBuiltinByteString
 
 
 {-# INLINABLE getInlineDatum #-}
