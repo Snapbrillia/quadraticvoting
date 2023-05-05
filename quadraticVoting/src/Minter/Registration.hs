@@ -185,7 +185,6 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                   -- transaction fee to be covered by the registration fee
                   -- itself.
                   [utxo0, utxo1] ->
-                  [TxOut{txOutAddress = ownerAddr, txOutValue}, s] ->
                     -- {{{
                     let
                       (TxOut{txOutAddress = ownerAddr, txOutValue}, s) =
@@ -207,7 +206,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                     -- be provided based on the protocol parameters at the time
                     -- of generating the currency symbol of this minter.
                     -- }}}
-                  _                                                ->
+                  _              ->
                     -- {{{
                     traceError "E099"
                     -- }}}
