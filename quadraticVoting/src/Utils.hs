@@ -837,7 +837,7 @@ decimalMultiplier = 1_000_000_000
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
 -- E083: Missing authentication asset.
--- E084: 
+-- E084: Current deadline is too close.
 -- E085: 
 -- E086: Invalid script outputs.
 -- E087: Invalid script outputs.

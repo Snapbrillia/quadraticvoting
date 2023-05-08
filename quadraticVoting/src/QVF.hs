@@ -361,9 +361,12 @@ mkQVFValidator QVFParams{..} datum action ctx =
   in
   case (datum, action) of
     -- {{{ GOVERNANCE INTERACTIONS 
-    (DeadlineDatum _                              , UpdateDeadline newDl   ) ->
+    (DeadlineDatum oldDl                          , UpdateDeadline newDl   ) ->
       -- {{{
          signedByKeyHolder
+      && traceIfFalse
+           "E084"
+           (deadlineNotReached $ oldDl - minDeadlineThreshold)
       && traceIfFalse
            "E075"
            (deadlineNotReached newDl)
