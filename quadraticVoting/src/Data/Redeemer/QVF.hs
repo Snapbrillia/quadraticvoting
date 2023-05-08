@@ -7,6 +7,7 @@ module Data.Redeemer.QVF where
 
 import Plutus.V2.Ledger.Api ( PubKeyHash
                             , POSIXTime
+                            , TxOutRef
                             , BuiltinByteString )
 import PlutusTx             ( makeIsDataIndexed )
 import PlutusTx.Prelude     ( Integer )
@@ -24,7 +25,7 @@ data QVFRedeemer
   | DistributePrize        BuiltinByteString
   | UnlockEscrowFor        PubKeyHash Integer
   | WithdrawBounty         PubKeyHash
-  | ConcludeProject
+  | ConcludeProject        TxOutRef
   | ConcludeFundingRound
   | Dev
 

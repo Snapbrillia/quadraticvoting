@@ -289,6 +289,11 @@ resolveIfRefEquals ref TxInInfo{..} =
   if txInInfoOutRef == ref then Just txInInfoResolved else Nothing
 
 
+{-# INLINABLE keepInputsFrom #-}
+keepInputsFrom :: Address -> [TxInInfo] -> [TxInInfo]
+keepInputsFrom addr = filter ((== addr) . txOutAddress . txInInfoResolved)
+
+
 {-# INLINABLE utxoIsGettingSpent #-}
 utxoIsGettingSpent :: [TxInInfo] -> TxOutRef -> Bool
 utxoIsGettingSpent inputs oref =
@@ -693,29 +698,31 @@ findQVFDenominator =
 {-# INLINABLE findOutputsFromProjectUTxOs #-}
 findOutputsFromProjectUTxOs :: CurrencySymbol
                             -> TokenName
+                            -> TxOutRef
+                            -> TxOutRef
                             -> [TxInInfo]
                             -> [TxInInfo]
                             -> (TxOut -> TxOut -> a)
                             -> a
-findOutputsFromProjectUTxOs projSym projTN inputs refs validation =
+findOutputsFromProjectUTxOs
+  projSym
+  projTN
+  projRef
+  infoRef
+  inputs
+  refs
+  validation =
   -- {{{
-  case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) inputs of
-    [TxInInfo{txInInfoResolved = inP}] ->
+  case (mapMaybe (resolveIfRefEquals projRef) inputs, mapMaybe (resolveIfRefEquals infoRef) refs) of
+    ([TxInInfo{txInInfoResolved = inP}], [TxInInfo{txInInfoResolved = infoUTxO}]) ->
       -- {{{
-      case filter (utxoHasOnlyX projSym projTN . txInInfoResolved) refs of
-        [TxInInfo{txInInfoResolved = infoUTxO}] ->
-          -- {{{
-          if txOutAddress inP == txOutAddress infoUTxO then
-            validation inP infoUTxO
-          else
-            traceError "E090"
-          -- }}}
-        _                                       ->
-          -- {{{
-          traceError "E126"
-          -- }}}
+      -- TODO: This check might be redundant.
+      if txOutAddress inP == txOutAddress infoUTxO then
+        validation inP infoUTxO
+      else
+        traceError "E090"
       -- }}}
-    _                                  ->
+    _                                                                             ->
       -- {{{
       traceError "E125"
       -- }}}
@@ -815,8 +822,8 @@ decimalMultiplier = 1_000_000_000
 -- E053: Project output must preserve its Lovelaces.
 -- E054: Missing proper outputs for the first phase of folding donations.
 -- E055: Project asset not found.
--- E056: 
--- E057: 
+-- E056: Script attachment is not allowed.
+-- E057: Only two UTxOs from the script can be spent.
 -- E058: Invalid prize weight UTxO is being produced.
 -- E059: Valid governance input UTxO was not found.
 -- E060: Input governance UTxO has an improper datum.
@@ -844,7 +851,7 @@ decimalMultiplier = 1_000_000_000
 -- E082: The main UTxO must also be getting consumed.
 -- E083: Missing authentication asset.
 -- E084: Current deadline is too close.
--- E085: 
+-- E085: Only two UTxOs from the script can be spent.
 -- E086: Invalid script outputs.
 -- E087: Invalid script outputs.
 -- E088: Invalid input datums.
@@ -884,9 +891,9 @@ decimalMultiplier = 1_000_000_000
 -- E122: Invalid outputs.
 -- E123: Project owner must be properly paid.
 -- E124: Exactly 1 UTxO must be produced at the script.
--- E125: Exactly 1 project UTxO must be getting spent.
--- E126: Could not find the project's information UTxO referenced.
--- E127: Project UTxOs must be from the script address.
+-- E125: Project UTxOs (either state, info, or both) were not found)
+-- E126: 
+-- E127: 
 -- E128: Invalid input datums.
 -- E129: Unauthentic governance UTxO.
 -- E130: Project owner must be the recepient of the refund.

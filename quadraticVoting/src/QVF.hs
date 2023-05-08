@@ -123,10 +123,11 @@ mkQVFValidator QVFParams{..} datum action ctx =
   -- {{{
   let
     -- {{{
-    info   = scriptContextTxInfo ctx
+    info = scriptContextTxInfo ctx
 
-    inputs = txInfoInputs info
-    refs   = txInfoReferenceInputs info
+    inputs      = txInfoInputs info
+    refs        = txInfoReferenceInputs info
+    txRedeemers = txInfoRedeemers info
 
     -- | The UTxO currently being validated.
     currUTxO                             :: TxOut
@@ -196,21 +197,26 @@ mkQVFValidator QVFParams{..} datum action ctx =
 
     -- | Looks for the presence of a UTxO from the script in the input list
     --   with 1 X asset, and a datum that complies with the given predicate.
-    xInputWithSpecificDatumExists :: CurrencySymbol
-                                  -> TokenName
-                                  -> (QVFDatum -> Bool)
-                                  -> Bool
-    xInputWithSpecificDatumExists sym tn datumPred =
+    xInputWithSpecificDatumAndRedeemerExists :: CurrencySymbol
+                                             -> TokenName
+                                             -> TxOutRef
+                                             -> (QVFDatum -> Bool)
+                                             -> (QVFRedeemer -> Bool)
+                                             -> Bool
+    xInputWithSpecificDatumAndRedeemerExists sym tn ref dPred rPred =
       -- {{{
-      let
-        predicate TxInInfo{txInInfoResolved = txOut} =
+      case find ((== ref) . txInInfoOutRef) inputs of
+        Just TxInInfo{txInInfoResolved = o} ->
           -- {{{
-             utxoHasOnlyX sym tn txOut
-          && utxoSitsAtScript txOut
-          && datumPred (getInlineDatum txOut)
+          case getRedeemerOf @QVFRedeemer (Spending ref) txRedeemers of
+            Just r  ->
+                 utxoHasOnlyX sym tn o
+              && utxoSitsAtScript o
+              && dPred (getInlineDatum o)
+              && rPred r
+            Nothing -> False
           -- }}}
-      in
-      isJust $ find predicate inputs
+        _                                   -> False
       -- }}}
 
     -- | Collection of validations for consuming a set number of donation
@@ -330,27 +336,24 @@ mkQVFValidator QVFParams{..} datum action ctx =
              traceIfFalse
                "E071"
                ( case mExpectedLovelaces of
-                   Just outputLovelaces ->
-                     utxoHasLovelaces outputLovelaces o
-                   Nothing              ->
-                     True
+                   Just outputLovelaces -> utxoHasLovelaces outputLovelaces o
+                   Nothing              -> True
                )
           && traceIfFalse
                "E072"
                ( case mExpectedDatum of
-                   Just updatedDatum ->
-                     utxosDatumMatchesWith updatedDatum o
-                   Nothing           ->
-                     True
+                   Just updatedDatum -> utxosDatumMatchesWith updatedDatum o
+                   Nothing           -> True
                )
           && traceIfFalse
                "E073"
                ( case mExpectedAsset of
-                   Just (sym, tn) ->
-                     utxoHasOnlyX sym tn o
-                   Nothing        ->
-                     True
+                   Just (sym, tn) -> utxoHasOnlyX sym tn o
+                   Nothing        -> True
                )
+          && traceIfFalse
+               "E056"
+               (txOutReferenceScript o == Nothing)
           -- }}}
         _   ->
           -- {{{
@@ -361,7 +364,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
   in
   case (datum, action) of
     -- {{{ GOVERNANCE INTERACTIONS 
-    (DeadlineDatum oldDl                          , UpdateDeadline newDl   ) ->
+    (DeadlineDatum oldDl                          , UpdateDeadline newDl        ) ->
       -- {{{
          signedByKeyHolder
       && traceIfFalse
@@ -379,14 +382,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (DeadlineDatum _                              , ConcludeFundingRound   ) ->
+    (DeadlineDatum _                              , ConcludeFundingRound        ) ->
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder
       && traceIfFalse "E002" (mintIsPresent qvfSymbol qvfTokenName (negate 2))
       -- }}}
 
-    (RegisteredProjectsCount _                    , Contribute contribution) ->
+    (RegisteredProjectsCount _                    , Contribute contribution     ) ->
       -- Match Pool Contribution
       -- {{{
          traceIfFalse
@@ -398,35 +401,35 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (RegisteredProjectsCount _                    , RegisterProject        ) ->
+    (RegisteredProjectsCount _                    , RegisterProject             ) ->
       -- Project Registration
       -- {{{
       projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
-    (RegisteredProjectsCount _                    , AccumulatePrizeWeights ) ->
+    (RegisteredProjectsCount _                    , AccumulatePrizeWeights _    ) ->
       -- Formation of the Prize Weight Map
       -- (Same logic as `PrizeWeightAccumulation` with this redeemer)
       -- {{{ 
       let
         validOutputs =
-          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs projRefs
+          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs refs
       in
       traceIfFalse "E086" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
 
-    (PrizeWeightAccumulation _ _                  , AccumulatePrizeWeights ) ->
+    (PrizeWeightAccumulation _ _                  , AccumulatePrizeWeights      ) ->
       -- Accumulation of Computed Prize Weights
       -- (Same logic as `RegisteredProjectsCount` with this redeemer)
       -- {{{ 
       let
         validOutputs =
-          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs projRefs
+          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs refs
       in
       traceIfFalse "E087" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
 
-    (ProjectEliminationProgress mp wMap           , EliminateOneProject    ) ->
+    (ProjectEliminationProgress mp wMap           , EliminateProject pRef iRef  ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
       let
@@ -455,7 +458,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
          )
       -- }}}
 
-    (DistributionProgress mp remaining den        , DistributePrize projID ) ->
+    (DistributionProgress mp remaining den        , DistributePrize projID      ) ->
       -- Handing Out Prize of a Specific Project
       -- {{{
       let
@@ -491,13 +494,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
            )
       -- }}}
 
-    (RegisteredProjectsCount _                    , ConcludeProject        ) ->
+    (RegisteredProjectsCount _                    , ConcludeProject _           ) ->
       -- Removal of a Donation-less Project
       -- {{{
       projectMintIsPresent False && canFoldOrDistribute
       -- }}}
 
-    (PrizeWeightAccumulation _ _                  , ConcludeProject        ) ->
+    (PrizeWeightAccumulation _ _                  , ConcludeProject _           ) ->
       -- Removal of a Donation-less Project
       -- (During/after prize weight accumulation, therefore no need to check
       -- the deadline)
@@ -505,7 +508,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent False
       -- }}}
 
-    (DistributionProgress _ remaining _           , ConcludeFundingRound   ) ->
+    (DistributionProgress _ remaining _           , ConcludeFundingRound        ) ->
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder
@@ -516,7 +519,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     -- }}}
 
     -- {{{ PROJECT INTERACTIONS 
-    (ReceivedDonationsCount _                     , DonateToProject        ) ->
+    (ReceivedDonationsCount _                     , DonateToProject             ) ->
       -- Project Donation
       -- {{{
          traceIfFalse
@@ -529,19 +532,22 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && canRegisterOrDonate
       -- }}}
 
-    (ReceivedDonationsCount _                     , ConcludeProject        ) ->
+    (ReceivedDonationsCount _                     , ConcludeProject govRef      ) ->
       -- Removal of a Donation-less Project
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
         traceIfFalse "E133"
-      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
+      $ xInputWithSpecificDatumAndRedeemerExists qvfSymbol qvfTokenName govRef
       $ \case
           RegisteredProjectsCount _   -> True
           PrizeWeightAccumulation _ _ -> True
           _                           -> False
+      $ \case
+          RegisteredProjectsCount ref -> govRef == ref
+          _                           -> False
       -- }}} 
 
-    (ReceivedDonationsCount tot                   , FoldDonations          ) ->
+    (ReceivedDonationsCount tot                   , FoldDonations               ) ->
       -- Folding Donations
       -- {{{
       if tot <= maxDonationInputsForPhaseTwo then
@@ -565,7 +571,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           )
       -- }}}
 
-    (DonationFoldingProgress tot soFar            , FoldDonations          ) ->
+    (DonationFoldingProgress tot soFar            , FoldDonations               ) ->
       -- Folding Donations
       -- {{{
       let
@@ -590,25 +596,25 @@ mkQVFValidator QVFParams{..} datum action ctx =
           (DonationFoldingProgress tot (soFar + expected))
       -- }}}
 
-    (ConsolidationProgress remaining wsSoFar      , FoldDonations          ) ->
+    (ConsolidationProgress remaining wsSoFar      , FoldDonations               ) ->
       -- Reducing Donations to a Single Value
       -- {{{
       traceError "TODO."
       -- }}}
 
-    (PrizeWeight _ False                          , AccumulatePrizeWeights ) ->
+    (PrizeWeight _ False                          , AccumulatePrizeWeights govRef) ->
       -- Accumulation of Prize Weights
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
         traceIfFalse "E082"
-      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
+      $ xInputWithSpecificDatumAndRedeemerExists qvfSymbol qvfTokenName
       $ \case
           RegisteredProjectsCount _      -> True
           PrizeWeightAccumulation tot ws -> tot > length (Map.toList ws)
           _                              -> False
       -- }}} 
 
-    (PrizeWeight _ True                           , EliminateOneProject    ) ->
+    (PrizeWeight _ True                           , EliminateProject _ _   ) ->
       -- Elimination of Non-Eligible Projects
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
@@ -710,7 +716,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       -- }}}
 
-    (Escrow beneficiaries                         , ConcludeProject        ) ->
+    (Escrow beneficiaries                         , ConcludeProject _      ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
          traceIfFalse
@@ -719,7 +725,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && projectMintIsPresent False
       -- }}}
 
-    (ProjectInfo _                                , ConcludeProject        ) ->
+    (ProjectInfo _                                , ConcludeProject _      ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
       projectMintIsPresent False
@@ -727,7 +733,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     -- }}}
 
     -- {{{ DONATION INTERACTIONS 
-    (Donation _                                   , FoldDonations          ) ->
+    (Donation _                                   , FoldDonations               ) ->
       -- Folding Donations
       -- To avoid excessive transaction fees, this endpoint delegates its
       -- logic to the @P@ UTxO by checking that it is in fact being spent.
@@ -747,7 +753,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                                 -> False
       -- }}} 
 
-    (Donations _                                  , FoldDonations          ) ->
+    (Donations _                                  , FoldDonations               ) ->
       -- Second Phase of Folding Donations
       -- Similar to `Donation`, this endpoint also delegates its logic. This
       -- time, specifically to `DonationFoldingProgress`.
@@ -763,10 +769,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}} 
     -- }}}
 
-    (_                                            , QVFDev                 ) ->
+    (_                                            , QVFDev                      ) ->
       -- For development. TODO: REMOVE.
       signedByKeyHolder
-    (_                                            , _                      ) ->
+    (_                                            , _                           ) ->
       traceError "E110"
   -- }}}
 
@@ -842,10 +848,8 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
     projMapFn TxInInfo{txInInfoResolved = i} =
       -- {{{
       case (getTokenNameOfUTxO pSym i, getInlineDatum i) of
-        (Just (TokenName projID), PrizeWeight w False) ->
-          Just (projID, w, i)
-        _                                              ->
-          Nothing
+        (Just (TokenName projID), PrizeWeight w False) -> Just (projID, w, i)
+        _                                              -> Nothing
       -- }}}
 
     infoMapFn :: TxInInfo -> Maybe (BuiltinByteString, Integer)
@@ -945,6 +949,8 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
 eliminateOneProject :: CurrencySymbol
                     -> CurrencySymbol
                     -> TxOut
+                    -> TxOutRef
+                    -> TxOutRef
                     -> [TxInInfo]
                     -> [TxInInfo]
                     -> Integer
@@ -954,6 +960,8 @@ eliminateOneProject
   qvfSym
   pSym
   currUTxO@TxOut{txOutAddress = scriptAddr, txOutValue = currVal}
+  projRef
+  infoRef
   inputs
   refs
   matchPool
@@ -971,63 +979,61 @@ eliminateOneProject
     if r < decimalMultiplier then
       -- {{{
       let
-        newMap = Map.delete toBeEliminated ws
-        projTN = TokenName toBeEliminated
+        newMap   = Map.delete toBeEliminated ws
+        projTN   = TokenName toBeEliminated
+        filtered = keepInputsFrom scriptAddr inputs
       in
-      findOutputsFromProjectUTxOs pSym projTN inputs refs $
-        \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
+      case filtered of
+        [_, _] ->
+          findOutputsFromProjectUTxOs pSym projTN filtered projRef infoRef refs $
+            \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
+              -- {{{
+              case (getInlineDatum inP, getInlineDatum infoUTxO) of
+                (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
+                  -- {{{
+                  let
+                    raised   =
+                      lovelaceFromValue pVal - halfOfTheRegistrationFee
+                    (khF, b) = separateKeyHoldersFeeFrom raised
+                    outputS  =
+                      -- {{{
+                      currUTxO
+                        { txOutDatum =
+                            qvfDatumToInlineDatum $
+                              ProjectEliminationProgress matchPool newMap
+                        , txOutValue = currVal <> lovelaceValueOf khF
+                        }
+                      -- }}}
+                    outputP  =
+                      -- {{{
+                      inP
+                        { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
+                        , txOutValue =
+                            makeAuthenticValue
+                              halfOfTheRegistrationFee
+                              pSym
+                              projTN
+                              1
+                        }
+                      -- }}}
+                  in
+                  ([outputS, outputP], Just (pdPubKeyHash, b), r)
+                  -- }}}
+                _                                                    ->
+                  -- {{{
+                  traceError "E128"
+                  -- }}}
+              -- }}}
+        _      ->
           -- {{{
-          -- Equality of project addresses is checked by
-          -- `findOutputsFromProjectUTxOs`.
-          if pAddr == scriptAddr then
-            -- {{{
-            case (getInlineDatum inP, getInlineDatum infoUTxO) of
-              (PrizeWeight _ True, ProjectInfo ProjectDetails{..}) ->
-                -- {{{
-                let
-                  raised   =
-                    lovelaceFromValue pVal - halfOfTheRegistrationFee
-                  (khF, b) = separateKeyHoldersFeeFrom raised
-                  outputS  =
-                    -- {{{
-                    currUTxO
-                      { txOutDatum =
-                          qvfDatumToInlineDatum $
-                            ProjectEliminationProgress matchPool newMap
-                      , txOutValue = currVal <> lovelaceValueOf khF
-                      }
-                    -- }}}
-                  outputP  =
-                    -- {{{
-                    inP
-                      { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
-                      , txOutValue =
-                          makeAuthenticValue
-                            halfOfTheRegistrationFee
-                            pSym
-                            projTN
-                            1
-                      }
-                    -- }}}
-                in
-                ([outputS, outputP], Just (pdPubKeyHash, b), r)
-                -- }}}
-              _                                                    ->
-                -- {{{
-                traceError "E128"
-                -- }}}
-            -- }}}
-          else
-            -- {{{
-            traceError "E127"
-            -- }}}
+          traceError "E057"
           -- }}}
       -- }}}
     else
       -- {{{
-      -- If all projects are eligible, then there should only be a single
-      -- UTxO going back to the script address, which is the governance
-      -- UTxO with an untouched value, and a properly updated datum.
+      -- If all projects are eligible, then there should only be a single UTxO
+      -- going back to the script address, which is the governance UTxO with an
+      -- untouched value, and a properly updated datum.
       ( [ currUTxO
             { txOutDatum =
                 qvfDatumToInlineDatum $
@@ -1051,6 +1057,8 @@ distributePrize :: CurrencySymbol
                 -> CurrencySymbol
                 -> TokenName
                 -> TxOut
+                -> TxOutRef
+                -> TxOutRef
                 -> [TxInInfo]
                 -> [TxInInfo]
                 -> Integer
@@ -1062,74 +1070,85 @@ distributePrize
   pSym
   pTN
   currUTxO@TxOut{txOutAddress = scriptAddr, txOutValue = currVal}
+  projRef
+  infoRef
   inputs
   refs
   matchPool
   remaining
   den =
   -- {{{
-  findOutputsFromProjectUTxOs pSym pTN inputs refs $
-    \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
-      case (getInlineDatum inP, getInlineDatum infoUTxO) of
-        (PrizeWeight w True, ProjectInfo ProjectDetails{..}) ->
-          -- {{{
-          let
-            -- mpPortion     = (matchPool * w) `divide` den
-            mpPortion     = findMatchPoolPortion matchPool den w
-            raised        = lovelaceFromValue pVal - halfOfTheRegistrationFee
-            (donFee, don) = separateKeyHoldersFeeFrom raised
-            (mpFee, won)  = separateKeyHoldersFeeFrom mpPortion
-            belonging     = don + won
-            excess        = max 0 $ belonging - pdRequested
-            shouldBePaid  = belonging - excess
-            outputS       =
+  let
+    filtered = keepInputsFrom scriptAddr inputs
+  in
+  case filtered of
+    [_, _] ->
+      findOutputsFromProjectUTxOs pSym pTN filtered projRef infoRef refs $
+        \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
+          case (getInlineDatum inP, getInlineDatum infoUTxO) of
+            (PrizeWeight w True, ProjectInfo ProjectDetails{..}) ->
               -- {{{
-              currUTxO
-                { txOutDatum =
-                    qvfDatumToInlineDatum $
-                      DistributionProgress matchPool (remaining - 1) den
-                , txOutValue =
-                    currVal <> lovelaceValueOf (donFee - won)
-                }
+              let
+                -- mpPortion     = (matchPool * w) `divide` den
+                mpPortion     = findMatchPoolPortion matchPool den w
+                raised        = lovelaceFromValue pVal - halfOfTheRegistrationFee
+                (donFee, don) = separateKeyHoldersFeeFrom raised
+                (mpFee, won)  = separateKeyHoldersFeeFrom mpPortion
+                belonging     = don + won
+                excess        = max 0 $ belonging - pdRequested
+                shouldBePaid  = belonging - excess
+                outputS       =
+                  -- {{{
+                  currUTxO
+                    { txOutDatum =
+                        qvfDatumToInlineDatum $
+                          DistributionProgress matchPool (remaining - 1) den
+                    , txOutValue =
+                        currVal <> lovelaceValueOf (donFee - won)
+                    }
+                  -- }}}
+                outputP       =
+                  -- {{{
+                  inP
+                    { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
+                    , txOutValue =
+                        makeAuthenticValue
+                          (halfOfTheRegistrationFee + excess)
+                          pSym
+                          pTN
+                          1
+                    }
+                  -- }}}
+              in
+              if utxoHasOnlyX qvfSym qvfTokenName currUTxO then
+                if pAddr == scriptAddr then
+                  ( [outputS, outputP]
+                  , pdPubKeyHash
+                  , shouldBePaid
+                  , [ mpPortion
+                    , raised
+                    , donFee
+                    , don
+                    , mpFee
+                    , won
+                    , belonging
+                    , excess
+                    , shouldBePaid
+                    ]
+                  )
+                else
+                  traceError "E091"
+              else
+                traceError "E089"
               -- }}}
-            outputP       =
+            _                                                    ->
               -- {{{
-              inP
-                { txOutDatum = qvfDatumToInlineDatum $ Escrow Map.empty
-                , txOutValue =
-                    makeAuthenticValue
-                      (halfOfTheRegistrationFee + excess)
-                      pSym
-                      pTN
-                      1
-                }
+              traceError "E088"
               -- }}}
-          in
-          if utxoHasOnlyX qvfSym qvfTokenName currUTxO then
-            if pAddr == scriptAddr then
-              ( [outputS, outputP]
-              , pdPubKeyHash
-              , shouldBePaid
-              , [ mpPortion
-                , raised
-                , donFee
-                , don
-                , mpFee
-                , won
-                , belonging
-                , excess
-                , shouldBePaid
-                ]
-              )
-            else
-              traceError "E091"
-          else
-            traceError "E089"
-          -- }}}
-        _                                                    ->
-          -- {{{
-          traceError "E088"
-          -- }}}
+    _      ->
+      -- {{{
+      traceError "E085"
+      -- }}}
   -- }}}
 -- }}}
 

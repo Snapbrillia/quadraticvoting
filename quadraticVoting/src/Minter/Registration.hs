@@ -69,7 +69,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         qvfRedeemerIsValid :: Bool
         qvfRedeemerIsValid = 
           -- {{{
-          case getRedeemerOf (Spending govRef) txRedeemers of
+          case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
             Just QVF.RegisterProject -> True
             _                        -> traceError "E036"
           -- }}}
@@ -172,7 +172,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                    )
               && traceIfFalse
                    "TODO"
-                   ( case getRedeemerOf (Spending govRef) txRedeemers of
+                   ( case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
                        Just QVF.ConcludeProject -> True
                        _                        -> traceError "E027"
                    )
