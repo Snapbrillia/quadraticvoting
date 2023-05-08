@@ -283,6 +283,12 @@ findMap3 pred0 pred1 pred2 elems =
   -- }}}
 
 
+{-# INLINABLE resolveIfRefEquals #-}
+resolveIfRefEquals :: TxOutRef -> TxInInfo -> Maybe TxOut
+resolveIfRefEquals ref TxInInfo{..} =
+  if txInInfoOutRef == ref then Just txInInfoResolved else Nothing
+
+
 {-# INLINABLE utxoIsGettingSpent #-}
 utxoIsGettingSpent :: [TxInInfo] -> TxOutRef -> Bool
 utxoIsGettingSpent inputs oref =
@@ -848,7 +854,7 @@ decimalMultiplier = 1_000_000_000
 -- E092: The redeemer is not pointing to this UTxO.
 -- E093: 
 -- E094: Project owner must be paid accurately.
--- E095: Both governance UTxOs must be getting spent.
+-- E095: Specified governance UTxOs could not be found.
 -- E096: Invalid governance UTxOs are getting spent.
 -- E097: The governance UTxO must have the proper datum attached.
 -- E098: Invalid output governance UTxO.

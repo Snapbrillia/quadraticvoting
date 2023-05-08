@@ -68,7 +68,7 @@ mkQVFPolicy pkh oref r ctx =
     ownSym = ownCurrencySymbol ctx
   in
   case r of
-    Initiate deadline ->
+    Initiate deadline     ->
       -- {{{
       let
         checkMintedAmount :: Bool
@@ -124,29 +124,29 @@ mkQVFPolicy pkh oref r ctx =
                (txInfoValidRange info)
            )
       -- }}}
-    Conclude          ->
+    Conclude govRef dlRef ->
       -- {{{
       let
-        validateGovAndDL remDist = traceIfFalse "E003" (remDist == 0)
+        foundTuple =
+          findMap2
+            (resolveIfRefEquals govRef)
+            (resolveIfRefEquals dlRef)
+            inputs
       in
-      case filter (utxoHasOnlyX ownSym qvfTokenName . txInInfoResolved) inputs of
-        [TxInInfo{txInInfoResolved = i0}, TxInInfo{txInInfoResolved = i1}] ->
+      case foundTuple of
+        (Just govUTxO, Just dlUTxO) ->
           -- {{{
-          case (getInlineDatum i0, getInlineDatum i1) of
-            (DeadlineDatum _, DistributionProgress _ remPrizes _) ->
-              -- {{{
-              validateGovAndDL remPrizes
-              -- }}}
+          case (getInlineDatum govUTxO, getInlineDatum dlUTxO) of
             (DistributionProgress _ remPrizes _, DeadlineDatum _) ->
               -- {{{
-              validateGovAndDL remPrizes
+              traceIfFalse "E003" (remPrizes == 0)
               -- }}}
-            _                                                             ->
+            _                                                     ->
               -- {{{
               traceError "E096"
               -- }}}
           -- }}}
-        _                                                                  ->
+        _                           ->
           -- {{{
           traceError "E095"
           -- }}}

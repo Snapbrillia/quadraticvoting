@@ -5,13 +5,16 @@
 module Data.Redeemer.Governance where
 
 
-import Plutus.V2.Ledger.Api ( POSIXTime )
+import Plutus.V2.Ledger.Api ( POSIXTime
+                            , TxOutRef )
 import PlutusTx             ( makeIsDataIndexed )
 
 
 data GovernanceRedeemer
   = Initiate POSIXTime
-  | Conclude
+  | Conclude TxOutRef TxOutRef
+  --         ^------^ ^------^
+  --           Gov.   Deadline
   | Dev
 
 makeIsDataIndexed ''GovernanceRedeemer

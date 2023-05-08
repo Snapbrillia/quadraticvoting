@@ -53,10 +53,6 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
-
-    commonMap :: TxOutRef -> TxInInfo -> Maybe TxOut
-    commonMap ref TxInInfo{..} =
-      if txInInfoOutRef == ref then Just txInInfoResolved else Nothing
   in 
   case action of
     RegisterProject govRef pd                                         ->
@@ -125,9 +121,9 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         currTN       = TokenName projectID
         foundTriplet =
           findMap3
-            (commonMap govRef)
-            (commonMap infoRef)
-            (commonMap projRef)
+            (resolveIfRefEquals govRef)
+            (resolveIfRefEquals infoRef)
+            (resolveIfRefEquals projRef)
             inputs
       in
       case foundTriplet of
@@ -233,7 +229,11 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
       -- {{{
       let
         currTN     = TokenName projectID
-        foundTuple = findMap2 (commonMap infoRef) (commonMap projRef) inputs
+        foundTuple =
+          findMap2
+            (resolveIfRefEquals infoRef)
+            (resolveIfRefEquals projRef)
+            inputs
       in
       case foundTuple of
         (Just infoUTxO, Just projUTxO) ->
