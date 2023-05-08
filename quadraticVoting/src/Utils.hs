@@ -780,7 +780,7 @@ decimalMultiplier = 1_000_000_000
 -- E024: Transaction must be signed by the project owner.
 -- E025: Invalid donation datum encountered.
 -- E026: Invalid datums are attached to the project UTxOs.
--- E027: 
+-- E027: The provided redeemer for spending the governance UTxO is not valid.
 -- E028: Unauthorized.
 -- E029: Invalid datum for donation count.
 -- E030: The first UTxO produced at the script address must be the updated project UTxO.

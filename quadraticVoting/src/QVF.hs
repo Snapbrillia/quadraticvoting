@@ -483,7 +483,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                -- UTxOs to cover the fees and therefore should also be
                -- receiving the changes from those. Since the outputs back to
                -- the script are already validated, this check should allow
-               -- more than the won prize to be sent to the project owner.
+               -- more than the won prize to be sent to the project owner. TODO
                valuePaidTo info winner >= lovelaceValueOf won
            )
       -- }}}

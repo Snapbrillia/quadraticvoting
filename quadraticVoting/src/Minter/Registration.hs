@@ -26,7 +26,7 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 
 import           Data.Datum
-import qualified Data.Redeemer.QVF                    as QVFRedeemer
+import qualified Data.Redeemer.QVF                    as QVF
 import           Data.Redeemer.Registration           ( RegistrationRedeemer(..) )
 import qualified Minter.Governance                    as Gov
 import           Utils
@@ -47,8 +47,9 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    inputs  = txInfoInputs info
-    outputs = txInfoOutputs info
+    inputs      = txInfoInputs info
+    outputs     = txInfoOutputs info
+    txRedeemers = txInfoRedeemers info
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
@@ -72,9 +73,9 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         qvfRedeemerIsValid :: Bool
         qvfRedeemerIsValid = 
           -- {{{
-          case getRedeemerOf (Spending govRef) (txInfoRedeemers info) of
-            Just QVFRedeemer.RegisterProject -> True
-            _                                -> traceError "E036"
+          case getRedeemerOf (Spending govRef) txRedeemers of
+            Just QVF.RegisterProject -> True
+            _                        -> traceError "E036"
           -- }}}
 
         -- | Attempts to extract owner's public key hash from the given
@@ -165,14 +166,20 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
             outputSIsValid :: TxOut -> Bool
             outputSIsValid s =
               -- {{{
-              traceIfFalse
-                "E098"
-                ( validateGovUTxO
-                    (txOutValue inputGovUTxO)
-                    (txOutAddress inputGovUTxO)
-                    updatedDatum
-                    s
-                )
+                 traceIfFalse
+                   "E098"
+                   ( validateGovUTxO
+                       (txOutValue inputGovUTxO)
+                       (txOutAddress inputGovUTxO)
+                       updatedDatum
+                       s
+                   )
+              && traceIfFalse
+                   "TODO"
+                   ( case getRedeemerOf (Spending govRef) txRedeemers of
+                       Just QVF.ConcludeProject -> True
+                       _                        -> traceError "E027"
+                   )
               -- }}}
           in
           if cond then
