@@ -714,15 +714,17 @@ findOutputsFromProjectUTxOs
   validation =
   -- {{{
   case (mapMaybe (resolveIfRefEquals projRef) inputs, mapMaybe (resolveIfRefEquals infoRef) refs) of
-    ([TxInInfo{txInInfoResolved = inP}], [TxInInfo{txInInfoResolved = infoUTxO}]) ->
+    ([pUTxO], [iUTxO]) ->
       -- {{{
-      -- TODO: This check might be redundant.
-      if txOutAddress inP == txOutAddress infoUTxO then
-        validation inP infoUTxO
+      if utxoHasOnlyX projSym projTN inP && utxoHasOnlyX projSym projTN iUTxO then
+        validation pUTxO iUTxO
+      -- TODO: This check might also be needed.
+      -- if txOutAddress inP == txOutAddress infoUTxO then
+      --   validation inP infoUTxO
       else
         traceError "E090"
       -- }}}
-    _                                                                             ->
+    _                   ->
       -- {{{
       traceError "E125"
       -- }}}
@@ -767,7 +769,7 @@ decimalMultiplier = 1_000_000_000
 -- E1  : No projects found (TODO).
 -- E2  : Can not request 0 or less Lovelaces.
 -- E000: Number of minted governance assets must be exactly 2 plust the specified count of multi-donation UTxOs.
--- E001: 
+-- E001: Exactly 2 project tokens must be getting minted.
 -- E002: Exactly 2 governance tokens must be getting burnt.
 -- E003: All prizes must be sent out before concluding a funding round.
 -- E004: Outputs of project registration are either invalid or badly ordered.
@@ -856,7 +858,7 @@ decimalMultiplier = 1_000_000_000
 -- E087: Invalid script outputs.
 -- E088: Invalid input datums.
 -- E089: Unauthentic governance datum is getting spent.
--- E090: Projects UTxOs must share the same address.
+-- E090: Projects UTxOs are not authentic.
 -- E091: Project UTxOs must be from the script address.
 -- E092: The redeemer is not pointing to this UTxO.
 -- E093: 

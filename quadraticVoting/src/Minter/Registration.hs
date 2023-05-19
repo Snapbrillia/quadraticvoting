@@ -92,9 +92,26 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
             RegisteredProjectsCount p -> p
             _                         -> traceError "E013"
 
+        projTokenName :: TokenName
+        projTokenName = indexToTokenName currProjectCount
+
+        checkMintedAmount :: Bool
+        checkMintedAmount =
+          -- {{{
+          traceIfFalse
+            "E002"
+            (valueOf (txInfoMint info) ownSym projTokenName == 2)
+          -- }}}
+
         validOutputs :: [TxOut]
         validOutputs =
-          registrationOutputs ownSym pd govAddr govVal currProjectCount
+          registrationOutputs
+            ownSym
+            projTokenName
+            pd
+            govAddr
+            govVal
+            (currProjectCount + 1)
 
         -- | Filter function to only keep outputs which share the same address
         --   as the input governance UTxO.
@@ -170,12 +187,10 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                        updatedDatum
                        s
                    )
-              && traceIfFalse
-                   "TODO"
-                   ( case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
-                       Just QVF.ConcludeProject -> True
-                       _                        -> traceError "E027"
-                   )
+              && ( case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
+                     Just QVF.ConcludeProject -> True
+                     _                        -> traceError "E027"
+                 )
               -- }}}
           in
           if cond then
@@ -308,12 +323,13 @@ registrationPolicy pkh sym maxFee =
 -- {{{
 {-# INLINABLE registrationOutputs #-}
 registrationOutputs :: CurrencySymbol
+                    -> TokenName
                     -> ProjectDetails
                     -> Address
                     -> Value
                     -> Integer
                     -> [TxOut]
-registrationOutputs projSym pd qvfAddr govInVal currProjCount =
+registrationOutputs projSym projTN pd qvfAddr govInVal nextProjCount =
   -- {{{
   let
     outputGov =
@@ -321,17 +337,10 @@ registrationOutputs projSym pd qvfAddr govInVal currProjCount =
         { txOutAddress = qvfAddr
         , txOutValue   = govInVal
         , txOutDatum   =
-              qvfDatumToInlineDatum
-            $ RegisteredProjectsCount
-            $ currProjCount + 1
+            qvfDatumToInlineDatum $ RegisteredProjectsCount nextProjCount
         , txOutReferenceScript = Nothing
         }
-    projVal =
-      makeAuthenticValue
-        halfOfTheRegistrationFee
-        projSym
-        (indexToTokenName currProjCount)
-        1
+    projVal = makeAuthenticValue halfOfTheRegistrationFee projSym projTN 1
   in
   [ outputGov
   , outputGov

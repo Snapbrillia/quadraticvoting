@@ -21,7 +21,9 @@ data QVFRedeemer
   | IncreaseDonation       BuiltinByteString Integer
   | FoldDonations
   | AccumulatePrizeWeights
-  | EliminateOneProject
+  | EliminateOneProject    TxOutRef TxOutRef
+    --                     ^------^ ^------^
+    --                    ProjectRef InfoRef
   | DistributePrize        BuiltinByteString
   | UnlockEscrowFor        PubKeyHash Integer
   | WithdrawBounty         PubKeyHash

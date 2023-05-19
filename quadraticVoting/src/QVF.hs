@@ -543,8 +543,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
           PrizeWeightAccumulation _ _ -> True
           _                           -> False
       $ \case
-          RegisteredProjectsCount ref -> govRef == ref
-          _                           -> False
+          ConcludeProject govRef' -> govRef == govRef'
+          _                       -> False
       -- }}} 
 
     (ReceivedDonationsCount tot                   , FoldDonations               ) ->
