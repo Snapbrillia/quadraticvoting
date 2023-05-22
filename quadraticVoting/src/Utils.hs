@@ -826,7 +826,7 @@ decimalMultiplier = 1_000_000_000
 -- E056: Script attachment is not allowed.
 -- E057: Only two UTxOs from the script can be spent.
 -- E058: Invalid prize weight UTxO is being produced.
--- E059: 
+-- E059: The provided redeemer for spending the governance UTxO is not valid.
 -- E060: Input governance UTxO has an improper datum.
 -- E061: Excessive number of prize weight inputs are provided.
 -- E062: Invalid pattern between inputs and references.
@@ -887,7 +887,7 @@ decimalMultiplier = 1_000_000_000
 -- E117: Couldn't find UTxO.
 -- E118: Couldn't find input with given TxOutRef.
 -- E119: Found governance UTxO is not authentic.
--- E120: 
+-- E120: The provided redeemer for spending the governance UTxO is not valid.
 -- E121: Project inputs and info references don't match up.
 -- E122: Invalid outputs.
 -- E123: Project owner must be properly paid.

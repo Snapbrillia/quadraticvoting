@@ -309,7 +309,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     mintIsPresent sym tn amt = txInfoMint info == Value.singleton sym tn amt
 
     projectMintIsPresent :: Bool -> Bool
-    projectMintIsPresent mint =
+    projectMintIsPresent shouldMint =
       -- {{{
       case flattenValue (txInfoMint info) of
         [(sym', _, amt')] ->
@@ -318,7 +318,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
                (sym' == qvfProjectSymbol)
           && traceIfFalse
                "E069"
-               (if mint then amt' == 2 else amt' == negate 2)
+               (if shouldMint then amt' == 2 else amt' == negate 2)
         _                 ->
           traceError "E070"
       -- }}}
@@ -478,20 +478,15 @@ mkQVFValidator QVFParams{..} datum action ctx =
          traceIfFalse "E122" (validOutputs == getContinuingOutputs ctx)
       && traceIfFalse
            "E094"
-           ( if txSignedBy info qvfKeyHolder then
-               -- If the key holder is handling the fees for this transaction,
-               -- we're making sure the off-chain code is correct and the money
-               -- sent to the winner is exact. TODO: This can be omitted.
-               valuePaidTo info winner == lovelaceValueOf won
-             else
-               -- If the winners themselves are covering the fees of this
-               -- transaction, it is likely that they are providing one or more
-               -- UTxOs to cover the fees and therefore should also be
-               -- receiving the changes from those. Since the outputs back to
-               -- the script are already validated, this check should allow
-               -- more than the won prize to be sent to the project owner. TODO
-               valuePaidTo info winner >= lovelaceValueOf won
-           )
+           -- Since outputs back to the script are already validated to make
+           -- sure they carry correct values, we can securely validate as long
+           -- as the value sent to the winner is equal or greater than the
+           -- prize (to accomodate change outputs).
+           --
+           -- Since a collateral UTxO is already needed, there is no need to
+           -- cover the situation where the transaction fee is also covered by
+           -- the prize itself.
+           (valuePaidTo info winner >= lovelaceValueOf won)
       -- }}}
 
     (RegisteredProjectsCount _                    , ConcludeProject _            ) ->
@@ -519,7 +514,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     -- }}}
 
     -- {{{ PROJECT INTERACTIONS 
-    (ReceivedDonationsCount _                     , DonateToProject              ) ->
+    (ProjectDonations _                           , DonateToProject              ) ->
       -- Project Donation
       -- {{{
          traceIfFalse
@@ -532,7 +527,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && canRegisterOrDonate
       -- }}}
 
-    (ReceivedDonationsCount _                     , ConcludeProject govRef       ) ->
+    (ProjectDonations Nothing                     , ConcludeProject govRef       ) ->
       -- Removal of a Donation-less Project
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
@@ -689,26 +684,19 @@ mkQVFValidator QVFParams{..} datum action ctx =
       case Map.lookup winner beneficiaries of
         Just bounty ->
           -- {{{
-          let
-            remainingBounty = currLovelaces - bounty
-          in
-          if remainingBounty > halfOfTheRegistrationFee then
-            -- {{{
-               traceIfFalse
-                 "E106"
-                 (currUTxOHasX qvfProjectSymbol tn)
-            && traceIfFalse
-                 "E107"
-                 (lovelaceFromValue (valuePaidTo info winner) == bounty)
-            && validateSingleOutput
-                 (Just remainingBounty)
-                 (Just $ Escrow $ Map.delete winner beneficiaries)
-                 (Just (qvfSymbol, qvfTokenName))
-            -- }}}
-          else 
-            -- {{{
-            projectMintIsPresent False
-            -- }}}
+             traceIfFalse
+               "E106"
+               (currUTxOHasX qvfProjectSymbol tn)
+          && traceIfFalse
+               "E107"
+               (lovelaceFromValue (valuePaidTo info winner) == bounty)
+          && validateSingleOutput
+               -- No need to make sure this value is greater than or equal to
+               -- `halfOfTheRegistrationFee` because of the validation at
+               -- `UnlockEscrowFor`.
+               (Just $ currLovelaces - bounty)
+               (Just $ Escrow $ Map.delete winner beneficiaries)
+               (Just (qvfSymbol, qvfTokenName))
           -- }}}
         Nothing     ->
           -- {{{
@@ -719,9 +707,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (Escrow beneficiaries                         , ConcludeProject _            ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
-         traceIfFalse
-           "E109"
-           (Map.null beneficiaries)
+         traceIfFalse "E109" (Map.null beneficiaries)
       && projectMintIsPresent False
       -- }}}
 
@@ -989,7 +975,7 @@ eliminateOneProject
       in
       case filtered of
         [_, _] ->
-          findOutputsFromProjectUTxOs pSym projTN filtered projRef infoRef refs $
+          findOutputsFromProjectUTxOs pSym projTN projRef infoRef filtered refs $
             \inP@TxOut{txOutValue = pVal, txOutAddress = pAddr} infoUTxO ->
               -- {{{
               case (getInlineDatum inP, getInlineDatum infoUTxO) of

@@ -95,14 +95,6 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         projTokenName :: TokenName
         projTokenName = indexToTokenName currProjectCount
 
-        checkMintedAmount :: Bool
-        checkMintedAmount =
-          -- {{{
-          traceIfFalse
-            "E002"
-            (valueOf (txInfoMint info) ownSym projTokenName == 2)
-          -- }}}
-
         validOutputs :: [TxOut]
         validOutputs =
           registrationOutputs
@@ -160,6 +152,14 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                    halfOfTheRegistrationFee
                    projUTxO
 
+            qvfRedeemerIsValid :: Bool
+            qvfRedeemerIsValid = 
+              -- {{{
+              case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
+                Just (QVF.ConcludeProject govRef') -> govRef == govRef'
+                _                                  -> traceError "E059"
+              -- }}}
+
             updatedDatum :: QVFDatum
             updatedDatum =
               -- {{{
@@ -214,6 +214,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                       outL  = lovelaceFromValue txOutValue
                     in
                        outputSIsValid s
+                    && qvfRedeemerIsValid
                     && traceIfFalse "E130" (pdAddress == ownerAddr)
                     && traceIfFalse "E131" (outL == registrationFee - txFee)
                     && traceIfFalse "E132" (txFee < maxRemovalTxFee)
@@ -223,6 +224,11 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                     -- expense of the project owner. @maxRemovalTxFee@ should
                     -- be provided based on the protocol parameters at the time
                     -- of generating the currency symbol of this minter.
+                    --
+                    -- TODO: This may not be the best approach as there is no
+                    -- validation for correctness of the `maxRemovalTxFee`
+                    -- parameter (e.g. this can put the contract at an stand-
+                    -- still if it's set too low).
                     -- }}}
                   _              ->
                     -- {{{
@@ -265,15 +271,24 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                    currTN
                    halfOfTheRegistrationFee
                    projUTxO
+
+            qvfRedeemerIsValid :: Bool
+            qvfRedeemerIsValid = 
+              -- {{{
+              case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
+                Just (QVF.ConcludeProject govRef') -> govRef == govRef'
+                _                                  -> traceError "E120"
+              -- }}}
           in
           if cond then
             -- {{{
             case (getInlineDatum infoUTxO, getInlineDatum projUTxO) of
               (ProjectInfo ProjectDetails{..}, Escrow _) ->
                 -- {{{
-                traceIfFalse
-                  "E024"
-                  (txSignedBy info $ addressToPubKeyHash pdAddress)
+                   traceIfFalse
+                     "E024"
+                     (txSignedBy info $ addressToPubKeyHash pdAddress)
+                && qvfRedeemerIsValid
                 -- }}}
               _                                          ->
                 -- {{{
