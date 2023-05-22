@@ -107,7 +107,6 @@ addressToBuiltinByteString Address{..} =
   -- }}}
 
 
--- TODO: Remove.
 {-# INLINABLE pluck #-}
 pluck :: (a -> Bool) -> [a] -> Maybe (a, [a])
 pluck _ [] = Nothing
@@ -827,7 +826,7 @@ decimalMultiplier = 1_000_000_000
 -- E056: Script attachment is not allowed.
 -- E057: Only two UTxOs from the script can be spent.
 -- E058: Invalid prize weight UTxO is being produced.
--- E059: Valid governance input UTxO was not found.
+-- E059: 
 -- E060: Input governance UTxO has an improper datum.
 -- E061: Excessive number of prize weight inputs are provided.
 -- E062: Invalid pattern between inputs and references.
@@ -861,7 +860,7 @@ decimalMultiplier = 1_000_000_000
 -- E090: Projects UTxOs are not authentic.
 -- E091: Project UTxOs must be from the script address.
 -- E092: The redeemer is not pointing to this UTxO.
--- E093: 
+-- E093: Could not find the specified governance TxOutRef.
 -- E094: Project owner must be paid accurately.
 -- E095: Specified governance UTxOs could not be found.
 -- E096: Invalid governance UTxOs are getting spent.
@@ -887,7 +886,7 @@ decimalMultiplier = 1_000_000_000
 -- E116: Unexpected UTxO encountered.
 -- E117: Couldn't find UTxO.
 -- E118: Couldn't find input with given TxOutRef.
--- E119: 
+-- E119: Found governance UTxO is not authentic.
 -- E120: 
 -- E121: Project inputs and info references don't match up.
 -- E122: Invalid outputs.

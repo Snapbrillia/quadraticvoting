@@ -364,7 +364,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
   in
   case (datum, action) of
     -- {{{ GOVERNANCE INTERACTIONS 
-    (DeadlineDatum oldDl                          , UpdateDeadline newDl        ) ->
+    (DeadlineDatum oldDl                          , UpdateDeadline newDl         ) ->
       -- {{{
          signedByKeyHolder
       && traceIfFalse
@@ -382,14 +382,14 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (DeadlineDatum _                              , ConcludeFundingRound        ) ->
+    (DeadlineDatum _                              , ConcludeFundingRound         ) ->
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder
       && traceIfFalse "E002" (mintIsPresent qvfSymbol qvfTokenName (negate 2))
       -- }}}
 
-    (RegisteredProjectsCount _                    , Contribute contribution     ) ->
+    (RegisteredProjectsCount _                    , Contribute contribution      ) ->
       -- Match Pool Contribution
       -- {{{
          traceIfFalse
@@ -401,35 +401,35 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (RegisteredProjectsCount _                    , RegisterProject             ) ->
+    (RegisteredProjectsCount _                    , RegisterProject              ) ->
       -- Project Registration
       -- {{{
       projectMintIsPresent True && canRegisterOrDonate
       -- }}}
 
-    (RegisteredProjectsCount _                    , AccumulatePrizeWeights _    ) ->
+    (RegisteredProjectsCount _                    , AccumulatePrizeWeights govRef) ->
       -- Formation of the Prize Weight Map
       -- (Same logic as `PrizeWeightAccumulation` with this redeemer)
       -- {{{ 
       let
         validOutputs =
-          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs refs
+          accumulatePrizeWeights qvfSymbol qvfProjectSymbol govRef inputs refs
       in
       traceIfFalse "E086" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
 
-    (PrizeWeightAccumulation _ _                  , AccumulatePrizeWeights      ) ->
+    (PrizeWeightAccumulation _ _                  , AccumulatePrizeWeights govRef) ->
       -- Accumulation of Computed Prize Weights
       -- (Same logic as `RegisteredProjectsCount` with this redeemer)
       -- {{{ 
       let
         validOutputs =
-          accumulatePrizeWeights qvfSymbol qvfProjectSymbol inputs refs
+          accumulatePrizeWeights qvfSymbol qvfProjectSymbol govRef inputs refs
       in
       traceIfFalse "E087" (validOutputs == getContinuingOutputs ctx)
       -- }}} 
 
-    (ProjectEliminationProgress mp wMap           , EliminateProject pRef iRef  ) ->
+    (ProjectEliminationProgress mp wMap           , EliminateProject pRef iRef   ) ->
       -- Elimination of Non-Eligible Projects
       -- {{{
       let
@@ -458,7 +458,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
          )
       -- }}}
 
-    (DistributionProgress mp remaining den        , DistributePrize projID      ) ->
+    (DistributionProgress mp remaining den        , DistributePrize projID       ) ->
       -- Handing Out Prize of a Specific Project
       -- {{{
       let
@@ -494,13 +494,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
            )
       -- }}}
 
-    (RegisteredProjectsCount _                    , ConcludeProject _           ) ->
+    (RegisteredProjectsCount _                    , ConcludeProject _            ) ->
       -- Removal of a Donation-less Project
       -- {{{
       projectMintIsPresent False && canFoldOrDistribute
       -- }}}
 
-    (PrizeWeightAccumulation _ _                  , ConcludeProject _           ) ->
+    (PrizeWeightAccumulation _ _                  , ConcludeProject _            ) ->
       -- Removal of a Donation-less Project
       -- (During/after prize weight accumulation, therefore no need to check
       -- the deadline)
@@ -508,7 +508,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       projectMintIsPresent False
       -- }}}
 
-    (DistributionProgress _ remaining _           , ConcludeFundingRound        ) ->
+    (DistributionProgress _ remaining _           , ConcludeFundingRound         ) ->
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder
@@ -519,7 +519,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     -- }}}
 
     -- {{{ PROJECT INTERACTIONS 
-    (ReceivedDonationsCount _                     , DonateToProject             ) ->
+    (ReceivedDonationsCount _                     , DonateToProject              ) ->
       -- Project Donation
       -- {{{
          traceIfFalse
@@ -532,7 +532,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && canRegisterOrDonate
       -- }}}
 
-    (ReceivedDonationsCount _                     , ConcludeProject govRef      ) ->
+    (ReceivedDonationsCount _                     , ConcludeProject govRef       ) ->
       -- Removal of a Donation-less Project
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
@@ -547,7 +547,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                       -> False
       -- }}} 
 
-    (ReceivedDonationsCount tot                   , FoldDonations               ) ->
+    (ReceivedDonationsCount tot                   , FoldDonations                ) ->
       -- Folding Donations
       -- {{{
       if tot <= maxDonationInputsForPhaseTwo then
@@ -571,7 +571,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           )
       -- }}}
 
-    (DonationFoldingProgress tot soFar            , FoldDonations               ) ->
+    (DonationFoldingProgress tot soFar            , FoldDonations                ) ->
       -- Folding Donations
       -- {{{
       let
@@ -596,7 +596,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           (DonationFoldingProgress tot (soFar + expected))
       -- }}}
 
-    (ConsolidationProgress remaining wsSoFar      , FoldDonations               ) ->
+    (ConsolidationProgress remaining wsSoFar      , FoldDonations                ) ->
       -- Reducing Donations to a Single Value
       -- {{{
       traceError "TODO."
@@ -614,7 +614,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                              -> False
       -- }}} 
 
-    (PrizeWeight _ True                           , EliminateProject _ _   ) ->
+    (PrizeWeight _ True                           , EliminateProject _ _         ) ->
       -- Elimination of Non-Eligible Projects
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
@@ -625,7 +625,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                              -> False
       -- }}} 
 
-    (PrizeWeight _ True                           , DistributePrize projID ) ->
+    (PrizeWeight _ True                           , DistributePrize projID       ) ->
       -- Distribution of a Project's Prize
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
@@ -644,7 +644,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}} 
 
     --      v-----------v is there a better term?
-    (Escrow beneficiaries                         , UnlockEscrowFor ben amt) ->
+    (Escrow beneficiaries                         , UnlockEscrowFor ben amt      ) ->
       -- Giving Withdrawal Rights to a Bounty Winner
       -- {{{
       let
@@ -678,7 +678,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (Just (qvfSymbol, qvfTokenName))
       -- }}}
 
-    (Escrow beneficiaries                         , WithdrawBounty winner  ) ->
+    (Escrow beneficiaries                         , WithdrawBounty winner        ) ->
       -- Bounty Collection from Escrow Account
       -- {{{
       let
@@ -716,7 +716,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           -- }}}
       -- }}}
 
-    (Escrow beneficiaries                         , ConcludeProject _      ) ->
+    (Escrow beneficiaries                         , ConcludeProject _            ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
          traceIfFalse
@@ -725,7 +725,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       && projectMintIsPresent False
       -- }}}
 
-    (ProjectInfo _                                , ConcludeProject _      ) ->
+    (ProjectInfo _                                , ConcludeProject _            ) ->
       -- Project Conclusion and Refund of the Registration Fee
       -- {{{
       projectMintIsPresent False
@@ -733,7 +733,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     -- }}}
 
     -- {{{ DONATION INTERACTIONS 
-    (Donation _                                   , FoldDonations               ) ->
+    (Donation _                                   , FoldDonations                ) ->
       -- Folding Donations
       -- To avoid excessive transaction fees, this endpoint delegates its
       -- logic to the @P@ UTxO by checking that it is in fact being spent.
@@ -753,7 +753,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                                 -> False
       -- }}} 
 
-    (Donations _                                  , FoldDonations               ) ->
+    (Donations _                                  , FoldDonations                ) ->
       -- Second Phase of Folding Donations
       -- Similar to `Donation`, this endpoint also delegates its logic. This
       -- time, specifically to `DonationFoldingProgress`.
@@ -769,10 +769,10 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- }}} 
     -- }}}
 
-    (_                                            , QVFDev                      ) ->
+    (_                                            , QVFDev                       ) ->
       -- For development. TODO: REMOVE.
       signedByKeyHolder
-    (_                                            , _                           ) ->
+    (_                                            , _                            ) ->
       traceError "E110"
   -- }}}
 
@@ -838,10 +838,11 @@ findEscrowLovelaces portion requested =
 {-# INLINABLE accumulatePrizeWeights #-}
 accumulatePrizeWeights :: CurrencySymbol
                        -> CurrencySymbol
+                       -> TxOutRef
                        -> [TxInInfo]
                        -> [TxInInfo]
                        -> [TxOut]
-accumulatePrizeWeights qvfSym pSym initInputs initRefs =
+accumulatePrizeWeights qvfSym pSym govRef initInputs initRefs =
   -- {{{
   let
     projMapFn :: TxInInfo -> Maybe (BuiltinByteString, Integer, TxOut)
@@ -862,25 +863,28 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
           Nothing
       -- }}}
 
-    govMapFn :: TxInInfo
-             -> Maybe (Integer, Map BuiltinByteString EliminationInfo, TxOut)
-    govMapFn TxInInfo{txInInfoResolved = i@TxOut{txOutValue}} =
+    -- | Using `pluck` to both avoid (potentially) traversing the whole list,
+    --   and also reduce the second traversal by 1 element.
+    (mGov, inputs') =
       -- {{{
-      if utxoHasOnlyX qvfSym qvfTokenName i then
-        case getInlineDatum i of
-          RegisteredProjectsCount tot    -> Just (tot, Map.empty, i)
-          PrizeWeightAccumulation tot ws -> Just (tot, ws       , i)
-          _                              -> traceError "E060"
-      else
-        Nothing
+      case pluck ((== govRef) . txInInfoOutRef) initInputs of
+        Just (TxInInfo{txInInfoResolved = gO}, ins) ->
+          -- {{{
+          if utxoHasOnlyX qvfSym qvfTokenName gO then
+            case getInlineDatum gO of
+              RegisteredProjectsCount tot    -> (Just (tot, Map.empty, i), ins)
+              PrizeWeightAccumulation tot ws -> (Just (tot, ws       , i), ins)
+              _                              -> traceError "E060"
+          else
+            traceError "E119"
+          -- }}}
+        Nothing                                     -> traceError "E093"
       -- }}}
-
-    govs = mapMaybe govMapFn  initInputs
 
     go [] [] (c, wMap, outs) =
       -- {{{
-      case govs of
-        [(tot, ws, govUTxO@TxOut{txOutValue = govVal})] ->
+      case mGov of
+        Just (tot, ws, govUTxO@TxOut{txOutValue = govVal}) ->
           -- {{{
           let
             remaining = tot - length (Map.toList ws)
@@ -897,7 +901,7 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
           in
           govUTxO {txOutDatum = qvfDatumToInlineDatum updatedD} : outs
           -- }}}
-        _                                               ->
+        _                                                  ->
           -- {{{
           traceError "E059"
           -- }}}
@@ -927,7 +931,7 @@ accumulatePrizeWeights qvfSym pSym initInputs initRefs =
     inputs =
       sortBy
         (\(t, _, _) (t', _, _) -> compare t t')
-        (mapMaybe projMapFn initInputs)
+        (mapMaybe projMapFn inputs')
 
     refs = sort $ mapMaybe infoMapFn initRefs
   in

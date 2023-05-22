@@ -20,7 +20,7 @@ data QVFRedeemer
   | DonateToProject
   | IncreaseDonation       BuiltinByteString Integer
   | FoldDonations
-  | AccumulatePrizeWeights
+  | AccumulatePrizeWeights TxOutRef -- <- GovRef
   | EliminateOneProject    TxOutRef TxOutRef
     --                     ^------^ ^------^
     --                    ProjectRef InfoRef
