@@ -304,10 +304,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       Interval.from dl `Interval.contains` txInfoValidRange info
       -- }}}
 
-    -- | Validates the minting value.
-    mintIsPresent :: CurrencySymbol -> TokenName -> Integer -> Bool
-    mintIsPresent sym tn amt = txInfoMint info == Value.singleton sym tn amt
-
+    -- | Raises exception on @False@.
     projectMintIsPresent :: Bool -> Bool
     projectMintIsPresent shouldMint =
       -- {{{
@@ -321,6 +318,21 @@ mkQVFValidator QVFParams{..} datum action ctx =
                (if shouldMint then amt' == 2 else amt' == negate 2)
         _                 ->
           traceError "E070"
+      -- }}}
+
+    -- | Raises exception on @False@.
+    donationMintIsPresent :: CurrencySymbol -> Bool -> Bool
+    donationMintIsPresent sym shouldMint =
+      -- {{{
+      case flattenValue (txInfoMint info) of
+        [(sym', tn', amt')] ->
+             traceIfFalse "E140" (sym' == qvfDonationSymbol)
+          && traceIfFalse "E141" (getCurrTokenName sym)
+          && traceIfFalse
+               "E142"
+               (if shouldMint then amt' == 1 else amt' < 0)
+        _                   ->
+          traceError "E077"
       -- }}}
 
     -- | Expects a single continuing output, and validates given predicates.
@@ -386,7 +398,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- Conclusion of a Funding Round
       -- {{{
          signedByKeyHolder
-      && traceIfFalse "E002" (mintIsPresent qvfSymbol qvfTokenName (negate 2))
+      && traceIfFalse
+           "E002"
+           (txInfoMint info == Value.singleton qvfSymbol qvfTokenName (negate 2))
       -- }}}
 
     (RegisteredProjectsCount _                    , Contribute contribution      ) ->
@@ -508,8 +522,8 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- {{{
          signedByKeyHolder
       && traceIfFalse
-           "E002"
-           (mintIsPresent qvfSymbol qvfTokenName (negate 2))
+           "E002" -- TODO
+           (txInfoMint info == Value.singleton qvfSymbol qvfTokenName (negate 2))
       -- }}}
     -- }}}
 
@@ -517,14 +531,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
     (ProjectDonations _                           , DonateToProject              ) ->
       -- Project Donation
       -- {{{
-         traceIfFalse
-           "E077"
-           ( mintIsPresent
-               qvfDonationSymbol
-               (getCurrTokenName qvfProjectSymbol)
-               1
-           )
-      && canRegisterOrDonate
+      donationMintIsPresent qvfProjectSymbol True && canRegisterOrDonate
       -- }}}
 
     (ProjectDonations Nothing                     , ConcludeProject govRef       ) ->
@@ -542,59 +549,17 @@ mkQVFValidator QVFParams{..} datum action ctx =
           _                       -> False
       -- }}} 
 
-    (ReceivedDonationsCount tot                   , FoldDonations                ) ->
+    (ProjectDonations _                           , FoldDonations                ) ->
       -- Folding Donations
       -- {{{
-      if tot <= maxDonationInputsForPhaseTwo then
-        -- No need for a two phase folding.
-        let
-          tn = getCurrTokenName qvfProjectSymbol
-        in
-        -- foldDonationsPhaseTwo tot
-           traceIfFalse
-             "E079"
-             (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute
-        && signedByKeyHolder
-      else
-        -- Folding should happen in two phases.
-        foldDonationsPhaseOne
-          maxDonationInputsForPhaseOne -- The number of donation assets expected in inputs.
-          ( DonationFoldingProgress
-              tot                                  -- Total number of donations.
-              (tot - maxDonationInputsForPhaseOne) -- Donations folded so far.
-          )
+      donationMintIsPresent qvfProjectSymbol False && canFoldOrDistribute
       -- }}}
 
-    (DonationFoldingProgress tot soFar            , FoldDonations                ) ->
+    (DonationFoldingProgress _ _                  , FoldDonations                ) ->
       -- Folding Donations
+      -- (No need to check the deadline.)
       -- {{{
-      let
-        remaining = tot - soFar
-      in
-      if remaining == 0 then
-        let
-          tn = getCurrTokenName qvfProjectSymbol
-        in
-        -- foldDonationsPhaseTwo tot
-           traceIfFalse
-             "E080"
-             (mintIsPresent qvfDonationSymbol tn (negate tot))
-        && canFoldOrDistribute
-        && signedByKeyHolder
-      else
-        let
-          expected = min remaining maxDonationInputsForPhaseOne
-        in
-        foldDonationsPhaseOne
-          expected
-          (DonationFoldingProgress tot (soFar + expected))
-      -- }}}
-
-    (ConsolidationProgress remaining wsSoFar      , FoldDonations                ) ->
-      -- Reducing Donations to a Single Value
-      -- {{{
-      traceError "TODO."
+      donationMintIsPresent qvfProjectSymbol False
       -- }}}
 
     (PrizeWeight _ False                          , AccumulatePrizeWeights govRef) ->
@@ -602,10 +567,13 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
         traceIfFalse "E082"
-      $ xInputWithSpecificDatumAndRedeemerExists qvfSymbol qvfTokenName
+      $ xInputWithSpecificDatumAndRedeemerExists qvfSymbol qvfTokenName govRef
       $ \case
           RegisteredProjectsCount _      -> True
           PrizeWeightAccumulation tot ws -> tot > length (Map.toList ws)
+          _                              -> False
+      $ \case
+          AccumulatePrizeWeights govRef' -> govRef == govRef'
           _                              -> False
       -- }}} 
 
@@ -614,7 +582,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
       -- (Delegation of logic to the governance UTxO.)
       -- {{{ 
         traceIfFalse "E100"
-      $ xInputWithSpecificDatumExists qvfSymbol qvfTokenName
+      $ xInputWithSpecificDatumAndRedeemerExists qvfSymbol qvfTokenName
       $ \case
           ProjectEliminationProgress _ _ -> True
           _                              -> False

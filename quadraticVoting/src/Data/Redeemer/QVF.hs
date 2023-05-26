@@ -21,7 +21,7 @@ data QVFRedeemer
   | IncreaseDonation       BuiltinByteString Integer
   | FoldDonations
   | AccumulatePrizeWeights TxOutRef -- <- GovRef
-  | EliminateOneProject    TxOutRef TxOutRef
+  | EliminateProject       TxOutRef TxOutRef
     --                     ^------^ ^------^
     --                    ProjectRef InfoRef
   | DistributePrize        BuiltinByteString
@@ -39,7 +39,7 @@ makeIsDataIndexed ''QVFRedeemer
   , ('IncreaseDonation      , 4 )
   , ('FoldDonations         , 5 )
   , ('AccumulatePrizeWeights, 6 )
-  , ('EliminateOneProject   , 7 )
+  , ('EliminateProject      , 7 )
   , ('DistributePrize       , 8 )
   , ('UnlockEscrowFor       , 9 )
   , ('WithdrawBounty        , 10)

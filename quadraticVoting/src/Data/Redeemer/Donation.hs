@@ -5,8 +5,7 @@
 module Data.Redeemer.Donation where
 
 
-import Plutus.V2.Ledger.Api ( BuiltinByteString
-                            , TxOutRef )
+import Plutus.V2.Ledger.Api ( TxOutRef )
 import PlutusTx             ( makeIsDataIndexed )
 import PlutusTx.Prelude     ( Bool )
 
@@ -19,8 +18,8 @@ data DonationRedeemer
     --   head of the list or not. In other words, if `prepend` is `True`, it's
     --   implied that `TxOutRef` points to a project UTxO, and a donation UTxO
     --   if `False`.
-  | FoldDonations    BuiltinByteString
-    -- ^ Project's identifier (token names).
+  | FoldDonations    TxOutRef
+    -- ^ Pointer to project's head UTxO.
   | Dev
     -- ^ For development. TODO: Remove.
 

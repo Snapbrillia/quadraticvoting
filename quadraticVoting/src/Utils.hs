@@ -458,23 +458,17 @@ makeAuthenticValue lovelaceCount sym tn amt =
 
 
 {-# INLINABLE getTokenNameOfUTxO #-}
--- | Tries to find a singular asset with a given symbol inside the given
---   UTxO, and returns its token name.
+-- | Tries to find a singular asset with a given symbol inside the given UTxO,
+--   and returns its token name.
 getTokenNameOfUTxO :: CurrencySymbol -> TxOut -> Maybe TokenName
-getTokenNameOfUTxO sym utxo =
+getTokenNameOfUTxO sym TxOut{txOutValue = v} = do
   -- {{{
-  case flattenValue (txOutValue utxo) of
-    [(sym', tn', amt'), _] ->
-      -- {{{
-      if sym' == sym && amt' == 1 then
-        Just tn'
-      else
-        Nothing
-      -- }}}
-    _                      ->
-      -- {{{
-      Nothing
-      -- }}}
+  case flattenValue v of
+    lst@[_, _] ->
+      case filter (\(sym', _, _) -> sym' == sym lst of
+        [(_, tn', amt')] -> if amt' == 1 then Just tn' else Nothing
+        _                -> Nothing
+    _          -> Nothing
   -- }}}
 
 
@@ -509,16 +503,22 @@ utxoHasOnlyXWithLovelaces sym tn lovelaces TxOut{txOutValue = v} =
   -- }}}
 
 
+{-# INLINABLE valueHasOnlyX #-}
+-- | Checks if a given UTxO has *only* 1 of asset X, and some Lovelaces.
+valueHasOnlyX :: CurrencySymbol
+              -> TokenName
+              -> Value
+              -> Bool
+valueHasOnlyX sym tn v = valueOf v sym tn == 1 && length (flattenValue v) == 2
+
+
 {-# INLINABLE utxoHasOnlyX #-}
 -- | Checks if a given UTxO has *only* 1 of asset X, and some Lovelaces.
 utxoHasOnlyX :: CurrencySymbol
              -> TokenName
              -> TxOut
              -> Bool
-utxoHasOnlyX sym tn TxOut{txOutValue = v} =
-  -- {{{
-  valueOf v sym tn == 1 && length (flattenValue v) == 2
-  -- }}}
+utxoHasOnlyX sym tn = valueHasOnlyX sym tn . txOutValue
 
 
 {-# INLINABLE utxoHasX #-}
@@ -781,7 +781,7 @@ decimalMultiplier = 1_000_000_000
 -- E006: Invalid value for the main UTxO.
 -- E007: Deadline must match with the provided parameter.
 -- E008: Funding round must start with 0 registered projects.
--- E009: No proper project UTxOs were found in the inputs.
+-- E009: Specified project UTxO was not found in the inputs.
 -- E010: Exactly two UTxOs must be produced, each containing one minted token, in correct order (deadline, main).
 -- E011: UTxO not consumed.
 -- E012: Deadline must be at least one day in the future.
@@ -806,7 +806,7 @@ decimalMultiplier = 1_000_000_000
 -- E031: Invalid value for the donation UTxO.
 -- E032: Produced donation UTxO must carry donor's public key hash as an inlinde datum.
 -- E033: Donation amount is too small.
--- E034: Invalid outputs pattern.
+-- E034: Only one UTxO must be produced at the source script address.
 -- E035: Donor's signature is required.
 -- E036: The provided redeemer for spending the governance UTxO is not valid.
 -- E037: Invalid updated value for the project UTxO.
@@ -840,7 +840,7 @@ decimalMultiplier = 1_000_000_000
 -- E065: Invalid deadline datum.
 -- E066: This funding round is still in progress.
 -- E067: Invalid deadline datum.
--- E068: Invalid asset is getting minted/burnt.
+-- E068: Asset getting minted/burnt doesn't have a project symbol
 -- E069: There should be exactly 2 project assets minted/burnt.
 -- E070: Only one project asset must be minted/burnt.
 -- E071: Invalid Lovelace count at output.
@@ -849,10 +849,10 @@ decimalMultiplier = 1_000_000_000
 -- E074: There should be exactly 1 UTxO going back to the script.
 -- E075: New deadline has already passed.
 -- E076: Missing authentication asset.
--- E077: There should be exactly 1 donation asset minted.
+-- E077: Only one kind of donation asset can be minted/burnt.
 -- E078: The project UTxO must also be getting consumed.
--- E079: All donation assets must be burnt.
--- E080: All donation assets must be burnt.
+-- E079: 
+-- E080: 
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
 -- E083: Missing authentication asset.
@@ -899,7 +899,7 @@ decimalMultiplier = 1_000_000_000
 -- E124: Exactly 1 UTxO must be produced at the script.
 -- E125: Project UTxOs (either state, info, or both) were not found)
 -- E126: The appointed UTxO is unauthentic.
--- E127: 
+-- E127: Outputs going back to the incoming script address don't match the expected outputs.
 -- E128: Invalid input datums.
 -- E129: Unauthentic governance UTxO.
 -- E130: Project owner must be the recepient of the refund.
@@ -908,15 +908,15 @@ decimalMultiplier = 1_000_000_000
 -- E133: The main UTxO must also be getting consumed.
 -- E134: Invalid datum attached to the provided project UTxO.
 -- E135: The specified input was not found.
--- E136: 
+-- E136: Found donation UTxO doesn't carry the proper asset.
 -- E137: New donor's public key hash must be bigger than the last donor.
 -- E138: New donor's public key hash must be bigger than the specified donor.
 -- E139: The datum attached to the provided donation's UTxO is not valid.
--- E140: 
--- E141: Expected the change output at index 0, while the rest of the outputs should've matched according to where the new donor should've been injected.
--- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to where the new donor should've been injected.
--- E143: Expected no change outputs so that all the outputs would match according to where the new donor should've been injected.
--- E144: 
+-- E140: Asset getting minted/burnt doesn't have a donation symbol
+-- E141: Token name of the asset getting minted/burnt doesn't match that of the spending UTxO.
+-- E142: Either 1 donation asset can be getting minted (donation), or a negative quantity must be burnt (folding).
+-- E143: Project UTxO has an invalid datum.
+-- E144: Unauthentic project UTxO encountered.
 -- E145: 
 -- E146: 
 -- E147: Project owner's address has to be a payment address (script address was given).

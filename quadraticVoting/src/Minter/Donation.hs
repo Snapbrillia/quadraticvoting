@@ -66,22 +66,18 @@ mkDonationPolicy pkh projSym action ctx =
            "E127"
            (keepOutputsFrom scriptAddr outputs == expectedOutputs)
       -- }}}
-    FoldDonations projectID        ->
+    FoldDonations projectRef       ->
       -- {{{
       let
-        tn                      = TokenName projectID
-        (projOutput, burnCount) = foldDonationsOutput projSym ownSym tn inputs
+        (projOutput@TxOut{txOutAddress = projAddr}, burnValue) =
+          foldDonationsOutput projSym ownSym projectRef inputs
       in
-         traceIfFalse
-           "E022"
-           (txInfoMint info == Value.singleton ownSym tn (negate burnCount))
+         traceIfFalse "E022" (txInfoMint info == burnValue)
       && traceIfFalse
            "E023"
-           ( case outputs of
-               [o]       -> o == projOutput
-               [_, o]    -> o == projOutput
-               [_, _, o] -> o == projOutput
-               _         -> traceError "E034"
+           ( case keepOutputsFrom projAddr outputs of
+               [o] -> o == projOutput
+               _   -> traceError "E034"
            )
       -- }}}
     -- TODO: REMOVE.
@@ -116,7 +112,7 @@ donationPolicy pkh sym =
 --   either a single project UTxO or donation UTxO such than the new donation
 --   can sit in front of it.
 --
---   Fully validates the input.
+--   Fully validates the input, raises exception if invalid or not found.
 {-# INLINABLE donationOutputs #-}
 donationOutputs :: CurrencySymbol
                 -> CurrencySymbol
@@ -245,92 +241,102 @@ foldDonationsMap dsMap =
 {-# INLINABLE foldingOutputs #-}
 foldDonationsOutput :: CurrencySymbol
                     -> CurrencySymbol
-                    -> TokenName
+                    -> TxOutRef
                     -> [TxInInfo]
-                    -> (TxOut, Integer)
-foldDonationsOutput projSym donSym tn inputs =
+                    -> (TxOut, Value)
+foldDonationsOutput projSym donSym projRef inputs =
   -- {{{
-  let
-    -- | Function for finding and "destructuring" the input project UTxO.
-    projPluckFn :: TxInInfo -> Maybe (Address, Value, Integer, PubKeyHash)
-    projPluckFn TxInInfo{txInInfoResolved = i@TxOut{..}} =
+  case pluckMap (resolveIfRefEquals projRef) inputs of
+    Just (pUTxO@TxOut{txOutAddress = pA, txOutValue = pV}, restOfInputs) ->
       -- {{{
-      if utxoHasOnlyX projSym tn i then
-        case getInlineDatum i of
-          ProjectDonations (Just pkh)   ->
-            Just (txOutAddress, txOutValue, 0, pkh)
-          DonationFoldingProgress w pkh ->
-            Just (txOutAddress, txOutValue, w, pkh)
-          _                             ->
-            Nothing
-      else
-        Nothing
-      -- }}}
+      case getTokenNameOfUTxO projSym pUTxO of
+        Just tn ->
+          -- {{{
+          let
+            initW :: Integer
+            initPKH :: PubKeyHash
+            (initW, initPKH) =
+              -- {{{
+              case getInlineDatum pUTxO of
+                ProjectDonations (Just pkh)   -> (0, pkh)
+                DonationFoldingProgress w pkh -> (w, pkh)
+                _                             -> traceError "E143"
+              -- }}}
 
-    -- | Helper function for constructing the final project UTxO, and donation
-    --   asset burn count. The `Value` argument is presumed to have all the
-    --   provided input donations accumulated.
-    makeOutputAndBurnCount :: Address -> Value -> QVFDatum -> (TxOut, Integer)
-    makeOutputAndBurnCount a v d =
-      -- {{{
-      ( TxOut
-          { txOutAddress         = a
-          , txOutDatum           = qvfDatumToInlineDatum d
-          , txOutReferenceScript = Nothing
-          , txOutValue           =
-              makeAuthenticValue (lovelaceFromValue v) projSym tn 1
-          }
-      , Value.valueOf v donSym tn
-      )
-      -- }}}
+            donInputs :: [TxInInfo]
+            donInputs = keepInputsFrom pA restOfInputs
 
-    -- | Recursive function for collecting all the provided donation UTxOs,
-    --   constructing the proper updated project UTxO, and also returning the
-    --   valid burn count for donation assets.
-    donsToProjectOutput :: Address
-                        -> Value
-                        -> Integer
-                        -> Maybe PubKeyHash
-                        -> [TxInInfo]
-                        -> (TxOut, Integer)
-    donsToProjectOutput a v w Nothing           _        =
-      -- {{{
-      makeOutputAndBurnCount a v $ PrizeWeight (w * w) False
+            -- | Helper function for constructing the final project UTxO, and
+            --   donation asset burn count. The `Value` argument is presumed to
+            --   have all the provided input donations accumulated.
+            makeOutputAndBurnCount :: Address
+                                   -> Value
+                                   -> QVFDatum
+                                   -> (TxOut, Integer)
+            makeOutputAndBurnCount a v d =
+              -- {{{
+              ( TxOut
+                  { txOutAddress         = a
+                  , txOutDatum           = qvfDatumToInlineDatum d
+                  , txOutReferenceScript = Nothing
+                  , txOutValue           =
+                      makeAuthenticValue (lovelaceFromValue v) projSym tn 1
+                  }
+              , Value.singleton donSym tn $ Value.valueOf v donSym tn
+              )
+              -- }}}
+
+            -- | Recursive function for collecting all the provided donation
+            --   UTxOs, constructing the proper updated project UTxO, and also
+            --   returning the valid burn count for donation assets.
+            donsToProjectOutput :: Address
+                                -> Value
+                                -> Integer
+                                -> Maybe PubKeyHash
+                                -> [TxInInfo]
+                                -> (TxOut, Integer)
+            donsToProjectOutput a v w Nothing           _      =
+              -- {{{
+              makeOutputAndBurnCount a v $ PrizeWeight (w * w) False
+              -- }}}
+            donsToProjectOutput a v w mP@(Just headPKH) donIns =
+              -- {{{
+              let
+                pluckFn :: TxInInfo -> Maybe (Value, Maybe PubKeyHash)
+                pluckFn TxInInfo{txInInfoResolved = o@TxOut{txOutValue = v}} =
+                  -- {{{
+                  case getInlineDatum o of
+                    Donation pkh mNext ->
+                      if pkh == headPKH then Just (v, mNext) else Nothing
+                    _                  ->
+                      Nothing
+                  -- }}}
+              in
+              case pluckMap pluckFn dons of
+                Just ((donVal, mNext), restOfIns) ->
+                  -- {{{
+                  if valueHasOnlyX donSym tn donVal then
+                    donsToProjectOutput
+                      a
+                      (v <> donVal) -- ^ Note that all the donation assets are getting accumulated.
+                      (w + takeSqrt (lovelaceFromValue donVal))
+                      mNext
+                      restOfIns
+                  else
+                    traceError "E136"
+                  -- }}}
+                Nothing                           ->
+                  -- {{{
+                  -- No more proper donation UTxOs provided.
+                  makeOutputAndBurnCount a v $ DonationFoldingProgress w mP
+                  -- }}}
+              -- }}}
+          in
+          donsToProjectOutput pA pV initW (Just initPKH) donInputs
+          -- }}}
+        Nothing -> traceError "E144"
       -- }}}
-    donsToProjectOutput a v w mP@(Just headPKH) donIns   =
-      -- {{{
-      let
-        pluckFn :: TxInInfo -> Maybe (Value, Maybe PubKeyHash)
-        pluckFn TxInInfo{txInInfoResolved = o@TxOut{txOutValue = v}} =
-          -- {{{
-          case getInlineDatum o of
-            Donation pkh mNext ->
-              if pkh == headPKH then Just (v, mNext) else Nothing
-            _                  ->
-              Nothing
-          -- }}}
-      in
-      case pluckMap pluckFn dons of
-        Just ((donVal, mNext), restOfIns) ->
-          -- {{{
-          donsToProjectOutput
-            a
-            (v <> donVal) -- ^ Note that all the donation assets are getting accumulated.
-            (w + takeSqrt (lovelaceFromValue donVal))
-            mNext
-            restOfIns
-          -- }}}
-        Nothing                           ->
-          -- {{{
-          -- No more proper donation UTxOs provided.
-          makeOutputAndBurnCount a v $ DonationFoldingProgress w mP
-          -- }}}
-      -- }}}
-  in
-  case pluckMap projPluckFn inputs of
-    Just ((pA, pV, w, hPKH), restOfInputs) ->
-      donsToProjectOutput pA pV w (Just hPKH) restOfInputs
-    Nothing                                ->
+    Nothing                                                              ->
       traceError "E009"
   -- }}}
 -- }}}
