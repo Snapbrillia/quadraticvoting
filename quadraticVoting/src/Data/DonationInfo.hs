@@ -19,14 +19,14 @@ module Data.DonationInfo where
 
 -- IMPORTS
 -- {{{
-import           Data.Aeson             ( FromJSON
-                                        , ToJSON )
-import           GHC.Generics           ( Generic )
-import           Ledger
-import           Plutus.V2.Ledger.Api
-import           Prelude                ( Show )
-import qualified PlutusTx
-import           PlutusTx.Prelude
+import Data.Aeson           ( FromJSON
+                            , ToJSON )
+import GHC.Generics         ( Generic )
+import Plutus.V2.Ledger.Api ( BuiltinByteString
+                            , PubKeyHash )
+import Prelude              ( Show )
+import PlutusTx             ( makeIsDataIndexed )
+import PlutusTx.Prelude
 -- }}}
 
 
@@ -36,5 +36,5 @@ data DonationInfo = DonationInfo
   , diAmount    :: Integer
   } deriving (Show, Generic, FromJSON, ToJSON)
 
-PlutusTx.unstableMakeIsData ''DonationInfo
+unstableMakeIsData ''DonationInfo
 

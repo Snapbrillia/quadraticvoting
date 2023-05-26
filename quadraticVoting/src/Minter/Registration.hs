@@ -110,12 +110,8 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         filterFn :: TxOut -> Bool
         filterFn TxOut{txOutAddress = utxoAddr} = utxoAddr == govAddr
       in
-         traceIfFalse
-           "E020"
-           (txSignedBy info projOwnerPKH)
-      && traceIfFalse
-           "E2"
-           (pdRequested pd >= minRequestable)
+         traceIfFalse "E020" (txSignedBy info projOwnerPKH)
+      && traceIfFalse "E2"   (pdRequested pd >= minRequestable)
       && ( case filter filterFn outputs of
              outs@[_, _, _] ->
                traceIfFalse "E004" (outs == validOutputs)

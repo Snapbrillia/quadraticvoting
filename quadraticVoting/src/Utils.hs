@@ -893,7 +893,7 @@ decimalMultiplier = 1_000_000_000
 -- E123: Project owner must be properly paid.
 -- E124: Exactly 1 UTxO must be produced at the script.
 -- E125: Project UTxOs (either state, info, or both) were not found)
--- E126: 
+-- E126: The appointed UTxO is unauthentic.
 -- E127: 
 -- E128: Invalid input datums.
 -- E129: Unauthentic governance UTxO.
@@ -902,7 +902,7 @@ decimalMultiplier = 1_000_000_000
 -- E132: Transaction fee is set too high.
 -- E133: The main UTxO must also be getting consumed.
 -- E134: Invalid datum attached to the provided project UTxO.
--- E135: Exactly one UTxO of the specified project is expected in the inputs.
+-- E135: The specified input was not found.
 -- E136: 
 -- E137: New donor's public key hash must be bigger than the last donor.
 -- E138: New donor's public key hash must be bigger than the specified donor.

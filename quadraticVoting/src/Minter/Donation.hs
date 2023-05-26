@@ -49,10 +49,10 @@ mkDonationPolicy pkh projSym action ctx =
     ownSym = ownCurrencySymbol ctx
   in
   case action of
-    DonateToProject prepend di ->
+    DonateToProject prepend ref di ->
       -- {{{
       let
-        expectedOutputs = donationOutputs projSym ownSym prepend di inputs
+        expectedOutputs = donationOutputs projSym ownSym prepend ref di inputs
       in
          traceIfFalse
            "E033"
@@ -75,7 +75,7 @@ mkDonationPolicy pkh projSym action ctx =
                -- }}}
          )
       -- }}}
-    FoldDonations projectID    ->
+    FoldDonations projectID        ->
       -- {{{
       let
         tn                      = TokenName projectID
@@ -159,14 +159,15 @@ foldDonationsMap dsMap =
 donationOutputs :: CurrencySymbol
                 -> CurrencySymbol
                 -> Bool
+                -> TxOutRef
                 -> DonationInfo
                 -> [TxInInfo]
                 -> [TxOut]
-donationOutputs projSym donSym prepend DonationInfo{..} inputs =
+donationOutputs projSym donSym prepend ref DonationInfo{..} inputs =
   -- {{{
   let
     tn :: TokenName
-    tn                     = TokenName diProjectID
+    tn = TokenName diProjectID
 
     makeDonUTxO :: Address -> Maybe PubKeyHash -> TxOut
     makeDonUTxO addr mNext =
@@ -179,10 +180,10 @@ donationOutputs projSym donSym prepend DonationInfo{..} inputs =
         }
       -- }}}
   in
-  if prepend then
-    -- {{{
-    case filter (utxoHasOnlyX projSym tn . txInInfoResolved) inputs of
-      [TxInInfo{txInInfoResolved = projUTxO}] ->
+  case find ((==) ref . txInInfoOutRef) inputs of
+    Just (TxInInfo{txInInfoResolved = targetUTxO}) ->
+      -- {{{
+      if prepend && utxoHasOnlyX projSym tn targetUTxO then
         -- {{{
         let
           updateProj :: TxOut -> TxOut
@@ -191,59 +192,53 @@ donationOutputs projSym donSym prepend DonationInfo{..} inputs =
                   qvfDatumToInlineDatum $ ProjectDonations $ Just diDonor
               }
         in
-        case getInlineDatum projUTxO of
+        case getInlineDatum targetUTxO of
           ProjectDonations Nothing            ->
-            [ updateProj projUTxO
-            , makeDonUTxO (txOutAddress projUTxO) Nothing
+            [ updateProj targetUTxO
+            , makeDonUTxO (txOutAddress targetUTxO) Nothing
             ]
           ProjectDonations m@(Just nextDonor) ->
             if diDonor < nextDonor then
-              [ updateProj projUTxO
-              , makeDonUTxO (txOutAddress projUTxO) m
+              [ updateProj targetUTxO
+              , makeDonUTxO (txOutAddress targetUTxO) m
               ]
             else
               traceError "E150"
           _                                   ->
             traceError "E134"
         -- }}}
-      _                                       ->
-        -- {{{
-        traceError "E135"
-        -- }}}
-    -- }}}
-  else
-    -- {{{
-    case filter (utxoHasOnlyX donSym tn . txInInfoResolved) inputs of
-      [TxInInfo{txInInfoResolved = donUTxO}] ->
+      else if utxoHasOnlyX donSym tn targetUTxO then
         -- {{{
         let
           updateDonWith :: QVFDatum -> TxOut -> TxOut
           updateDonWith newDatum d =
             d {txOutDatum = qvfDatumToInlineDatum newDatum}
         in
-        case getInlineDatum donUTxO of
+        case getInlineDatum targetUTxO of
           Donation pkh Nothing            ->
             if diDonor > pkh then
-              [ updateDonWith (Donation pkh $ Just diDonor) donUTxO
-              , makeDonUTxO (txOutAddress donUTxO) Nothing
+              [ updateDonWith (Donation pkh $ Just diDonor) targetUTxO
+              , makeDonUTxO (txOutAddress targetUTxO) Nothing
               ]
             else
               traceError "E137"
           Donation pkh m@(Just nextDonor) ->
             if diDonor > pkh && diDonor < nextDonor then
-              [ updateDonWith (Donation pkh $ Just diDonor) donUTxO
-              , makeDonUTxO (txOutAddress donUTxO) m
+              [ updateDonWith (Donation pkh $ Just diDonor) targetUTxO
+              , makeDonUTxO (txOutAddress targetUTxO) m
               ]
             else
               traceError "E138"
           _                               ->
             traceError "E139"
         -- }}}
-      _                                      ->
-        -- {{{
-        traceError "E140"
-        -- }}}
-    -- }}}
+      else
+        traceError "E126"
+      -- }}}
+    _                                              ->
+      -- {{{
+      traceError "E135"
+      -- }}}
   -- }}}
 
 
