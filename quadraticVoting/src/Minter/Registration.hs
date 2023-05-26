@@ -81,9 +81,9 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
         projOwnerPKH :: PubKeyHash
         projOwnerPKH =
           -- {{{
-          case addressToPubKeyHash (pdPubKeyHash pd) of
-            Just pkh -> pkh
-            Nothing  -> traceError "E147"
+          case addressToPubKeyHash (pdAddress pd) of
+            Just pkh' -> pkh'
+            Nothing   -> traceError "E147"
           -- }}}
 
         currProjectCount :: Integer
@@ -136,7 +136,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           -- {{{
           let
             cond =
-                 utxoHasOnlyX sym qvfTokenName govUTxO
+                 utxoHasOnlyX sym Gov.qvfTokenName govUTxO
               && utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
@@ -159,7 +159,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
             updatedDatum :: QVFDatum
             updatedDatum =
               -- {{{
-              case getInlineDatum inputGovUTxO of
+              case getInlineDatum govUTxO of
                 RegisteredProjectsCount ps         ->
                   RegisteredProjectsCount (ps - 1)
                 PrizeWeightAccumulation ps elimMap ->
@@ -178,14 +178,14 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                  traceIfFalse
                    "E098"
                    ( validateGovUTxO
-                       (txOutValue inputGovUTxO)
-                       (txOutAddress inputGovUTxO)
+                       (txOutValue govUTxO)
+                       (txOutAddress govUTxO)
                        updatedDatum
                        s
                    )
               && ( case getRedeemerOf @QVF.QVFRedeemer (Spending govRef) txRedeemers of
-                     Just QVF.ConcludeProject -> True
-                     _                        -> traceError "E027"
+                     Just (QVF.ConcludeProject _) -> True
+                     _                            -> traceError "E027"
                  )
               -- }}}
           in
@@ -211,7 +211,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                     in
                        outputSIsValid s
                     && qvfRedeemerIsValid
-                    && traceIfFalse "E130" (pdAddress == ownerAddr)
+                    && traceIfFalse "E130" (pdAddress pd == ownerAddr)
                     && traceIfFalse "E131" (outL == registrationFee - txFee)
                     && traceIfFalse "E132" (txFee < maxRemovalTxFee)
                     -- This last validation is put in place to prevent a
@@ -242,7 +242,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           traceError "E016"
           -- }}}
       -- }}}
-    ConcludeAndRefund infoRef projRef projectID                       ->
+    ConcludeAndRefund govRef infoRef projRef projectID                ->
       -- {{{
       let
         currTN     = TokenName projectID
@@ -283,7 +283,10 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                 -- {{{
                    traceIfFalse
                      "E024"
-                     (txSignedBy info $ addressToPubKeyHash pdAddress)
+                     ( case addressToPubKeyHash pdAddress of
+                         Just pkh' -> txSignedBy info pkh'
+                         _         -> traceError "E081"
+                     )
                 && qvfRedeemerIsValid
                 -- }}}
               _                                          ->

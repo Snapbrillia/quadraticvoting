@@ -7,7 +7,6 @@ module Data.Redeemer.Donation where
 
 import Plutus.V2.Ledger.Api ( TxOutRef )
 import PlutusTx             ( makeIsDataIndexed )
-import PlutusTx.Prelude     ( Bool )
 
 import Data.DonationInfo    ( DonationInfo )
 

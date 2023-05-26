@@ -10,7 +10,6 @@ import Plutus.V2.Ledger.Api ( PubKeyHash
                             , TxOutRef
                             , BuiltinByteString )
 import PlutusTx             ( makeIsDataIndexed )
-import PlutusTx.Prelude     ( Integer )
 
 
 data QVFRedeemer

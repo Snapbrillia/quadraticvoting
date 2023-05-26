@@ -1,7 +1,7 @@
 Cabal-Version:      3.6
 
 Name:                quadraticVoting
-Version:             0.2.5.0
+Version:             0.3.0.0
 Author:              Andy Sizer
                    , Curtis Myers
                    , Keyan M.
@@ -29,8 +29,8 @@ library
   exposed-modules:     CLI.Help
                      , CLI.OffChainFileNames
                      , CLI.RegisteredProject
-                     , CLI.Utils
-                     , CLI.Tx
+                     -- , CLI.Utils
+                     -- , CLI.Tx
                      , QVF
                      , Data.Datum
                      , Data.DonationInfo

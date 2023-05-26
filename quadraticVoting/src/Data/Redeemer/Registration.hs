@@ -19,13 +19,14 @@ data RegistrationRedeemer
   | RemoveAndRefund   TxOutRef TxOutRef TxOutRef BuiltinByteString Bool
   --                  ^------^ ^------^ ^------^                   ^--^
   --                    Gov.     Info     State    indicates order of ouputs (gov. first or not)
-  | ConcludeAndRefund TxOutRef TxOutRef BuiltinByteString
-  --                  ^------^ ^------^
-  --                    Info     State
+  | ConcludeAndRefund TxOutRef TxOutRef TxOutRef BuiltinByteString
+  --                  ^------^ ^------^ ^------^
+  --                    Gov.     Info     State
   | Dev
 
 makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0 )
-  , ('ConcludeAndRefund, 1 )
+  , ('RemoveAndRefund  , 1 )
+  , ('ConcludeAndRefund, 2 )
   , ('Dev              , 20)
   ]

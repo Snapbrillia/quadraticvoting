@@ -30,7 +30,6 @@ import qualified Data.ByteString.Lazy        as LBS
 import qualified Data.ByteString.Short       as SBS
 import           Data.String                 ( fromString )
 import qualified Ledger.Ada                  as Ada
-import           Plutus.V1.Ledger.Scripts    ( Redeemer(..) )
 import qualified Plutus.V1.Ledger.Value      as Value
 import           Plutus.V1.Ledger.Value      ( flattenValue
                                              , valueOf
@@ -202,21 +201,21 @@ findMap2 pred0 pred1 elems =
   let
     go [] acc = acc
     go _ acc@(Just _, Just _) = acc
-    go (e : es) acc@(Nothing, Nothing) =
-      case pred0 e of
-        e@Just _ -> go es (e, Nothing)
-        Nothing  ->
-          case pred1 e of
-            e@Just _ -> go es (Nothing, e)
-            Nothing  -> go es acc
-    go (e : es) acc@(e0@Just _, Nothing) =
-      case pred1 e of
-        e@Just _ -> (e0, e)
-        Nothing  -> go es acc
-    go (e : es) acc@(Nothing, e1@Just _) =
-      case pred0 e of
-        e@Just _ -> (e, e1)
-        Nothing  -> go es acc
+    go (x : xs) acc@(Nothing, Nothing) =
+      case pred0 x of
+        e@(Just _) -> go xs (e, Nothing)
+        Nothing    ->
+          case pred1 x of
+            e@(Just _) -> go xs (Nothing, e)
+            Nothing    -> go xs acc
+    go (x : xs) acc@(e0@(Just _), Nothing) =
+      case pred1 x of
+        e@(Just _) -> (e0, e)
+        Nothing    -> go xs acc
+    go (x : xs) acc@(Nothing, e1@(Just _)) =
+      case pred0 x of
+        e@(Just _) -> (e, e1)
+        Nothing    -> go xs acc
   in
   go elems (Nothing, Nothing)
   -- }}}
@@ -234,49 +233,49 @@ findMap3 pred0 pred1 pred2 elems =
   let
     go [] acc = acc
     go _ acc@(Just _, Just _, Just _) = acc
-    go (e : es) acc@(Nothing, Nothing, Nothing) =
-      case pred0 e of
-        e@Just _ -> go es (e, Nothing, Nothing)
-        Nothing  ->
-          case pred1 e of
-            e@Just _ -> go es (Nothing, e, Nothing)
-            Nothing  ->
-              case pred2 e of
-                e@Just _ -> go es (Nothing, Nothing, e)
-                Nothign  -> go es acc
-    go (e : es) acc@(e0@Just _, Nothing, Nothing) =
-      case pred1 e of
-        e@Just _ -> go es (e0, e, Nothing)
-        Nothing  ->
-          case pred2 e of
-            e@Just _ -> go es (e0, Nothing, e)
-            Nothing  -> go es acc
-    go (e : es) acc@(Nothing, e1@Just _, Nothing) =
-      case pred0 e of
-        e@Just _ -> go es (e, e1, Nothing)
-        Nothing  ->
-          case pred2 e of
-            e@Just _ -> go es (Nothing, e1, e)
-            Nothing  -> go es acc
-    go (e : es) acc@(Nothing, Nothing, e2@Just _) =
-      case pred0 e of
-        e@Just _ -> go es (e, Nothing, e2)
-        Nothing  ->
-          case pred1 e of
-            e@Just _ -> go es (Nothing, e, e2)
-            Nothing  -> go es acc
-    go (e : es) acc@(Nothing, e1@Just _, e2@Just _) =
-      case pred0 e of
-        e@Just _ -> (e, e1, e2)
-        Nothing  -> go es acc
-    go (e : es) acc@(e0@Just _, Nothing, e2@Just _) =
-      case pred1 e of
-        e@Just _ -> (e0, e, e2)
-        Nothing  -> go es acc
-    go (e : es) acc@(e0@Just _, e1@Just _, Nothing) =
-      case pred2 e of
-        e@Just _ -> (e0, e1, e)
-        Nothing  -> go es acc
+    go (x : xs) acc@(Nothing, Nothing, Nothing) =
+      case pred0 x of
+        e@(Just _) -> go xs (e, Nothing, Nothing)
+        Nothing    ->
+          case pred1 x of
+            e@(Just _) -> go xs (Nothing, e, Nothing)
+            Nothing    ->
+              case pred2 x of
+                e@(Just _) -> go xs (Nothing, Nothing, e)
+                Nothing    -> go xs acc
+    go (x : xs) acc@(e0@(Just _), Nothing, Nothing) =
+      case pred1 x of
+        e@(Just _) -> go xs (e0, e, Nothing)
+        Nothing    ->
+          case pred2 x of
+            e@(Just _) -> go xs (e0, Nothing, e)
+            Nothing    -> go xs acc
+    go (x : xs) acc@(Nothing, e1@(Just _), Nothing) =
+      case pred0 x of
+        e@(Just _) -> go xs (e, e1, Nothing)
+        Nothing    ->
+          case pred2 x of
+            e@(Just _) -> go xs (Nothing, e1, e)
+            Nothing    -> go xs acc
+    go (x : xs) acc@(Nothing, Nothing, e2@(Just _)) =
+      case pred0 x of
+        e@(Just _) -> go xs (e, Nothing, e2)
+        Nothing    ->
+          case pred1 x of
+            e@(Just _) -> go xs (Nothing, e, e2)
+            Nothing    -> go xs acc
+    go (x : xs) acc@(Nothing, e1@(Just _), e2@(Just _)) =
+      case pred0 x of
+        e@(Just _) -> (e, e1, e2)
+        Nothing    -> go xs acc
+    go (x : xs) acc@(e0@(Just _), Nothing, e2@(Just _)) =
+      case pred1 x of
+        e@(Just _) -> (e0, e, e2)
+        Nothing    -> go xs acc
+    go (x : xs) acc@(e0@(Just _), e1@(Just _), Nothing) =
+      case pred2 x of
+        e@(Just _) -> (e0, e1, e)
+        Nothing    -> go xs acc
   in
   go elems (Nothing, Nothing, Nothing)
   -- }}}
@@ -354,7 +353,7 @@ getRedeemerOf :: forall r. FromData r
               -> Maybe r
 getRedeemerOf purpose txInfoRedeemers = do
   -- {{{
-  rawRedeemer <- Map.lookup purpose txInfoRedeemers
+  (Redeemer rawRedeemer) <- Map.lookup purpose txInfoRedeemers
   fromBuiltinData @r rawRedeemer
   -- }}}
 
@@ -380,6 +379,14 @@ valuePaidToFromOutputs outputs pkh =
   in
   foldr foldFn mempty outputs
   -- }}}
+
+
+{-# INLINABLE valuePaidToAddressFromOutputs #-}
+valuePaidToAddressFromOutputs :: [TxOut] -> Address -> Value
+valuePaidToAddressFromOutputs outputs addr =
+  case addressToPubKeyHash addr of
+    Just pkh -> valuePaidToFromOutputs (keepOutputsFrom addr outputs) pkh
+    Nothing  -> mempty
 
 
 {-# INLINABLE getGovernanceUTxOFrom #-}
@@ -551,71 +558,6 @@ utxoHasLovelaces lovelaces TxOut{txOutValue = v} =
   -- }}}
 
 
-{-# INLINABLE foldDonationInputs #-}
--- | Collects all the donation UTxOs (to one project, specified in the token
---   name) into a @Map@ value: mapping their public key hashes to their donated
---   Lovelace count. It also counts the number of donations.
---
---   Allows mixture of `Donation` and `Donations` datums (TODO?).
---
---   There is also no validation for assuring the UTxO is coming from the
---   script address (TODO?).
---
---   Ignores UTxOs that don't have the specified donation asset, but raises
---   exception if it finds the asset with a datum other than `Donation` or
---   `Donations`.
-foldDonationInputs :: CurrencySymbol
-                   -> TokenName
-                   -> [TxInInfo]
-                   -> ( Integer                -- ^ Count of folded donations
-                      , Integer                -- ^ Total donated Lovelaces
-                      , Map PubKeyHash Integer -- ^ Record of donors and their contributions.
-                      )
-foldDonationInputs donationSymbol donationTN inputs =
-  -- {{{
-  let
-    foldFn TxInInfo{txInInfoResolved = o} (count, total, dMap) =
-      -- {{{
-      let
-        xCount               = utxoXCount donationSymbol donationTN o
-        lovelaces            = lovelaceFromValue $ txOutValue o
-        helperFn mapForUnion =
-          -- {{{
-          ( count + xCount
-          , total + lovelaces
-          , Map.unionWith (+) mapForUnion dMap
-          )
-          -- }}}
-      in
-      if xCount > 0 then
-        -- {{{
-        case getInlineDatum o of
-          Donation donor  ->
-            -- {{{
-            -- TODO: Here we have an implicit assumption that since the
-            --       UTxO has a `Donation` datum, it must also carry
-            --       exactly 1 donation asset.
-            helperFn $ Map.singleton donor lovelaces
-            -- }}}
-          Donations soFar ->
-            -- {{{
-            helperFn soFar
-            -- }}}
-          _               ->
-            -- {{{
-            traceError "E116"
-            -- }}}
-        -- }}}
-      else
-        -- {{{
-        (count, total, dMap)
-        -- }}}
-      -- }}}
-  in
-  foldr foldFn (0, 0, Map.empty) inputs
-  -- }}}
-
-
 -- | Given the match pool's Lovelace count, sum of all the prize weights, and
 --   a project's prize weight, this function finds the portion of the match
 --   pool won by the project.
@@ -720,7 +662,7 @@ findOutputsFromProjectUTxOs
   case (mapMaybe (resolveIfRefEquals projRef) inputs, mapMaybe (resolveIfRefEquals infoRef) refs) of
     ([pUTxO], [iUTxO]) ->
       -- {{{
-      if utxoHasOnlyX projSym projTN inP && utxoHasOnlyX projSym projTN iUTxO then
+      if utxoHasOnlyX projSym projTN pUTxO && utxoHasOnlyX projSym projTN iUTxO then
         validation pUTxO iUTxO
       -- TODO: This check might also be needed.
       -- if txOutAddress inP == txOutAddress infoUTxO then
@@ -853,7 +795,7 @@ decimalMultiplier = 1_000_000_000
 -- E078: The project UTxO must also be getting consumed.
 -- E079: Exactly 2 governance tokens must be getting burnt.
 -- E080: There can't be any remaining projects.
--- E081: The concluded folding project UTxO must also be getting consumed.
+-- E081: Couldn't find the owner's public key hash.
 -- E082: The main UTxO must also be getting consumed.
 -- E083: Missing authentication asset.
 -- E084: Current deadline is too close.
@@ -863,7 +805,7 @@ decimalMultiplier = 1_000_000_000
 -- E088: Invalid input datums.
 -- E089: Unauthentic governance datum is getting spent.
 -- E090: Projects UTxOs are not authentic.
--- E091: Project UTxOs must be from the script address.
+-- E091: 
 -- E092: The redeemer is not pointing to this UTxO.
 -- E093: Could not find the specified governance TxOutRef.
 -- E094: Project owner must be paid accurately.
@@ -917,7 +859,7 @@ decimalMultiplier = 1_000_000_000
 -- E142: Either 1 donation asset can be getting minted (donation), or a negative quantity must be burnt (folding).
 -- E143: Project UTxO has an invalid datum.
 -- E144: Unauthentic project UTxO encountered.
--- E145: 
+-- E145: Could not deduce a publick key hash from project owner's address.
 -- E146: 
 -- E147: Project owner's address has to be a payment address (script address was given).
 -- E148: 

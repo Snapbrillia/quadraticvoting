@@ -24,9 +24,7 @@ module Minter.Governance where
 
 -- IMPORTS
 -- {{{
-import           Ledger.Value as Value                ( flattenValue
-                                                      , valueOf
-                                                      )
+import           Ledger.Value as Value                ( valueOf )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import qualified Plutus.V1.Ledger.Interval            as Interval

@@ -26,7 +26,7 @@ import           PlutusTx.Prelude
 
 import           Data.Datum
 import           Data.DonationInfo
-import           Data.Redeemers                       ( DonationRedeemer(..) )
+import           Data.Redeemer.Donation
 import           Utils
 
 
@@ -60,8 +60,8 @@ mkDonationPolicy pkh projSym action ctx =
         scriptAddr :: Address
         scriptAddr = txOutAddress $ head expectedOutputs
       in
-         traceIfFalse "E033" (diAmount >= minDonationAmount)
-      && traceIfFalse "E035" (txSignedBy info diDonor)
+         traceIfFalse "E033" (diAmount di >= minDonationAmount)
+      && traceIfFalse "E035" (txSignedBy info $ diDonor di)
       && traceIfFalse
            "E127"
            (keepOutputsFrom scriptAddr outputs == expectedOutputs)
@@ -81,7 +81,7 @@ mkDonationPolicy pkh projSym action ctx =
            )
       -- }}}
     -- TODO: REMOVE.
-    DonDev                     ->
+    Dev                        ->
       traceIfFalse "E045" $ txSignedBy info pkh
   -- }}}
 
@@ -238,7 +238,7 @@ foldDonationsMap dsMap =
 --   its corresponding project UTxO comes from.
 --
 --   Raises exception if no proper project UTxOs are found in the inputs.
-{-# INLINABLE foldingOutputs #-}
+{-# INLINABLE foldDonationsOutput #-}
 foldDonationsOutput :: CurrencySymbol
                     -> CurrencySymbol
                     -> TxOutRef
@@ -267,12 +267,12 @@ foldDonationsOutput projSym donSym projRef inputs =
             donInputs = keepInputsFrom pA restOfInputs
 
             -- | Helper function for constructing the final project UTxO, and
-            --   donation asset burn count. The `Value` argument is presumed to
+            --   donation asset burn value. The `Value` argument is presumed to
             --   have all the provided input donations accumulated.
             makeOutputAndBurnCount :: Address
                                    -> Value
                                    -> QVFDatum
-                                   -> (TxOut, Integer)
+                                   -> (TxOut, Value)
             makeOutputAndBurnCount a v d =
               -- {{{
               ( TxOut
@@ -294,25 +294,25 @@ foldDonationsOutput projSym donSym projRef inputs =
                                 -> Integer
                                 -> Maybe PubKeyHash
                                 -> [TxInInfo]
-                                -> (TxOut, Integer)
-            donsToProjectOutput a v w Nothing           _      =
+                                -> (TxOut, Value)
+            donsToProjectOutput a v w Nothing        _      =
               -- {{{
               makeOutputAndBurnCount a v $ PrizeWeight (w * w) False
               -- }}}
-            donsToProjectOutput a v w mP@(Just headPKH) donIns =
+            donsToProjectOutput a v w (Just headPKH) donIns =
               -- {{{
               let
                 pluckFn :: TxInInfo -> Maybe (Value, Maybe PubKeyHash)
-                pluckFn TxInInfo{txInInfoResolved = o@TxOut{txOutValue = v}} =
+                pluckFn TxInInfo{txInInfoResolved = o@TxOut{txOutValue = v'}} =
                   -- {{{
                   case getInlineDatum o of
                     Donation pkh mNext ->
-                      if pkh == headPKH then Just (v, mNext) else Nothing
+                      if pkh == headPKH then Just (v', mNext) else Nothing
                     _                  ->
                       Nothing
                   -- }}}
               in
-              case pluckMap pluckFn dons of
+              case pluckMap pluckFn donIns of
                 Just ((donVal, mNext), restOfIns) ->
                   -- {{{
                   if valueHasOnlyX donSym tn donVal then
@@ -328,7 +328,7 @@ foldDonationsOutput projSym donSym projRef inputs =
                 Nothing                           ->
                   -- {{{
                   -- No more proper donation UTxOs provided.
-                  makeOutputAndBurnCount a v $ DonationFoldingProgress w mP
+                  makeOutputAndBurnCount a v $ DonationFoldingProgress w headPKH
                   -- }}}
               -- }}}
           in

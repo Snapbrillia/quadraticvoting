@@ -9,6 +9,7 @@ module Main (main) where
 
 -- IMPORTS
 -- {{{
+{-
 import Debug.Trace (trace)
 
 import           Cardano.Api
@@ -53,12 +54,15 @@ import qualified Minter.Donation            as Don
 import qualified Minter.Governance          as Gov
 import qualified Minter.Registration        as Reg
 import           Utils
+-}
 -- }}}
 
 
 -- APPLICATION
 -- {{{
 main :: IO ()
+main = putStrLn "TODO"
+{-
 main =
   let
     inputsRefsOutputsJSONHelper  :: ([Input], [Input], [Output])
@@ -1500,4 +1504,5 @@ main =
           putStrLn "FAILED"
     _                                                                   ->
       putStrLn "FAILED: Invalid arguments for QVF-CLI."
+-}
 -- }}}

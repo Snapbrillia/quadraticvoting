@@ -22,10 +22,10 @@ module Data.DonationInfo where
 import Data.Aeson           ( FromJSON
                             , ToJSON )
 import GHC.Generics         ( Generic )
-import Plutus.V2.Ledger.Api ( BuiltinByteString
-                            , PubKeyHash )
+import Ledger()
+import Plutus.V2.Ledger.Api ( PubKeyHash )
 import Prelude              ( Show )
-import PlutusTx             ( makeIsDataIndexed )
+import PlutusTx             ( unstableMakeIsData )
 import PlutusTx.Prelude
 -- }}}
 
