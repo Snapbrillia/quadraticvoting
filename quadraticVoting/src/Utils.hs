@@ -465,7 +465,7 @@ getTokenNameOfUTxO sym TxOut{txOutValue = v} = do
   -- {{{
   case flattenValue v of
     lst@[_, _] ->
-      case filter (\(sym', _, _) -> sym' == sym lst of
+      case filter (\(sym', _, _) -> sym' == sym) lst of
         [(_, tn', amt')] -> if amt' == 1 then Just tn' else Nothing
         _                -> Nothing
     _          -> Nothing
@@ -702,19 +702,19 @@ findQVFDenominator =
 {-# INLINABLE findOutputsFromProjectUTxOs #-}
 findOutputsFromProjectUTxOs :: CurrencySymbol
                             -> TokenName
-                            -> TxOutRef
-                            -> TxOutRef
                             -> [TxInInfo]
                             -> [TxInInfo]
+                            -> TxOutRef
+                            -> TxOutRef
                             -> (TxOut -> TxOut -> a)
                             -> a
 findOutputsFromProjectUTxOs
   projSym
   projTN
-  projRef
-  infoRef
   inputs
   refs
+  projRef
+  infoRef
   validation =
   -- {{{
   case (mapMaybe (resolveIfRefEquals projRef) inputs, mapMaybe (resolveIfRefEquals infoRef) refs) of
@@ -774,7 +774,7 @@ decimalMultiplier = 1_000_000_000
 -- E2  : Can not request 0 or less Lovelaces.
 -- E000: Number of minted governance assets must be exactly 2 plust the specified count of multi-donation UTxOs.
 -- E001: Exactly 2 project tokens must be getting minted.
--- E002: Exactly 2 governance tokens must be getting burnt.
+-- E002: Couldn't find the governance UTxO.
 -- E003: All prizes must be sent out before concluding a funding round.
 -- E004: Outputs of project registration are either invalid or badly ordered.
 -- E005: Invalid value for the deadline UTxO.
@@ -851,8 +851,8 @@ decimalMultiplier = 1_000_000_000
 -- E076: Missing authentication asset.
 -- E077: Only one kind of donation asset can be minted/burnt.
 -- E078: The project UTxO must also be getting consumed.
--- E079: 
--- E080: 
+-- E079: Exactly 2 governance tokens must be getting burnt.
+-- E080: There can't be any remaining projects.
 -- E081: The concluded folding project UTxO must also be getting consumed.
 -- E082: The main UTxO must also be getting consumed.
 -- E083: Missing authentication asset.
@@ -878,7 +878,7 @@ decimalMultiplier = 1_000_000_000
 -- E103: Unauthentic escrow UTxO.
 -- E104: Insufficient funds.
 -- E105: Missing project owner's signature.
--- E106: Unauthentic escrow UTxO.
+-- E106: 
 -- E107: The bounty winner must be imbursed.
 -- E108: Not eligible for bounty withdrawal.
 -- E109: Can not conclude with withstanding beneficiaries.

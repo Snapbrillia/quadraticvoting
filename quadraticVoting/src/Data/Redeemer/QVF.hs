@@ -19,16 +19,17 @@ data QVFRedeemer
   | Contribute             Integer
   | DonateToProject
   | IncreaseDonation       BuiltinByteString Integer
-  | FoldDonations
+  | FoldDonations          TxOutRef -- <- ProjRef
   | AccumulatePrizeWeights TxOutRef -- <- GovRef
-  | EliminateProject       TxOutRef TxOutRef
-    --                     ^------^ ^------^
-    --                    ProjectRef InfoRef
-  | DistributePrize        BuiltinByteString
+  | EliminateProject                         TxOutRef TxOutRef TxOutRef
+    --                                       ^------^ ^------^ ^------^
+    --                                       GovRef  ProjectRef InfoRef
+    --                                       v------v v------v v------v
+  | DistributePrize        BuiltinByteString TxOutRef TxOutRef TxOutRef
   | UnlockEscrowFor        PubKeyHash Integer
   | WithdrawBounty         PubKeyHash
   | ConcludeProject        TxOutRef
-  | ConcludeFundingRound
+  | ConcludeFundingRound   TxOutRef -- <- GovRef
   | Dev
 
 makeIsDataIndexed ''QVFRedeemer
