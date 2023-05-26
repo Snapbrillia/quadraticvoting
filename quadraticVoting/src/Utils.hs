@@ -293,6 +293,11 @@ keepInputsFrom :: Address -> [TxInInfo] -> [TxInInfo]
 keepInputsFrom addr = filter ((== addr) . txOutAddress . txInInfoResolved)
 
 
+{-# INLINABLE keepOutputsFrom #-}
+keepOutputsFrom :: Address -> [TxOut] -> [TxOut]
+keepOutputsFrom addr = filter ((== addr) . txOutAddress)
+
+
 {-# INLINABLE utxoIsGettingSpent #-}
 utxoIsGettingSpent :: [TxInInfo] -> TxOutRef -> Bool
 utxoIsGettingSpent inputs oref =
@@ -907,7 +912,7 @@ decimalMultiplier = 1_000_000_000
 -- E137: New donor's public key hash must be bigger than the last donor.
 -- E138: New donor's public key hash must be bigger than the specified donor.
 -- E139: The datum attached to the provided donation's UTxO is not valid.
--- E140: Exactly one donation UTxO for the specified target project is expected.
+-- E140: 
 -- E141: Expected the change output at index 0, while the rest of the outputs should've matched according to where the new donor should've been injected.
 -- E142: Expected the change outputs at indexes 0 and 1, while the rest should've matched according to where the new donor should've been injected.
 -- E143: Expected no change outputs so that all the outputs would match according to where the new donor should've been injected.

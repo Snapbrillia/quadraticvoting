@@ -52,28 +52,19 @@ mkDonationPolicy pkh projSym action ctx =
     DonateToProject prepend ref di ->
       -- {{{
       let
+        expectedOutputs :: [TxOut]
         expectedOutputs = donationOutputs projSym ownSym prepend ref di inputs
+        -- | Since `donationOutputs` can only return 2 outputs, the partial
+        --   `head` function has been used cautiously here to pick a "sample"
+        --   for the source address.
+        scriptAddr :: Address
+        scriptAddr = txOutAddress $ head expectedOutputs
       in
-         traceIfFalse
-           "E033"
-           (diAmount >= minDonationAmount)
+         traceIfFalse "E033" (diAmount >= minDonationAmount)
+      && traceIfFalse "E035" (txSignedBy info diDonor)
       && traceIfFalse
-           "E035"
-           (txSignedBy info diDonor)
-      && ( case outputs of
-             _ : rest     ->
-               -- {{{
-               traceIfFalse "E141" $ rest == expectedOutputs
-               -- }}}
-             _ : _ : rest ->
-               -- {{{
-               traceIfFalse "E142" $ rest == expectedOutputs
-               -- }}}
-             _            ->
-               -- {{{
-               traceIfFalse "E143" $ outputs == expectedOutputs
-               -- }}}
-         )
+           "E127"
+           (keepOutputsFrom scriptAddr outputs == expectedOutputs)
       -- }}}
     FoldDonations projectID        ->
       -- {{{
@@ -121,35 +112,6 @@ donationPolicy pkh sym =
 
 -- UTILS
 -- {{{
-{-# INLINABLE sumSquareRoots #-}
-sumSquareRoots :: Map PubKeyHash Integer -> Integer
-sumSquareRoots dsMap =
-  -- {{{
-  let
-    ds          = Map.elems dsMap
-    foldFn ls w = takeSqrt ls + w
-  in
-  foldr foldFn 0 ds
-
-  -- }}}
-
-
-{-# INLINABLE foldDonationsMap #-}
--- | Notating Lovelace contributions to each project as \(v\), this is the
---   quadratic formula to represent individual prize weights (\(w_p\)):
---   \[
---       w_p = (\sum{\sqrt{v}})^2
---   \]
-foldDonationsMap :: Map PubKeyHash Integer -> Integer
-foldDonationsMap dsMap =
-  -- {{{
-  let
-    initW = sumSquareRoots dsMap
-  in
-  initW * initW
-  -- }}}
-
-
 -- | Depending on the prepend flag, this function filters the inputs to find
 --   either a single project UTxO or donation UTxO such than the new donation
 --   can sit in front of it.
@@ -239,6 +201,35 @@ donationOutputs projSym donSym prepend ref DonationInfo{..} inputs =
       -- {{{
       traceError "E135"
       -- }}}
+  -- }}}
+
+
+{-# INLINABLE sumSquareRoots #-}
+sumSquareRoots :: Map PubKeyHash Integer -> Integer
+sumSquareRoots dsMap =
+  -- {{{
+  let
+    ds          = Map.elems dsMap
+    foldFn ls w = takeSqrt ls + w
+  in
+  foldr foldFn 0 ds
+
+  -- }}}
+
+
+{-# INLINABLE foldDonationsMap #-}
+-- | Notating Lovelace contributions to each project as \(v\), this is the
+--   quadratic formula to represent individual prize weights (\(w_p\)):
+--   \[
+--       w_p = (\sum{\sqrt{v}})^2
+--   \]
+foldDonationsMap :: Map PubKeyHash Integer -> Integer
+foldDonationsMap dsMap =
+  -- {{{
+  let
+    initW = sumSquareRoots dsMap
+  in
+  initW * initW
   -- }}}
 
 
