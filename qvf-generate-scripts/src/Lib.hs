@@ -3,6 +3,9 @@
 
 module Lib where
 
+handler :: IO ()
+handler = return ()
+{-
 import           GHC.Generics         ( Generic )
 import           Data.Aeson           ( FromJSON, ToJSON )
 import           Aws.Lambda           ( Context )
@@ -57,3 +60,4 @@ handler GenerateScriptsParams{..} _ =
     validator          = OC.qvfValidator qvfParams
     unitRedeemer       = ()
     initialDatum       = RegisteredProjectsCount 0
+-}

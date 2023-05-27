@@ -6,9 +6,13 @@ import           Aws.Lambda ( defaultDispatcherOptions
 import qualified Lib
 
 main :: IO ()
+main = putStrLn "TODO"
+
+{-
 main =
   runLambdaHaskellRuntime
     defaultDispatcherOptions
     (pure ())
     id
     (addStandaloneLambdaHandler "qvf-generate-scripts" Lib.handler)
+-}
