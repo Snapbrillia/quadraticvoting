@@ -18,10 +18,10 @@ data RegistrationRedeemer
   --  Helper from off-chain for finding the governance UTxO
   | RemoveAndRefund   TxOutRef TxOutRef TxOutRef BuiltinByteString Bool
   --                  ^------^ ^------^ ^------^                   ^--^
-  --                    Gov.     Info     State    indicates order of ouputs (gov. first or not)
+  --                    Gov.     State    Info     indicates order of ouputs (gov. first or not)
   | ConcludeAndRefund TxOutRef TxOutRef TxOutRef BuiltinByteString
   --                  ^------^ ^------^ ^------^
-  --                    Gov.     Info     State
+  --                    Gov.     State    Info  
   | Dev
 
 makeIsDataIndexed ''RegistrationRedeemer

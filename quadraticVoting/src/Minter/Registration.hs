@@ -120,19 +120,19 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
          )
       && qvfRedeemerIsValid
       -- }}}
-    RemoveAndRefund govRef infoRef projRef projectID govProducedFirst ->
+    RemoveAndRefund govRef projRef infoRef projectID govProducedFirst ->
       -- {{{
       let
         currTN       = TokenName projectID
         foundTriplet =
           findMap3
             (resolveIfRefEquals govRef)
-            (resolveIfRefEquals infoRef)
             (resolveIfRefEquals projRef)
+            (resolveIfRefEquals infoRef)
             inputs
       in
       case foundTriplet of
-        (Just govUTxO, Just infoUTxO, Just projUTxO) ->
+        (Just govUTxO, Just projUTxO, Just infoUTxO) ->
           -- {{{
           let
             cond =
@@ -141,12 +141,12 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                    ownSym
                    currTN
                    halfOfTheRegistrationFee
-                   infoUTxO
+                   projUTxO
               && utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
                    halfOfTheRegistrationFee
-                   projUTxO
+                   infoUTxO
 
             qvfRedeemerIsValid :: Bool
             qvfRedeemerIsValid = 
@@ -191,8 +191,8 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           in
           if cond then
             -- {{{
-            case (getInlineDatum infoUTxO, getInlineDatum projUTxO) of
-              (ProjectInfo pd, ProjectDonations Nothing) ->
+            case (getInlineDatum projUTxO, getInlineDatum infoUTxO) of
+              (ProjectDonations Nothing, ProjectInfo pd) ->
                 -- {{{
                 case outputs of
                   -- By allowing only two outputs, this validator forces the
@@ -223,7 +223,7 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                     --
                     -- TODO: This may not be the best approach as there is no
                     -- validation for correctness of the `maxRemovalTxFee`
-                    -- parameter (e.g. this can put the contract at an stand-
+                    -- parameter (e.g. this can put the contract at a stand-
                     -- still if it's set too low).
                     -- }}}
                   _              ->
@@ -242,18 +242,18 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           traceError "E016"
           -- }}}
       -- }}}
-    ConcludeAndRefund govRef infoRef projRef projectID                ->
+    ConcludeAndRefund govRef projRef infoRef projectID                ->
       -- {{{
       let
         currTN     = TokenName projectID
         foundTuple =
           findMap2
-            (resolveIfRefEquals infoRef)
             (resolveIfRefEquals projRef)
+            (resolveIfRefEquals infoRef)
             inputs
       in
       case foundTuple of
-        (Just infoUTxO, Just projUTxO) ->
+        (Just projUTxO, Just infoUTxO) ->
           -- {{{
           let
             cond =
@@ -261,12 +261,12 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
                    ownSym
                    currTN
                    halfOfTheRegistrationFee
-                   infoUTxO
+                   projUTxO
               && utxoHasOnlyXWithLovelaces
                    ownSym
                    currTN
                    halfOfTheRegistrationFee
-                   projUTxO
+                   infoUTxO
 
             qvfRedeemerIsValid :: Bool
             qvfRedeemerIsValid = 
@@ -278,8 +278,8 @@ mkRegistrationPolicy pkh sym maxRemovalTxFee action ctx =
           in
           if cond then
             -- {{{
-            case (getInlineDatum infoUTxO, getInlineDatum projUTxO) of
-              (ProjectInfo ProjectDetails{..}, Escrow _) ->
+            case (getInlineDatum projUTxO, getInlineDatum infoUTxO) of
+              (Escrow _, ProjectInfo ProjectDetails{..}) ->
                 -- {{{
                    traceIfFalse
                      "E024"
