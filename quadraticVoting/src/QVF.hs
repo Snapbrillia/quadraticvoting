@@ -322,6 +322,9 @@ mkQVFValidator QVFParams{..} datum action ctx =
   case (datum, action) of
     -- {{{ GOVERNANCE INTERACTIONS 
     (DeadlineDatum oldDl                          , UpdateDeadline newDl         ) ->
+      -- Making sure neither the old deadline nor the new deadline are too
+      -- close to the present. No need to check how far in the future the new
+      -- deadline is being set as the keyholder has no incentive to do so.
       -- {{{
          signedByKeyHolder
       && traceIfFalse
@@ -329,7 +332,7 @@ mkQVFValidator QVFParams{..} datum action ctx =
            (deadlineNotReached $ oldDl - minDeadlineThreshold)
       && traceIfFalse
            "E075"
-           (deadlineNotReached newDl)
+           (deadlineNotReached $ newDl - minDeadlineThreshold)
       && traceIfFalse
            "E076"
            (currUTxOHasX qvfSymbol qvfTokenName)
