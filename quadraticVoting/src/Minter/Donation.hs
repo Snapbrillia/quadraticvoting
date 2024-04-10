@@ -120,15 +120,7 @@ mkDonationPolicy pkh sym action ctx =
            "E035"
            (txSignedBy info diDonor)
       && ( case outputs of
-             [s, v]         ->
-               -- {{{
-               outputSAndVAreValid s v
-               -- }}}
-             [_, s, v]      ->
-               -- {{{
-               outputSAndVAreValid s v
-               -- }}}
-             [_, _, s, v]   ->
+             s : v : _      ->
                -- {{{
                outputSAndVAreValid s v
                -- }}}
@@ -177,15 +169,7 @@ mkDonationPolicy pkh sym action ctx =
               -- }}}
           in
           case outputs of
-            [o]       ->
-              -- {{{
-              foldedOutputIsValid o
-              -- }}}
-            [_, o]    ->
-              -- {{{
-              foldedOutputIsValid o
-              -- }}}
-            [_, _, o] ->
+            o : _     ->
               -- {{{
               foldedOutputIsValid o
               -- }}}
