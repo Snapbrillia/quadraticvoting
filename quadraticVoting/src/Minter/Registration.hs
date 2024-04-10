@@ -147,15 +147,7 @@ mkRegistrationPolicy pkh sym tn action ctx =
            "E020"
            (txSignedBy info $ pdPubKeyHash pd)
       && ( case outputs of
-             [s, p0, p1]       ->
-               -- {{{
-               outputSAndPsAreValid s p0 p1
-               -- }}}
-             [_, s, p0, p1]    ->
-               -- {{{
-               outputSAndPsAreValid s p0 p1
-               -- }}}
-             [_, _, s, p0, p1] ->
+             s : p0 : p1 : _   ->
                -- {{{
                outputSAndPsAreValid s p0 p1
                -- }}}
