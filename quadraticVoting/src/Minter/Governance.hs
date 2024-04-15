@@ -141,15 +141,7 @@ mkQVFPolicy pkh oref deadline r ctx =
         validOutputsPresent =
           -- {{{
           case txInfoOutputs info of
-            [o0, o1]       ->
-              -- {{{
-              validateTwoOutputs o0 o1
-              -- }}}
-            [_, o0, o1]    ->
-              -- {{{
-              validateTwoOutputs o0 o1
-              -- }}}
-            [_, _, o0, o1] ->
+            o0 : o1 : _    ->
               -- {{{
               validateTwoOutputs o0 o1
               -- }}}
