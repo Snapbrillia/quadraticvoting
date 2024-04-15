@@ -161,7 +161,7 @@ export txSigned="$preDir/tx.signed"
 
 # Convenient variable to replace the constant arguemnts for constructing a
 # transaction.
-export BUILD_TX_CONST_ARGS_NO_OUT_FILE="transaction build --babbage-era --cardano-mode $MAGIC --protocol-params-file $protocolsFile --cddl-format"
+export BUILD_TX_CONST_ARGS_NO_OUT_FILE="transaction build --babbage-era --cardano-mode $MAGIC"
 export BUILD_TX_CONST_ARGS="$BUILD_TX_CONST_ARGS_NO_OUT_FILE --out-file $txBody"
 
 
