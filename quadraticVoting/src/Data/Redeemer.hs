@@ -53,29 +53,35 @@ import           Data.DonationInfo
 
 -- QVF ACTION
 -- {{{
-data QVFAction
-  = UpdateDeadline        POSIXTime
+data QVFRedeemer
+  = UpdateDeadline  POSIXTime
   | RegisterProject
-  | DonateToProject       DonationInfo
+  | Contribute      Integer
+  | DonateToProject
   | FoldDonations
-  | AccumulateDonations
-  | PayKeyHolderFee
-  | DistributePrizes
-  | UnlockEscrowFor       PubKeyHash Integer
-  | WithdrawBounty        PubKeyHash
+  | AccumulatePrizeWeights
+  | EliminateOneProject
+  | DistributePrize BuiltinByteString
+  | UnlockEscrowFor PubKeyHash Integer
+  | WithdrawBounty  PubKeyHash
   | ConcludeProject
+  | ConcludeFundingRound
+  | Dev
 
-PlutusTx.makeIsDataIndexed ''QVFAction
-  [ ('UpdateDeadline     , 0)
-  , ('RegisterProject    , 1)
-  , ('DonateToProject    , 2)
-  , ('FoldDonations      , 3)
-  , ('AccumulateDonations, 4)
-  , ('PayKeyHolderFee    , 5)
-  , ('DistributePrizes   , 6)
-  , ('UnlockEscrowFor    , 7)
-  , ('WithdrawBounty     , 8)
-  , ('ConcludeProject    , 9)
+PlutusTx.makeIsDataIndexed ''QVFRedeemer
+  [ ('UpdateDeadline        , 0 )
+  , ('RegisterProject       , 1 )
+  , ('Contribute            , 2 )
+  , ('DonateToProject       , 3 )
+  , ('FoldDonations         , 4 )
+  , ('AccumulatePrizeWeights, 5 )
+  , ('EliminateOneProject   , 6 )
+  , ('DistributePrize       , 7 )
+  , ('UnlockEscrowFor       , 8 )
+  , ('WithdrawBounty        , 9 )
+  , ('ConcludeProject       , 10)
+  , ('ConcludeFundingRound  , 11)
+  , ('Dev                   , 20)
   ]
 -- }}}
 

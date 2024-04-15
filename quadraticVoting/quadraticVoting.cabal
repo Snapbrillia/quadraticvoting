@@ -1,16 +1,24 @@
 Cabal-Version:      3.6
 
 Name:                quadraticVoting
-Version:             0.2.0.0
+Version:             0.2.5.0
 Author:              Andy Sizer
-                   , Tasos Valtinos
+                   , Curtis Myers
                    , Keyan M.
+                   , Paul Ritterbush
+                   , Shan Yu Zhang
+                   , Tasos Valtinos
 Maintainer:          andysizer@snapbrillia.com
-                   , tasosvaltinos@snapbrillia.com
+                   , https://github.com/blockchainrelativity
                    , keyanmaskoot@snapbrillia.com
+                   , https://github.com/ritterbush
+                   , szhang12341@gmail.com
+                   , tasosvaltinos@snapbrillia.com
 Build-Type:          Simple
-Copyright:           © 2022 Snapbrillia
-License-files:       LICENSE.md
+
+Copyright:           © 2022-2023 Snapbrillia
+License:             Apache-2.0
+License-files:       LICENSE
 
 library
   hs-source-dirs:      src
@@ -19,11 +27,15 @@ library
 
   default-language:    Haskell2010
 
-  exposed-modules:     QVF
+  exposed-modules:     CLI.Help
+                     , CLI.OffChainFileNames
+                     , CLI.RegisteredProject
+                     , CLI.Utils
+                     , CLI.Tx
+                     , QVF
                      , Data.Datum
                      , Data.DonationInfo
                      , Data.Redeemer
-                     , Data.RegistrationInfo
                      , Minter.Donation
                      , Minter.Governance
                      , Minter.Registration
@@ -33,6 +45,8 @@ library
                      , aeson
                      , bytestring
                      , cardano-api
+                     , cardano-crypto-class
+                     , cardano-ledger-core
                      , data-default
                      , plutonomy
                      , plutus-ledger
@@ -40,6 +54,9 @@ library
                      , plutus-script-utils
                      , plutus-tx-plugin
                      , plutus-tx
+                     , serialise
+                     , text
+                     , time
 
   ghc-options:         -Wall 
                        -fobject-code

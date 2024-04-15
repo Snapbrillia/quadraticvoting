@@ -15,7 +15,6 @@
 
 module Minter.Donation where
 
-import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V2.Ledger.Api
@@ -34,20 +33,23 @@ import           Utils
 data DonationRedeemer
   = DonateToProject DonationInfo
   | FoldDonations   BuiltinByteString -- ^ Project's identifier
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''DonationRedeemer
   [ ('DonateToProject ,0)
   , ('FoldDonations   ,1)
+  , ('Dev             ,20)
   ]
 -- }}}
 
 
 {-# INLINABLE mkDonationPolicy #-}
-mkDonationPolicy :: CurrencySymbol
+mkDonationPolicy :: PubKeyHash
+                 -> CurrencySymbol
                  -> DonationRedeemer
                  -> ScriptContext
                  -> Bool
-mkDonationPolicy sym action ctx =
+mkDonationPolicy pkh sym action ctx =
   -- {{{
   let
     info :: TxInfo
@@ -64,88 +66,87 @@ mkDonationPolicy sym action ctx =
       -- {{{
       let
         tn :: TokenName
-        tn = TokenName diProjectId
+        tn = TokenName diProjectID
 
         -- Raises exception upon failure.
         inputProjUTxO :: TxOut
         inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
-        -- | Looks for the singular project input UTxO to find its origin
-        --   address, and the number of donations received so far.
+        -- | Checks the datum of the input project UTxO, and in case the datum
+        --   has a proper constructor, the number of donations received so far
+        --   is retrieved.
         --
         --   Raises exception upon failure.
-        originAddr :: Address
         currDCount :: Integer
-        (originAddr, currDCount) =
+        currDCount =
           -- {{{
           case getInlineDatum inputProjUTxO of 
             ReceivedDonationsCount soFar ->
               -- {{{
-              (txOutAddress inputProjUTxO, soFar)
+              soFar
               -- }}}
-            _                           ->
+            _                            ->
               -- {{{
-              traceError "Invalid datum for donation count."
+              traceError "E029"
               -- }}}
           -- }}}
 
-        -- | Raises exception upon failure (full description at the `Utils`
-        --   module).
-        filterVAndValidateP :: TxOut -> Bool
-        filterVAndValidateP =
+        outputSAndVAreValid :: TxOut -> TxOut -> Bool
+        outputSAndVAreValid s v =
           -- {{{
-          filterXAndValidateGov
-            ownSym
-            tn
-            sym
-            tn
-            originAddr
-            (ReceivedDonationsCount $ currDCount + 1)
-          -- }}}
-  
-        outputSAndVArePresent :: Bool
-        outputSAndVArePresent =
-          -- {{{
-          case filter filterVAndValidateP outputs of
-            -- TODO: Verify the enforcement of specific order.
-            [_, v] ->
-              -- {{{
-                 traceIfFalse
-                   "Produced donation UTxO must carry donor's public key hash as an inlinde datum."
-                   (utxosDatumMatchesWith (Donation diDonor) v)
-              && traceIfFalse
-                   "Donation UTxO must carry exactly the same Lovelace count as specified."
-                   (utxoHasLovelaces diAmount v)
-              -- }}}
-            _        ->
-              -- {{{
-              traceError "There should be exactly 1 governance UTxO, and 1 donation UTxO produced."
-              -- }}}
+             traceIfFalse
+               "E030"
+               ( validateGovUTxO
+                   (txOutValue inputProjUTxO)
+                   (txOutAddress inputProjUTxO)
+                   (ReceivedDonationsCount $ currDCount + 1)
+                   s
+               )
+          && traceIfFalse
+               "E031"
+               (utxoHasOnlyXWithLovelaces ownSym tn diAmount v)
+          && traceIfFalse
+               "E032"
+               (utxosDatumMatchesWith (Donation diDonor) v)
           -- }}}
       in 
          traceIfFalse
-           "Donation amount is too small"
+           "E033"
            (diAmount >= minDonationAmount)
       && traceIfFalse
-           "This project has reached the maximum number of donations."
+           "E034"
            (currDCount < maxTotalDonationCount)
       && traceIfFalse
-           "Donor's signature is required."
+           "E035"
            (txSignedBy info diDonor)
-      && outputSAndVArePresent
+      && ( case outputs of
+             [s, v]         ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             [_, s, v]      ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             [_, _, s, v]   ->
+               -- {{{
+               outputSAndVAreValid s v
+               -- }}}
+             _              ->
+               -- {{{
+               traceError "E036"
+               -- }}}
+         )
       -- }}}
-    FoldDonations projectId          ->
+    FoldDonations projectID          ->
       -- {{{
       let
         tn :: TokenName
-        tn = TokenName projectId
+        tn = TokenName projectID
 
         -- Raises exception upon failure.
         inputProjUTxO :: TxOut
         inputProjUTxO = getInputGovernanceUTxOFrom sym tn inputs
-
-        originAddr :: Address
-        originAddr = txOutAddress inputProjUTxO
 
         foldDonationsPhaseTwo :: Integer -> Bool
         foldDonationsPhaseTwo requiredDonationCount =
@@ -154,20 +155,43 @@ mkDonationPolicy sym action ctx =
             (ds, total, finalMap) = foldDonationInputs ownSym tn inputs
             updatedDatum          =
               PrizeWeight (foldDonationsMap finalMap) False
-          in
-          case filter (validateGovUTxO sym tn originAddr updatedDatum) outputs of
-            [o] ->
+            foldedOutputIsValid o =
               -- {{{
                  traceIfFalse
-                   "All donations must be included in the final folding transaction."
-                   (ds == requiredDonationCount)
+                   "E037"
+                   ( utxoHasOnlyXWithLovelaces
+                       sym
+                       tn
+                       (total + halfOfTheRegistrationFee)
+                       o
+                   )
               && traceIfFalse
-                   "All donations Lovelaces must be included within the project UTxO."
-                   (utxoHasLovelaces (total + halfOfTheRegistrationFee) o)
+                   "E038"
+                   (utxosDatumMatchesWith updatedDatum o)
+              && traceIfFalse
+                   "E039"
+                   (txOutAddress o == txOutAddress inputProjUTxO)
+              && traceIfFalse
+                   "E040"
+                   (ds == requiredDonationCount)
               -- }}}
-            _   ->
+          in
+          case outputs of
+            [o]       ->
               -- {{{
-              traceError "Missing output project UTxO with prize weight."
+              foldedOutputIsValid o
+              -- }}}
+            [_, o]    ->
+              -- {{{
+              foldedOutputIsValid o
+              -- }}}
+            [_, _, o] ->
+              -- {{{
+              foldedOutputIsValid o
+              -- }}}
+            _         ->
+              -- {{{
+              traceError "E041"
               -- }}}
           -- }}}
       in
@@ -177,28 +201,30 @@ mkDonationPolicy sym action ctx =
           if tot <= maxDonationInputsForPhaseTwo then
             foldDonationsPhaseTwo tot
           else
-            traceError "Donation count is too large for direct burning."
+            traceError "E042"
           -- }}}
         DonationFoldingProgress tot soFar ->
           -- {{{
           if tot == soFar then
             foldDonationsPhaseTwo tot
           else
-            traceError "All donation tokens must be folded before burning."
+            traceError "E043"
           -- }}}
         _                                 ->
           -- {{{
-          traceError
-            "Project UTxO must carry the proper datum to allow burning of its donation tokens."
+          traceError "E044"
           -- }}}
       -- }}}
+    -- TODO: REMOVE.
+    Dev                              ->
+      traceIfFalse "E045" $ txSignedBy info pkh
   -- }}}
 
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-donationPolicy :: CurrencySymbol -> MintingPolicy
-donationPolicy sym =
+donationPolicy :: PubKeyHash -> CurrencySymbol -> MintingPolicy
+donationPolicy pkh sym =
   -- {{{
   let
     wrap :: (DonationRedeemer -> ScriptContext -> Bool)
@@ -206,19 +232,30 @@ donationPolicy sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| wrap . mkDonationPolicy ||])
+    $$(PlutusTx.compile [|| \pkh' sym' -> wrap $ mkDonationPolicy pkh' sym' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
   -- }}}
-
-
-donationSymbol :: CurrencySymbol -> CurrencySymbol
-donationSymbol = scriptCurrencySymbol . donationPolicy
 -- }}}
 
 
 -- UTILS
 -- {{{
+{-# INLINABLE sumSquareRoots #-}
+sumSquareRoots :: Map PubKeyHash Integer -> Integer
+sumSquareRoots dsMap =
+  -- {{{
+  let
+    ds          = Map.elems dsMap
+    foldFn ls w = takeSqrt ls + w
+  in
+  foldr foldFn 0 ds
+
+  -- }}}
+
+
 {-# INLINABLE foldDonationsMap #-}
 -- | Notating Lovelace contributions to each project as \(v\), this is the
 --   quadratic formula to represent individual prize weights (\(w_p\)):
@@ -229,9 +266,7 @@ foldDonationsMap :: Map PubKeyHash Integer -> Integer
 foldDonationsMap dsMap =
   -- {{{
   let
-    ds                      = Map.toList dsMap
-    foldFn (_, lovelaces) w = takeSqrt lovelaces + w
-    initW                   = foldr foldFn 0 ds
+    initW = sumSquareRoots dsMap
   in
   initW * initW
   -- }}}

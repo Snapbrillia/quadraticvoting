@@ -1,87 +1,86 @@
-. scripts/initiation.sh
+#!/bin/bash
 
-generate_wallets_and_distribute
+if [ -z $REPO ]; then
+  echo "The \$REPO environment variable is not defined. Please review the script at"
+  echo "\`scripts/local-env.sh\` and make any desired changes, and then assign the"
+  echo "absolute path to this repository to \$REPO before proceeding."
+  return 1
+else
+  . $REPO/scripts/local-env.sh
+fi
 
-get_newest_slot
-get_newest_slot
+. $REPO/scripts/initiation.sh
 
-initiate_fund
+initiate_fund dev
 
-. scripts/main.sh
+. $REPO/scripts/contribute.sh $keyHolder 100000000
 
-get_newest_slot
-get_newest_slot
+. $REPO/scripts/env.sh
 
-khAddr=$keyHoldersAddress
+. $REPO/scripts/register-project.sh 1 ProjectA 400000000
 
-register_project 1 $(cat $preDir/1.pkh) ProjectA 10000000000 $khAddr
+. $REPO/scripts/register-project.sh 2 ProjectB 350000000
 
-wait_for_new_slot
-get_newest_slot
+. $REPO/scripts/register-project.sh 3 ProjectC 300000000
 
-register_project 2 $(cat $preDir/2.pkh) ProjectB 10000000000 $khAddr
+. $REPO/scripts/register-project.sh 4 ProjectD 300000000
 
-wait_for_new_slot
-get_newest_slot
+. $REPO/scripts/register-project.sh 5 ProjectE 300000000
 
-register_project 3 $(cat $preDir/3.pkh) ProjectC 10000000000 $khAddr
+. $REPO/scripts/register-project.sh 6 ProjectF 300000000
 
-wait_for_new_slot
-get_newest_slot
+. $REPO/scripts/register-project.sh 7 ProjectG 300000000
 
-register_project 4 $(cat $preDir/4.pkh) ProjectD 10000000000 $khAddr
+. $REPO/scripts/register-project.sh 8 ProjectH 300000000
 
-wait_for_new_slot
-get_newest_slot
+. $REPO/scripts/register-project.sh 9 ProjectI 300000000
 
-register_project 5 $(cat $preDir/5.pkh) ProjectE 10000000000 $khAddr
+donor=6
+for i in $(seq 0 4); do
+  proj=$(project_index_to_token_name $i)
+  . $REPO/scripts/donate-to-project.sh $donor $proj "$(expr $donor - 5)0000000"
+  donor=$(expr $donor + 1)
+done
 
-wait_for_new_slot
-get_newest_slot
+for i in $(seq 0 3); do
+  proj=$(project_index_to_token_name $i)
+  . $REPO/scripts/donate-to-project.sh $donor $proj "$(expr $donor - 5)0000000"
+  donor=$(expr $donor + 1)
+done
 
-donate_from_to_with 6 $(cat $preDir/6.pkh) $(cat $preDir/1.pkh) 10000000 $khAddr
+for i in $(seq 0 2); do
+  proj=$(project_index_to_token_name $i)
+  . $REPO/scripts/donate-to-project.sh $donor $proj "$(expr $donor - 5)0000000"
+  donor=$(expr $donor + 1)
+done
 
-wait_for_new_slot
-get_newest_slot
+for i in $(seq 0 1); do
+  proj=$(project_index_to_token_name $i)
+  . $REPO/scripts/donate-to-project.sh $donor $proj "$(expr $donor - 5)0000000"
+  donor=$(expr $donor + 1)
+done
 
-donate_from_to_with 7 $(cat $preDir/7.pkh) $(cat $preDir/2.pkh) 20000000 $khAddr
+proj=$(project_index_to_token_name 0)
+. $REPO/scripts/donate-to-project.sh $donor $proj "$(expr $donor - 5)0000000"
+donor=$(expr $donor + 1)
 
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 8 $(cat $preDir/8.pkh) $(cat $preDir/3.pkh) 30000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 9 $(cat $preDir/9.pkh) $(cat $preDir/4.pkh) 40000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 10 $(cat $preDir/10.pkh) $(cat $preDir/1.pkh) 50000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 11 $(cat $preDir/11.pkh) $(cat $preDir/2.pkh) 60000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 12 $(cat $preDir/12.pkh) $(cat $preDir/3.pkh) 70000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 13 $(cat $preDir/13.pkh) $(cat $preDir/1.pkh) 80000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 14 $(cat $preDir/14.pkh) $(cat $preDir/2.pkh) 90000000 $khAddr
-
-wait_for_new_slot
-get_newest_slot
-
-donate_from_to_with 15 $(cat $preDir/15.pkh) $(cat $preDir/1.pkh) 100000000 $khAddr
+# for tn in $(get_all_token_names | jq -r '.[]'); do
+#   . $REPO/scripts/fold-donations.sh $tn 1
+# done
+# 
+# . $REPO/scripts/accumulate-prize-weights.sh
+#  
+# for i in $(seq 0 4); do
+#   . $REPO/scripts/eliminate-one-project.sh
+# done
+# 
+# 
+# if [ "$ENV" == "dev" ]; then
+#   for i in $(seq 0 1); do
+#     . $REPO/scripts/distribute-prize.sh $i
+#   done
+# else
+#   echo "TERMINATED: The distribution phase of this scenario only works in the \"dev\""
+#   echo "environment (i.e. \"\$ENV\" == \"dev\")."
+#   return 1
+# fi

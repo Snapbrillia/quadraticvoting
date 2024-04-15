@@ -39,10 +39,11 @@ import           Plutus.V2.Ledger.Api   ( PubKeyHash
                                         , BuiltinByteString )
 import qualified PlutusTx.AssocMap      as Map
 import           PlutusTx.AssocMap      ( Map )
+import qualified Prelude                as P
 import           Prelude                ( Show
                                         , show )
 import qualified PlutusTx
-import           PlutusTx.Prelude       ( Bool(False)
+import           PlutusTx.Prelude       ( Bool(..)
                                         , Integer
                                         , BuiltinByteString
                                         , Eq(..)
@@ -56,7 +57,8 @@ data ProjectDetails = ProjectDetails
   { pdPubKeyHash :: PubKeyHash
   , pdName       :: BuiltinByteString
   , pdRequested  :: Integer
-  } deriving (Show, Generic, FromJSON, ToJSON)
+  } deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
+
 instance Eq ProjectDetails where
   {-# INLINABLE (==) #-}
   ProjectDetails p0 n0 r0 == ProjectDetails p1 n1 r1 =
@@ -68,10 +70,30 @@ PlutusTx.unstableMakeIsData ''ProjectDetails
 -- }}}
 
 
+-- PROJECT ELIMINATION INFO
+-- {{{
+data EliminationInfo = EliminationInfo
+  { eiRequested :: Integer
+  , eiRaised    :: Integer
+  , eiWeight    :: Integer -- TODO: remove?
+  } deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
+
+instance Eq EliminationInfo where
+  {-# INLINABLE (==) #-}
+  EliminationInfo p0 n0 r0 == EliminationInfo p1 n1 r1 =
+    -- {{{
+    p0 == p1 && n0 == n1 && r0 == r1
+    -- }}}
+
+PlutusTx.unstableMakeIsData ''EliminationInfo
+-- }}}
+
+
 -- QVF DATUM
 -- {{{
 data QVFDatum
   -- {{{
+  -- {{{ GOVERNANCE UTXOs (YELLOW) 
   = DeadlineDatum
     -- ^ The datum attached to a reference UTxO for reading the deadline of the fund.
       -- {{{
@@ -84,24 +106,33 @@ data QVFDatum
       Integer
       -- }}}
 
-  | DonationAccumulationProgress
-    -- ^ For keeping track of the folded projects traversed.
+  | PrizeWeightAccumulation
+    -- ^ Progress of forming the complete map of prize weights.
       -- {{{
-      Integer -- ^ Total project count.
-      Integer -- ^ Projects traversed so far.
-      Integer -- ^ Total Lovelaces so far.
-      Integer -- ^ Sum of prize weights so far.
+      Integer                                 -- ^ Total registered projects count.
+      (Map BuiltinByteString EliminationInfo) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
-  | DonationAccumulationConcluded
-    -- ^ Datum after collecting all donations.
+  | ProjectEliminationProgress
+    -- ^ Progress of eliminating non-eligible projects.
+    -- The match pool is needed to be stored because the key holder fee will
+    -- remain inside this UTxO after elimination of each project, and therefore
+    -- the Lovelace count won't continue to represent the match pool.
       -- {{{
-      Integer -- ^ Remaining projects to distribute their prizes.
-      Integer -- ^ Total Lovelaces.
-      Integer -- ^ Sum of prize weights.
-      Bool    -- ^ Key holder fee collected or not.
+      Integer                                 -- ^ Match pool.
+      (Map BuiltinByteString EliminationInfo) -- ^ Requested funds, raised donations, and prize weights of each project.
       -- }}}
 
+  | DistributionProgress
+    -- ^ All non-eligible projects are eliminated at this point.
+      -- {{{
+      Integer -- ^ Starting match pool.
+      Integer -- ^ Remaining projects to collect their prizes.
+      Integer -- ^ Sum of the prize weights (i.e. the denominator).
+      -- }}}
+  -- }}}
+
+  -- {{{ PROJECT UTXOs (RED) 
   | ProjectInfo
     -- ^ To store static info in a reference UTxO.
       -- {{{
@@ -121,13 +152,28 @@ data QVFDatum
       Integer -- ^ Folded so far.
       -- }}}
 
-  | PrizeWeight
-    -- ^ Result of folding all donations.
+  | ConsolidationProgress
+    -- ^ Progress of summing the donation square roots.
       -- {{{
-      Integer -- ^ Prize weight.
-      Bool    -- ^ Whether depleted or not.
+      Integer -- ^ Remaining donations to be consolidated.
+      Integer -- ^ Sum of square roots so far.
       -- }}}
 
+  | PrizeWeight
+    -- ^ Result of folding all donations. Carries the donations.
+      -- {{{
+      Integer -- ^ Prize weight.
+      Bool    -- ^ Whether processed or not.
+      -- }}}
+
+  | Escrow
+    -- ^ For UTxOs that store the excess reward won by projects.
+      -- {{{
+      (Map PubKeyHash Integer)
+      -- }}}
+  -- }}}
+
+  -- {{{ DONATION UTXOs (GREEN) 
   | Donation
     -- ^ For a single donation UTxO.
       -- {{{
@@ -139,44 +185,47 @@ data QVFDatum
       -- {{{
       (Map PubKeyHash Integer)
       -- }}}
-
-  | Escrow
-    -- ^ For UTxOs that store the excess reward won by projects.
-      -- {{{
-      (Map PubKeyHash Integer)
-      -- }}}
-
-  deriving (Show, Generic, FromJSON, ToJSON)
   -- }}}
+  -- }}}
+  deriving (Show, Generic, FromJSON, ToJSON, P.Eq)
 
 instance Eq QVFDatum where
   {-# INLINABLE (==) #-}
   -- {{{
   DeadlineDatum pt0 == DeadlineDatum pt1 = pt0 == pt1
   RegisteredProjectsCount c0 == RegisteredProjectsCount c1 = c0  == c1
-  DonationAccumulationProgress t0 s0 d0 w0 == DonationAccumulationProgress t1 s1 d1 w1 = t0 == t1 && s0 == s1 && d0 == d1 && w0 == w1
-  DonationAccumulationConcluded t0 d0 w0 k0 == DonationAccumulationConcluded t1 d1 w1 k1 = t0 == t1 && d0 == d1 && w0 == w1 && k0 == k1
+  PrizeWeightAccumulation t0 w0 == PrizeWeightAccumulation t1 w1 = t0 == t1 && w0 == w1
+  ProjectEliminationProgress m0 w0 == ProjectEliminationProgress m1 w1 = m0 == m1 && w0 == w1
+  DistributionProgress m0 p0 w0 == DistributionProgress m1 p1 w1 = m0 == m1 && p0 == p1 && w0 == w1
+  --
   ProjectInfo dets0 == ProjectInfo dets1 = dets0 == dets1
   ReceivedDonationsCount c0 == ReceivedDonationsCount c1 = c0 == c1
   DonationFoldingProgress t0 s0 == DonationFoldingProgress t1 s1 = t0 == t1 && s0 == s1
-  PrizeWeight w0 d0 == PrizeWeight w1 d1 = w0 == w1 && d0 == d1
+  ConsolidationProgress r0 w0 == ConsolidationProgress r1 w1 = r0 == r1 && w0 == w1
+  PrizeWeight w0 b0 == PrizeWeight w1 b1 = w0 == w1 && b0 == b1
+  Escrow m0 == Escrow m1 = m0 == m1
+  --
   Donation p0 == Donation p1 = p0 == p1
   Donations m0 == Donations m1 = m0 == m1
-  Escrow m0 == Escrow m1 = m0 == m1
+  --
   _ == _ = False
   -- }}}
 
 PlutusTx.makeIsDataIndexed ''QVFDatum
-  [ ('DeadlineDatum                , 0)
-  , ('RegisteredProjectsCount      , 1)
-  , ('DonationAccumulationProgress , 2)
-  , ('DonationAccumulationConcluded, 3)
-  , ('ProjectInfo                  , 4)
-  , ('ReceivedDonationsCount       , 5)
-  , ('DonationFoldingProgress      , 6)
-  , ('PrizeWeight                  , 7)
-  , ('Donation                     , 8)
-  , ('Donations                    , 9)
-  , ('Escrow                       , 10)
+  [ ('DeadlineDatum             , 0 )
+  , ('RegisteredProjectsCount   , 1 )
+  , ('PrizeWeightAccumulation   , 2 )
+  , ('ProjectEliminationProgress, 3 )
+  , ('DistributionProgress      , 4 )
+  --
+  , ('ProjectInfo               , 5 )
+  , ('ReceivedDonationsCount    , 6 )
+  , ('DonationFoldingProgress   , 7 )
+  , ('ConsolidationProgress     , 8 )
+  , ('PrizeWeight               , 9 )
+  , ('Escrow                    , 10)
+  --
+  , ('Donation                  , 11)
+  , ('Donations                 , 12)
   ]
 -- }}}

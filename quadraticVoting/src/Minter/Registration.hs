@@ -11,12 +11,13 @@
 {-# LANGUAGE TypeOperators         #-}
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NumericUnderscores    #-}
+{-# LANGUAGE NamedFieldPuns        #-}
 
 
 module Minter.Registration where
 
 
-import           Ledger                               ( scriptCurrencySymbol )
 import qualified Plutonomy
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PSU.V2
 import           Plutus.V2.Ledger.Api
@@ -25,7 +26,6 @@ import qualified PlutusTx
 import           PlutusTx.Prelude
 
 import           Data.Datum
-import           Data.RegistrationInfo
 import qualified Minter.Governance                    as Gov
 import           Utils
 
@@ -33,12 +33,14 @@ import           Utils
 -- REDEEMER
 -- {{{
 data RegistrationRedeemer
-  = RegisterProject RegistrationInfo
+  = RegisterProject ProjectDetails
   | ConcludeAndRefund BuiltinByteString
+  | Dev
 
 PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
   [ ('RegisterProject  , 0)
   , ('ConcludeAndRefund, 1)
+  , ('Dev              , 20)
   ]
 -- }}}
 
@@ -46,166 +48,260 @@ PlutusTx.makeIsDataIndexed ''RegistrationRedeemer
 -- POLICY SCRIPT
 -- {{{
 {-# INLINABLE mkRegistrationPolicy #-}
-mkRegistrationPolicy :: CurrencySymbol
+mkRegistrationPolicy :: PubKeyHash
+                     -> CurrencySymbol
                      -> TokenName
                      -> RegistrationRedeemer
                      -> ScriptContext
                      -> Bool
-mkRegistrationPolicy sym tn action ctx =
+mkRegistrationPolicy pkh sym tn action ctx =
   -- {{{
   let
     info :: TxInfo
     info = scriptContextTxInfo ctx
 
-    inputs = txInfoInputs info
+    inputs  = txInfoInputs info
+    outputs = txInfoOutputs info
 
     ownSym :: CurrencySymbol
     ownSym = ownCurrencySymbol ctx
   in 
   case action of
-    RegisterProject RegistrationInfo{..} ->
+    RegisterProject pd          ->
       -- {{{
       let
-        -- | The resulting token name based on the specified UTxO being spent.
-        currTN :: TokenName
-        currTN = orefToTokenName riTxOutRef
-
         inputGovUTxO :: TxOut
         inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
         -- | Looks for the singular authenticated governance input UTxO to find
-        --   the origin address of the governance asset, and the number of
-        --   projects registrered so far.
+        --   the origin address of the governance asset, its assets, and the
+        --   number of projects registrered so far.
         --
         --   Raises exception upon failure.
-        originAddr :: Address
         currPCount :: Integer
-        (originAddr, currPCount) =
+        currPCount =
           -- {{{
           case getInlineDatum inputGovUTxO of 
             RegisteredProjectsCount soFar ->
               -- {{{
-              (txOutAddress inputGovUTxO, soFar)
+              soFar
               -- }}}
-            _                           ->
+            _                             ->
               -- {{{
-              traceError "Invalid datum for project registration."
+              traceError "E013"
               -- }}}
           -- }}}
 
-        -- | Raises exception upon failure (full description at the `Utils`
-        --   module).
-        filterPsAndValidateS :: TxOut -> Bool
-        filterPsAndValidateS =
-          -- {{{
-          filterXAndValidateGov
-            ownSym
-            currTN
-            sym
-            tn
-            originAddr
-            (RegisteredProjectsCount $ currPCount + 1)
-          -- }}}
+        -- | The resulting token name based on the specified UTxO being spent.
+        currTN :: TokenName
+        currTN = indexToTokenName currPCount
 
-        -- | Validates the presence of 2 output project UTxOs: one for storing
-        --   project's static information, and the other to keep a record of
-        --   the number of donations the project will receive.
+        -- | Checks if the given UTxOs carry project's assets, and makes sure
+        --   the first one has a `ProjectInfo` datum, while the second one has
+        --   a `ReceivedDonationsCount` attached. Also expects each of them to
+        --   carry exactly half of the registration fee Lovelaces.
         --
-        --   Output governance UTxO gets validated by the filtering function,
-        --   but its presence is expected at the head of the filtered list.
+        --   It also validates that the produced governance UTxO is sent back
+        --   to its origin, and that it has a properly updated datum attached.
         --
         --   Raises exception on @False@.
-        outputSAndPsArePresent :: Bool
-        outputSAndPsArePresent =
+        outputSAndPsAreValid :: TxOut -> TxOut -> TxOut -> Bool
+        outputSAndPsAreValid s p0 p1 =
           -- {{{
-          case filter filterPsAndValidateS (txInfoOutputs info) of
-            -- TODO: Is it OK to expect a certain order for these outputs?
-            --       This is desired to prevent higher transaction fees.
-            [_, p0, p1] ->
-              -- {{{
-                 traceIfFalse
-                   "First project output must carry its static info."
-                   ( utxosDatumMatchesWith
-                       (ProjectInfo riProjectDetails)
-                       p0
-                   )
-              && traceIfFalse
-                   "Second project output must carry its record of donations."
-                   ( utxosDatumMatchesWith
-                       (ReceivedDonationsCount 0)
-                       p1
-                   )
-              && traceIfFalse
-                   "Half of the registration fee should be stored in project's reference UTxO."
-                   (utxoHasLovelaces halfOfTheRegistrationFee p0)
-              && traceIfFalse
-                   "Half of the registration fee should be stored in project's main UTxO."
-                   (utxoHasLovelaces halfOfTheRegistrationFee p1)
-              -- }}}
-            _           ->
-              -- {{{
-              traceError
-                "There should be exactly 1 governance, and 2 project UTxOs produced."
-              -- }}}
-        -- }}}
+             traceIfFalse
+               "E2"
+               (pdRequested pd > minRequestable)
+          && traceIfFalse
+               "E014"
+               ( validateGovUTxO
+                   (txOutValue inputGovUTxO)
+                   (txOutAddress inputGovUTxO)
+                   (RegisteredProjectsCount $ currPCount + 1)
+                   s
+               )
+          && traceIfFalse
+               "E015"
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   p0
+               )
+          && traceIfFalse
+               "E016"
+               ( utxoHasOnlyXWithLovelaces
+                   ownSym
+                   currTN
+                   halfOfTheRegistrationFee
+                   p1
+               )
+          && traceIfFalse
+               "E017"
+               (utxosDatumMatchesWith (ProjectInfo pd) p0)
+          && traceIfFalse
+               "E018"
+               (utxosDatumMatchesWith (ReceivedDonationsCount 0) p1)
+          -- }}}
       in
-         outputSAndPsArePresent
-      && traceIfFalse
-           "Specified UTxO must be consumed."
-           (utxoIsGettingSpent inputs riTxOutRef)
-      && traceIfFalse
-           "Project owner's signature is required."
-           (txSignedBy info $ pdPubKeyHash riProjectDetails)
+         traceIfFalse
+           "E020"
+           (txSignedBy info $ pdPubKeyHash pd)
+      && ( case outputs of
+             [s, p0, p1]       ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             [_, s, p0, p1]    ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             [_, _, s, p0, p1] ->
+               -- {{{
+               outputSAndPsAreValid s p0 p1
+               -- }}}
+             _                 ->
+               -- {{{
+               traceError "E021"
+               -- }}}
+         )
       -- }}}
-    ConcludeAndRefund projectId          ->
+    ConcludeAndRefund projectID ->
       -- {{{
-      let
-        currTN :: TokenName
-        currTN = TokenName projectId
+      case inputs of
+        TxInInfo{txInInfoResolved = p0} : TxInInfo{txInInfoResolved = p1} : rest ->
+          -- {{{
+          case getInlineDatum p0 of
+            ProjectInfo ProjectDetails{..} ->
+              -- {{{
+              case getInlineDatum p1 of
+                ReceivedDonationsCount ds                ->
+                  -- {{{
+                  if ds == 0 then
+                    -- {{{
+                    let
+                      inputGovUTxO :: TxOut
+                      inputGovUTxO = getInputGovernanceUTxOFrom sym tn inputs
 
-        inputPsAreValid =
-          case filter (utxoHasX ownSym (Just currTN) . txInInfoResolved) inputs of
-            [TxInInfo{txInInfoResolved = p0}, TxInInfo{txInInfoResolved = p1}] ->
-              -- {{{
-              case getInlineDatum p0 of
-                ProjectInfo ProjectDetails{..} ->
-                  -- {{{
-                  case getInlineDatum p1 of
-                    Escrow _                                 ->
-                      -- {{{
-                         traceIfFalse
-                           "Escrow must be depleted before refunding the registration fee."
-                           ( lovelaceFromValue (txOutValue p1)
-                             == halfOfTheRegistrationFee
-                           )
-                      && traceIfFalse
-                           "Transaction must be signed by the project owner."
-                           (txSignedBy info pdPubKeyHash)
-                      -- }}}
-                    _                                        ->
-                      -- {{{
-                      traceError "Invalid datum for the second project input."
-                      -- }}}
+                      updatedDatum :: QVFDatum
+                      updatedDatum =
+                        -- {{{
+                        case getInlineDatum inputGovUTxO of
+                          RegisteredProjectsCount ps         ->
+                            RegisteredProjectsCount (ps - 1)
+                          PrizeWeightAccumulation ps elimMap ->
+                            PrizeWeightAccumulation (ps - 1) elimMap
+                          _                                  ->
+                            traceError "E097"
+                        -- }}}
+
+                      -- | Checks the output governance UTxO to have unchanged
+                      --   address and value, and that it also has the proper
+                      --   datum attached.
+                      --
+                      --   Raises exception on @False@.
+                      outputSIsValid :: TxOut -> Bool
+                      outputSIsValid s =
+                        -- {{{
+                        traceIfFalse
+                          "E098"
+                          ( validateGovUTxO
+                              (txOutValue inputGovUTxO)
+                              (txOutAddress inputGovUTxO)
+                              updatedDatum
+                              s
+                          )
+                        -- }}}
+                    in
+                    case outputs of
+                      [TxOut{txOutAddress = Address (PubKeyCredential pkh') _, txOutValue}, s] ->
+                        -- {{{
+                        let
+                          txFee = lovelaceFromValue (txInfoFee info)
+                          outL  = lovelaceFromValue txOutValue
+                        in
+                           outputSIsValid s
+                        && traceIfFalse "E130" (pdPubKeyHash == pkh')
+                        && traceIfFalse "E131" (outL == registrationFee - txFee)
+                        && traceIfFalse "E132" (txFee < 1_700_000)
+                        -- This last validation is put in place to prevent a
+                        -- possible attack where the attacker sets the
+                        -- transaction fee as high as possible to serve the
+                        -- network at the expense of the project owner.
+                        --
+                        -- However, this magic number (1700000) is based on the
+                        -- protocol paramaters at the time of writing, and
+                        -- *can* change. TODO.
+                        -- }}}
+                      _                                                                        ->
+                        -- {{{
+                        traceError "E099"
+                        -- }}}
+                    -- }}}
+                  else
+                    -- {{{
+                    traceError "E093"
+                    -- }}}
                   -- }}}
-                _                              ->
+                Escrow _                                 ->
                   -- {{{
-                  traceError "First project input must be the info UTxO."
+                  let
+                    currTN = TokenName projectID
+                    addr0  = txOutAddress p0
+                    addr1  = txOutAddress p1
+                  in
+                     traceIfFalse
+                       "E022"
+                       ( utxoHasOnlyXWithLovelaces
+                           ownSym
+                           currTN
+                           halfOfTheRegistrationFee
+                           p0
+                       )
+                  && traceIfFalse
+                       "E023"
+                       ( utxoHasOnlyXWithLovelaces
+                           ownSym
+                           currTN
+                           halfOfTheRegistrationFee
+                           p1
+                       )
+                  && traceIfFalse
+                       "E024"
+                       (txSignedBy info pdPubKeyHash)
+                  && traceIfFalse
+                       "E118"
+                       (addr0 == addr1)
+                  && ( if any ((== addr0) . txOutAddress . txInInfoResolved) rest then
+                         traceError "E119"
+                       else
+                         True
+                     )
+                  -- }}}
+                _                                        ->
+                  -- {{{
+                  traceError "E025"
                   -- }}}
               -- }}}
-            _        ->
+            _                              ->
               -- {{{
-              traceError "Exactly 2 project inputs are expected."
+              traceError "E026"
               -- }}}
-      in
-      inputPsAreValid
-      -- traceError "TODO."
+          -- }}}
+        _                                                                        ->
+          -- {{{
+          traceError "E027"
+          -- }}}
       -- }}}
+    -- TODO: REMOVE.
+    Dev                         ->
+      traceIfFalse "E028" $ txSignedBy info pkh
   -- }}}
+
 
 -- TEMPLATE HASKELL, BOILERPLATE, ETC. 
 -- {{{
-registrationPolicy :: CurrencySymbol -> MintingPolicy
-registrationPolicy sym =
+registrationPolicy :: PubKeyHash -> CurrencySymbol -> MintingPolicy
+registrationPolicy pkh sym =
   -- {{{
   let
     wrap :: (RegistrationRedeemer -> ScriptContext -> Bool)
@@ -213,7 +309,9 @@ registrationPolicy sym =
     wrap = PSU.V2.mkUntypedMintingPolicy
   in
   Plutonomy.optimizeUPLC $ mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| \sym' tn' -> wrap $ mkRegistrationPolicy sym' tn' ||])
+    $$(PlutusTx.compile [|| \pkh' sym' tn' -> wrap $ mkRegistrationPolicy pkh' sym' tn' ||])
+    `PlutusTx.applyCode`
+    PlutusTx.liftCode pkh
     `PlutusTx.applyCode`
     PlutusTx.liftCode sym
     `PlutusTx.applyCode`
@@ -221,7 +319,7 @@ registrationPolicy sym =
   -- }}}
 
 
-registrationSymbol :: CurrencySymbol -> CurrencySymbol
-registrationSymbol = scriptCurrencySymbol . registrationPolicy
+-- registrationSymbol :: CurrencySymbol -> CurrencySymbol
+-- registrationSymbol = scriptCurrencySymbol . registrationPolicy
 -- }}}
 -- }}}
