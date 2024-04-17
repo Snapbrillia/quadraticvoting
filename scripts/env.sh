@@ -49,6 +49,18 @@ remove_back_slashes() {
 # Returns the POSIX time in milliseconds a week from now.
 #
 # Takes no arguments.
+posix_one_day_from_now() {
+  # {{{
+  now=$(date +%s)
+  init=$(expr $now + 86400)
+  echo "$init"000
+  # }}}
+}
+
+
+# Returns the POSIX time in milliseconds a week from now.
+#
+# Takes no arguments.
 posix_one_week_from_now() {
   # {{{
   now=$(date +%s)
@@ -65,6 +77,19 @@ posix_one_month_from_now() {
   # {{{
   now=$(date +%s)
   init=$(expr $now + 2628000)
+  echo "$init"000
+  # }}}
+}
+
+
+# Returns the POSIX time in milliseconds given argument in ***seconds*** from now.
+#
+# Takes 1 argument:
+#    1: Time in ***seconds*** to advance from now.
+posix_seconds_from_now() {
+  # {{{
+  now=$(date +%s)
+  init=$(expr $now + $1)
   echo "$init"000
   # }}}
 }
@@ -471,9 +496,9 @@ generate_wallet() {
 # Doesn't take any arguments, uses global variables.
 plutus_script_to_address() {
   # {{{
-  $cli address build-script       \
-    $MAGIC                        \
-    --script-file $mainScriptFile \
+  $cli address build                       \
+    $MAGIC                                 \
+    --payment-script-file  $mainScriptFile \
     --out-file $scriptAddressFile
   # }}}
 }
@@ -578,6 +603,56 @@ show_utxo_tables_from_to () {
     fi
   # }}}
 }
+
+
+# Gives lovelaces from one wallet to another.
+# Takes 3 arguments:
+#   1. The spending wallet name,
+#   2. The receiving wallet name,
+#   3. Total amount of Lovelace to be distributed equally.
+give_from_to_wallet() {
+  # {{{
+    spendingAddr=$(cat $preDir/$1.addr)
+    tx_in_str=$(get_all_input_utxos_at $1)
+    tx_out_str=''
+    lovelace_amt="$3"
+
+    # Build --tx-out string
+    addr=$(cat $preDir/$2.addr)
+    tx_out_str=$tx_out_str' --tx-out '$addr'+'$lovelace_amt
+    # tx_out_str="$tx_out_str --tx-out \"$addr + $lovelace_amt\""
+
+    # Helper logs:
+    echo "Starting to send a total of $3 Lovelaces to $2."
+    echo "(Each wallet will receive $lovelace_amt Lovelaces)."
+    echo
+    echo "Input UTxO's are:"
+    echo $tx_in_str
+    echo
+    echo "Output addresses are:"
+    echo $tx_out_str
+
+    # Transaction
+    $cli transaction build             \
+        --babbage-era                  \
+        $MAGIC                         \
+        $tx_in_str                     \
+        --change-address $spendingAddr \
+        $tx_out_str                    \
+        --out-file $txBody
+
+    $cli transaction sign                  \
+        --tx-body-file $txBody             \
+        --signing-key-file $preDir/$1.skey \
+        $MAGIC                             \
+        --out-file $txSigned
+
+    $cli transaction submit \
+        $MAGIC     \
+        --tx-file $txSigned
+  # }}}
+}
+
 
 # Equally distributes a given total Lovelace count from a wallet, between a
 # number of wallets designated with a numeric range.
