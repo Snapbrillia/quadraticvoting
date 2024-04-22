@@ -12,6 +12,9 @@ export cli="cardano-cli"
 # The `qvf-cli` binary:
 export qvf="qvf-cli"
 
+# Absolute path to the quadraticvoting repo directory
+export REPO="$HOME/quadraticvoting"
+
 # Absolute path to the directory for storing wallets/artifacts:
 export preDir="$REPO/testnet3"
 mkdir -p $preDir
