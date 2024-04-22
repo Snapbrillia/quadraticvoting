@@ -9,8 +9,6 @@ else
   . $REPO/scripts/local-env.sh
 fi
 
-. $REPO/scripts/env.sh
-
 # Creating the $fileNamesJSONFile:
 # {{{
 touch $fileNamesJSONFile
@@ -192,3 +190,5 @@ else
 fi
 export referenceWalletAddress=$(cat "$preDir/$referenceWallet.addr")
 # }}}
+
+. $REPO/scripts/env.sh
