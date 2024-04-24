@@ -549,6 +549,21 @@ get_first_utxo_of() {
   # }}}
 }
 
+# Returns the "first" UTxO from a wallet (the first in the table returned by
+# the `cardano-cli` application), formatted as `<txId>#<txIndex>`.
+#
+# Takes 1 argument:
+#   1. Wallet address.
+get_first_utxo_of_addr() {
+  # {{{
+  echo `$cli query utxo               \
+    --address $1  \
+    $MAGIC                            \
+    | sed 1,2d                        \
+    | awk 'FNR == 1 {print $1"#"$2}'`
+  # }}}
+}
+
 # Takes 2 arguments:
 #   1. Wallet number/name,
 #   2. Row of the UTxO table.
@@ -580,6 +595,22 @@ get_all_input_utxos_at() {
   # }}}
 }
 
+# Returns a list of all UTxO's available at the given wallet address file, each
+# prefixed with "--tx-in" for convenient use while constructing a transaction.
+#
+# Takes 1 argument:
+#   1. Wallet address.
+get_all_input_utxos_at_addr() {
+  # {{{
+  echo `$cli query utxo                           \
+    --address $1                                  \
+    $MAGIC                                        \
+    | sed 1,2d                                    \
+    | awk '{print $1"#"$2}'                       \
+    | sed 's/^/--tx-in /'                         \
+    | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/ /g'`
+  # }}}
+}
 
 # Given a numeric range (inclusive), displays the utxo information table from
 # the address of the .addr file of each number, and displays any addresses
@@ -653,6 +684,52 @@ give_from_to_wallet() {
   # }}}
 }
 
+# Gives lovelaces from one wallet to another.
+# Takes 3 arguments:
+#   1. The spending wallet addr,
+#   2. The receiving wallet addr,
+#   3. Total amount of Lovelace to be distributed equally.
+give_from_to_wallet_addr() {
+  # {{{
+    spendingAddr=$1
+    tx_in_str=$(get_all_input_utxos_at_addr $1)
+    tx_out_str=''
+    lovelace_amt="$3"
+
+    # Build --tx-out string
+    addr=$2
+    tx_out_str=$tx_out_str' --tx-out '$addr'+'$lovelace_amt
+    # tx_out_str="$tx_out_str --tx-out \"$addr + $lovelace_amt\""
+
+    # Helper logs:
+    echo "Starting to send a total of $3 Lovelaces from $1 to $2."
+    echo
+    echo "Input UTxO's are:"
+    echo $tx_in_str
+    echo
+    echo "Output addresses are:"
+    echo $tx_out_str
+
+    # Transaction
+    $cli transaction build             \
+        --babbage-era                  \
+        $MAGIC                         \
+        $tx_in_str                     \
+        --change-address $spendingAddr \
+        $tx_out_str                    \
+        --out-file $txBody
+
+    $cli transaction sign                  \
+        --tx-body-file $txBody             \
+        --signing-key-file $preDir/$1.skey \
+        $MAGIC                             \
+        --out-file $txSigned
+
+    $cli transaction submit \
+        $MAGIC     \
+        --tx-file $txSigned
+  # }}}
+}
 
 # Equally distributes a given total Lovelace count from a wallet, between a
 # number of wallets designated with a numeric range.
