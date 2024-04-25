@@ -11,7 +11,7 @@ fi
 
 . $REPO/scripts/initiation.sh
 
-initiate_fund dev
+#initiate_fund dev
 
 . $REPO/scripts/contribute.sh $keyHolder 100000000
 
@@ -27,13 +27,13 @@ initiate_fund dev
 
 . $REPO/scripts/register-project.sh 5 ProjectE 300000000
 
-. $REPO/scripts/register-project.sh 6 ProjectF 300000000
+#. $REPO/scripts/register-project.sh 6 ProjectF 300000000
 
-. $REPO/scripts/register-project.sh 7 ProjectG 300000000
+#. $REPO/scripts/register-project.sh 7 ProjectG 300000000
 
-. $REPO/scripts/register-project.sh 8 ProjectH 300000000
+#. $REPO/scripts/register-project.sh 8 ProjectH 300000000
 
-. $REPO/scripts/register-project.sh 9 ProjectI 300000000
+#. $REPO/scripts/register-project.sh 9 ProjectI 300000000
 
 donor=6
 for i in $(seq 0 4); do
